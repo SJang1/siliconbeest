@@ -14,6 +14,7 @@ import measures from './measures';
 import relays from './relays';
 import email from './email';
 import customEmojis from './customEmojis';
+import federation from './federation';
 
 const admin = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -31,5 +32,6 @@ admin.route('/measures', measures);
 admin.route('/relays', relays);
 admin.route('/email', email);
 admin.route('/custom_emojis', customEmojis);
+admin.route('/federation', federation);
 
 export default admin;

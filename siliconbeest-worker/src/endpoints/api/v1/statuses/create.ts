@@ -2,6 +2,13 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
+import { buildCreateActivity } from '../../../../federation/activityBuilder';
+import { enqueueFanout, enqueueDelivery } from '../../../../federation/deliveryManager';
+import { serializeNote } from '../../../../federation/noteSerializer';
+import { parseContent, type ParsedMention } from '../../../../utils/contentParser';
+import { resolveWebFinger } from '../../../../federation/webfinger';
+import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
+import type { StatusRow, AccountRow } from '../../../../types/db';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -14,38 +21,6 @@ function generateULID(): string {
   return (ts + rand).toUpperCase();
 }
 
-/** Minimal HTML rendering: escape HTML and wrap in <p> */
-function renderContent(text: string): string {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  // Convert newlines to <br>
-  const withBr = escaped.replace(/\n/g, '<br/>');
-  return `<p>${withBr}</p>`;
-}
-
-/** Extract @mentions from text */
-function extractMentions(text: string): string[] {
-  const re = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
-  const mentions: string[] = [];
-  let match;
-  while ((match = re.exec(text)) !== null) {
-    mentions.push(match[1]);
-  }
-  return mentions;
-}
-
-/** Extract #hashtags from text */
-function extractHashtags(text: string): string[] {
-  const re = /#([a-zA-Z0-9_]+)/g;
-  const tags: string[] = [];
-  let match;
-  while ((match = re.exec(text)) !== null) {
-    tags.push(match[1].toLowerCase());
-  }
-  return tags;
-}
 
 const app = new Hono<HonoEnv>();
 
@@ -83,7 +58,8 @@ app.post('/', authRequired, async (c) => {
   const sensitive = body.sensitive ? 1 : 0;
   const spoilerText = body.spoiler_text || '';
   const language = body.language || 'en';
-  const content = renderContent(statusText);
+  const parsed = parseContent(statusText, domain);
+  const content = parsed.html;
   const statusUri = `https://${domain}/users/${currentAccount.username}/statuses/${statusId}`;
   const statusUrl = `https://${domain}/@${currentAccount.username}/${statusId}`;
 
@@ -161,8 +137,24 @@ app.post('/', authRequired, async (c) => {
     // Queue failure should not block status creation
   }
 
-  // Handle hashtags
-  const hashtags = extractHashtags(statusText);
+  // Enqueue preview card fetch for the first URL in the status text
+  try {
+    const urlMatch = statusText.match(/https?:\/\/[^\s<>"')\]]+/i);
+    if (urlMatch) {
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'fetch_preview_card',
+        statusId,
+        url: urlMatch[0],
+      });
+    }
+  } catch {
+    // Queue failure should not block status creation
+  }
+
+  // ============================================================
+  // Handle hashtags (from parseContent results)
+  // ============================================================
+  const hashtags = parsed.tags;
   for (const tag of hashtags) {
     const existingTag = await c.env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tag).first();
     let tagId: string;
@@ -180,18 +172,223 @@ app.post('/', authRequired, async (c) => {
     ).bind(statusId, tagId).run();
   }
 
-  // Handle mentions
-  const mentionUsernames = extractMentions(statusText);
-  for (const username of mentionUsernames) {
-    const mentioned = await c.env.DB.prepare(
-      'SELECT id FROM accounts WHERE username = ?1 AND domain IS NULL',
-    ).bind(username).first();
-    if (mentioned) {
-      const mentionId = generateULID();
-      await c.env.DB.prepare(
-        'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-      ).bind(mentionId, statusId, mentioned.id as string, now).run();
+  // ============================================================
+  // Handle mentions: resolve accounts (local + remote via WebFinger),
+  // create DB mention rows, and send notifications BEFORE building
+  // the AP note so serializeNote sees the correct mention data.
+  // ============================================================
+  interface ResolvedMention {
+    account_id: string;
+    actor_uri: string;
+    acct: string;
+    inbox_url: string | null;
+    mentionDomain: string | null;
+  }
+
+  const resolvedMentions: ResolvedMention[] = [];
+
+  for (const mention of parsed.mentions) {
+    let accountRow: Record<string, unknown> | null = null;
+
+    if (mention.domain) {
+      // Federated mention: @user@domain  --  look up by username+domain
+      accountRow = await c.env.DB.prepare(
+        'SELECT id, uri, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
+      ).bind(mention.username, mention.domain).first();
+
+      // If not found locally, try WebFinger resolution
+      if (!accountRow) {
+        try {
+          const wfResult = await resolveWebFinger(`${mention.username}@${mention.domain}`, c.env.CACHE);
+          if (wfResult) {
+            // resolveRemoteAccount will fetch the actor doc and upsert
+            const accountId = await resolveRemoteAccount(wfResult.actorUri, c.env);
+            if (accountId) {
+              accountRow = await c.env.DB.prepare(
+                'SELECT id, uri, inbox_url, domain FROM accounts WHERE id = ?1',
+              ).bind(accountId).first();
+            }
+          }
+        } catch (e) {
+          console.error(`WebFinger resolution failed for ${mention.acct}:`, e);
+        }
+      }
+    } else {
+      // Local mention: @user
+      accountRow = await c.env.DB.prepare(
+        'SELECT id, uri, inbox_url, domain FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
+      ).bind(mention.username).first();
     }
+
+    if (!accountRow) continue;
+
+    const mentionedAccountId = accountRow.id as string;
+    const mentionId = generateULID();
+
+    // Insert mention record into DB
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
+    ).bind(mentionId, statusId, mentionedAccountId, now).run();
+
+    resolvedMentions.push({
+      account_id: mentionedAccountId,
+      actor_uri: (accountRow.uri as string) || '',
+      acct: mention.acct,
+      inbox_url: (accountRow.inbox_url as string) || null,
+      mentionDomain: (accountRow.domain as string) || null,
+    });
+
+    // Create mention notification (don't notify yourself)
+    if (mentionedAccountId !== currentUser.account_id) {
+      try {
+        await c.env.QUEUE_INTERNAL.send({
+          type: 'create_notification',
+          recipientAccountId: mentionedAccountId,
+          senderAccountId: currentUser.account_id,
+          notificationType: 'mention',
+          statusId,
+        });
+      } catch (_) { /* don't fail */ }
+    }
+  }
+
+  // ============================================================
+  // Fix content HTML: replace local proxy mention hrefs with actual actor URIs
+  // This ensures AP Note content has correct links for remote servers
+  // ============================================================
+  let fixedContent = content;
+  for (const rm of resolvedMentions) {
+    if (rm.mentionDomain && rm.actor_uri) {
+      // Get the actor's profile URL (actor_uri is like https://kokonect.link/users/SJang)
+      const actorUrl = rm.actor_uri.replace('/users/', '/@').replace('/user/', '/@');
+      const localProxyUrl = `https://${domain}/@${rm.acct}`;
+      // Replace both the href and keep the display the same
+      fixedContent = fixedContent.replace(
+        `href="${localProxyUrl}"`,
+        `href="${actorUrl}"`,
+      );
+    }
+  }
+  // Update DB content if changed
+  if (fixedContent !== content) {
+    await c.env.DB.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
+  }
+
+  // ============================================================
+  // Federation: deliver Create(Note) activity
+  // ============================================================
+  try {
+    const actorUri = `https://${domain}/users/${currentAccount.username}`;
+    const fullAccount = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(currentAccount.id).first();
+    const statusRowForNote: StatusRow = {
+      id: statusId,
+      uri: statusUri,
+      url: statusUrl,
+      account_id: currentUser.account_id,
+      in_reply_to_id: inReplyToId,
+      in_reply_to_account_id: inReplyToAccountId,
+      reblog_of_id: null,
+      text: statusText,
+      content: fixedContent,
+      content_warning: spoilerText,
+      visibility,
+      sensitive: sensitive,
+      language,
+      conversation_id: conversationId,
+      reply: isReply,
+      replies_count: 0,
+      reblogs_count: 0,
+      favourites_count: 0,
+      local: 1,
+      federated_at: null,
+      edited_at: null,
+      deleted_at: null,
+      poll_id: null,
+      created_at: now,
+      updated_at: now,
+    };
+    const accountRowForNote: AccountRow = {
+      id: currentUser.account_id,
+      username: currentAccount.username,
+      domain: null,
+      display_name: (fullAccount?.display_name as string) || '',
+      note: (fullAccount?.note as string) || '',
+      uri: actorUri,
+      url: `https://${domain}/@${currentAccount.username}`,
+      avatar_url: (fullAccount?.avatar_url as string) || '',
+      avatar_static_url: (fullAccount?.avatar_static_url as string) || '',
+      header_url: (fullAccount?.header_url as string) || '',
+      header_static_url: (fullAccount?.header_static_url as string) || '',
+      locked: 0,
+      bot: 0,
+      discoverable: 1,
+      manually_approves_followers: 0,
+      statuses_count: 0,
+      followers_count: 0,
+      following_count: 0,
+      last_status_at: null,
+      created_at: now,
+      updated_at: now,
+      suspended_at: null,
+      silenced_at: null,
+      memorial: 0,
+      moved_to_account_id: null,
+    };
+
+    // Build mention data for serializeNote (already resolved above)
+    const mentionsForNote = resolvedMentions.map((rm) => ({
+      account_id: rm.account_id,
+      actor_uri: rm.actor_uri,
+      acct: rm.acct,
+      status_id: statusId,
+      id: '',
+      created_at: now,
+      silent: 0,
+    }));
+
+    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote });
+    const activity = buildCreateActivity(actorUri, note);
+    const activityJson = JSON.stringify(activity);
+
+    // Collect remote inboxes we need to deliver to directly (mentioned users)
+    const deliveredInboxes = new Set<string>();
+
+    // Deliver to each mentioned remote user's inbox (for ALL visibility levels)
+    for (const rm of resolvedMentions) {
+      if (rm.mentionDomain && rm.inbox_url) {
+        if (!deliveredInboxes.has(rm.inbox_url)) {
+          deliveredInboxes.add(rm.inbox_url);
+          await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, rm.inbox_url, currentUser.account_id);
+        }
+      } else if (rm.mentionDomain && rm.actor_uri) {
+        // Fallback: derive inbox from actor URI
+        const fallbackInbox = `${rm.actor_uri}/inbox`;
+        if (!deliveredInboxes.has(fallbackInbox)) {
+          deliveredInboxes.add(fallbackInbox);
+          await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, fallbackInbox, currentUser.account_id);
+        }
+      }
+    }
+
+    if (visibility === 'public' || visibility === 'unlisted') {
+      // Fanout to all followers
+      await enqueueFanout(c.env.QUEUE_FEDERATION, activityJson, currentUser.account_id);
+
+      // If this is a reply to a remote user, also deliver directly to their inbox
+      if (inReplyToAccountId) {
+        const parentAuthor = await c.env.DB.prepare(
+          'SELECT id, domain, inbox_url, uri FROM accounts WHERE id = ?1',
+        ).bind(inReplyToAccountId).first();
+        if (parentAuthor && parentAuthor.domain) {
+          const inbox = (parentAuthor.inbox_url as string) || `${parentAuthor.uri as string}/inbox`;
+          if (!deliveredInboxes.has(inbox)) {
+            await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, inbox, currentUser.account_id);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Federation delivery failed for status create:', e);
   }
 
   // Fetch full account data for response
@@ -266,7 +463,12 @@ app.post('/', authRequired, async (c) => {
     application: null,
     account: accountData,
     media_attachments: mediaAttachments,
-    mentions: [],
+    mentions: resolvedMentions.map((rm) => ({
+      id: rm.account_id,
+      username: rm.acct.split('@')[0],
+      url: rm.actor_uri,
+      acct: rm.acct,
+    })),
     tags: hashtags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
     emojis: [],
     card: null,

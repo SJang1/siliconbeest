@@ -12,6 +12,8 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired, authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { buildEmojiReactActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -58,8 +60,17 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
 	if (authorDomain) {
-		// TODO: Build and deliver Like activity with _misskey_reaction via deliver_activity
-		// For now, emoji reactions are local-only for remote statuses
+		const authorAccountId = statusRow.account_id as string;
+		const authorAccount = await c.env.DB.prepare(
+			'SELECT inbox_url, shared_inbox_url FROM accounts WHERE id = ?',
+		).bind(authorAccountId).first<{ inbox_url: string | null; shared_inbox_url: string | null }>();
+		const inbox = authorAccount?.shared_inbox_url || authorAccount?.inbox_url;
+		if (inbox) {
+			const actorUri = `https://${domain}/users/${c.get('currentAccount')?.username}`;
+			const statusUri = statusRow.uri as string;
+			const activity = buildEmojiReactActivity(actorUri, statusUri, emoji);
+			await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), inbox, currentAccountId);
+		}
 	}
 
 	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId);
@@ -90,8 +101,18 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
 	if (authorDomain && (deleted.meta?.changes ?? 0) > 0) {
-		// TODO: Build and deliver Undo(Like) activity with _misskey_reaction
-		// For now, emoji reaction removal is local-only for remote statuses
+		const authorAccountId = statusRow.account_id as string;
+		const authorAccount = await c.env.DB.prepare(
+			'SELECT inbox_url, shared_inbox_url FROM accounts WHERE id = ?',
+		).bind(authorAccountId).first<{ inbox_url: string | null; shared_inbox_url: string | null }>();
+		const inbox = authorAccount?.shared_inbox_url || authorAccount?.inbox_url;
+		if (inbox) {
+			const actorUri = `https://${domain}/users/${c.get('currentAccount')?.username}`;
+			const statusUri = statusRow.uri as string;
+			const likeActivity = buildEmojiReactActivity(actorUri, statusUri, emoji);
+			const undoActivity = buildUndoActivity(actorUri, likeActivity);
+			await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(undoActivity), inbox, currentAccountId);
+		}
 	}
 
 	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId);
@@ -128,6 +149,32 @@ app.get('/:id/reactions', authOptional, async (c) => {
 		.bind(statusId)
 		.all();
 
+	// Collect unique custom emoji shortcodes (those with colons like :blobcat:)
+	const customEmojiShortcodes = new Set<string>();
+	for (const row of results ?? []) {
+		const emoji = row.emoji as string;
+		if (emoji.startsWith(':') && emoji.endsWith(':')) {
+			customEmojiShortcodes.add(emoji.slice(1, -1));
+		}
+	}
+
+	// Fetch custom emoji URLs from DB
+	const emojiUrlMap = new Map<string, { url: string; static_url: string }>();
+	if (customEmojiShortcodes.size > 0) {
+		const shortcodes = [...customEmojiShortcodes];
+		const emojiPlaceholders = shortcodes.map(() => '?').join(',');
+		const { results: emojiRows } = await c.env.DB.prepare(
+			`SELECT shortcode, image_key FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
+		).bind(...shortcodes).all();
+		for (const er of emojiRows ?? []) {
+			const sc = er.shortcode as string;
+			const imageKey = er.image_key as string;
+			// image_key is either a full URL (remote) or an R2 key (local)
+			const url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
+			emojiUrlMap.set(sc, { url, static_url: url });
+		}
+	}
+
 	// Group by emoji
 	const emojiMap = new Map<
 		string,
@@ -135,6 +182,8 @@ app.get('/:id/reactions', authOptional, async (c) => {
 			name: string;
 			count: number;
 			me: boolean;
+			url: string | null;
+			static_url: string | null;
 			accounts: Record<string, unknown>[];
 		}
 	>();
@@ -142,7 +191,13 @@ app.get('/:id/reactions', authOptional, async (c) => {
 	for (const row of results ?? []) {
 		const emoji = row.emoji as string;
 		if (!emojiMap.has(emoji)) {
-			emojiMap.set(emoji, { name: emoji, count: 0, me: false, accounts: [] });
+			let emojiInfo: { url: string | null; static_url: string | null } = { url: null, static_url: null };
+			if (emoji.startsWith(':') && emoji.endsWith(':')) {
+				const sc = emoji.slice(1, -1);
+				const info = emojiUrlMap.get(sc);
+				if (info) emojiInfo = info;
+			}
+			emojiMap.set(emoji, { name: emoji, count: 0, me: false, url: emojiInfo.url, static_url: emojiInfo.static_url, accounts: [] });
 		}
 		const entry = emojiMap.get(emoji)!;
 		entry.count += 1;

@@ -104,7 +104,7 @@ app.post('/:username/inbox', async (c) => {
 		return c.json({ error: 'Could not retrieve actor public key' }, 401);
 	}
 
-	const isValid = await verifySignature(c.req.raw, publicKeyPem);
+	const isValid = await verifySignature(c.req.raw, publicKeyPem, rawBody);
 	if (!isValid) {
 		return c.json({ error: 'Invalid HTTP Signature' }, 401);
 	}

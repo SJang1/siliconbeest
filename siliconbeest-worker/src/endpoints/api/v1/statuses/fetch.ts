@@ -86,6 +86,9 @@ async function serializeStatusEnriched(
     status.favourited = e.favourited ?? false;
     status.reblogged = e.reblogged ?? false;
     status.bookmarked = e.bookmarked ?? false;
+    status.card = e.card ?? null;
+    status.emojis = e.emojis ?? [];
+    status.mentions = e.mentions ?? [];
   }
   return status;
 }

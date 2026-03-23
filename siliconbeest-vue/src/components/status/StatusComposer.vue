@@ -17,6 +17,7 @@ const emit = defineEmits<{
     content: string
     spoiler_text: string
     visibility: string
+    language: string
     in_reply_to_id?: string
     media_ids?: string[]
   }]
@@ -28,6 +29,22 @@ const showCw = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const charLimit = computed(() => props.maxChars ?? 500)
 const charsRemaining = computed(() => charLimit.value - content.value.length)
+
+const languageOptions = [
+  { code: 'ko', label: '한국어' },
+  { code: 'en', label: 'English' },
+  { code: 'ja', label: '日本語' },
+  { code: 'zh', label: '中文' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ar', label: 'العربية' },
+]
+const selectedLanguage = ref(
+  languageOptions.find(l => l.code === (navigator.language?.split('-')[0] || 'en')) || languageOptions[1]!
+)
 
 const visibilityOptions = [
   { value: 'public', label: 'compose.visibility.public', icon: '🌐' },
@@ -65,6 +82,7 @@ function submit() {
     content: content.value,
     spoiler_text: showCw.value ? spoilerText.value : '',
     visibility: selectedVisibility.value.value,
+    language: selectedLanguage.value.code,
     in_reply_to_id: props.replyTo?.id,
     media_ids: compose.mediaAttachments.map(m => m.id),
   })
@@ -144,15 +162,16 @@ function submit() {
     </div>
 
     <!-- Toolbar -->
-    <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-2">
+    <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+      <div class="flex items-center gap-1.5 flex-wrap">
         <!-- Media upload -->
         <button
           type="button"
           @click="triggerFileInput"
           :disabled="compose.mediaAttachments.length >= 4 || compose.uploading"
-          class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
           :aria-label="t('compose.add_media')"
+          :title="t('compose.add_media')"
         >
           📎
         </button>
@@ -174,8 +193,9 @@ function submit() {
         <Listbox v-model="selectedVisibility">
           <div class="relative">
             <ListboxButton
-              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
+              class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-lg"
               :aria-label="t('compose.visibility.label')"
+              :title="t('compose.visibility.label')"
             >
               {{ selectedVisibility.icon }}
             </ListboxButton>
@@ -190,6 +210,31 @@ function submit() {
               >
                 <span>{{ option.icon }}</span>
                 <span>{{ t(option.label) }}</span>
+              </ListboxOption>
+            </ListboxOptions>
+          </div>
+        </Listbox>
+
+        <!-- Language selector -->
+        <Listbox v-model="selectedLanguage">
+          <div class="relative">
+            <ListboxButton
+              class="px-2 py-1 rounded text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 uppercase"
+              :aria-label="t('compose.language')"
+            >
+              {{ selectedLanguage.code }}
+            </ListboxButton>
+            <ListboxOptions
+              class="absolute bottom-full mb-1 w-36 max-h-48 overflow-auto rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10"
+            >
+              <ListboxOption
+                v-for="lang in languageOptions"
+                :key="lang.code"
+                :value="lang"
+                class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+              >
+                <span class="uppercase font-mono text-xs text-gray-400 w-5">{{ lang.code }}</span>
+                <span>{{ lang.label }}</span>
               </ListboxOption>
             </ListboxOptions>
           </div>

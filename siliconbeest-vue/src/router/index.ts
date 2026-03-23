@@ -211,6 +211,11 @@ const router = createRouter({
           name: 'admin-custom-emojis',
           component: () => import('@/views/AdminCustomEmojisView.vue'),
         },
+        {
+          path: 'federation',
+          name: 'admin-federation',
+          component: () => import('@/views/AdminFederationView.vue'),
+        },
       ],
     },
 
@@ -219,6 +224,18 @@ const router = createRouter({
       path: '/@:acct',
       name: 'profile',
       component: () => import('@/views/ProfileView.vue'),
+      props: true,
+    },
+    {
+      path: '/@:acct/followers',
+      name: 'profile-followers',
+      component: () => import('@/views/FollowListView.vue'),
+      props: true,
+    },
+    {
+      path: '/@:acct/following',
+      name: 'profile-following',
+      component: () => import('@/views/FollowListView.vue'),
       props: true,
     },
     {
@@ -231,6 +248,14 @@ const router = createRouter({
     {
       path: '/%40:acct',
       redirect: (to) => ({ name: 'profile', params: { acct: to.params.acct } }),
+    },
+    {
+      path: '/%40:acct/followers',
+      redirect: (to) => ({ name: 'profile-followers', params: { acct: to.params.acct } }),
+    },
+    {
+      path: '/%40:acct/following',
+      redirect: (to) => ({ name: 'profile-following', params: { acct: to.params.acct } }),
     },
     {
       path: '/%40:acct/:statusId',

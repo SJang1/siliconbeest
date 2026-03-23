@@ -36,7 +36,8 @@ function createEmptyTimeline(): TimelineState {
 
 export const useTimelinesStore = defineStore('timelines', () => {
   const timelines = ref<Map<string, TimelineState>>(new Map());
-  const streamingClient = ref<StreamingClient | null>(null);
+  // Multiple streaming connections — one per stream type
+  const streamingClients = ref<Map<string, StreamingClient>>(new Map());
 
   function getTimelineKey(type: TimelineType, tag?: string): string {
     return type === 'tag' ? `tag:${tag}` : type;
@@ -98,9 +99,17 @@ export const useTimelinesStore = defineStore('timelines', () => {
         timeline.maxId = response.data[response.data.length - 1]!.id;
       }
 
-      // Auto-connect streaming for home timeline
-      if (type === 'home' && opts?.token && !streamingClient.value) {
-        connectStream(opts.token, 'user');
+      // Auto-connect streaming for each timeline type
+      if (opts?.token) {
+        const streamMap: Record<string, string> = {
+          home: 'user',
+          public: 'public',
+          local: 'public:local',
+        };
+        const streamName = streamMap[type];
+        if (streamName && !streamingClients.value.has(streamName)) {
+          connectStream(opts.token, streamName, type);
+        }
       }
     } catch (e) {
       timeline.error = (e as Error).message;
@@ -171,29 +180,27 @@ export const useTimelinesStore = defineStore('timelines', () => {
     }
   }
 
-  function connectStream(token: string, stream: string = 'user') {
-    // Disconnect any existing connection first
-    disconnectStream();
+  function connectStream(token: string, stream: string = 'user', timelineType: TimelineType = 'home') {
+    // Already connected to this stream
+    if (streamingClients.value.has(stream)) return;
 
     const statusStore = useStatusesStore();
     const accountStore = useAccountsStore();
 
-    streamingClient.value = new StreamingClient(token, stream, {
+    const client = new StreamingClient(token, stream, {
       onUpdate(status: Status) {
-        // Cache the status and account
         statusStore.cacheStatus(status);
         accountStore.cacheAccount(status.account);
         if (status.reblog) {
           accountStore.cacheAccount(status.reblog.account);
         }
-        // Add to new status IDs queue for the home timeline
-        prependStatus('home', status.id);
+        // Add to new status IDs queue for the correct timeline
+        prependStatus(timelineType, status.id);
       },
       onDelete(statusId: string) {
         removeStatus(statusId);
       },
       onStatusUpdate(status: Status) {
-        // Re-cache the updated status
         statusStore.cacheStatus(status);
         accountStore.cacheAccount(status.account);
         if (status.reblog) {
@@ -202,19 +209,29 @@ export const useTimelinesStore = defineStore('timelines', () => {
       },
     });
 
-    streamingClient.value.connect();
+    streamingClients.value.set(stream, client);
+    client.connect();
   }
 
-  function disconnectStream() {
-    if (streamingClient.value) {
-      streamingClient.value.disconnect();
-      streamingClient.value = null;
+  function disconnectStream(stream?: string) {
+    if (stream) {
+      const client = streamingClients.value.get(stream);
+      if (client) {
+        client.disconnect();
+        streamingClients.value.delete(stream);
+      }
+    } else {
+      // Disconnect all streams
+      for (const client of streamingClients.value.values()) {
+        client.disconnect();
+      }
+      streamingClients.value.clear();
     }
   }
 
   return {
     timelines,
-    streamingClient,
+    streamingClients,
     getTimeline,
     fetchTimeline,
     fetchMore,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Relationship } from '@/types/mastodon'
 import Avatar from '../common/Avatar.vue'
@@ -27,6 +28,12 @@ const emit = defineEmits<{
   'toggle-follow': []
 }>()
 
+const remoteDomain = computed(() => {
+  const acct = props.account.acct
+  const atIndex = acct.indexOf('@')
+  return atIndex !== -1 ? acct.substring(atIndex + 1) : null
+})
+
 function formatStat(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
@@ -41,7 +48,7 @@ function handleToggle() {
 <template>
   <div>
     <!-- Banner -->
-    <div class="h-48 bg-gray-200 dark:bg-gray-700 relative">
+    <div class="h-48 bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
       <img
         v-if="account.header"
         :src="account.header"
@@ -51,13 +58,13 @@ function handleToggle() {
     </div>
 
     <!-- Profile info -->
-    <div class="px-4 pb-4">
+    <div class="px-4 pb-4 relative">
       <!-- Avatar + follow button row -->
-      <div class="flex items-end justify-between -mt-12 mb-3">
+      <div class="flex items-end justify-between -mt-16 mb-3">
         <Avatar :src="account.avatar" :alt="account.display_name" size="xl"
-          class="ring-4 ring-white dark:ring-gray-900"
+          class="ring-4 ring-white dark:ring-gray-900 relative z-10"
         />
-        <div class="flex gap-2 mt-14">
+        <div class="flex gap-2 pt-16">
           <FollowButton
             v-if="!isOwn"
             :account-id="account.id"
@@ -79,6 +86,12 @@ function handleToggle() {
       <!-- Name -->
       <h1 class="text-xl font-bold">{{ account.display_name }}</h1>
       <p class="text-gray-500 dark:text-gray-400 text-sm">@{{ account.acct }}</p>
+      <span
+        v-if="remoteDomain"
+        class="inline-flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-gray-500 mt-1"
+      >
+        🌐 {{ remoteDomain }}
+      </span>
 
       <!-- Bio -->
       <div

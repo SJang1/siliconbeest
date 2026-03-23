@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { apiFetch } from '@/api/client'
 import Avatar from '../common/Avatar.vue'
 
 const { t, locale } = useI18n()
@@ -20,12 +21,28 @@ const navItems = [
   { key: 'search', path: '/search', icon: '🔎' },
   { key: 'bookmarks', path: '/bookmarks', icon: '🔖' },
   { key: 'favourites', path: '/favourites', icon: '⭐' },
-  { key: 'settings', path: '/settings', icon: '⚙️' },
 ]
+
+const myProfilePath = computed(() => {
+  const acct = auth.currentUser?.acct || auth.currentUser?.username
+  return acct ? `/@${acct}` : '/settings/profile'
+})
+
+const followRequestCount = ref(0)
 
 function compose() {
   ui.openComposeModal()
 }
+
+async function checkFollowRequests() {
+  if (!auth.token) return
+  try {
+    const { data } = await apiFetch<any[]>('/v1/follow_requests', { token: auth.token })
+    followRequestCount.value = data.length
+  } catch { /* ignore */ }
+}
+
+onMounted(checkFollowRequests)
 
 const currentLocaleName = () => {
   return SUPPORTED_LOCALES.find(l => l.code === locale.value)?.name ?? locale.value
@@ -57,6 +74,28 @@ async function switchLocale(code: string) {
         </router-link>
       </li>
     </ul>
+
+    <!-- Follow Requests -->
+    <router-link
+      v-if="followRequestCount > 0"
+      to="/follow-requests"
+      class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
+      active-class="bg-gray-100 dark:bg-gray-800 font-bold"
+    >
+      <span class="text-xl w-7 text-center" aria-hidden="true">👋</span>
+      <span>{{ t('nav.follow_requests') }}</span>
+      <span class="ml-auto bg-indigo-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ followRequestCount }}</span>
+    </router-link>
+
+    <!-- Settings -->
+    <router-link
+      to="/settings"
+      class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
+      active-class="bg-gray-100 dark:bg-gray-800 font-bold"
+    >
+      <span class="text-xl w-7 text-center" aria-hidden="true">⚙️</span>
+      <span>{{ t('nav.settings') }}</span>
+    </router-link>
 
     <!-- Admin/Moderator Link -->
     <router-link
@@ -104,9 +143,9 @@ async function switchLocale(code: string) {
       </div>
     </div>
 
-    <!-- Current User -->
+    <!-- Current User — links to my profile -->
     <router-link
-      to="/settings"
+      :to="myProfilePath"
       class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
     >
       <Avatar :src="auth.currentUser?.avatar ?? ''" :alt="auth.currentUser?.display_name ?? 'User'" size="sm" />

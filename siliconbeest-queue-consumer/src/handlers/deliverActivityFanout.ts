@@ -25,8 +25,7 @@ export async function handleDeliverActivityFanout(
      FROM follows f
      JOIN accounts a ON a.id = f.account_id
      WHERE f.target_account_id = ?
-       AND a.domain IS NOT NULL
-       AND f.accepted = 1`,
+       AND a.domain IS NOT NULL`,
   )
     .bind(actorAccountId)
     .all<{

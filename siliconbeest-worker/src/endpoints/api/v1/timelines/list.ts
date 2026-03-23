@@ -82,9 +82,12 @@ app.get('/:listId', authRequired, async (c) => {
     return serializeStatus(row as StatusRow, {
       account: serializeAccount(accountRow),
       mediaAttachments: e?.mediaAttachments,
+      mentions: e?.mentions,
       favourited: e?.favourited,
       reblogged: e?.reblogged,
       bookmarked: e?.bookmarked,
+      card: e?.card,
+      emojis: e?.emojis,
     });
   });
 

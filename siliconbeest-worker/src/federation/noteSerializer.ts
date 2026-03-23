@@ -52,12 +52,13 @@ export function serializeNote(
 
 	if (opts?.mentions) {
 		for (const mention of opts.mentions) {
-			// For mentions we need the account URI; use a placeholder pattern
-			// that matches the account_id. In practice the caller resolves URIs.
+			const m = mention as any;
+			const actorUri = m.actor_uri ?? mention.account_id;
+			const acct = m.acct ?? mention.account_id;
 			apTags.push({
 				type: 'Mention',
-				href: mention.account_id, // Caller should resolve to full actor URI
-				name: `@${mention.account_id}`,
+				href: actorUri,
+				name: `@${acct}`,
 			});
 		}
 	}
@@ -157,8 +158,8 @@ function resolveAddressing(
 	followersUri: string,
 	mentions?: MentionRow[],
 ): { to: string[]; cc: string[] } {
-	// Collect mentioned account IDs (caller should map these to actor URIs)
-	const mentionUris = mentions?.map((m) => m.account_id) ?? [];
+	// Use actor URIs for addressing
+	const mentionUris = mentions?.map((m) => (m as any).actor_uri ?? m.account_id) ?? [];
 
 	switch (visibility) {
 		case 'public':

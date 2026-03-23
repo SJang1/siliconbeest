@@ -154,6 +154,26 @@ echo "  - More specific routes (e.g. /api/*) take priority over the catch-all (/
 echo "  - Make sure your DNS has a proxied (orange cloud) record for $DOMAIN"
 echo "  - If using a subdomain, add a CNAME or A record pointing to Cloudflare"
 echo
+echo -e "${RED}${BOLD}CRITICAL — Cloudflare Bot Protection:${NC}"
+echo "  Cloudflare's Bot Fight Mode / Super Bot Fight Mode will block ActivityPub"
+echo "  federation traffic to /users/* and /inbox endpoints (returns 403 to bots)."
+echo
+echo "  You MUST create a WAF exception rule in the Cloudflare Dashboard:"
+echo "    1. Go to Security > WAF > Custom Rules"
+echo "    2. Create a rule with expression:"
+echo '       (http.request.uri.path matches "^/users/.*" or'
+echo '        http.request.uri.path eq "/inbox" or'
+echo '        http.request.uri.path eq "/actor" or'
+echo '        http.request.uri.path matches "^/nodeinfo/.*" or'
+echo '        http.request.uri.path matches "^/.well-known/.*")'
+echo "    3. Action: Skip → check ALL remaining custom rules + Super Bot Fight Mode"
+echo "    4. Place it FIRST in your rule list (highest priority)"
+echo
+echo "  Without this, other Fediverse servers cannot discover or communicate"
+echo "  with your instance. Verify with:"
+echo "    curl -H 'Accept: application/activity+json' https://$DOMAIN/users/admin"
+echo "  It should return JSON, not an HTML challenge page."
+echo
 echo -e "${YELLOW}Verify with:${NC}"
 echo "  curl https://$DOMAIN/.well-known/webfinger?resource=acct:admin@$DOMAIN"
 echo

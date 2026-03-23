@@ -21,21 +21,19 @@ export async function handleTimelineFanout(
      FROM follows f
      JOIN accounts a ON a.id = f.account_id
      WHERE f.target_account_id = ?
-       AND a.domain IS NULL
-       AND f.accepted = 1`,
+       AND a.domain IS NULL`,
   )
     .bind(accountId)
     .all<{ account_id: string }>();
 
-  if (!rows.results || rows.results.length === 0) {
-    console.log(`No local followers for account ${accountId}, skipping timeline fanout`);
-    return;
-  }
-
-  // Also include the author's own timeline
-  const followerIds = rows.results.map((r) => r.account_id);
+  // Build list of local followers + always include the author
+  const followerIds = (rows.results ?? []).map((r) => r.account_id);
   if (!followerIds.includes(accountId)) {
     followerIds.push(accountId);
+  }
+
+  if (followerIds.length === 0) {
+    return;
   }
 
   // Batch insert into home_timeline_entries using D1 batch
@@ -76,7 +74,7 @@ export async function handleTimelineFanout(
       // Fetch the full status JSON to send as payload
       const statusRow = await env.DB.prepare(
         `SELECT s.id, s.uri, s.content, s.visibility, s.sensitive,
-                s.spoiler_text, s.language, s.url, s.created_at,
+                s.content_warning, s.language, s.url, s.created_at,
                 s.in_reply_to_id, s.in_reply_to_account_id,
                 s.reblogs_count, s.favourites_count, s.replies_count,
                 s.edited_at,
@@ -100,7 +98,7 @@ export async function handleTimelineFanout(
           content: statusRow.content,
           visibility: statusRow.visibility,
           sensitive: statusRow.sensitive === 1 || statusRow.sensitive === true,
-          spoiler_text: statusRow.spoiler_text || '',
+          spoiler_text: statusRow.content_warning || '',
           language: statusRow.language,
           url: statusRow.url,
           in_reply_to_id: statusRow.in_reply_to_id,
@@ -166,6 +164,29 @@ export async function handleTimelineFanout(
         );
 
         await Promise.allSettled(streamPromises);
+
+        // Also broadcast to public/local streams for public statuses
+        if (statusRow.visibility === 'public') {
+          const publicStreams = ['public'];
+          // If it's a local post, also send to public:local
+          if (!statusRow.domain) {
+            publicStreams.push('public:local');
+          }
+          // Use a well-known DO name for public streaming
+          await env.WORKER.fetch(
+            new Request('http://internal/internal/stream-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: '__public__',
+                event: 'update',
+                payload: statusPayload,
+                stream: publicStreams,
+              }),
+            }),
+          ).catch(() => {});
+        }
+
         console.log(
           `Sent streaming events for status ${statusId} to ${userRows.results.length} users`,
         );

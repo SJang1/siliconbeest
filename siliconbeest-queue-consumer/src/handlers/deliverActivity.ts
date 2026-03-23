@@ -132,13 +132,13 @@ export async function handleDeliverActivity(
 
   // Load the actor's private key and key ID from D1
   const keyRow = await env.DB.prepare(
-    `SELECT ak.private_key_pem, a.uri
+    `SELECT ak.private_key, a.uri
      FROM actor_keys ak
      JOIN accounts a ON a.id = ak.account_id
      WHERE ak.account_id = ?`,
   )
     .bind(actorAccountId)
-    .first<{ private_key_pem: string; uri: string }>();
+    .first<{ private_key: string; uri: string }>();
 
   if (!keyRow) {
     console.error(`No private key found for actor ${actorAccountId}, dropping message`);
@@ -149,7 +149,7 @@ export async function handleDeliverActivity(
   const body = JSON.stringify(activity);
 
   // Sign the request
-  const headers = await signRequest(keyRow.private_key_pem, keyId, inboxUrl, body);
+  const headers = await signRequest(keyRow.private_key, keyId, inboxUrl, body);
 
   // POST to target inbox
   const response = await fetch(inboxUrl, {
@@ -160,10 +160,18 @@ export async function handleDeliverActivity(
 
   const targetDomain = new URL(inboxUrl).hostname;
 
+  // Ensure instance record exists before updating it
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO instances (id, domain, created_at, updated_at)
+     VALUES (?, ?, datetime('now'), datetime('now'))`,
+  )
+    .bind(crypto.randomUUID(), targetDomain)
+    .run();
+
   if (response.ok || response.status === 202) {
-    // Success — update last_successful_at for the target instance
+    // Success — reset failure count and update last_successful_at
     await env.DB.prepare(
-      `UPDATE instances SET last_successful_at = datetime('now') WHERE domain = ?`,
+      `UPDATE instances SET last_successful_at = datetime('now'), failure_count = 0, updated_at = datetime('now') WHERE domain = ?`,
     )
       .bind(targetDomain)
       .run();
@@ -172,14 +180,26 @@ export async function handleDeliverActivity(
   }
 
   if (response.status >= 500) {
-    // Server error — throw to trigger queue retry
+    // Record failure
+    await env.DB.prepare(
+      `UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
+    )
+      .bind(targetDomain)
+      .run();
+
+    // All 5xx (including SSL errors 525-527) — throw to trigger queue retry
     const text = await response.text().catch(() => '');
     throw new Error(
       `Delivery to ${inboxUrl} failed with ${response.status}: ${text.slice(0, 200)}`,
     );
   }
 
-  // 4xx — client error, don't retry (the message is consumed)
+  // 4xx — client error, record failure but don't retry (the message is consumed)
+  await env.DB.prepare(
+    `UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
+  )
+    .bind(targetDomain)
+    .run();
   const text = await response.text().catch(() => '');
   console.warn(
     `Delivery to ${inboxUrl} rejected with ${response.status}: ${text.slice(0, 200)}`,

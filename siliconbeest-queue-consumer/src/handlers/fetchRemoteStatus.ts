@@ -166,7 +166,7 @@ export async function handleFetchRemoteStatus(
     }
   }
 
-  // Handle tags/mentions/hashtags if present
+  // Handle tags/mentions/hashtags/emojis if present
   const tags = objectDoc.tag as unknown[] | undefined;
   if (Array.isArray(tags)) {
     const stmts: D1PreparedStatement[] = [];
@@ -180,6 +180,29 @@ export async function handleFetchRemoteStatus(
             `INSERT OR IGNORE INTO status_tags (status_id, tag_name) VALUES (?, ?)`,
           ).bind(statusId, tagName),
         );
+      } else if (tagObj.type === 'Emoji') {
+        // Store remote custom emoji
+        const emojiName = ((tagObj.name as string) || '').replace(/^:|:$/g, '');
+        const iconObj = tagObj.icon as Record<string, unknown> | undefined;
+        const emojiUrl = iconObj?.url as string | undefined;
+        if (!emojiName || !emojiUrl) continue;
+
+        let emojiDomain: string | null = null;
+        try {
+          emojiDomain = new URL(emojiUrl).hostname;
+        } catch { /* skip */ }
+
+        if (emojiDomain) {
+          stmts.push(
+            env.DB.prepare(
+              `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+               ON CONFLICT(shortcode, domain) DO UPDATE SET
+                 image_key = excluded.image_key,
+                 updated_at = datetime('now')`,
+            ).bind(crypto.randomUUID(), emojiName, emojiDomain, emojiUrl),
+          );
+        }
       }
     }
     if (stmts.length > 0) {

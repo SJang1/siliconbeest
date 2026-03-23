@@ -5,6 +5,11 @@ import { AppError } from '../../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
+function safeJsonParse<T>(val: string | null, fallback: T): T {
+  if (!val) return fallback;
+  try { return JSON.parse(val); } catch { return fallback; }
+}
+
 const app = new Hono<HonoEnv>();
 
 app.get('/verify_credentials', authRequired, async (c) => {
@@ -44,13 +49,13 @@ app.get('/verify_credentials', authRequired, async (c) => {
     statuses_count: (row.statuses_count as number) || 0,
     last_status_at: (row.last_status_at as string) || null,
     emojis: [],
-    fields: [],
+    fields: safeJsonParse(row.fields as string | null, []),
     source: {
       privacy: 'public',
       sensitive: false,
       language: (row.locale as string) || 'en',
       note: (row.note as string) || '',
-      fields: [],
+      fields: safeJsonParse(row.fields as string | null, []),
       follow_requests_count: 0,
     },
     role: {

@@ -9,68 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity, APObject, APTag } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
-
-/**
- * Resolve or upsert a remote account by its actor URI.
- * Returns the account ID, inserting a stub if not yet known.
- */
-async function resolveRemoteAccount(
-	actorUri: string,
-	env: Env,
-): Promise<string | null> {
-	// Check if we already have this account
-	const existing = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(actorUri)
-		.first<{ id: string }>();
-
-	if (existing) {
-		return existing.id;
-	}
-
-	// Insert a minimal stub so we can reference it immediately.
-	// The queue consumer will flesh it out asynchronously.
-	const now = new Date().toISOString();
-	const id = generateUlid();
-	let username = 'unknown';
-	let domain = 'unknown';
-
-	try {
-		const url = new URL(actorUri);
-		domain = url.host;
-		// Try to extract username from common URI patterns: /users/{username}
-		const segments = url.pathname.split('/').filter(Boolean);
-		username = segments[segments.length - 1] ?? 'unknown';
-	} catch {
-		// leave defaults
-	}
-
-	try {
-		await env.DB.prepare(
-			`INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-		)
-			.bind(id, username, domain, actorUri, now, now)
-			.run();
-	} catch {
-		// Race condition: another request may have inserted it
-		const retry = await env.DB.prepare(
-			`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-		)
-			.bind(actorUri)
-			.first<{ id: string }>();
-		return retry?.id ?? null;
-	}
-
-	// Enqueue a full fetch to populate display_name, avatar, keys, etc.
-	await env.QUEUE_FEDERATION.send({
-		type: 'fetch_remote_account',
-		actorUri,
-	});
-
-	return id;
-}
+import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 /**
  * Determine visibility from the Note's to/cc fields.

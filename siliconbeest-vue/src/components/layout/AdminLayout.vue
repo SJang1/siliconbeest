@@ -20,6 +20,7 @@ const allNavItems = [
   { key: 'rules', path: '/admin/rules', icon: '📜', adminOnly: true },
   { key: 'relays', path: '/admin/relays', icon: '🔗', adminOnly: true },
   { key: 'custom_emojis', path: '/admin/custom-emojis', icon: '😀', adminOnly: true },
+  { key: 'federation', path: '/admin/federation', icon: '🌐', adminOnly: true },
 ]
 
 const navItems = computed(() =>

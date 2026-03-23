@@ -8,7 +8,7 @@
 
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
-import { generateUlid } from '../../utils/ulid';
+import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 export async function processMove(
 	activity: APActivity,
@@ -45,55 +45,12 @@ export async function processMove(
 	}
 
 	// Resolve or stub the new account
-	let newAccount = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(newAccountUri)
-		.first<{ id: string }>();
-
-	if (!newAccount) {
-		// Insert a stub for the new account
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		let username = 'unknown';
-		let domain = 'unknown';
-
-		try {
-			const url = new URL(newAccountUri);
-			domain = url.host;
-			const segments = url.pathname.split('/').filter(Boolean);
-			username = segments[segments.length - 1] ?? 'unknown';
-		} catch {
-			// leave defaults
-		}
-
-		try {
-			await env.DB.prepare(
-				`INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
-				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-			)
-				.bind(id, username, domain, newAccountUri, now, now)
-				.run();
-			newAccount = { id };
-		} catch {
-			const retry = await env.DB.prepare(
-				`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-			)
-				.bind(newAccountUri)
-				.first<{ id: string }>();
-			if (!retry) {
-				console.error('[move] Could not create new account stub');
-				return;
-			}
-			newAccount = retry;
-		}
-
-		// Fetch the full profile for the new account
-		await env.QUEUE_FEDERATION.send({
-			type: 'fetch_remote_account',
-			actorUri: newAccountUri,
-		});
+	const newAccountId = await resolveRemoteAccount(newAccountUri, env);
+	if (!newAccountId) {
+		console.error('[move] Could not resolve new account');
+		return;
 	}
+	const newAccount = { id: newAccountId };
 
 	// Set moved_to_account_id on the old account
 	const now = new Date().toISOString();

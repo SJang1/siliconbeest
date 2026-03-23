@@ -11,11 +11,11 @@
 import type { Env } from '../env';
 import type { FetchRemoteAccountMessage } from '../shared/types/queue';
 
-/** Cache TTL for remote actor documents (24 hours). */
-const ACTOR_CACHE_TTL = 86400;
+/** Cache TTL for remote actor documents (5 minutes). */
+const ACTOR_CACHE_TTL = 300;
 
 /** Minimum seconds between re-fetches unless forceRefresh is set. */
-const MIN_REFETCH_INTERVAL = 3600; // 1 hour
+const MIN_REFETCH_INTERVAL = 300; // 5 minutes
 
 const AP_ACCEPT = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
 
@@ -125,6 +125,22 @@ export async function handleFetchRemoteAccount(
   const isBot = actorType === 'Service' || actorType === 'Application';
   const isGroup = actorType === 'Group';
 
+  // Extract profile fields (PropertyValue attachments)
+  const profileFields: Array<{ name: string; value: string; verified_at: string | null }> = [];
+  const attachments = actorDoc.attachment as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(attachments)) {
+    for (const att of attachments) {
+      if (att.type === 'PropertyValue' && att.name) {
+        profileFields.push({
+          name: String(att.name),
+          value: String(att.value || ''),
+          verified_at: null,
+        });
+      }
+    }
+  }
+  const fieldsJson = JSON.stringify(profileFields);
+
   // Step 2: Upsert into accounts table
   await env.DB.prepare(
     `INSERT INTO accounts (
@@ -132,13 +148,13 @@ export async function handleFetchRemoteAccount(
        avatar_url, header_url, inbox_url, outbox_url,
        shared_inbox_url, followers_url, following_url,
        public_key_pem, public_key_id, actor_type,
-       is_bot, is_group, fetched_at, created_at, updated_at
+       is_bot, is_group, fields, fetched_at, created_at, updated_at
      ) VALUES (
        ?, ?, ?, ?, ?, ?, ?,
        ?, ?, ?, ?,
        ?, ?, ?,
        ?, ?, ?,
-       ?, ?, datetime('now'), datetime('now'), datetime('now')
+       ?, ?, ?, datetime('now'), datetime('now'), datetime('now')
      )
      ON CONFLICT(uri) DO UPDATE SET
        display_name = excluded.display_name,
@@ -156,6 +172,7 @@ export async function handleFetchRemoteAccount(
        actor_type = excluded.actor_type,
        is_bot = excluded.is_bot,
        is_group = excluded.is_group,
+       fields = excluded.fields,
        fetched_at = datetime('now'),
        updated_at = datetime('now')`,
   )
@@ -179,21 +196,92 @@ export async function handleFetchRemoteAccount(
       actorType,
       isBot ? 1 : 0,
       isGroup ? 1 : 0,
+      fieldsJson,
     )
     .run();
 
-  // Step 3: Cache in KV
+  // Step 3: Store custom emojis from the actor's tag array
+  const tags = actorDoc.tag as unknown[] | undefined;
+  if (Array.isArray(tags)) {
+    for (const tag of tags) {
+      const tagObj = tag as Record<string, unknown>;
+      if (tagObj.type !== 'Emoji') continue;
+      const emojiName = (tagObj.name as string || '').replace(/^:|:$/g, '');
+      const iconObj = tagObj.icon as Record<string, unknown> | undefined;
+      const emojiUrl = iconObj?.url as string | undefined;
+      if (!emojiName || !emojiUrl) continue;
+
+      await env.DB.prepare(
+        `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+         ON CONFLICT(shortcode, domain) DO UPDATE SET
+           image_key = excluded.image_key,
+           updated_at = datetime('now')`,
+      )
+        .bind(crypto.randomUUID(), emojiName, actorDomain, emojiUrl)
+        .run();
+    }
+  }
+
+  // Step 4: Cache in KV
   await env.CACHE.put(cacheKey, JSON.stringify(actorDoc), {
     expirationTtl: ACTOR_CACHE_TTL,
   });
 
   // Ensure the instance record exists
   await env.DB.prepare(
-    `INSERT OR IGNORE INTO instances (domain, created_at, updated_at)
-     VALUES (?, datetime('now'), datetime('now'))`,
+    `INSERT OR IGNORE INTO instances (id, domain, created_at, updated_at)
+     VALUES (?, ?, datetime('now'), datetime('now'))`,
   )
-    .bind(actorDomain)
+    .bind(crypto.randomUUID(), actorDomain)
     .run();
+
+  // NodeInfo discovery — fetch software info for this instance (best-effort, never blocks)
+  try {
+    const nodeinfoKey = `nodeinfo:${actorDomain}`;
+    const cached = await env.CACHE.get(nodeinfoKey);
+    if (!cached) {
+      const wellKnownRes = await fetch(`https://${actorDomain}/.well-known/nodeinfo`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (wellKnownRes.ok) {
+        const wellKnown = (await wellKnownRes.json()) as {
+          links?: Array<{ rel?: string; href?: string }>;
+        };
+        const link = wellKnown.links?.find(
+          (l) =>
+            l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
+            l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+        );
+        if (link?.href) {
+          const nodeinfoRes = await fetch(link.href, {
+            headers: { Accept: 'application/json' },
+          });
+          if (nodeinfoRes.ok) {
+            const nodeinfo = (await nodeinfoRes.json()) as {
+              software?: { name?: string; version?: string };
+            };
+            const softwareName = nodeinfo.software?.name ?? null;
+            const softwareVersion = nodeinfo.software?.version ?? null;
+            if (softwareName) {
+              await env.DB.prepare(
+                `UPDATE instances SET software_name = ?, software_version = ?, updated_at = datetime('now') WHERE domain = ?`,
+              )
+                .bind(softwareName, softwareVersion, actorDomain)
+                .run();
+            }
+            // Cache for 24 hours to avoid re-fetching
+            await env.CACHE.put(nodeinfoKey, JSON.stringify({ softwareName, softwareVersion }), {
+              expirationTtl: 86400,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // NodeInfo is best-effort — never block account fetching
+    console.warn(`NodeInfo fetch failed for ${actorDomain}:`, err);
+  }
 
   console.log(`Fetched and cached remote actor: ${username}@${actorDomain}`);
 }

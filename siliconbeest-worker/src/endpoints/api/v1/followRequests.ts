@@ -5,6 +5,8 @@ import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
+import { buildAcceptActivity, buildRejectActivity, buildFollowActivity } from '../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../federation/deliveryManager';
 import type { AccountRow } from '../../../types/db';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -46,9 +48,7 @@ app.get('/', authRequired, async (c) => {
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) => {
-    const account = serializeAccount(row as AccountRow);
-    account.id = row.fr_id;
-    return account;
+    return serializeAccount(row as AccountRow);
   });
 
   if (pag.minId) accounts.reverse();
@@ -100,6 +100,34 @@ app.post('/:id/authorize', authRequired, async (c) => {
     ).bind(requestAccountId, currentAccount.id),
   ]);
 
+  // Create follow notification for the requester (they now have a new follower relationship accepted)
+  try {
+    await c.env.QUEUE_INTERNAL.send({
+      type: 'create_notification',
+      recipientAccountId: requestAccountId,
+      senderAccountId: currentAccount.id,
+      notificationType: 'follow',
+    });
+  } catch (_) { /* don't fail */ }
+
+  // AP: Send Accept(Follow) to the remote server
+  const remoteAccount = await c.env.DB.prepare(
+    'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
+  ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
+
+  if (remoteAccount?.domain) {
+    try {
+      const myUri = `https://${domain}/users/${currentAccount.username}`;
+      // Reconstruct the original Follow activity
+      const followActivity = buildFollowActivity(remoteAccount.uri, myUri);
+      // Use the stored follow request URI if available
+      if (fr.uri) followActivity.id = fr.uri as string;
+      const acceptActivity = buildAcceptActivity(myUri, followActivity);
+      const inbox = remoteAccount.inbox_url || remoteAccount.shared_inbox_url || `https://${remoteAccount.domain}/inbox`;
+      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(acceptActivity), inbox, currentAccount.id);
+    } catch (_) { /* don't fail the API response */ }
+  }
+
   return c.json({
     id: requestAccountId,
     following: false,
@@ -139,6 +167,23 @@ app.post('/:id/reject', authRequired, async (c) => {
   )
     .bind(requestAccountId, currentAccount.id)
     .run();
+
+  // AP: Send Reject(Follow) to the remote server
+  const remoteAccount2 = await c.env.DB.prepare(
+    'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
+  ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
+
+  if (remoteAccount2?.domain) {
+    try {
+      const domain = c.env.INSTANCE_DOMAIN;
+      const myUri = `https://${domain}/users/${currentAccount.username}`;
+      const followActivity = buildFollowActivity(remoteAccount2.uri, myUri);
+      if (fr.uri) followActivity.id = fr.uri as string;
+      const rejectActivity = buildRejectActivity(myUri, followActivity);
+      const inbox = remoteAccount2.inbox_url || remoteAccount2.shared_inbox_url || `https://${remoteAccount2.domain}/inbox`;
+      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(rejectActivity), inbox, currentAccount.id);
+    } catch (_) { /* don't fail */ }
+  }
 
   return c.json({
     id: requestAccountId,

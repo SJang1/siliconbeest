@@ -9,6 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
+import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 export async function processFlag(
 	activity: APActivity,
@@ -42,49 +43,10 @@ export async function processFlag(
 	}
 
 	// Resolve the reporting actor
-	const reporterAccount = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(activity.actor)
-		.first<{ id: string }>();
-
-	let reporterAccountId: string;
-
-	if (reporterAccount) {
-		reporterAccountId = reporterAccount.id;
-	} else {
-		// Create a stub for the reporting actor
-		const now = new Date().toISOString();
-		reporterAccountId = generateUlid();
-		let username = 'unknown';
-		let domain = 'unknown';
-
-		try {
-			const url = new URL(activity.actor);
-			domain = url.host;
-			const segments = url.pathname.split('/').filter(Boolean);
-			username = segments[segments.length - 1] ?? 'unknown';
-		} catch {
-			// leave defaults
-		}
-
-		try {
-			await env.DB.prepare(
-				`INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
-				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-			)
-				.bind(reporterAccountId, username, domain, activity.actor, now, now)
-				.run();
-		} catch {
-			const retry = await env.DB.prepare(
-				`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-			)
-				.bind(activity.actor)
-				.first<{ id: string }>();
-			if (retry) {
-				reporterAccountId = retry.id;
-			}
-		}
+	const reporterAccountId = await resolveRemoteAccount(activity.actor, env);
+	if (!reporterAccountId) {
+		console.error('[flag] Could not resolve reporting actor');
+		return;
 	}
 
 	// The first URI is usually the target account; remaining are status URIs

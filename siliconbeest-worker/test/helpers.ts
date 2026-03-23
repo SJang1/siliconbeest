@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 
 export async function applyMigration() {
-  await env.DB.prepare('CREATE TABLE accounts ( id TEXT PRIMARY KEY, username TEXT NOT NULL, domain TEXT, display_name TEXT DEFAULT \'\', note TEXT DEFAULT \'\', uri TEXT NOT NULL UNIQUE, url TEXT, avatar_url TEXT DEFAULT \'\', avatar_static_url TEXT DEFAULT \'\', header_url TEXT DEFAULT \'\', header_static_url TEXT DEFAULT \'\', locked INTEGER DEFAULT 0, bot INTEGER DEFAULT 0, discoverable INTEGER DEFAULT 1, manually_approves_followers INTEGER DEFAULT 0, statuses_count INTEGER DEFAULT 0, followers_count INTEGER DEFAULT 0, following_count INTEGER DEFAULT 0, last_status_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, suspended_at TEXT, silenced_at TEXT, memorial INTEGER DEFAULT 0, moved_to_account_id TEXT, UNIQUE(username, domain) )').run();
+  await env.DB.prepare('CREATE TABLE accounts ( id TEXT PRIMARY KEY, username TEXT NOT NULL, domain TEXT, display_name TEXT DEFAULT \'\', note TEXT DEFAULT \'\', uri TEXT NOT NULL UNIQUE, url TEXT, avatar_url TEXT DEFAULT \'\', avatar_static_url TEXT DEFAULT \'\', header_url TEXT DEFAULT \'\', header_static_url TEXT DEFAULT \'\', locked INTEGER DEFAULT 0, bot INTEGER DEFAULT 0, discoverable INTEGER DEFAULT 1, manually_approves_followers INTEGER DEFAULT 0, statuses_count INTEGER DEFAULT 0, followers_count INTEGER DEFAULT 0, following_count INTEGER DEFAULT 0, last_status_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, suspended_at TEXT, silenced_at TEXT, memorial INTEGER DEFAULT 0, moved_to_account_id TEXT, inbox_url TEXT, shared_inbox_url TEXT, outbox_url TEXT, featured_collection_url TEXT, UNIQUE(username, domain) )').run();
   await env.DB.prepare('CREATE INDEX idx_accounts_uri ON accounts(uri)').run();
   await env.DB.prepare('CREATE INDEX idx_accounts_domain ON accounts(domain)').run();
   await env.DB.prepare('CREATE INDEX idx_accounts_username_domain ON accounts(username, domain)').run();
@@ -54,7 +54,7 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE lists ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), title TEXT NOT NULL, replies_policy TEXT DEFAULT \'list\', exclusive INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
   await env.DB.prepare('CREATE INDEX idx_lists_account ON lists(account_id)').run();
   await env.DB.prepare('CREATE TABLE list_accounts ( list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE, account_id TEXT NOT NULL REFERENCES accounts(id), follow_id TEXT, PRIMARY KEY (list_id, account_id) )').run();
-  await env.DB.prepare('CREATE TABLE instances ( id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, software_name TEXT, software_version TEXT, title TEXT, description TEXT, inbox_url TEXT, public_key TEXT, last_successful_at TEXT, last_failed_at TEXT, failure_count INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE TABLE instances ( id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, software_name TEXT, software_version TEXT, title TEXT, description TEXT, inbox_url TEXT, public_key TEXT, last_successful_at TEXT, last_failed_at TEXT, failure_count INTEGER DEFAULT 0, open_registrations INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
   await env.DB.prepare('CREATE INDEX idx_instances_domain ON instances(domain)').run();
   await env.DB.prepare('CREATE TABLE domain_blocks ( id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, severity TEXT DEFAULT \'silence\', reject_media INTEGER DEFAULT 0, reject_reports INTEGER DEFAULT 0, private_comment TEXT, public_comment TEXT, obfuscate INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
   await env.DB.prepare('CREATE TABLE domain_allows ( id TEXT PRIMARY KEY, domain TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
@@ -86,6 +86,11 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS emoji_reactions ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), status_id TEXT NOT NULL REFERENCES statuses(id), emoji TEXT NOT NULL, custom_emoji_id TEXT REFERENCES custom_emojis(id), created_at TEXT NOT NULL DEFAULT (datetime(\'now\')), UNIQUE(account_id, status_id, emoji) )').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_emoji_reactions_status ON emoji_reactions(status_id)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_emoji_reactions_account ON emoji_reactions(account_id)').run();
+
+  // Preview cards
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS preview_cards ( id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT DEFAULT \'\', description TEXT DEFAULT \'\', type TEXT DEFAULT \'link\', author_name TEXT DEFAULT \'\', author_url TEXT DEFAULT \'\', provider_name TEXT DEFAULT \'\', provider_url TEXT DEFAULT \'\', image_url TEXT, width INTEGER DEFAULT 0, height INTEGER DEFAULT 0, html TEXT DEFAULT \'\', embed_url TEXT DEFAULT \'\', blurhash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_preview_cards_url ON preview_cards(url)').run();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS status_preview_cards ( status_id TEXT NOT NULL REFERENCES statuses(id), preview_card_id TEXT NOT NULL REFERENCES preview_cards(id), PRIMARY KEY (status_id, preview_card_id) )').run();
 }
 
 export async function createTestUser(username: string, opts?: { email?: string; role?: string }) {

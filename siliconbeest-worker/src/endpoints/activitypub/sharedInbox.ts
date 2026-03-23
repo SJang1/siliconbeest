@@ -66,9 +66,10 @@ function extractKeyId(request: Request): string | null {
 
 app.post('/', async (c) => {
 	// Parse the activity body
+	const rawBody = await c.req.text();
 	let activity: APActivity;
 	try {
-		activity = await c.req.json<APActivity>();
+		activity = JSON.parse(rawBody) as APActivity;
 	} catch {
 		return c.json({ error: 'Invalid JSON' }, 400);
 	}
@@ -88,7 +89,7 @@ app.post('/', async (c) => {
 		return c.json({ error: 'Could not retrieve actor public key' }, 401);
 	}
 
-	const isValid = await verifySignature(c.req.raw, publicKeyPem);
+	const isValid = await verifySignature(c.req.raw, publicKeyPem, rawBody);
 	if (!isValid) {
 		return c.json({ error: 'Invalid HTTP Signature' }, 401);
 	}

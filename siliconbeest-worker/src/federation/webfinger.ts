@@ -5,8 +5,8 @@
  * fetching with optional KV-based caching for Cloudflare Workers.
  */
 
-const WEBFINGER_CACHE_TTL = 86400; // 24 hours in seconds
-const ACTOR_CACHE_TTL = 86400; // 24 hours in seconds
+const WEBFINGER_CACHE_TTL = 300; // 5 minutes in seconds
+const ACTOR_CACHE_TTL = 300; // 5 minutes in seconds
 
 // ============================================================
 // WEBFINGER

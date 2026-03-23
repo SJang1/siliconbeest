@@ -193,6 +193,28 @@ export function buildFlagActivity(
 }
 
 /**
+ * Build an EmojiReact activity (Misskey-compatible Like with _misskey_reaction).
+ *
+ * Uses the Like type with additional `content` and `_misskey_reaction` fields
+ * so that Misskey, Pleroma, and Akkoma can display the emoji reaction.
+ */
+export function buildEmojiReactActivity(
+	actor: string,
+	objectUri: string,
+	emoji: string,
+): APActivity {
+	return {
+		'@context': AP_CONTEXT,
+		id: activityId(actor),
+		type: 'Like',
+		actor,
+		object: objectUri,
+		content: emoji,
+		_misskey_reaction: emoji,
+	} as APActivity;
+}
+
+/**
  * Build a Block activity targeting another actor.
  */
 export function buildBlockActivity(actor: string, target: string): APActivity {

@@ -59,6 +59,8 @@ app.get('/:id/context', authOptional, async (c) => {
       s.favourited = e.favourited ?? false;
       s.reblogged = e.reblogged ?? false;
       s.bookmarked = e.bookmarked ?? false;
+      s.card = e.card ?? null;
+      s.emojis = e.emojis ?? [];
     }
     return s;
   }

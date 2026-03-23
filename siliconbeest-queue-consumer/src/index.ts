@@ -16,6 +16,7 @@ import { handleProcessMedia } from './handlers/processMedia';
 import { handleFetchRemoteAccount } from './handlers/fetchRemoteAccount';
 import { handleFetchRemoteStatus } from './handlers/fetchRemoteStatus';
 import { handleSendWebPush } from './handlers/sendWebPush';
+import { handleFetchPreviewCard } from './handlers/fetchPreviewCard';
 
 export default {
   async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {
@@ -45,6 +46,9 @@ export default {
             break;
           case 'send_web_push':
             await handleSendWebPush(msg.body, env);
+            break;
+          case 'fetch_preview_card':
+            await handleFetchPreviewCard(msg.body, env);
             break;
           default:
             console.warn('Unknown message type:', (msg.body as any).type);

@@ -122,8 +122,12 @@ app.get('/', async (c) => {
   const userId = payload.user.id;
   const stream = c.req.query('stream') || 'user';
 
-  // 4. Forward upgrade to user's StreamingDO
-  const doId = c.env.STREAMING_DO.idFromName(userId);
+  // 4. Forward upgrade to the appropriate StreamingDO instance
+  //    Public streams use a shared DO, user streams use per-user DOs
+  const doName = (stream === 'public' || stream === 'public:local')
+    ? '__public__'
+    : userId;
+  const doId = c.env.STREAMING_DO.idFromName(doName);
   const doStub = c.env.STREAMING_DO.get(doId);
 
   const doUrl = new URL(c.req.url);

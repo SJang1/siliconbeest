@@ -13,6 +13,7 @@ import type {
   Notification as MastodonNotification,
   NotificationType,
   Poll as MastodonPoll,
+  PreviewCard,
   PollOption,
   Relationship as MastodonRelationship,
   Application as MastodonApplication,
@@ -58,6 +59,12 @@ function isoOrNull(value: string | null | undefined): string | null {
   return value ?? null;
 }
 
+/** Safely parse a JSON column, returning a default on failure. */
+function parseJsonField<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
 // ---------------------------------------------------------------------------
 // Account
 // ---------------------------------------------------------------------------
@@ -91,7 +98,7 @@ export function serializeAccount(
     statuses_count: row.statuses_count,
     followers_count: row.followers_count,
     following_count: row.following_count,
-    fields: opts?.fields ?? [],
+    fields: opts?.fields ?? parseJsonField((row as any).fields, []),
     emojis: [],
   };
 
@@ -117,6 +124,7 @@ export function serializeStatus(
     mediaAttachments?: MastodonMediaAttachment[];
     reblog?: MastodonStatus | null;
     poll?: MastodonPoll | null;
+    card?: PreviewCard | null;
     favourited?: boolean;
     reblogged?: boolean;
     bookmarked?: boolean;
@@ -145,14 +153,14 @@ export function serializeStatus(
     in_reply_to_account_id: row.in_reply_to_account_id ?? null,
     reblog: opts.reblog ?? null,
     poll: opts.poll ?? null,
-    card: null,
+    card: opts.card ?? null,
     language: row.language || null,
     text: null,
-    favourited: opts.favourited ?? null,
-    reblogged: opts.reblogged ?? null,
-    bookmarked: opts.bookmarked ?? null,
-    muted: null,
-    pinned: opts.pinned ?? null,
+    favourited: opts.favourited ?? false,
+    reblogged: opts.reblogged ?? false,
+    bookmarked: opts.bookmarked ?? false,
+    muted: false,
+    pinned: opts.pinned ?? false,
     emojis: opts.emojis ?? [],
     tags: opts.tags ?? [],
     mentions: opts.mentions ?? [],

@@ -201,6 +201,12 @@ cd siliconbeest-queue-consumer && npx wrangler deploy
 cd siliconbeest-vue && npx wrangler deploy
 ```
 
+### Cloudflare Bot Protection (CRITICAL)
+
+> **Without this step, federation is completely broken.**
+
+Cloudflare's Bot Fight Mode blocks ActivityPub traffic (403 to `/users/*`, `/inbox`). You must create a WAF **Skip** rule — see **[scripts/README.md](scripts/README.md#cloudflare-bot-protection-critical)** for full instructions.
+
 ### Updating an Existing Instance
 
 When a new version is released:

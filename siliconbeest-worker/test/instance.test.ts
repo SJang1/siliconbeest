@@ -25,7 +25,7 @@ describe('Instance Info', () => {
       expect(body.domain).toBe(DOMAIN);
       expect(body.title).toBeDefined();
       expect(body.version).toBeDefined();
-      expect(body.version).toContain('Siliconbeest');
+      expect(body.version).toContain('SiliconBeest');
     });
 
     it('includes registration info', async () => {

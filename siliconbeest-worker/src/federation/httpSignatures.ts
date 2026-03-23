@@ -201,6 +201,7 @@ function parseSignatureHeader(signatureHeader: string): {
 export async function verifySignature(
 	request: Request,
 	publicKeyPem: string,
+	rawBody?: string,
 ): Promise<boolean> {
 	const signatureHeader = request.headers.get('Signature');
 	if (!signatureHeader) {
@@ -219,7 +220,7 @@ export async function verifySignature(
 			return false;
 		}
 
-		const body = await request.clone().text();
+		const body = rawBody ?? await request.clone().text();
 		const expectedDigest = await computeDigest(body);
 		if (digestHeader !== expectedDigest) {
 			return false;

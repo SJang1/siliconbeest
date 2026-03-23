@@ -36,7 +36,7 @@ async function loadMore() {
   await timelinesStore.fetchMore('home', { token: auth.token })
 }
 
-async function handleCompose(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
+async function handleCompose(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string; language?: string }) {
   if (!auth.token) return
   compose.text = payload.content
   if (payload.visibility) compose.visibility = payload.visibility as any
@@ -45,6 +45,7 @@ async function handleCompose(payload: { content: string; visibility?: string; se
     compose.contentWarning = payload.spoiler_text
     compose.showContentWarning = true
   }
+  if (payload.language) compose.language = payload.language
   await compose.publish()
 }
 

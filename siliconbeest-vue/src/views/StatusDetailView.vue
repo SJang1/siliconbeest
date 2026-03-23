@@ -45,18 +45,26 @@ async function loadThread() {
   }
 }
 
+const replyTarget = ref<Status | null>(null)
+
+function setReplyTarget(s: Status) {
+  replyTarget.value = s
+}
+
 async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
   if (!auth.token || !status.value) return
+  const target = replyTarget.value ?? status.value
   try {
-    const { data } = await createStatus({
+    await createStatus({
       status: payload.content,
-      in_reply_to_id: status.value.id,
-      visibility: (payload.visibility as any) ?? status.value.visibility,
+      in_reply_to_id: target.id,
+      visibility: (payload.visibility as any) ?? target.visibility,
       sensitive: payload.sensitive,
       spoiler_text: payload.spoiler_text,
     }, auth.token)
-    statusesStore.cacheStatus(data)
-    descendants.value.push(data)
+    // Reload full thread to get correct ordering
+    await loadThread()
+    replyTarget.value = null
   } catch (e) {
     // silently fail
   }
@@ -90,11 +98,15 @@ watch(() => route.params.statusId, (newId) => {
           <StatusCard :status="status" />
         </div>
 
-        <!-- Reply composer -->
-        <StatusComposer :reply-to="status" @submit="handleReply" />
-
         <!-- Descendants -->
-        <StatusCard v-for="s in descendants" :key="s.id" :status="s" />
+        <StatusCard v-for="s in descendants" :key="s.id" :status="s" @reply="setReplyTarget(s)" />
+
+        <!-- Reply composer (below all replies) -->
+        <div v-if="replyTarget && replyTarget.id !== status.id" class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2">
+          <span>{{ t('status.replying_to') }} @{{ replyTarget.account.acct }}</span>
+          <button @click="replyTarget = null" class="text-indigo-500 hover:underline text-xs">{{ t('common.cancel') }}</button>
+        </div>
+        <StatusComposer :reply-to="replyTarget ?? status" @submit="handleReply" />
       </template>
 
       <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">

@@ -243,6 +243,34 @@ Backups are saved to `./backups/{timestamp}/`.
 
 ---
 
+## Cloudflare Bot Protection (CRITICAL)
+
+Cloudflare's **Bot Fight Mode** and **Super Bot Fight Mode** block ActivityPub federation traffic — other Fediverse servers appear as "bots" and receive 403 responses on `/users/*` and `/inbox`.
+
+**You MUST create a WAF exception rule:**
+
+1. Go to **Security > WAF > Custom Rules** in the Cloudflare Dashboard
+2. Create a **Skip** rule with this expression:
+   ```
+   (http.request.uri.path matches "^/users/.*" or
+    http.request.uri.path eq "/inbox" or
+    http.request.uri.path eq "/actor" or
+    http.request.uri.path matches "^/nodeinfo/.*" or
+    http.request.uri.path matches "^/.well-known/.*")
+   ```
+3. Action: **Skip** → check **All remaining custom rules** + **Super Bot Fight Mode**
+4. Place it **FIRST** in your rule list (highest priority)
+
+**Verify:**
+```bash
+curl -H 'Accept: application/activity+json' https://your-domain.com/users/admin
+# Should return JSON, NOT an HTML challenge page
+```
+
+Without this rule, federation is completely broken — no remote server can discover or interact with your instance.
+
+---
+
 ## Maintenance
 
 ### Rotate VAPID keys

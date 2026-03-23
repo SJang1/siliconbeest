@@ -3,6 +3,8 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { buildAnnounceActivity } from '../../../../federation/activityBuilder';
+import { enqueueFanout } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -111,6 +113,36 @@ app.post('/:id/reblog', authRequired, async (c) => {
     c.env.DB.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1 WHERE id = ?1').bind(statusId),
     c.env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(currentUser.account_id),
   ]);
+
+  // Create notification for the status author (don't notify yourself)
+  const statusAuthorId = row.account_id as string;
+  if (statusAuthorId !== currentUser.account_id) {
+    try {
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'create_notification',
+        recipientAccountId: statusAuthorId,
+        senderAccountId: currentUser.account_id,
+        notificationType: 'reblog',
+        statusId,
+      });
+    } catch (_) { /* don't fail the API response */ }
+  }
+
+  // Federation: deliver Announce activity to all followers
+  try {
+    const actorUri = `https://${domain}/users/${currentAccount.username}`;
+    const followersUri = `${actorUri}/followers`;
+    const statusUri = row.uri as string;
+    const activity = buildAnnounceActivity(
+      actorUri,
+      statusUri,
+      ['https://www.w3.org/ns/activitystreams#Public'],
+      [followersUri],
+    );
+    await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentUser.account_id);
+  } catch (e) {
+    console.error('Federation delivery failed for reblog:', e);
+  }
 
   const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id);
   rebloggedStatus.reblogged = true;

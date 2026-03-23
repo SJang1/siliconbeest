@@ -83,6 +83,7 @@
     "pollDuration": "투표 기간",
     "replyTo": "{name}에게 답글",
     "add_media": "미디어 추가",
+    "language": "게시글 언어",
     "uploading": "미디어 업로드 중...",
     "cw_placeholder": "내용 경고",
     "replying_to": "{name}에게 답글",
@@ -103,7 +104,8 @@
     "compose": "작성",
     "admin": "관리",
     "about": "소개",
-    "conversations": "대화"
+    "conversations": "대화",
+    "follow_requests": "팔로우 요청"
   },
   "explore": {
     "trending": "트렌딩",
@@ -170,17 +172,26 @@
     "update": "{user}님이 게시물을 수정했습니다",
     "clearAll": "모든 알림 지우기",
     "markAllRead": "모두 읽음으로 표시",
-    "noNotifications": "아직 알림이 없습니다"
+    "empty": "아직 알림이 없습니다",
+    "empty_hint": "게시물에 대한 상호작용이 여기에 표시됩니다.",
+    "noNotifications": "아직 알림이 없습니다",
+    "follow_requests_pending": "대기 중인 팔로우 요청 {count}건",
+    "follow_requests_hint": "탭하여 수락하거나 거절하세요"
   },
   "profile": {
     "posts": "게시물",
     "postsAndReplies": "게시물 및 답글",
     "media": "미디어",
-    "followers": "팔로워 {count}명",
-    "following": "팔로잉 {count}명",
+    "followers": "팔로워",
+    "followers_count": "팔로워 {count}명",
+    "following": "팔로잉",
+    "following_count": "팔로잉 {count}명",
+    "no_followers": "아직 팔로워가 없습니다",
+    "no_following": "아직 팔로우하는 사람이 없습니다",
     "follow": "팔로우",
     "unfollow": "언팔로우",
-    "requested": "요청됨",
+    "requested": "대기 중",
+    "cancel_request": "요청 취소",
     "block": "차단",
     "unblock": "차단 해제",
     "mute": "뮤트",
@@ -193,7 +204,8 @@
     "banner": "프로필 배너",
     "blocked": "차단됨",
     "edit": "프로필 편집",
-    "not_found": "프로필을 찾을 수 없습니다"
+    "not_found": "프로필을 찾을 수 없습니다",
+    "remote_server": "원격 서버"
   },
   "settings": {
     "title": "설정",
@@ -302,7 +314,8 @@
       "announcements": "공지사항",
       "rules": "규칙",
       "relays": "릴레이",
-      "custom_emojis": "커스텀 이모지"
+      "custom_emojis": "커스텀 이모지",
+      "federation": "연합"
     },
     "relays": "릴레이",
     "addRelay": "릴레이 추가",
@@ -367,7 +380,29 @@
     "emojiCategoryPlaceholder": "선택 카테고리 (예: Blobs)",
     "emojiHidden": "선택기에서 숨김",
     "noEmojis": "커스텀 이모지가 없습니다.",
-    "deleteEmojiConfirm": "이 이모지를 삭제하시겠습니까?"
+    "deleteEmojiConfirm": "이 이모지를 삭제하시겠습니까?",
+    "federation": {
+      "title": "연합",
+      "instances": "알려진 인스턴스",
+      "stats": "연합 통계",
+      "total": "전체 인스턴스",
+      "active": "활성 (7일)",
+      "unreachable": "접근 불가",
+      "remote_accounts": "원격 계정",
+      "software": "소프트웨어",
+      "accounts": "계정",
+      "last_active": "마지막 활동",
+      "status": "상태",
+      "healthy": "정상",
+      "degraded": "불안정",
+      "down": "중단",
+      "search_placeholder": "도메인으로 검색...",
+      "no_instances": "아직 연합된 인스턴스가 없습니다",
+      "detail": "인스턴스 상세",
+      "registrations": "가입 허용",
+      "first_seen": "최초 발견",
+      "description": "설명"
+    }
   },
   "search": {
     "title": "검색",

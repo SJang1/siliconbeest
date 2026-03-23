@@ -21,7 +21,7 @@ export async function handleSendWebPush(
 
   // Load the notification details
   const notification = await env.DB.prepare(
-    `SELECT n.id, n.notification_type, n.status_id,
+    `SELECT n.id, n.type AS notification_type, n.status_id,
             sender.username AS sender_username,
             sender.display_name AS sender_display_name
      FROM notifications n

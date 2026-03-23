@@ -1,23 +1,41 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   content: string
   spoilerText?: string
   sensitive?: boolean
+  emojis?: Array<{ shortcode: string; url: string; static_url: string }>
 }>()
 
 const revealed = ref(false)
+
+/** Replace :shortcode: patterns with <img> tags using the emojis array */
+function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; static_url: string }>): string {
+  if (!emojis || emojis.length === 0) return html
+  let result = html
+  for (const emoji of emojis) {
+    const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
+    result = result.replace(
+      pattern,
+      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" />`
+    )
+  }
+  return result
+}
+
+const processedContent = computed(() => emojify(props.content, props.emojis))
+const processedSpoiler = computed(() => emojify(props.spoilerText || '', props.emojis))
 </script>
 
 <template>
   <div class="mt-1">
     <!-- CW / Spoiler -->
     <div v-if="spoilerText">
-      <p class="text-sm text-gray-700 dark:text-gray-300">{{ spoilerText }}</p>
+      <p class="text-sm text-gray-700 dark:text-gray-300" v-html="processedSpoiler" />
       <button
         @click="revealed = !revealed"
         class="mt-1 px-3 py-1 text-xs font-semibold rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
@@ -31,7 +49,17 @@ const revealed = ref(false)
     <div
       v-if="!spoilerText || revealed"
       class="prose prose-sm dark:prose-invert max-w-none mt-1 break-words"
-      v-html="content"
+      v-html="processedContent"
     />
   </div>
 </template>
+
+<style scoped>
+:deep(.custom-emoji) {
+  display: inline;
+  height: 1.2em;
+  width: auto;
+  vertical-align: middle;
+  margin: 0 0.05em;
+}
+</style>

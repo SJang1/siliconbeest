@@ -9,59 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
-
-/**
- * Resolve or upsert a remote account by actor URI.
- */
-async function resolveRemoteAccount(
-	actorUri: string,
-	env: Env,
-): Promise<string | null> {
-	const existing = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(actorUri)
-		.first<{ id: string }>();
-
-	if (existing) return existing.id;
-
-	const now = new Date().toISOString();
-	const id = generateUlid();
-	let username = 'unknown';
-	let domain = 'unknown';
-
-	try {
-		const url = new URL(actorUri);
-		domain = url.host;
-		const segments = url.pathname.split('/').filter(Boolean);
-		username = segments[segments.length - 1] ?? 'unknown';
-	} catch {
-		// leave defaults
-	}
-
-	try {
-		await env.DB.prepare(
-			`INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-		)
-			.bind(id, username, domain, actorUri, now, now)
-			.run();
-	} catch {
-		const retry = await env.DB.prepare(
-			`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-		)
-			.bind(actorUri)
-			.first<{ id: string }>();
-		return retry?.id ?? null;
-	}
-
-	await env.QUEUE_FEDERATION.send({
-		type: 'fetch_remote_account',
-		actorUri,
-	});
-
-	return id;
-}
+import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 /**
  * Extract emoji from an activity.
@@ -117,6 +65,34 @@ export async function processEmojiReact(
 	if (!actorAccountId) {
 		console.error('[emojiReact] Could not resolve remote actor');
 		return;
+	}
+
+	// Store custom emoji if present in the activity's tag array
+	const activityTags = activity.tag as unknown[] | undefined;
+	if (Array.isArray(activityTags)) {
+		for (const tag of activityTags) {
+			const tagObj = tag as Record<string, unknown>;
+			if (tagObj.type !== 'Emoji') continue;
+			const emojiName = ((tagObj.name as string) || '').replace(/^:|:$/g, '');
+			const iconObj = tagObj.icon as Record<string, unknown> | undefined;
+			const emojiUrl = iconObj?.url as string | undefined;
+			if (!emojiName || !emojiUrl) continue;
+
+			let emojiDomain: string | null = null;
+			try {
+				emojiDomain = new URL(emojiUrl).hostname;
+			} catch { /* skip */ }
+
+			if (emojiDomain) {
+				await env.DB.prepare(
+					`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
+					 VALUES (?1, ?2, ?3, ?4, 0, datetime('now'), datetime('now'))
+					 ON CONFLICT(shortcode, domain) DO UPDATE SET
+					   image_key = excluded.image_key,
+					   updated_at = datetime('now')`,
+				).bind(generateUlid(), emojiName, emojiDomain, emojiUrl).run();
+			}
+		}
 	}
 
 	// Insert emoji reaction (ignore duplicate via UNIQUE constraint)

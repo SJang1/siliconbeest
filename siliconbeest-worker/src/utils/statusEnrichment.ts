@@ -3,9 +3,23 @@
  * Used by all timeline endpoints to avoid N+1 queries.
  */
 
-import type { MediaAttachment as MastodonMediaAttachment } from '../types/mastodon';
+import type { MediaAttachment as MastodonMediaAttachment, PreviewCard } from '../types/mastodon';
 import { serializeMediaAttachment } from './mastodonSerializer';
 import type { MediaAttachmentRow } from '../types/db';
+
+export interface MentionInfo {
+  id: string;
+  username: string;
+  acct: string;
+  url: string;
+}
+
+export interface EmojiInfo {
+  shortcode: string;
+  url: string;
+  static_url: string;
+  visible_in_picker: boolean;
+}
 
 export interface StatusEnrichment {
   mediaAttachments: MastodonMediaAttachment[];
@@ -13,6 +27,9 @@ export interface StatusEnrichment {
   reblogged: boolean | null;
   bookmarked: boolean | null;
   reactions: { emoji: string; count: number }[];
+  mentions: MentionInfo[];
+  card: PreviewCard | null;
+  emojis: EmojiInfo[];
 }
 
 const EMPTY: StatusEnrichment = {
@@ -21,6 +38,9 @@ const EMPTY: StatusEnrichment = {
   reblogged: null,
   bookmarked: null,
   reactions: [],
+  mentions: [],
+  card: null,
+  emojis: [],
 };
 
 /**
@@ -40,7 +60,7 @@ export async function enrichStatuses(
 
   // Initialize all entries
   for (const id of statusIds) {
-    result.set(id, { ...EMPTY, mediaAttachments: [], reactions: [] });
+    result.set(id, { ...EMPTY, mediaAttachments: [], reactions: [], mentions: [], card: null, emojis: [] });
   }
 
   // Build parallel queries
@@ -87,7 +107,71 @@ export async function enrichStatuses(
       }),
   );
 
-  // 3-5. Interaction states (only when authenticated)
+  // 3. Mentions (always)
+  queries.push(
+    db
+      .prepare(
+        `SELECT m.status_id, m.account_id, a.username, a.domain, a.url AS a_url
+         FROM mentions m
+         JOIN accounts a ON a.id = m.account_id
+         WHERE m.status_id IN (${placeholders})`,
+      )
+      .bind(...statusIds)
+      .all()
+      .then(({ results }) => {
+        for (const row of results ?? []) {
+          const entry = result.get(row.status_id as string);
+          if (entry) {
+            const username = row.username as string;
+            const acctDomain = row.domain as string | null;
+            entry.mentions.push({
+              id: row.account_id as string,
+              username,
+              acct: acctDomain ? `${username}@${acctDomain}` : username,
+              url: (row.a_url as string) || `https://${domain}/@${username}`,
+            });
+          }
+        }
+      }),
+  );
+
+  // 4. Preview cards (always)
+  queries.push(
+    db
+      .prepare(
+        `SELECT spc.status_id, pc.*
+         FROM status_preview_cards spc
+         JOIN preview_cards pc ON pc.id = spc.preview_card_id
+         WHERE spc.status_id IN (${placeholders})`,
+      )
+      .bind(...statusIds)
+      .all()
+      .then(({ results }) => {
+        for (const row of results ?? []) {
+          const entry = result.get(row.status_id as string);
+          if (entry && !entry.card) {
+            entry.card = {
+              url: row.url as string,
+              title: (row.title as string) || '',
+              description: (row.description as string) || '',
+              type: (row.type as PreviewCard['type']) || 'link',
+              author_name: (row.author_name as string) || '',
+              author_url: (row.author_url as string) || '',
+              provider_name: (row.provider_name as string) || '',
+              provider_url: (row.provider_url as string) || '',
+              html: (row.html as string) || '',
+              width: (row.width as number) || 0,
+              height: (row.height as number) || 0,
+              image: (row.image_url as string) || null,
+              embed_url: (row.embed_url as string) || '',
+              blurhash: (row.blurhash as string) || null,
+            };
+          }
+        }
+      }),
+  );
+
+  // 5-7. Interaction states (only when authenticated)
   if (currentAccountId) {
     // Favourited
     queries.push(
@@ -142,5 +226,73 @@ export async function enrichStatuses(
   }
 
   await Promise.all(queries);
+
+  // 8. Custom emojis — fetch content from statuses and extract :shortcode: patterns
+  // We need to fetch the status content to find shortcodes
+  const contentQuery = await db
+    .prepare(
+      `SELECT id, content, content_warning FROM statuses WHERE id IN (${placeholders})`,
+    )
+    .bind(...statusIds)
+    .all();
+
+  const allShortcodes = new Set<string>();
+  const statusShortcodes = new Map<string, string[]>();
+  const emojiRegex = /:([a-zA-Z0-9_]+):/g;
+
+  for (const row of contentQuery.results ?? []) {
+    const id = row.id as string;
+    const content = (row.content as string) || '';
+    const cw = (row.content_warning as string) || '';
+    const text = content + ' ' + cw;
+    const codes: string[] = [];
+    let match;
+    while ((match = emojiRegex.exec(text)) !== null) {
+      codes.push(match[1]);
+      allShortcodes.add(match[1]);
+    }
+    if (codes.length > 0) {
+      statusShortcodes.set(id, codes);
+    }
+  }
+
+  if (allShortcodes.size > 0) {
+    const shortcodeList = [...allShortcodes];
+    const emojiPlaceholders = shortcodeList.map(() => '?').join(',');
+    const { results: emojiRows } = await db
+      .prepare(
+        `SELECT shortcode, image_key, domain, visible_in_picker FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
+      )
+      .bind(...shortcodeList)
+      .all();
+
+    const emojiInfoMap = new Map<string, EmojiInfo>();
+    for (const er of emojiRows ?? []) {
+      const sc = er.shortcode as string;
+      const imageKey = er.image_key as string;
+      const url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
+      emojiInfoMap.set(sc, {
+        shortcode: sc,
+        url,
+        static_url: url,
+        visible_in_picker: !!(er.visible_in_picker),
+      });
+    }
+
+    for (const [statusId, codes] of statusShortcodes) {
+      const entry = result.get(statusId);
+      if (!entry) continue;
+      const seen = new Set<string>();
+      for (const code of codes) {
+        if (seen.has(code)) continue;
+        seen.add(code);
+        const info = emojiInfoMap.get(code);
+        if (info) {
+          entry.emojis.push(info);
+        }
+      }
+    }
+  }
+
   return result;
 }

@@ -9,6 +9,15 @@
 import type { Env } from '../env';
 import type { CreateNotificationMessage } from '../shared/types/queue';
 
+function generateULID(): string {
+  const t = Date.now();
+  const ts = t.toString(36).padStart(10, '0');
+  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
+    .map((b) => (b % 36).toString(36))
+    .join('');
+  return (ts + rand).toUpperCase();
+}
+
 export async function handleCreateNotification(
   msg: CreateNotificationMessage,
   env: Env,
@@ -25,7 +34,7 @@ export async function handleCreateNotification(
     `SELECT id FROM notifications
      WHERE account_id = ?
        AND from_account_id = ?
-       AND notification_type = ?
+       AND type = ?
        AND (status_id = ? OR (status_id IS NULL AND ? IS NULL))
      LIMIT 1`,
   )
@@ -38,11 +47,11 @@ export async function handleCreateNotification(
   }
 
   // Generate a notification ID
-  const notificationId = crypto.randomUUID();
+  const notificationId = generateULID();
 
   // Insert the notification
   await env.DB.prepare(
-    `INSERT INTO notifications (id, account_id, from_account_id, notification_type, status_id, created_at)
+    `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, created_at)
      VALUES (?, ?, ?, ?, ?, datetime('now'))`,
   )
     .bind(notificationId, recipientAccountId, senderAccountId, notificationType, statusId ?? null)
@@ -130,7 +139,7 @@ export async function handleCreateNotification(
     // Include status if applicable
     if (statusId) {
       const statusRow = await env.DB.prepare(
-        `SELECT id, uri, content, visibility, sensitive, spoiler_text,
+        `SELECT id, uri, content, visibility, sensitive, content_warning,
                 language, url, created_at, in_reply_to_id,
                 in_reply_to_account_id, reblogs_count, favourites_count,
                 replies_count, edited_at, account_id
@@ -161,7 +170,7 @@ export async function handleCreateNotification(
             content: statusRow.content,
             visibility: statusRow.visibility,
             sensitive: statusRow.sensitive === 1 || statusRow.sensitive === true,
-            spoiler_text: statusRow.spoiler_text || '',
+            spoiler_text: statusRow.content_warning || '',
             language: statusRow.language,
             url: statusRow.url,
             in_reply_to_id: statusRow.in_reply_to_id,

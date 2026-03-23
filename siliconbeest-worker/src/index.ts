@@ -59,6 +59,8 @@ import changePassword from './endpoints/api/v1/accounts/change_password';
 
 // -- Instance v1 --
 import instanceV1 from './endpoints/api/v1/instance';
+import instancePeers from './endpoints/api/v1/instance/peers';
+import instanceActivity from './endpoints/api/v1/instance/activity';
 
 // -- Admin API --
 import admin from './endpoints/api/v1/admin/index';
@@ -150,6 +152,8 @@ app.route('/api/v1/lists', lists);
 app.route('/api/v1/tags', tags);
 app.route('/api/v1/suggestions', suggestions);
 app.route('/api/v1/announcements', announcements);
+app.route('/api/v1/instance/peers', instancePeers);
+app.route('/api/v1/instance/activity', instanceActivity);
 app.route('/api/v1/instance', instanceV1);
 app.route('/api/v1/instance/rules', rules);
 app.route('/api/v1/trends', trends);
@@ -185,6 +189,62 @@ app.route('/inbox', apSharedInbox);
 // ---------------------------------------------------------------------------
 
 app.route('/media', mediaServe);
+
+// ---------------------------------------------------------------------------
+// Thumbnail / favicon
+// ---------------------------------------------------------------------------
+
+app.get('/thumbnail.png', async (c) => {
+  // Try R2 first
+  const obj = await c.env.MEDIA_BUCKET.get('instance/thumbnail.png');
+  if (obj) {
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': obj.httpMetadata?.contentType || 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+  // Fallback: generate a 1x1 transparent PNG
+  const pixel = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+    0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x62, 0x00, 0x00, 0x00, 0x02,
+    0x00, 0x01, 0xe5, 0x27, 0xde, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  ]);
+  return new Response(pixel, {
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=60' },
+  });
+});
+
+app.get('/favicon.ico', async (c) => {
+  const obj = await c.env.MEDIA_BUCKET.get('instance/favicon.ico');
+  if (obj) {
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': 'image/x-icon',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+  // Also try thumbnail.png as favicon fallback
+  const thumb = await c.env.MEDIA_BUCKET.get('instance/thumbnail.png');
+  if (thumb) {
+    return new Response(thumb.body, {
+      headers: {
+        'Content-Type': thumb.httpMetadata?.contentType || 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+  // Generate a simple SVG favicon
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#6366f1"/><text x="16" y="22" font-size="18" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="bold">S</text></svg>`;
+  return new Response(svg, {
+    headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' },
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Internal — Stream event delivery (called by queue consumer via service binding)

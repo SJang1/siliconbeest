@@ -3,6 +3,8 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { buildLikeActivity } from '../../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -40,6 +42,39 @@ app.post('/:id/favourite', authRequired, async (c) => {
       ).bind(id, currentAccountId, statusId, now),
       c.env.DB.prepare('UPDATE statuses SET favourites_count = favourites_count + 1 WHERE id = ?1').bind(statusId),
     ]);
+
+    // Create notification for the status author (don't notify yourself)
+    const statusAuthorId = row.account_id as string;
+    if (statusAuthorId !== currentAccountId) {
+      try {
+        await c.env.QUEUE_INTERNAL.send({
+          type: 'create_notification',
+          recipientAccountId: statusAuthorId,
+          senderAccountId: currentAccountId,
+          notificationType: 'favourite',
+          statusId,
+        });
+      } catch (_) { /* don't fail the API response */ }
+    }
+
+    // Federation: deliver Like activity if the status author is remote
+    if (row.account_domain) {
+      try {
+        const currentAccount = await c.env.DB.prepare(
+          'SELECT uri FROM accounts WHERE id = ?1',
+        ).bind(currentAccountId).first();
+        if (currentAccount) {
+          const actorUri = currentAccount.uri as string;
+          const statusUri = row.uri as string;
+          const authorUri = row.account_uri as string;
+          const inbox = `${authorUri}/inbox`;
+          const activity = buildLikeActivity(actorUri, statusUri);
+          await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), inbox, currentAccountId);
+        }
+      } catch (e) {
+        console.error('Federation delivery failed for favourite:', e);
+      }
+    }
   }
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);

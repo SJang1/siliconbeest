@@ -43,7 +43,7 @@ const emit = defineEmits<{
           leave-to="opacity-0 scale-95"
         >
           <DialogPanel
-            class="w-full max-w-md rounded-xl bg-white dark:bg-gray-800 p-6 shadow-xl"
+            class="w-[90vw] sm:w-[600px] lg:w-[640px] rounded-xl bg-white dark:bg-gray-800 p-6 shadow-xl"
           >
             <DialogTitle
               v-if="title"

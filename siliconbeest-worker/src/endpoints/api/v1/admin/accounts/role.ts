@@ -34,6 +34,20 @@ app.post('/:id/role', async (c) => {
 		.bind(role, new Date().toISOString(), id)
 		.run();
 
+	// Invalidate token cache for this user — find all active tokens and delete from KV
+	const { results: tokens } = await c.env.DB.prepare(
+		'SELECT token FROM oauth_access_tokens WHERE user_id = ?1 AND revoked_at IS NULL',
+	).bind(user.id as string).all();
+
+	if (tokens && tokens.length > 0) {
+		const encoder = new TextEncoder();
+		for (const t of tokens) {
+			const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(t.token as string));
+			const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+			await c.env.CACHE.delete(`token:${hashHex}`);
+		}
+	}
+
 	return c.json({ id, role }, 200);
 });
 

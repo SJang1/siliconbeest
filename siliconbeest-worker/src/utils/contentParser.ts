@@ -42,7 +42,7 @@ export function parseContent(text: string, domain: string): ParsedContent {
 		processed = processMentions(processed, domain, mentions);
 
 		// Process #hashtags
-		processed = processHashtags(processed, tags);
+		processed = processHashtags(processed, domain, tags);
 
 		return `<p>${processed}</p>`;
 	});
@@ -92,12 +92,12 @@ function processUrls(text: string): string {
  */
 function processMentions(text: string, localDomain: string, mentions: ParsedMention[]): string {
 	// Match @user@domain or @user (must be preceded by start-of-string or whitespace/punctuation)
-	const mentionRegex = /(?:^|[\s>,.;:!?()])@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/g;
+	// Uses a lookbehind so we don't consume the preceding character in the match
+	const mentionRegex = /(?<=^|[\s>,.;:!?()])@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/g;
 
 	return text.replace(mentionRegex, (match, username: string, mentionDomain: string | undefined) => {
 		const domain = mentionDomain || null;
 		const acct = domain ? `${username}@${domain}` : username;
-		const targetDomain = domain || localDomain;
 
 		// Add to mentions list if not already present
 		const alreadyExists = mentions.some((m) => m.acct === acct);
@@ -105,17 +105,22 @@ function processMentions(text: string, localDomain: string, mentions: ParsedMent
 			mentions.push({ username, domain, acct });
 		}
 
-		const profileUrl = `https://${targetDomain}/@${username}`;
-		return `<a href="${profileUrl}" class="mention">@${username}</a>`;
+		// Link to the actor's profile URL; for remote users use the local proxy URL
+		const profileUrl = domain
+			? `https://${localDomain}/@${username}@${domain}`
+			: `https://${localDomain}/@${username}`;
+		// AP spec: class="u-url mention", display full acct for remote mentions
+		const displayName = domain ? `${username}@${domain}` : username;
+		return `<a href="${profileUrl}" class="u-url mention">@<span>${displayName}</span></a>`;
 	});
 }
 
 /**
  * Detect and linkify #hashtags in text.
  */
-function processHashtags(text: string, tags: string[]): string {
+function processHashtags(text: string, localDomain: string, tags: string[]): string {
 	// Match #hashtag (word characters and underscores, must start with a letter)
-	const hashtagRegex = /(?:^|[\s>,.;:!?()])#([a-zA-Z][a-zA-Z0-9_]*)/g;
+	const hashtagRegex = /(?<=^|[\s>,.;:!?()])#([a-zA-Z][a-zA-Z0-9_]*)/g;
 
 	return text.replace(hashtagRegex, (match, tag: string) => {
 		const normalizedTag = tag.toLowerCase();
@@ -124,6 +129,6 @@ function processHashtags(text: string, tags: string[]): string {
 			tags.push(normalizedTag);
 		}
 
-		return `<a href="/tags/${normalizedTag}" class="hashtag">#${tag}</a>`;
+		return `<a href="https://${localDomain}/tags/${normalizedTag}" class="mention hashtag" rel="tag">#<span>${tag}</span></a>`;
 	});
 }

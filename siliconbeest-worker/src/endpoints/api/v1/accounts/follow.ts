@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
+import { buildFollowActivity } from '../../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -25,8 +27,13 @@ app.post('/:id/follow', authRequired, async (c) => {
     throw new AppError(422, 'Validation failed', 'You cannot follow yourself');
   }
 
-  const target = await c.env.DB.prepare('SELECT id, locked, manually_approves_followers FROM accounts WHERE id = ?1').bind(targetId).first();
+  const target = await c.env.DB.prepare('SELECT id, username, domain, uri, inbox_url, shared_inbox_url, locked, manually_approves_followers FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
+
+  // Get current account info for AP
+  const currentAccount = await c.env.DB.prepare('SELECT id, username, uri FROM accounts WHERE id = ?1').bind(currentAccountId).first();
+  const domain = c.env.INSTANCE_DOMAIN;
+  const actorUri = currentAccount?.uri as string || `https://${domain}/users/${currentAccount?.username}`;
 
   // Check existing follow
   const existingFollow = await c.env.DB.prepare(
@@ -80,13 +87,38 @@ app.post('/:id/follow', authRequired, async (c) => {
 
   const now = new Date().toISOString();
   const id = generateULID();
+  const targetUri = target.uri as string;
+  const isRemote = !!(target.domain);
   const needsApproval = !!(target.locked || target.manually_approves_followers);
 
-  if (needsApproval) {
+  // For REMOTE accounts: always go through follow_requests first.
+  // AP spec: we send Follow, then wait for Accept/Reject from the remote.
+  // For LOCAL accounts with locked: also use follow_requests.
+  if (isRemote || needsApproval) {
+    const followActivity = buildFollowActivity(actorUri, targetUri);
+
     await c.env.DB.prepare(
-      `INSERT INTO follow_requests (id, account_id, target_account_id, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?4)`,
-    ).bind(id, currentAccountId, targetId, now).run();
+      `INSERT INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
+    ).bind(id, currentAccountId, targetId, followActivity.id, now).run();
+
+    // Send Follow activity to remote server
+    if (isRemote) {
+      try {
+        const inbox = (target.inbox_url as string) || (target.shared_inbox_url as string) || `https://${target.domain}/inbox`;
+        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(followActivity), inbox, currentAccountId);
+      } catch (_) { /* don't fail the API response */ }
+    } else {
+      // Local locked account: create notification for target
+      try {
+        await c.env.QUEUE_INTERNAL.send({
+          type: 'create_notification',
+          recipientAccountId: targetId,
+          senderAccountId: currentAccountId,
+          notificationType: 'follow_request',
+        });
+      } catch (_) { /* don't fail */ }
+    }
 
     return c.json({
       id: targetId,
@@ -107,14 +139,28 @@ app.post('/:id/follow', authRequired, async (c) => {
     });
   }
 
+  // LOCAL non-locked account: auto-accept immediately
+  const followActivity = buildFollowActivity(actorUri, targetUri);
+  const followUri = followActivity.id as string;
+
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO follows (id, account_id, target_account_id, show_reblogs, notify, created_at, updated_at)
-       VALUES (?1, ?2, ?3, 1, 0, ?4, ?4)`,
-    ).bind(id, currentAccountId, targetId, now),
+      `INSERT INTO follows (id, account_id, target_account_id, uri, show_reblogs, notify, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, 1, 0, ?5, ?5)`,
+    ).bind(id, currentAccountId, targetId, followUri, now),
     c.env.DB.prepare('UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1').bind(currentAccountId),
     c.env.DB.prepare('UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1').bind(targetId),
   ]);
+
+  // Notification for local auto-accept
+  try {
+    await c.env.QUEUE_INTERNAL.send({
+      type: 'create_notification',
+      recipientAccountId: targetId,
+      senderAccountId: currentAccountId,
+      notificationType: 'follow',
+    });
+  } catch (_) { /* don't fail */ }
 
   return c.json({
     id: targetId,

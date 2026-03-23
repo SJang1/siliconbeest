@@ -6,10 +6,12 @@ import type { Status } from '@/types/mastodon'
 import { useStatusesStore } from '@/stores/statuses'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useAuthStore } from '@/stores/auth'
+import { useAccountsStore } from '@/stores/accounts'
 import Avatar from '../common/Avatar.vue'
 import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
+import PreviewCard from './PreviewCard.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -44,6 +46,27 @@ const relativeTime = computed(() => {
   return t('time.days_ago', { n: diffDays })
 })
 
+/** Replace :shortcode: in text with <img> tags using account emojis */
+const emojifiedDisplayName = computed(() => {
+  let name = props.status.account.display_name || ''
+  const emojis = props.status.account.emojis
+  if (!emojis || emojis.length === 0) return name
+  // Escape HTML in display_name first
+  name = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  for (const emoji of emojis) {
+    const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
+    name = name.replace(
+      pattern,
+      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" style="display:inline;height:1.2em;width:auto;vertical-align:middle;margin:0 0.05em;" />`
+    )
+  }
+  return name
+})
+
+const hasAccountEmojis = computed(() => {
+  return (props.status.account.emojis?.length ?? 0) > 0
+})
+
 const replyToDisplay = computed(() => {
   // Try to find the reply-to account from mentions
   if (props.status.mentions?.length) {
@@ -55,6 +78,14 @@ const replyToDisplay = computed(() => {
   // Fallback: if replying to self
   if (props.status.in_reply_to_account_id === props.status.account.id) {
     return `@${props.status.account.acct}`
+  }
+  // Try accounts cache
+  const accountsStore = useAccountsStore()
+  const cached = accountsStore.getCached(props.status.in_reply_to_account_id!)
+  if (cached) return `@${cached.acct}`
+  // Async fetch (will update on next render)
+  if (props.status.in_reply_to_account_id) {
+    accountsStore.getAccount(props.status.in_reply_to_account_id)
   }
   return '...'
 })
@@ -161,7 +192,8 @@ async function handleDelete() {
         <!-- Header -->
         <div class="flex items-center gap-1 text-sm">
           <router-link :to="`/@${status.account.acct}`" class="font-bold hover:underline truncate">
-            {{ status.account.display_name }}
+            <span v-if="hasAccountEmojis" v-html="emojifiedDisplayName" />
+            <template v-else>{{ status.account.display_name }}</template>
           </router-link>
           <span class="text-gray-500 dark:text-gray-400 truncate">@{{ status.account.acct }}</span>
           <span class="text-gray-400 dark:text-gray-500 mx-1" aria-hidden="true">&middot;</span>
@@ -227,6 +259,7 @@ async function handleDelete() {
             :content="status.content"
             :spoiler-text="status.spoiler_text"
             :sensitive="status.sensitive"
+            :emojis="status.emojis"
           />
 
           <!-- Media -->
@@ -234,6 +267,12 @@ async function handleDelete() {
             v-if="status.media_attachments?.length"
             :attachments="status.media_attachments"
             class="mt-2"
+          />
+
+          <!-- Preview Card -->
+          <PreviewCard
+            v-if="status.card && !status.media_attachments?.length"
+            :card="status.card"
           />
         </template>
 

@@ -44,9 +44,9 @@ app.get('/', async (c) => {
   return c.json({
     domain,
     title,
-    version: '4.0.0 (compatible; Siliconbeest 0.1.0)',
+    version: '4.0.0 (compatible; SiliconBeest 0.1.0)',
     source_url: 'https://github.com/SJang1/siliconbeest',
-    description: `${title} is a Mastodon-compatible server powered by Siliconbeest.`,
+    description: dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`,
     usage: {
       users: {
         active_month: userCount?.cnt ?? 0,

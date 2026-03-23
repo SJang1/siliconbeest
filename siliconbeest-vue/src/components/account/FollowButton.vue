@@ -16,24 +16,26 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const hovering = ref(false)
 
 async function toggle() {
   loading.value = true
   emit('toggle', props.accountId)
-  // Parent should handle the actual API call and update props
   loading.value = false
 }
 
 function label(): string {
   if (props.blocked) return t('profile.blocked')
-  if (props.requested) return t('profile.requested')
-  if (props.following) return t('profile.unfollow')
+  if (props.requested) return hovering.value ? t('profile.cancel_request') : t('profile.requested')
+  if (props.following) return hovering.value ? t('profile.unfollow') : t('profile.following')
   return t('profile.follow')
 }
 
 function buttonClasses(): string {
   if (props.blocked) return 'bg-red-600 hover:bg-red-700 text-white'
-  if (props.following || props.requested)
+  if (props.requested)
+    return 'border border-yellow-500 text-yellow-600 dark:text-yellow-400 hover:border-red-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950'
+  if (props.following)
     return 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-red-500 hover:text-red-500'
   return 'bg-indigo-600 hover:bg-indigo-700 text-white'
 }
@@ -43,6 +45,8 @@ function buttonClasses(): string {
   <button
     @click="toggle"
     :disabled="loading || blocked"
+    @mouseenter="hovering = true"
+    @mouseleave="hovering = false"
     class="px-4 py-1.5 rounded-full text-sm font-bold transition-colors disabled:opacity-50"
     :class="buttonClasses()"
     :aria-label="label()"

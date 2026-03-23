@@ -116,15 +116,15 @@ export async function handleProcessMedia(
 
   // Load the media attachment metadata from D1
   const attachment = await env.DB.prepare(
-    `SELECT id, file_path, content_type, file_size
+    `SELECT id, file_key, file_content_type, file_size
      FROM media_attachments
      WHERE id = ? AND account_id = ?`,
   )
     .bind(mediaAttachmentId, accountId)
     .first<{
       id: string;
-      file_path: string;
-      content_type: string;
+      file_key: string;
+      file_content_type: string;
       file_size: number;
     }>();
 
@@ -133,12 +133,12 @@ export async function handleProcessMedia(
     return;
   }
 
-  const { file_path, content_type } = attachment;
+  const { file_key, file_content_type: content_type } = attachment;
 
   // Read the object from R2
-  const object = await env.MEDIA_BUCKET.get(file_path);
+  const object = await env.MEDIA_BUCKET.get(file_key);
   if (!object) {
-    console.warn(`R2 object not found at ${file_path}, dropping message`);
+    console.warn(`R2 object not found at ${file_key}, dropping message`);
     return;
   }
 
@@ -159,7 +159,7 @@ export async function handleProcessMedia(
   // Update the media attachment row with extracted metadata
   await env.DB.prepare(
     `UPDATE media_attachments
-     SET width = ?, height = ?, processed = 1, updated_at = datetime('now')
+     SET width = ?, height = ?, updated_at = datetime('now')
      WHERE id = ?`,
   )
     .bind(width, height, mediaAttachmentId)

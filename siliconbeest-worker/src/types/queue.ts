@@ -103,6 +103,14 @@ export interface UpdateTrendsMessage {
   type: 'update_trends';
 }
 
+export interface FetchPreviewCardMessage {
+  type: 'fetch_preview_card';
+  /** Status ID that contains the URL */
+  statusId: string;
+  /** URL to fetch OpenGraph metadata from */
+  url: string;
+}
+
 // ============================================================
 // DISCRIMINATED UNION
 // ============================================================
@@ -119,4 +127,5 @@ export type QueueMessage =
   | ProcessMediaMessage
   | SendWebPushMessage
   | CleanupExpiredTokensMessage
-  | UpdateTrendsMessage;
+  | UpdateTrendsMessage
+  | FetchPreviewCardMessage;

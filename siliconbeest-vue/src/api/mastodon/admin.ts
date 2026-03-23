@@ -65,3 +65,35 @@ export function getAdminAccounts(token: string, params?: Record<string, string>)
   const qs = params ? buildQueryString(params) : '';
   return apiFetch<unknown[]>(`/v1/admin/accounts${qs}`, { token });
 }
+
+export interface FederationInstance {
+  domain: string;
+  software: string | null;
+  version: string | null;
+  description: string | null;
+  account_count: number;
+  failure_count: number;
+  last_successful_at: string | null;
+  open_registrations: boolean | null;
+  created_at: string;
+}
+
+export interface FederationStats {
+  total: number;
+  active: number;
+  unreachable: number;
+  remote_accounts: number;
+}
+
+export function getFederationInstances(token: string, params?: Record<string, string>) {
+  const qs = params ? buildQueryString(params) : '';
+  return apiFetch<FederationInstance[]>(`/v1/admin/federation/instances${qs}`, { token });
+}
+
+export function getFederationInstance(token: string, domain: string) {
+  return apiFetch<FederationInstance>(`/v1/admin/federation/instances/${encodeURIComponent(domain)}`, { token });
+}
+
+export function getFederationStats(token: string) {
+  return apiFetch<FederationStats>('/v1/admin/federation/stats', { token });
+}

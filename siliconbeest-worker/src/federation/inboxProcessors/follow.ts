@@ -10,59 +10,7 @@ import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { buildAcceptActivity } from '../activityBuilder';
-
-/**
- * Resolve or upsert a remote account by actor URI.
- */
-async function resolveRemoteAccount(
-	actorUri: string,
-	env: Env,
-): Promise<string | null> {
-	const existing = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(actorUri)
-		.first<{ id: string }>();
-
-	if (existing) return existing.id;
-
-	const now = new Date().toISOString();
-	const id = generateUlid();
-	let username = 'unknown';
-	let domain = 'unknown';
-
-	try {
-		const url = new URL(actorUri);
-		domain = url.host;
-		const segments = url.pathname.split('/').filter(Boolean);
-		username = segments[segments.length - 1] ?? 'unknown';
-	} catch {
-		// leave defaults
-	}
-
-	try {
-		await env.DB.prepare(
-			`INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-		)
-			.bind(id, username, domain, actorUri, now, now)
-			.run();
-	} catch {
-		const retry = await env.DB.prepare(
-			`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-		)
-			.bind(actorUri)
-			.first<{ id: string }>();
-		return retry?.id ?? null;
-	}
-
-	await env.QUEUE_FEDERATION.send({
-		type: 'fetch_remote_account',
-		actorUri,
-	});
-
-	return id;
-}
+import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 export async function processFollow(
 	activity: APActivity,
@@ -159,14 +107,13 @@ export async function processFollow(
 
 		// Look up the remote actor's inbox to deliver the Accept
 		const remoteActor = await env.DB.prepare(
-			`SELECT uri FROM accounts WHERE id = ?1 LIMIT 1`,
+			`SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1 LIMIT 1`,
 		)
 			.bind(followerAccountId)
-			.first<{ uri: string }>();
+			.first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
 		if (remoteActor) {
-			// Derive inbox URL from actor URI: {actor}/inbox
-			const followerInbox = `${remoteActor.uri}/inbox`;
+			const followerInbox = remoteActor.inbox_url || remoteActor.shared_inbox_url || `https://${remoteActor.domain}/inbox`;
 
 			await env.QUEUE_FEDERATION.send({
 				type: 'deliver_activity',

@@ -3,11 +3,13 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { serializeAccount, serializeNotification } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.get('/:id', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
+  const domain = c.env.INSTANCE_DOMAIN;
   const id = c.req.param('id');
 
   const row: any = await c.env.DB.prepare(`
@@ -47,7 +49,98 @@ app.get('/:id', authRequired, async (c) => {
     type: row.type, status_id: row.status_id, read: row.read, created_at: row.created_at,
   };
 
-  return c.json(serializeNotification(notifRow, { account: serializeAccount(accountRow) }));
+  // Fetch status if notification has one
+  let statusObj: any = null;
+  if (row.status_id) {
+    const sr: any = await c.env.DB.prepare(
+      `SELECT s.id, s.uri, s.url, s.content, s.visibility, s.sensitive,
+              s.content_warning, s.language, s.created_at, s.in_reply_to_id,
+              s.in_reply_to_account_id, s.reblogs_count, s.favourites_count,
+              s.replies_count, s.edited_at,
+              sa.id AS sa_id, sa.username AS sa_username, sa.domain AS sa_domain,
+              sa.display_name AS sa_display_name, sa.note AS sa_note,
+              sa.uri AS sa_uri, sa.url AS sa_url,
+              sa.avatar_url AS sa_avatar_url, sa.avatar_static_url AS sa_avatar_static_url,
+              sa.header_url AS sa_header_url, sa.header_static_url AS sa_header_static_url,
+              sa.locked AS sa_locked, sa.bot AS sa_bot, sa.discoverable AS sa_discoverable,
+              sa.followers_count AS sa_followers_count, sa.following_count AS sa_following_count,
+              sa.statuses_count AS sa_statuses_count, sa.last_status_at AS sa_last_status_at,
+              sa.created_at AS sa_created_at
+       FROM statuses s
+       JOIN accounts sa ON sa.id = s.account_id
+       WHERE s.id = ?1 AND s.deleted_at IS NULL`,
+    ).bind(row.status_id).first();
+
+    if (sr) {
+      const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id);
+      const e = enrichments.get(sr.id);
+      const saAcct = sr.sa_domain
+        ? `${sr.sa_username}@${sr.sa_domain}`
+        : sr.sa_username;
+
+      statusObj = {
+        id: sr.id,
+        uri: sr.uri,
+        url: sr.url || null,
+        created_at: sr.created_at,
+        content: sr.content || '',
+        visibility: sr.visibility || 'public',
+        sensitive: !!sr.sensitive,
+        spoiler_text: (sr.content_warning as string) || '',
+        language: sr.language || null,
+        in_reply_to_id: sr.in_reply_to_id || null,
+        in_reply_to_account_id: sr.in_reply_to_account_id || null,
+        reblogs_count: sr.reblogs_count || 0,
+        favourites_count: sr.favourites_count || 0,
+        replies_count: sr.replies_count || 0,
+        edited_at: sr.edited_at || null,
+        favourited: e?.favourited ?? false,
+        reblogged: e?.reblogged ?? false,
+        bookmarked: e?.bookmarked ?? false,
+        muted: false,
+        pinned: false,
+        reblog: null,
+        poll: null,
+        card: e?.card ?? null,
+        application: null,
+        text: null,
+        filtered: [],
+        media_attachments: e?.mediaAttachments ?? [],
+        mentions: e?.mentions ?? [],
+        tags: [],
+        emojis: e?.emojis ?? [],
+        account: {
+          id: sr.sa_id,
+          username: sr.sa_username,
+          acct: saAcct,
+          display_name: (sr.sa_display_name as string) || '',
+          locked: !!sr.sa_locked,
+          bot: !!sr.sa_bot,
+          discoverable: !!sr.sa_discoverable,
+          group: false,
+          created_at: sr.sa_created_at,
+          note: (sr.sa_note as string) || '',
+          url: (sr.sa_url as string) || `https://${domain}/@${sr.sa_username}`,
+          uri: sr.sa_uri,
+          avatar: (sr.sa_avatar_url as string) || null,
+          avatar_static: (sr.sa_avatar_static_url as string) || null,
+          header: (sr.sa_header_url as string) || null,
+          header_static: (sr.sa_header_static_url as string) || null,
+          followers_count: sr.sa_followers_count || 0,
+          following_count: sr.sa_following_count || 0,
+          statuses_count: sr.sa_statuses_count || 0,
+          last_status_at: sr.sa_last_status_at || null,
+          emojis: [],
+          fields: [],
+        },
+      };
+    }
+  }
+
+  return c.json(serializeNotification(notifRow, {
+    account: serializeAccount(accountRow),
+    status: statusObj,
+  }));
 });
 
 export default app;

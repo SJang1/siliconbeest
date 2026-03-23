@@ -51,4 +51,56 @@ app.patch('/', async (c) => {
 	return c.json(settings);
 });
 
+/**
+ * POST /api/v1/admin/settings/thumbnail — upload instance thumbnail
+ */
+app.post('/thumbnail', async (c) => {
+	const formData = await c.req.formData();
+	const file = formData.get('file') as File | null;
+	if (!file) return c.json({ error: 'file is required' }, 422);
+
+	const buffer = await file.arrayBuffer();
+	await c.env.MEDIA_BUCKET.put('instance/thumbnail.png', buffer, {
+		httpMetadata: { contentType: file.type || 'image/png' },
+	});
+
+	const domain = c.env.INSTANCE_DOMAIN;
+	const url = `https://${domain}/thumbnail.png`;
+
+	// Also save in settings
+	const now = new Date().toISOString();
+	await c.env.DB.prepare(
+		`INSERT INTO settings (key, value, updated_at) VALUES ('thumbnail_url', ?1, ?2)
+		 ON CONFLICT (key) DO UPDATE SET value = ?1, updated_at = ?2`,
+	).bind(url, now).run();
+
+	return c.json({ url });
+});
+
+/**
+ * POST /api/v1/admin/settings/favicon — upload instance favicon
+ */
+app.post('/favicon', async (c) => {
+	const formData = await c.req.formData();
+	const file = formData.get('file') as File | null;
+	if (!file) return c.json({ error: 'file is required' }, 422);
+
+	const buffer = await file.arrayBuffer();
+	// Store as both favicon.ico and the original format
+	await c.env.MEDIA_BUCKET.put('instance/favicon.ico', buffer, {
+		httpMetadata: { contentType: file.type || 'image/x-icon' },
+	});
+
+	const domain = c.env.INSTANCE_DOMAIN;
+	const url = `https://${domain}/favicon.ico`;
+
+	const now = new Date().toISOString();
+	await c.env.DB.prepare(
+		`INSERT INTO settings (key, value, updated_at) VALUES ('favicon_url', ?1, ?2)
+		 ON CONFLICT (key) DO UPDATE SET value = ?1, updated_at = ?2`,
+	).bind(url, now).run();
+
+	return c.json({ url });
+});
+
 export default app;

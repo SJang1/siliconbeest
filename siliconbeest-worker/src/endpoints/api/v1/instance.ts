@@ -19,7 +19,7 @@ app.get('/', async (c) => {
   }
 
   const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
-  const description = dbSettings.site_description || `${title} is a Mastodon-compatible server powered by SiliconBeest.`;
+  const description = dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`;
   const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
 
   const userCount = await c.env.DB.prepare(

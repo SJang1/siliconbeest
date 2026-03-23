@@ -10,18 +10,18 @@ describe('FollowButton', () => {
     expect(wrapper.text()).toContain('Follow');
   });
 
-  it('shows Unfollow text when following', () => {
+  it('shows Following text when following (Unfollow on hover)', () => {
     const wrapper = mountWithPlugins(FollowButton, {
       props: { accountId: '1', following: true },
     });
-    expect(wrapper.text()).toContain('Unfollow');
+    expect(wrapper.text()).toContain('Following');
   });
 
-  it('shows Requested text when requested', () => {
+  it('shows Pending text when requested', () => {
     const wrapper = mountWithPlugins(FollowButton, {
       props: { accountId: '1', requested: true },
     });
-    expect(wrapper.text()).toContain('Requested');
+    expect(wrapper.text()).toContain('Pending');
   });
 
   it('emits toggle event with accountId on click', async () => {

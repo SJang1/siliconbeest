@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { apiFetch } from '@/api/client'
 import AppShell from '@/components/layout/AppShell.vue'
 import NotificationItem from '@/components/notification/NotificationItem.vue'
 import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
@@ -18,10 +19,18 @@ const loadingMore = computed(() => notificationsStore.loadingMore)
 const done = computed(() => !notificationsStore.hasMore)
 const error = computed(() => notificationsStore.error)
 
+const followRequestCount = ref(0)
+
 async function loadNotifications() {
   if (!auth.token) return
   await notificationsStore.fetch(auth.token)
   notificationsStore.markAllRead()
+
+  // Check follow requests
+  try {
+    const { data } = await apiFetch<any[]>('/v1/follow_requests', { token: auth.token })
+    followRequestCount.value = data.length
+  } catch { /* ignore */ }
 }
 
 async function loadMore() {
@@ -47,9 +56,23 @@ onMounted(loadNotifications)
           @click="clearAll"
           class="text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
         >
-          {{ t('notifications.clear_all') }}
+          {{ t('notification.clearAll') }}
         </button>
       </header>
+
+      <!-- Follow requests banner -->
+      <router-link
+        v-if="followRequestCount > 0"
+        to="/follow-requests"
+        class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-950 border-b border-indigo-100 dark:border-indigo-900 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors no-underline text-gray-900 dark:text-gray-100"
+      >
+        <span class="text-2xl">👋</span>
+        <div class="flex-1">
+          <p class="font-bold text-sm">{{ t('notification.follow_requests_pending', { count: followRequestCount }) }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('notification.follow_requests_hint') }}</p>
+        </div>
+        <span class="text-gray-400">→</span>
+      </router-link>
 
       <div v-if="error" class="p-4 text-center text-red-500">
         {{ error }}
@@ -63,8 +86,8 @@ onMounted(loadNotifications)
         />
 
         <div v-if="!loading && notifications.length === 0" class="p-8 text-center text-gray-500 dark:text-gray-400">
-          <p class="text-lg font-medium">{{ t('notifications.empty') }}</p>
-          <p class="text-sm mt-1">{{ t('notifications.empty_hint') }}</p>
+          <p class="text-lg font-medium">{{ t('notification.empty') }}</p>
+          <p class="text-sm mt-1">{{ t('notification.empty_hint') }}</p>
         </div>
       </InfiniteScroll>
     </div>

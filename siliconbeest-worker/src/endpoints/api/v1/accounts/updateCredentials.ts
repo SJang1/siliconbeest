@@ -5,6 +5,11 @@ import { AppError } from '../../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
+function parseFields(raw: string | null): Array<{ name: string; value: string; verified_at: string | null }> {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 const app = new Hono<HonoEnv>();
 
 app.patch('/update_credentials', authRequired, async (c) => {
@@ -77,8 +82,11 @@ app.patch('/update_credentials', authRequired, async (c) => {
     params.push(body.note as string);
   }
   if (body.locked !== undefined) {
+    const lockedVal = body.locked ? 1 : 0;
     updates.push(`locked = ?${paramIdx++}`);
-    params.push(body.locked ? 1 : 0);
+    params.push(lockedVal);
+    updates.push(`manually_approves_followers = ?${paramIdx++}`);
+    params.push(lockedVal);
   }
   if (body.bot !== undefined) {
     updates.push(`bot = ?${paramIdx++}`);
@@ -87,6 +95,53 @@ app.patch('/update_credentials', authRequired, async (c) => {
   if (body.discoverable !== undefined) {
     updates.push(`discoverable = ?${paramIdx++}`);
     params.push(body.discoverable ? 1 : 0);
+  }
+
+  // Handle profile fields/metadata
+  // Mastodon sends fields_attributes[0][name], fields_attributes[0][value] in FormData
+  // or fields_attributes: [{name, value}] in JSON
+  const fields: Array<{ name: string; value: string; verified_at: string | null }> = [];
+  if (body.fields_attributes) {
+    const attrs = body.fields_attributes as any;
+    if (Array.isArray(attrs)) {
+      for (const f of attrs) {
+        if (f && f.name !== undefined) {
+          fields.push({ name: String(f.name), value: String(f.value || ''), verified_at: null });
+        }
+      }
+    } else if (typeof attrs === 'object') {
+      // Indexed object: { "0": { name, value }, "1": { name, value } }
+      for (const key of Object.keys(attrs).sort()) {
+        const f = attrs[key];
+        if (f && f.name !== undefined) {
+          fields.push({ name: String(f.name), value: String(f.value || ''), verified_at: null });
+        }
+      }
+    }
+    updates.push(`fields = ?${paramIdx++}`);
+    params.push(JSON.stringify(fields));
+  } else {
+    // Check for flat FormData keys: fields_attributes[0][name], fields_attributes[0][value]
+    const fieldMap = new Map<string, { name: string; value: string }>();
+    for (const [key, val] of Object.entries(body)) {
+      const m = key.match(/^fields_attributes\[(\d+)]\[(\w+)]$/);
+      if (m) {
+        const idx = m[1]!;
+        const prop = m[2]!;
+        if (!fieldMap.has(idx)) fieldMap.set(idx, { name: '', value: '' });
+        const entry = fieldMap.get(idx)!;
+        if (prop === 'name') entry.name = String(val);
+        else if (prop === 'value') entry.value = String(val);
+      }
+    }
+    if (fieldMap.size > 0) {
+      const sorted = [...fieldMap.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
+      for (const [, f] of sorted) {
+        fields.push({ name: f.name, value: f.value, verified_at: null });
+      }
+      updates.push(`fields = ?${paramIdx++}`);
+      params.push(JSON.stringify(fields));
+    }
   }
 
   const now = new Date().toISOString();
@@ -134,13 +189,13 @@ app.patch('/update_credentials', authRequired, async (c) => {
     statuses_count: (row.statuses_count as number) || 0,
     last_status_at: (row.last_status_at as string) || null,
     emojis: [],
-    fields: [],
+    fields: parseFields(row.fields as string | null),
     source: {
       privacy: 'public',
       sensitive: false,
       language: (row.locale as string) || 'en',
       note: (row.note as string) || '',
-      fields: [],
+      fields: parseFields(row.fields as string | null),
       follow_requests_count: 0,
     },
   });

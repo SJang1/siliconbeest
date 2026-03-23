@@ -45,7 +45,19 @@ async function uploadImage(event: Event, field: 'site_favicon_url' | 'site_logo_
   const loadingRef = field === 'site_favicon_url' ? faviconUploading : logoUploading
   loadingRef.value = true
   try {
-    const { data } = await uploadMedia(input.files[0], { token: auth.token })
+    // Use dedicated admin upload endpoints for favicon/thumbnail
+    const endpoint = field === 'site_favicon_url'
+      ? '/v1/admin/settings/favicon'
+      : '/v1/admin/settings/thumbnail'
+    const formData = new FormData()
+    formData.append('file', input.files[0])
+    const res = await fetch(`/api${endpoint}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: formData,
+    })
+    if (!res.ok) throw new Error('Upload failed')
+    const data = await res.json() as { url: string }
     settings.value[field] = data.url
   } catch (e: any) {
     error.value = e?.message || 'Upload failed'
