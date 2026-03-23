@@ -1,0 +1,26 @@
+import { Hono } from 'hono';
+import type { Env, AppVariables } from '../../../../../env';
+import { authRequired, adminRequired } from '../../../../../middleware/auth';
+
+import list from './list';
+import fetch from './fetch';
+import action from './action';
+import approve from './approve';
+import reject from './reject';
+
+const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+
+app.use('*', authRequired, adminRequired);
+
+// GET / — list accounts
+app.route('/', list);
+// POST /:id/action — moderation action
+app.route('/', action);
+// POST /:id/approve — approve pending
+app.route('/', approve);
+// POST /:id/reject — reject pending
+app.route('/', reject);
+// GET /:id — single account (last to avoid catching action/approve/reject)
+app.route('/', fetch);
+
+export default app;

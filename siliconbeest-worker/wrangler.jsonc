@@ -1,0 +1,79 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "siliconbeest-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-17",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"placement": {
+		"mode": "smart"
+	},
+
+	// Environment Variables (secrets set via `wrangler secret put`)
+	"vars": {
+		"INSTANCE_DOMAIN": "siliconbeest.com",
+		"INSTANCE_TITLE": "Siliconbeest",
+		"REGISTRATION_MODE": "open"
+	},
+
+	// D1 Database
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "siliconbeest-db",
+			"database_id": "a74e9b4a-4c0e-411e-bc6d-a4ecd621a06b"
+		}
+	],
+
+	// R2 Object Storage (media uploads)
+	"r2_buckets": [
+		{
+			"binding": "MEDIA_BUCKET",
+			"bucket_name": "siliconbeest-media"
+		}
+	],
+
+	// KV Namespaces
+	"kv_namespaces": [
+		{
+			"binding": "CACHE",
+			"id": "14a4d29db39c4de79adcef9f07d76c4d"
+		},
+		{
+			"binding": "SESSIONS",
+			"id": "b28dd211bbfc41d2b928ecfe71e3c087"
+		}
+	],
+
+	// Queues (producer bindings — worker enqueues jobs)
+	"queues": {
+		"producers": [
+			{
+				"binding": "QUEUE_FEDERATION",
+				"queue": "siliconbeest-federation"
+			},
+			{
+				"binding": "QUEUE_INTERNAL",
+				"queue": "siliconbeest-internal"
+			}
+		]
+	},
+
+	// Durable Objects (WebSocket streaming)
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "STREAMING_DO",
+				"class_name": "StreamingDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_classes": ["StreamingDO"]
+		}
+	]
+}

@@ -1,0 +1,28 @@
+{
+	"name": "cloudflare-workers-openapi",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"cf-typegen": "wrangler types"
+	},
+	"dependencies": {
+		"bcryptjs": "^3.0.3",
+		"chanfana": "^2.6.3",
+		"hono": "^4.6.20",
+		"ulid": "^3.0.2",
+		"zod": "^3.24.1"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.13.3",
+		"@types/bcryptjs": "^2.4.6",
+		"@types/node": "^22.13.0",
+		"@types/service-worker-mock": "^2.0.4",
+		"vitest": "^4.1.0",
+		"wrangler": "^4.76.0"
+	}
+}

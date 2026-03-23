@@ -1,0 +1,48 @@
+{
+	"name": "siliconbeest-vue",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "run-p type-check \"build-only {@}\" --",
+		"preview": "npm run build && wrangler dev",
+		"build-only": "vite build",
+		"type-check": "vue-tsc --build",
+		"deploy": "npm run build && wrangler deploy",
+		"cf-typegen": "wrangler types",
+		"test": "vitest run --config vitest.config.ts",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@headlessui/vue": "^1.7.23",
+		"@sentry/vue": "^10.45.0",
+		"@vueuse/core": "^14.2.1",
+		"pinia": "^3.0.4",
+		"vue": "^3.5.29",
+		"vue-i18n": "^11.3.0",
+		"vue-router": "^5.0.3"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.30.0",
+		"@tailwindcss/typography": "^0.5.19",
+		"@tailwindcss/vite": "^4.2.2",
+		"@tsconfig/node24": "^24.0.4",
+		"@types/node": "^24.12.0",
+		"@vitejs/plugin-vue": "^6.0.4",
+		"@vue/test-utils": "^2.4.6",
+		"@vue/tsconfig": "^0.8.1",
+		"happy-dom": "^20.8.4",
+		"npm-run-all2": "^8.0.4",
+		"tailwindcss": "^4.2.2",
+		"typescript": "~5.9.3",
+		"vite": "^7.3.1",
+		"vite-plugin-vue-devtools": "^8.0.6",
+		"vitest": "^4.1.0",
+		"vue-tsc": "^3.2.5",
+		"wrangler": "^4.76.0"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
+	}
+}

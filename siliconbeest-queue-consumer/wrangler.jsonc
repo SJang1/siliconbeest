@@ -1,0 +1,68 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "siliconbeest-queue-consumer",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-17",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+
+	// D1 Database
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "siliconbeest-db",
+			"database_id": "a74e9b4a-4c0e-411e-bc6d-a4ecd621a06b"
+		}
+	],
+
+	// R2 Object Storage (media processing)
+	"r2_buckets": [
+		{
+			"binding": "MEDIA_BUCKET",
+			"bucket_name": "siliconbeest-media"
+		}
+	],
+
+	// KV Namespaces
+	"kv_namespaces": [
+		{
+			"binding": "CACHE",
+			"id": "14a4d29db39c4de79adcef9f07d76c4d"
+		}
+	],
+
+	// Queues (consume federation + internal, produce for re-enqueue/fanout)
+	"queues": {
+		"consumers": [
+			{
+				"queue": "siliconbeest-federation",
+				"max_retries": 5,
+				"dead_letter_queue": "siliconbeest-federation-dlq"
+			},
+			{
+				"queue": "siliconbeest-internal",
+				"max_retries": 3
+			}
+		],
+		"producers": [
+			{
+				"binding": "QUEUE_FEDERATION",
+				"queue": "siliconbeest-federation"
+			},
+			{
+				"binding": "QUEUE_INTERNAL",
+				"queue": "siliconbeest-internal"
+			}
+		]
+	},
+
+	// Service binding to main worker (for Durable Object access)
+	"services": [
+		{
+			"binding": "WORKER",
+			"service": "siliconbeest-worker"
+		}
+	]
+}

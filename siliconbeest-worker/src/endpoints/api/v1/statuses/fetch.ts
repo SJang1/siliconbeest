@@ -1,0 +1,100 @@
+import { Hono } from 'hono';
+import type { Env, AppVariables } from '../../../../env';
+import { authOptional } from '../../../../middleware/auth';
+import { AppError } from '../../../../middleware/errorHandler';
+
+type HonoEnv = { Bindings: Env; Variables: AppVariables };
+
+function serializeStatus(row: Record<string, unknown>, domain: string, currentAccountId?: string) {
+  const acct = row.account_domain
+    ? `${row.account_username}@${row.account_domain}`
+    : (row.account_username as string);
+
+  return {
+    id: row.id as string,
+    created_at: row.created_at as string,
+    in_reply_to_id: (row.in_reply_to_id as string) || null,
+    in_reply_to_account_id: (row.in_reply_to_account_id as string) || null,
+    sensitive: !!(row.sensitive),
+    spoiler_text: (row.content_warning as string) || '',
+    visibility: (row.visibility as string) || 'public',
+    language: (row.language as string) || 'en',
+    uri: row.uri as string,
+    url: (row.url as string) || null,
+    replies_count: (row.replies_count as number) || 0,
+    reblogs_count: (row.reblogs_count as number) || 0,
+    favourites_count: (row.favourites_count as number) || 0,
+    favourited: false,
+    reblogged: false,
+    muted: false,
+    bookmarked: false,
+    pinned: false,
+    content: (row.content as string) || '',
+    reblog: null,
+    application: null,
+    account: {
+      id: row.account_id as string,
+      username: row.account_username as string,
+      acct,
+      display_name: (row.account_display_name as string) || '',
+      locked: !!(row.account_locked),
+      bot: !!(row.account_bot),
+      discoverable: !!(row.account_discoverable),
+      group: false,
+      created_at: row.account_created_at as string,
+      note: (row.account_note as string) || '',
+      url: (row.account_url as string) || `https://${domain}/@${row.account_username}`,
+      uri: row.account_uri as string,
+      avatar: (row.account_avatar_url as string) || '',
+      avatar_static: (row.account_avatar_static_url as string) || '',
+      header: (row.account_header_url as string) || '',
+      header_static: (row.account_header_static_url as string) || '',
+      followers_count: (row.account_followers_count as number) || 0,
+      following_count: (row.account_following_count as number) || 0,
+      statuses_count: (row.account_statuses_count as number) || 0,
+      last_status_at: (row.account_last_status_at as string) || null,
+      emojis: [],
+      fields: [],
+    },
+    media_attachments: [],
+    mentions: [],
+    tags: [],
+    emojis: [],
+    card: null,
+    poll: null,
+    edited_at: (row.edited_at as string) || null,
+  };
+}
+
+const STATUS_JOIN_SQL = `
+  SELECT s.*,
+    a.username AS account_username, a.domain AS account_domain,
+    a.display_name AS account_display_name, a.note AS account_note,
+    a.uri AS account_uri, a.url AS account_url,
+    a.avatar_url AS account_avatar_url, a.avatar_static_url AS account_avatar_static_url,
+    a.header_url AS account_header_url, a.header_static_url AS account_header_static_url,
+    a.locked AS account_locked, a.bot AS account_bot, a.discoverable AS account_discoverable,
+    a.followers_count AS account_followers_count, a.following_count AS account_following_count,
+    a.statuses_count AS account_statuses_count, a.last_status_at AS account_last_status_at,
+    a.created_at AS account_created_at
+  FROM statuses s
+  JOIN accounts a ON a.id = s.account_id
+`;
+
+const app = new Hono<HonoEnv>();
+
+app.get('/:id', authOptional, async (c) => {
+  const statusId = c.req.param('id');
+  const domain = c.env.INSTANCE_DOMAIN;
+
+  const row = await c.env.DB.prepare(
+    `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
+  ).bind(statusId).first();
+
+  if (!row) throw new AppError(404, 'Record not found');
+
+  return c.json(serializeStatus(row as Record<string, unknown>, domain));
+});
+
+export { STATUS_JOIN_SQL, serializeStatus };
+export default app;
