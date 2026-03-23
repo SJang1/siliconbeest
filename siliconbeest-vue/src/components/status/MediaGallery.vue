@@ -9,7 +9,7 @@ const props = defineProps<{
     id: string
     type: string
     url: string
-    preview_url: string
+    preview_url: string | null
     description?: string
   }>
 }>()

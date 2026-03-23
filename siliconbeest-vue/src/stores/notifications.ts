@@ -50,7 +50,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const links = parseLinkHeader(headers.get('Link'));
       hasMore.value = !!links.next;
       if (data.length > 0) {
-        maxId.value = data[data.length - 1].id;
+        maxId.value = data[data.length - 1]!.id;
       }
     } catch (e) {
       error.value = (e as Error).message;
@@ -76,7 +76,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const links = parseLinkHeader(headers.get('Link'));
       hasMore.value = !!links.next;
       if (data.length > 0) {
-        maxId.value = data[data.length - 1].id;
+        maxId.value = data[data.length - 1]!.id;
       }
     } catch (e) {
       error.value = (e as Error).message;
@@ -98,7 +98,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   function markAllRead() {
     if (items.value.length > 0) {
-      lastReadId.value = items.value[0].id;
+      lastReadId.value = items.value[0]!.id;
     }
   }
 

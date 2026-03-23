@@ -9,5 +9,15 @@
 	"observability": {
 		"enabled": true
 	},
-	"compatibility_flags": ["nodejs_compat"]
+	"compatibility_flags": ["nodejs_compat"],
+
+	// Workers Routes (catch-all for custom domain),
+
+	// Workers Routes (catch-all for custom domain)
+	"routes": [
+	  {
+	    "pattern": "siliconbeest.sjang.dev/*",
+	    "zone_name": "sjang.dev"
+	  }
+	]
 }

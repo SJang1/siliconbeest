@@ -41,15 +41,7 @@ onMounted(async () => {
             <dl class="grid grid-cols-3 gap-4 text-center">
               <div>
                 <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.users') }}</dt>
-                <dd class="text-lg font-bold">{{ instanceInfo.stats?.user_count ?? 0 }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.statuses') }}</dt>
-                <dd class="text-lg font-bold">{{ instanceInfo.stats?.status_count ?? 0 }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.peers') }}</dt>
-                <dd class="text-lg font-bold">{{ instanceInfo.stats?.domain_count ?? 0 }}</dd>
+                <dd class="text-lg font-bold">{{ instanceInfo.usage?.users?.active_month ?? 0 }}</dd>
               </div>
             </dl>
           </div>
@@ -59,7 +51,7 @@ onMounted(async () => {
           <div class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
             <h3 class="font-semibold mb-2">{{ t('about.contact') }}</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400">
-              {{ instanceInfo.contact_account?.display_name ?? t('about.no_contact') }}
+              {{ instanceInfo.contact?.account?.display_name ?? t('about.no_contact') }}
             </p>
           </div>
         </div>

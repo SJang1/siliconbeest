@@ -13,9 +13,9 @@
 
 	// Environment Variables (secrets set via `wrangler secret put`)
 	"vars": {
-		"INSTANCE_DOMAIN": "siliconbeest.com",
-		"INSTANCE_TITLE": "Siliconbeest",
-		"REGISTRATION_MODE": "open"
+		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
+		"INSTANCE_TITLE": "SiliconBeest by siliconjang",
+		"REGISTRATION_MODE": "approval"
 	},
 
 	// D1 Database
@@ -23,7 +23,7 @@
 		{
 			"binding": "DB",
 			"database_name": "siliconbeest-db",
-			"database_id": "a74e9b4a-4c0e-411e-bc6d-a4ecd621a06b"
+			"database_id": "7c66942d-1293-400d-84ce-8fbaa1821854"
 		}
 	],
 
@@ -75,5 +75,35 @@
 			"tag": "v1",
 			"new_classes": ["StreamingDO"]
 		}
+	],
+
+	// Workers Routes (API paths),
+
+	// Workers Routes (API paths)
+	"routes": [
+	  {
+	    "pattern": "siliconbeest.sjang.dev/api/*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/oauth/*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/.well-known/*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/users/*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/inbox",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/nodeinfo/*",
+	    "zone_name": "sjang.dev"
+	  }
 	]
 }

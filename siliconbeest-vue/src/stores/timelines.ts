@@ -93,7 +93,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       const links = parseLinkHeader(response.headers.get('Link'));
       timeline.hasMore = !!links.next;
       if (response.data.length > 0) {
-        timeline.maxId = response.data[response.data.length - 1].id;
+        timeline.maxId = response.data[response.data.length - 1]!.id;
       }
     } catch (e) {
       timeline.error = (e as Error).message;
@@ -137,7 +137,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       const links = parseLinkHeader(response.headers.get('Link'));
       timeline.hasMore = !!links.next;
       if (response.data.length > 0) {
-        timeline.maxId = response.data[response.data.length - 1].id;
+        timeline.maxId = response.data[response.data.length - 1]!.id;
       }
     } catch (e) {
       timeline.error = (e as Error).message;

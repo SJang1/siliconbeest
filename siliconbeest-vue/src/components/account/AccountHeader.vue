@@ -16,7 +16,7 @@ defineProps<{
     statuses_count: number
     following_count: number
     followers_count: number
-    fields?: Array<{ name: string; value: string; verified_at?: string }>
+    fields?: Array<{ name: string; value: string; verified_at?: string | null }>
   }
   isOwn?: boolean
 }>()

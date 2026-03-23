@@ -9,10 +9,10 @@ export const i18n = createI18n({
 });
 
 export async function loadLocale(locale: string) {
-  if (i18n.global.availableLocales.includes(locale)) return;
+  if ((i18n.global.availableLocales as string[]).includes(locale)) return;
   const messages = await import(`./locales/${locale}.json`);
   i18n.global.setLocaleMessage(locale, messages.default);
-  i18n.global.locale.value = locale;
+  (i18n.global.locale as any).value = locale;
 }
 
 export const SUPPORTED_LOCALES = [

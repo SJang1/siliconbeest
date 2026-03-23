@@ -19,7 +19,7 @@ const typeConfig: Record<string, { icon: string; color: string }> = {
   follow_request: { icon: '🔔', color: 'text-orange-500' },
 }
 
-const config = computed(() => typeConfig[props.notification.type] ?? typeConfig.mention)
+const config = computed(() => typeConfig[props.notification.type] ?? { icon: '?', color: 'text-gray-500' })
 </script>
 
 <template>

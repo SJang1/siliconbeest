@@ -31,7 +31,7 @@ const visibilityOptions = [
   { value: 'private', label: 'compose.visibility.private', icon: '🔒' },
   { value: 'direct', label: 'compose.visibility.direct', icon: '✉️' },
 ]
-const selectedVisibility = ref(visibilityOptions[0])
+const selectedVisibility = ref(visibilityOptions[0]!)
 
 function submit() {
   if (!content.value.trim() || charsRemaining.value < 0) return

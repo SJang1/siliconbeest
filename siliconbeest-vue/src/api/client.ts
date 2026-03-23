@@ -92,12 +92,14 @@ export function parseLinkHeader(
     const match = part.match(/<([^>]+)>;\s*rel="(\w+)"/);
     if (match) {
       const [, url, rel] = match;
-      // Extract the path + query from the full URL
-      try {
-        const parsed = new URL(url, window.location.origin);
-        links[rel] = parsed.pathname + parsed.search;
-      } catch {
-        links[rel] = url;
+      if (url && rel) {
+        // Extract the path + query from the full URL
+        try {
+          const parsed = new URL(url, window.location.origin);
+          links[rel] = parsed.pathname + parsed.search;
+        } catch {
+          links[rel] = url;
+        }
       }
     }
   }
