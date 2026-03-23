@@ -69,6 +69,10 @@ function signOut() {
             <span class="text-lg">👤</span>
             <span>{{ t('nav.profile') }}</span>
           </button>
+          <button @click="navigateTo('/search')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <span class="text-lg">🔎</span>
+            <span>{{ t('nav.search') }}</span>
+          </button>
           <button @click="navigateTo('/bookmarks')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <span class="text-lg">🔖</span>
             <span>{{ t('nav.bookmarks') }}</span>
@@ -84,6 +88,10 @@ function signOut() {
           <button @click="navigateTo('/settings')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <span class="text-lg">⚙️</span>
             <span>{{ t('nav.settings') }}</span>
+          </button>
+          <button @click="navigateTo('/about')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <span class="text-lg">ℹ️</span>
+            <span>{{ t('nav.about') }}</span>
           </button>
           <button v-if="auth.isAdmin || auth.isModerator" @click="navigateTo('/admin')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <span class="text-lg">🛡️</span>
