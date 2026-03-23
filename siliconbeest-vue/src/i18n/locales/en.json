@@ -31,7 +31,29 @@
     "registrationApproval": "Your account is pending approval",
     "passwordTooShort": "Password must be at least {min} characters",
     "emailInvalid": "Please enter a valid email address",
-    "accountCreated": "Account created successfully"
+    "accountCreated": "Account created successfully",
+    "agreement": "I agree to the server rules and terms of service",
+    "code": "Authentication code",
+    "confirm_password": "Confirm password",
+    "email_placeholder": "you@example.com",
+    "enter_backup_code": "Enter a backup code",
+    "forgot_password": "Forgot password?",
+    "have_account": "Already have an account?",
+    "join_us": "Join today",
+    "no_account": "Don't have an account?",
+    "or": "or",
+    "password_placeholder": "Your password",
+    "passwords_no_match": "Passwords do not match",
+    "registration_closed": "Registrations are currently closed.",
+    "sign_in": "Sign in",
+    "sign_in_google": "Sign in with Google",
+    "sign_up": "Sign up",
+    "two_factor": "Two-factor authentication",
+    "use_backup": "Use a backup code",
+    "use_totp": "Use authenticator app",
+    "username": "Username",
+    "verify": "Verify",
+    "welcome": "Welcome back"
   },
   "compose": {
     "placeholder": "What's on your mind?",
@@ -55,7 +77,33 @@
     "mediaDescription": "Describe for the visually impaired",
     "pollOption": "Option {n}",
     "pollDuration": "Poll duration",
-    "replyTo": "Replying to {user}"
+    "replyTo": "Replying to {user}",
+    "add_media": "Add media",
+    "cw_placeholder": "Content warning",
+    "replying_to": "Replying to {user}",
+    "submit": "Publish",
+    "title": "New post",
+    "toggle_cw": "Toggle content warning"
+  },
+  "nav": {
+    "home": "Home",
+    "explore": "Explore",
+    "notifications": "Notifications",
+    "search": "Search",
+    "bookmarks": "Bookmarks",
+    "favourites": "Favourites",
+    "lists": "Lists",
+    "settings": "Settings",
+    "profile": "Profile",
+    "compose": "Compose",
+    "admin": "Administration",
+    "about": "About"
+  },
+  "explore": {
+    "trending": "Trending",
+    "empty": "Nothing trending right now.",
+    "local": "Local",
+    "federated": "Federated"
   },
   "timeline": {
     "home": "Home",
@@ -63,8 +111,11 @@
     "federated": "Federated",
     "explore": "Explore",
     "noMorePosts": "No more posts to show",
-    "newPosts": "{count} new post | {count} new posts",
-    "showNewPosts": "Show new posts"
+    "newPosts": "{count} new posts",
+    "showNewPosts": "Show new posts",
+    "empty": "No posts yet",
+    "empty_hint": "Follow some people or check the public timeline to get started.",
+    "new_posts": "{count} new posts"
   },
   "status": {
     "reply": "Reply",
@@ -83,7 +134,15 @@
     "boostedBy": "{user} boosted",
     "repliedTo": "Replied to {user}",
     "mediaHidden": "Media hidden",
-    "sensitiveContent": "Sensitive content"
+    "sensitiveContent": "Sensitive content",
+    "actions": "Actions",
+    "by": "by {user}",
+    "media_gallery": "Media",
+    "media_no_alt": "No description",
+    "not_found": "Post not found",
+    "show_less": "Show less",
+    "show_more": "Show more",
+    "thread": "Thread"
   },
   "notification": {
     "title": "Notifications",
@@ -102,7 +161,7 @@
     "posts": "Posts",
     "postsAndReplies": "Posts and replies",
     "media": "Media",
-    "followers": "{count} follower | {count} followers",
+    "followers": "{count} followers",
     "following": "{count} following",
     "follow": "Follow",
     "unfollow": "Unfollow",
@@ -115,7 +174,11 @@
     "followsYou": "Follows you",
     "bot": "Bot",
     "joinedDate": "Joined {date}",
-    "movedTo": "This account has moved to {account}"
+    "movedTo": "This account has moved to {account}",
+    "banner": "Profile banner",
+    "blocked": "Blocked",
+    "edit": "Edit profile",
+    "not_found": "Profile not found"
   },
   "settings": {
     "title": "Settings",
@@ -138,7 +201,8 @@
     "deleteAccount": "Delete account",
     "deleteAccountWarning": "This will permanently delete your account and all your data.",
     "exportData": "Export your data",
-    "importData": "Import data"
+    "importData": "Import data",
+    "sign_out": "Sign out"
   },
   "admin": {
     "title": "Administration",
@@ -191,7 +255,9 @@
     "accounts": "People",
     "statuses": "Posts",
     "hashtags": "Hashtags",
-    "noResults": "No results found"
+    "noResults": "No results found",
+    "no_results": "No results found",
+    "submit": "Search"
   },
   "error": {
     "notFound": "Page not found",
@@ -209,14 +275,18 @@
     "minutes": "{n}m",
     "hours": "{n}h",
     "days": "{n}d",
-    "fullDate": "{date}"
+    "fullDate": "{date}",
+    "days_ago": "{n}d ago",
+    "hours_ago": "{n}h ago",
+    "just_now": "just now",
+    "minutes_ago": "{n}m ago"
   },
   "poll": {
     "vote": "Vote",
     "showResults": "Show results",
     "hideResults": "Hide results",
-    "totalVotes": "{count} vote | {count} votes",
-    "totalVoters": "{count} voter | {count} voters",
+    "totalVotes": "{count} votes",
+    "totalVoters": "{count} voters",
     "closed": "Closed",
     "closesIn": "Closes in {time}",
     "voted": "You voted"
@@ -230,6 +300,67 @@
     "connectedServers": "Connected servers",
     "rules": "Server rules",
     "contact": "Contact",
-    "poweredBy": "Powered by SiliconBeest"
+    "poweredBy": "Powered by SiliconBeest",
+    "description": "About this server",
+    "no_contact": "No contact information",
+    "unavailable": "Instance information unavailable",
+    "users": "Users"
+  },
+  "notifications": {
+    "empty": "No notifications yet",
+    "empty_hint": "Interactions with your posts will appear here."
+  },
+  "landing": {
+    "tagline": "A decentralized social network, powered by the Fediverse.",
+    "feature_federated": "Federated",
+    "feature_federated_desc": "Connect with users across Mastodon, Misskey, and thousands of other servers.",
+    "feature_privacy": "Private & Secure",
+    "feature_privacy_desc": "Your data stays on this server. No tracking, no ads, no algorithms.",
+    "feature_community": "Community",
+    "feature_community_desc": "Join conversations, share ideas, and build meaningful connections.",
+    "users": "{count} active users",
+    "powered_by": "Powered by SiliconBeest"
+  },
+  "passwords": {
+    "forgot_title": "Forgot your password?",
+    "forgot_description": "Enter your email address and we'll send you a reset link.",
+    "send_reset": "Send reset link",
+    "reset_sent": "If an account with that email exists, a reset link has been sent.",
+    "reset_title": "Reset your password",
+    "new_password": "New password",
+    "confirm_new_password": "Confirm new password",
+    "reset_submit": "Reset password",
+    "reset_success": "Password has been reset. You can now log in.",
+    "reset_expired": "This reset link has expired. Please request a new one.",
+    "change_title": "Change password",
+    "current_password": "Current password",
+    "change_submit": "Update password",
+    "change_success": "Password updated successfully.",
+    "wrong_password": "Current password is incorrect."
+  },
+  "admin_settings": {
+    "site_info": "Site Information",
+    "branding": "Branding",
+    "registration": "Registration",
+    "limits": "Limits",
+    "smtp": "Email (SMTP)",
+    "smtp_test": "Send test email",
+    "smtp_test_success": "Test email sent.",
+    "smtp_test_fail": "Failed to send test email. Check SMTP settings.",
+    "save": "Save settings",
+    "saved": "Settings saved."
+  },
+  "admin_accounts": {
+    "filter_all": "All",
+    "filter_local": "Local",
+    "filter_remote": "Remote",
+    "filter_pending": "Pending",
+    "role": "Role",
+    "role_changed": "Role updated.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "send_email": "Email",
+    "approved": "Account approved.",
+    "rejected": "Account rejected."
   }
 }

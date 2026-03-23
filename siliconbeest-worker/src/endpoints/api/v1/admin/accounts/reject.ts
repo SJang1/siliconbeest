@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
+import { sendRejection } from '../../../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -20,6 +21,11 @@ app.post('/:id/reject', async (c) => {
 	const user = await c.env.DB.prepare('SELECT * FROM users WHERE account_id = ?1').bind(id).first();
 	if (!user) throw new AppError(404, 'Record not found');
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
+
+	// Send rejection email before deleting (best-effort)
+	if (user.email) {
+		await sendRejection(c.env, c.env.DB, user.email as string);
+	}
 
 	// Delete the user and account (cascading)
 	await c.env.DB.batch([

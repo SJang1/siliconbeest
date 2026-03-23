@@ -7,6 +7,7 @@ import fetch from './fetch';
 import action from './action';
 import approve from './approve';
 import reject from './reject';
+import role from './role';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -20,7 +21,9 @@ app.route('/', action);
 app.route('/', approve);
 // POST /:id/reject — reject pending
 app.route('/', reject);
-// GET /:id — single account (last to avoid catching action/approve/reject)
+// POST /:id/role — change role
+app.route('/', role);
+// GET /:id — single account (last to avoid catching action/approve/reject/role)
 app.route('/', fetch);
 
 export default app;

@@ -49,6 +49,12 @@ import suggestions from './endpoints/api/v1/suggestions';
 import announcements from './endpoints/api/v1/announcements';
 import rules from './endpoints/api/v1/rules';
 
+// -- Auth --
+import passwords from './endpoints/api/v1/auth/passwords';
+
+// -- Account extras --
+import changePassword from './endpoints/api/v1/accounts/change_password';
+
 // -- Admin API --
 import admin from './endpoints/api/v1/admin/index';
 
@@ -137,6 +143,8 @@ app.route('/api/v1/tags', tags);
 app.route('/api/v1/suggestions', suggestions);
 app.route('/api/v1/announcements', announcements);
 app.route('/api/v1/instance/rules', rules);
+app.route('/api/v1/auth/passwords', passwords);
+app.route('/api/v1/accounts', changePassword);
 app.route('/api/v1/admin', admin);
 
 // ---------------------------------------------------------------------------

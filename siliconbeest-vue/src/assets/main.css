@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/* Base styles for dark mode */
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  /* Ensure form elements inherit text color and have visible borders */
+  input,
+  textarea,
+  select,
+  button {
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-400 dark:text-gray-500;
+  }
+
+  /* Links */
+  a {
+    @apply text-indigo-600 dark:text-indigo-400;
+  }
+}

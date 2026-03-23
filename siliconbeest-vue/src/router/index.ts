@@ -7,11 +7,19 @@ const router = createRouter({
     return savedPosition ?? { top: 0 };
   },
   routes: [
-    // Public routes
+    // Landing page (shown when not logged in)
     {
       path: '/',
+      name: 'landing',
+      component: () => import('@/views/LandingView.vue'),
+      beforeEnter: redirectIfAuthenticated,
+    },
+    // Authenticated home
+    {
+      path: '/home',
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
+      beforeEnter: requireAuth,
     },
     {
       path: '/explore',
@@ -52,6 +60,16 @@ const router = createRouter({
       path: '/oauth/authorize',
       name: 'oauth-authorize',
       component: () => import('@/views/OAuthAuthorizeView.vue'),
+    },
+    {
+      path: '/auth/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+    },
+    {
+      path: '/auth/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
     },
 
     // Authenticated routes

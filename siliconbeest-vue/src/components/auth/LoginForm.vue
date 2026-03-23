@@ -41,7 +41,7 @@ async function handleSubmit() {
         type="email"
         required
         autocomplete="email"
-        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         :placeholder="t('auth.email_placeholder')"
       />
     </div>
@@ -55,14 +55,14 @@ async function handleSubmit() {
         type="password"
         required
         autocomplete="current-password"
-        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         :placeholder="t('auth.password_placeholder')"
       />
     </div>
 
     <!-- Forgot password -->
     <div class="text-right">
-      <router-link to="/auth/forgot" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+      <router-link to="/auth/forgot-password" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>

@@ -12,6 +12,7 @@ import announcements from './announcements';
 import rules from './rules';
 import measures from './measures';
 import relays from './relays';
+import email from './email';
 
 const admin = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -27,5 +28,6 @@ admin.route('/announcements', announcements);
 admin.route('/rules', rules);
 admin.route('/measures', measures);
 admin.route('/relays', relays);
+admin.route('/email', email);
 
 export default admin;

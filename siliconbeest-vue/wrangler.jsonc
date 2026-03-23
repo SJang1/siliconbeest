@@ -16,8 +16,8 @@
 	// Workers Routes (catch-all for custom domain)
 	"routes": [
 	  {
-	    "pattern": "siliconbeest.sjang.dev/*",
-	    "zone_name": "sjang.dev"
+		"custom_domain": true,
+		"pattern": "siliconbeest.sjang.dev",
 	  }
 	]
 }

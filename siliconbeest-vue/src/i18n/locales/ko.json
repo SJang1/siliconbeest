@@ -31,7 +31,29 @@
     "registrationApproval": "계정 승인 대기 중입니다",
     "passwordTooShort": "비밀번호는 최소 {min}자 이상이어야 합니다",
     "emailInvalid": "올바른 이메일 주소를 입력하세요",
-    "accountCreated": "계정이 성공적으로 생성되었습니다"
+    "accountCreated": "계정이 성공적으로 생성되었습니다",
+    "agreement": "서버 규칙 및 서비스 이용약관에 동의합니다",
+    "code": "인증 코드",
+    "confirm_password": "비밀번호 확인",
+    "email_placeholder": "you@example.com",
+    "enter_backup_code": "백업 코드를 입력하세요",
+    "forgot_password": "비밀번호를 잊으셨나요?",
+    "have_account": "이미 계정이 있으신가요?",
+    "join_us": "오늘 가입하세요",
+    "no_account": "계정이 없으신가요?",
+    "or": "또는",
+    "password_placeholder": "비밀번호",
+    "passwords_no_match": "비밀번호가 일치하지 않습니다",
+    "registration_closed": "현재 가입이 제한되어 있습니다.",
+    "sign_in": "로그인",
+    "sign_in_google": "Google로 로그인",
+    "sign_up": "회원가입",
+    "two_factor": "2단계 인증",
+    "use_backup": "백업 코드 사용",
+    "use_totp": "인증 앱 사용",
+    "username": "사용자 이름",
+    "verify": "인증",
+    "welcome": "다시 오신 것을 환영합니다"
   },
   "compose": {
     "placeholder": "무슨 생각을 하고 계신가요?",
@@ -55,7 +77,33 @@
     "mediaDescription": "시각 장애인을 위한 설명",
     "pollOption": "옵션 {n}",
     "pollDuration": "투표 기간",
-    "replyTo": "{user}에게 답글"
+    "replyTo": "{user}에게 답글",
+    "add_media": "미디어 추가",
+    "cw_placeholder": "내용 경고",
+    "replying_to": "{user}에게 답글",
+    "submit": "게시",
+    "title": "새 게시물",
+    "toggle_cw": "내용 경고 전환"
+  },
+  "nav": {
+    "home": "홈",
+    "explore": "탐색",
+    "notifications": "알림",
+    "search": "검색",
+    "bookmarks": "북마크",
+    "favourites": "즐겨찾기",
+    "lists": "리스트",
+    "settings": "설정",
+    "profile": "프로필",
+    "compose": "작성",
+    "admin": "관리",
+    "about": "소개"
+  },
+  "explore": {
+    "trending": "트렌딩",
+    "empty": "현재 트렌딩 없음.",
+    "local": "로컬",
+    "federated": "연합"
   },
   "timeline": {
     "home": "홈",
@@ -64,7 +112,10 @@
     "explore": "탐색",
     "noMorePosts": "더 이상 게시물이 없습니다",
     "newPosts": "새 게시물 {count}개",
-    "showNewPosts": "새 게시물 보기"
+    "showNewPosts": "새 게시물 보기",
+    "empty": "아직 게시물이 없습니다",
+    "empty_hint": "사람들을 팔로우하거나 공개 타임라인을 확인하세요.",
+    "new_posts": "새 게시물 {count}개"
   },
   "status": {
     "reply": "답글",
@@ -83,7 +134,15 @@
     "boostedBy": "{user}님이 부스트함",
     "repliedTo": "{user}님에게 답글",
     "mediaHidden": "미디어 숨김",
-    "sensitiveContent": "민감한 콘텐츠"
+    "sensitiveContent": "민감한 콘텐츠",
+    "actions": "동작",
+    "by": "{user} 작성",
+    "media_gallery": "미디어",
+    "media_no_alt": "설명 없음",
+    "not_found": "게시물을 찾을 수 없습니다",
+    "show_less": "접기",
+    "show_more": "더 보기",
+    "thread": "스레드"
   },
   "notification": {
     "title": "알림",
@@ -115,7 +174,11 @@
     "followsYou": "나를 팔로우 중",
     "bot": "봇",
     "joinedDate": "{date} 가입",
-    "movedTo": "이 계정은 {account}(으)로 이전했습니다"
+    "movedTo": "이 계정은 {account}(으)로 이전했습니다",
+    "banner": "프로필 배너",
+    "blocked": "차단됨",
+    "edit": "프로필 편집",
+    "not_found": "프로필을 찾을 수 없습니다"
   },
   "settings": {
     "title": "설정",
@@ -138,7 +201,8 @@
     "deleteAccount": "계정 삭제",
     "deleteAccountWarning": "계정과 모든 데이터가 영구적으로 삭제됩니다.",
     "exportData": "데이터 내보내기",
-    "importData": "데이터 가져오기"
+    "importData": "데이터 가져오기",
+    "sign_out": "로그아웃"
   },
   "admin": {
     "title": "관리",
@@ -191,7 +255,9 @@
     "accounts": "사람",
     "statuses": "게시물",
     "hashtags": "해시태그",
-    "noResults": "검색 결과가 없습니다"
+    "noResults": "검색 결과가 없습니다",
+    "no_results": "결과가 없습니다",
+    "submit": "검색"
   },
   "error": {
     "notFound": "페이지를 찾을 수 없습니다",
@@ -209,7 +275,11 @@
     "minutes": "{n}분",
     "hours": "{n}시간",
     "days": "{n}일",
-    "fullDate": "{date}"
+    "fullDate": "{date}",
+    "days_ago": "{n}일 전",
+    "hours_ago": "{n}시간 전",
+    "just_now": "방금",
+    "minutes_ago": "{n}분 전"
   },
   "poll": {
     "vote": "투표",
@@ -230,6 +300,67 @@
     "connectedServers": "연결된 서버",
     "rules": "서버 규칙",
     "contact": "연락처",
-    "poweredBy": "Powered by SiliconBeest"
+    "poweredBy": "Powered by SiliconBeest",
+    "description": "이 서버에 대하여",
+    "no_contact": "연락처 정보 없음",
+    "unavailable": "인스턴스 정보를 불러올 수 없음",
+    "users": "사용자"
+  },
+  "notifications": {
+    "empty": "아직 알림이 없습니다",
+    "empty_hint": "게시물에 대한 상호작용이 여기에 표시됩니다."
+  },
+  "landing": {
+    "tagline": "연합우주로 연결되는 탈중앙화 소셜 네트워크.",
+    "feature_federated": "연합",
+    "feature_federated_desc": "Mastodon, Misskey 등 수천 개의 서버 사용자와 소통하세요.",
+    "feature_privacy": "프라이버시",
+    "feature_privacy_desc": "데이터는 이 서버에만 저장됩니다. 추적, 광고, 알고리즘 없음.",
+    "feature_community": "커뮤니티",
+    "feature_community_desc": "대화에 참여하고, 아이디어를 공유하고, 의미 있는 연결을 만드세요.",
+    "users": "활성 사용자 {count}명",
+    "powered_by": "Powered by SiliconBeest"
+  },
+  "passwords": {
+    "forgot_title": "비밀번호를 잊으셨나요?",
+    "forgot_description": "이메일 주소를 입력하시면 재설정 링크를 보내드립니다.",
+    "send_reset": "재설정 링크 보내기",
+    "reset_sent": "해당 이메일의 계정이 있으면 재설정 링크가 전송되었습니다.",
+    "reset_title": "비밀번호 재설정",
+    "new_password": "새 비밀번호",
+    "confirm_new_password": "새 비밀번호 확인",
+    "reset_submit": "비밀번호 재설정",
+    "reset_success": "비밀번호가 재설정되었습니다. 이제 로그인할 수 있습니다.",
+    "reset_expired": "이 재설정 링크가 만료되었습니다. 새 링크를 요청하세요.",
+    "change_title": "비밀번호 변경",
+    "current_password": "현재 비밀번호",
+    "change_submit": "비밀번호 변경",
+    "change_success": "비밀번호가 성공적으로 변경되었습니다.",
+    "wrong_password": "현재 비밀번호가 올바르지 않습니다."
+  },
+  "admin_settings": {
+    "site_info": "사이트 정보",
+    "branding": "브랜딩",
+    "registration": "가입 설정",
+    "limits": "제한",
+    "smtp": "이메일 (SMTP)",
+    "smtp_test": "테스트 이메일 보내기",
+    "smtp_test_success": "테스트 이메일이 전송되었습니다.",
+    "smtp_test_fail": "테스트 이메일 전송에 실패했습니다. SMTP 설정을 확인하세요.",
+    "save": "설정 저장",
+    "saved": "설정이 저장되었습니다."
+  },
+  "admin_accounts": {
+    "filter_all": "전체",
+    "filter_local": "로컬",
+    "filter_remote": "원격",
+    "filter_pending": "대기 중",
+    "role": "역할",
+    "role_changed": "역할이 변경되었습니다.",
+    "approve": "승인",
+    "reject": "거부",
+    "send_email": "이메일",
+    "approved": "계정이 승인되었습니다.",
+    "rejected": "계정이 거부되었습니다."
   }
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
+import { sendWelcome } from '../../../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -24,6 +25,11 @@ app.post('/:id/approve', async (c) => {
 
 	// Approve
 	await c.env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(id).run();
+
+	// Send welcome email (best-effort)
+	if (user.email) {
+		await sendWelcome(c.env, c.env.DB, user.email as string, account.username as string);
+	}
 
 	const acct = account.domain ? `${account.username}@${account.domain}` : (account.username as string);
 

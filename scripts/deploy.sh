@@ -76,9 +76,6 @@ success "All project directories found"
 if [[ -n "$DOMAIN" ]]; then
   header "Configuring Custom Domain: $DOMAIN"
 
-  # Extract the zone name (root domain — last two parts)
-  ZONE_NAME=$(echo "$DOMAIN" | awk -F. '{print $(NF-1)"."$NF}')
-
   # --- Update INSTANCE_DOMAIN in worker wrangler.jsonc ---
   info "Updating INSTANCE_DOMAIN to: $DOMAIN"
   if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
@@ -105,12 +102,13 @@ content = content.replace(/,?\s*\"routes\"\s*:\s*\[[\s\S]*?\]\s*/g, '');
 
 // Build the routes JSON
 const routes = [
-  { pattern: '$DOMAIN/api/*', zone_name: '$ZONE_NAME' },
-  { pattern: '$DOMAIN/oauth/*', zone_name: '$ZONE_NAME' },
-  { pattern: '$DOMAIN/.well-known/*', zone_name: '$ZONE_NAME' },
-  { pattern: '$DOMAIN/users/*', zone_name: '$ZONE_NAME' },
-  { pattern: '$DOMAIN/inbox', zone_name: '$ZONE_NAME' },
-  { pattern: '$DOMAIN/nodeinfo/*', zone_name: '$ZONE_NAME' }
+  { pattern: '$DOMAIN/api/*', custom_domain: true },
+  { pattern: '$DOMAIN/oauth/*', custom_domain: true },
+  { pattern: '$DOMAIN/.well-known/*', custom_domain: true },
+  { pattern: '$DOMAIN/users/*', custom_domain: true },
+  { pattern: '$DOMAIN/inbox', custom_domain: true },
+  { pattern: '$DOMAIN/nodeinfo/*', custom_domain: true },
+  { pattern: '$DOMAIN/actor', custom_domain: true }
 ];
 const routesJson = JSON.stringify(routes, null, 2).replace(/^/gm, '\t');
 
@@ -137,7 +135,7 @@ content = content.replace(/,?\s*\"routes\"\s*:\s*\[[\s\S]*?\]\s*/g, '');
 
 // Build the catch-all route
 const routes = [
-  { pattern: '$DOMAIN/*', zone_name: '$ZONE_NAME' }
+  { pattern: '$DOMAIN/*', custom_domain: true }
 ];
 const routesJson = JSON.stringify(routes, null, 2).replace(/^/gm, '\t');
 

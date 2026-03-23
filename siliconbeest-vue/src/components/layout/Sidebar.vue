@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
+import { ref } from 'vue'
 import Avatar from '../common/Avatar.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
+const showLangMenu = ref(false)
 
 const navItems = [
-  { key: 'home', path: '/', icon: '🏠' },
+  { key: 'home', path: '/home', icon: '🏠' },
   { key: 'explore', path: '/explore', icon: '🔍' },
   { key: 'notifications', path: '/notifications', icon: '🔔' },
   { key: 'search', path: '/search', icon: '🔎' },
@@ -19,12 +24,21 @@ const navItems = [
 function compose() {
   router.push({ name: 'compose' })
 }
+
+const currentLocaleName = () => {
+  return SUPPORTED_LOCALES.find(l => l.code === locale.value)?.name ?? locale.value
+}
+
+async function switchLocale(code: string) {
+  await loadLocale(code)
+  showLangMenu.value = false
+}
 </script>
 
 <template>
   <nav class="flex flex-col h-full p-4" aria-label="Main navigation">
     <!-- Logo -->
-    <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4">
+    <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
       <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">SiliconBeest</span>
     </router-link>
 
@@ -33,7 +47,7 @@ function compose() {
       <li v-for="item in navItems" :key="item.key">
         <router-link
           :to="item.path"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
           active-class="bg-gray-100 dark:bg-gray-800 font-bold"
         >
           <span class="text-xl w-7 text-center" aria-hidden="true">{{ item.icon }}</span>
@@ -51,13 +65,42 @@ function compose() {
       {{ t('compose.title') }}
     </button>
 
-    <!-- Current User -->
-    <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
-      <Avatar src="" alt="User" size="sm" />
-      <div class="flex-1 min-w-0">
-        <p class="font-semibold text-sm truncate">{{ t('nav.profile') }}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">@user</p>
+    <!-- Language Selector -->
+    <div class="relative mb-3">
+      <button
+        @click="showLangMenu = !showLangMenu"
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      >
+        <span>🌐</span>
+        <span>{{ currentLocaleName() }}</span>
+        <span class="ml-auto text-xs">▾</span>
+      </button>
+      <div
+        v-if="showLangMenu"
+        class="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50"
+      >
+        <button
+          v-for="loc in SUPPORTED_LOCALES"
+          :key="loc.code"
+          @click="switchLocale(loc.code)"
+          class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          :class="locale === loc.code ? 'text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+        >
+          {{ loc.name }}
+        </button>
       </div>
     </div>
+
+    <!-- Current User -->
+    <router-link
+      to="/settings"
+      class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
+    >
+      <Avatar :src="auth.currentUser?.avatar ?? ''" :alt="auth.currentUser?.display_name ?? 'User'" size="sm" />
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-sm truncate">{{ auth.currentUser?.display_name ?? t('nav.profile') }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">@{{ auth.currentUser?.username ?? 'user' }}</p>
+      </div>
+    </router-link>
   </nav>
 </template>

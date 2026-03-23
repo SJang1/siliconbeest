@@ -14,6 +14,21 @@ onMounted(async () => {
     promises.push(auth.fetchCurrentUser());
   }
   await Promise.allSettled(promises);
+
+  // Set dynamic page title
+  document.title = instance.instance?.title || 'SiliconBeest';
+
+  // Set dynamic favicon
+  const faviconUrl = instance.instance?.thumbnail?.url;
+  if (faviconUrl) {
+    let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = faviconUrl;
+  }
 });
 </script>
 
