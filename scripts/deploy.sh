@@ -8,27 +8,8 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
-CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
-VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -62,24 +43,6 @@ while [[ $# -gt 0 ]]; do
     *) error "Unknown option: $1"; exit 1 ;;
   esac
 done
-
-# ---------------------------------------------------------------------------
-# Helper: read config values from wrangler.jsonc
-# ---------------------------------------------------------------------------
-read_wrangler_json() {
-  local FILE="$1"
-  local EXPR="$2"
-  node -e "
-const fs = require('fs');
-const content = fs.readFileSync('$FILE', 'utf8');
-const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-try {
-  const config = JSON.parse(cleaned);
-  const result = $EXPR;
-  process.stdout.write(result || '');
-} catch(e) { process.stdout.write(''); }
-" 2>/dev/null
-}
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -116,7 +79,7 @@ if [[ -n "$DOMAIN" ]]; then
   # Extract the zone name (root domain — last two parts)
   ZONE_NAME=$(echo "$DOMAIN" | awk -F. '{print $(NF-1)"."$NF}')
 
-  # --- Update INSTANCE_DOMAIN in siliconbeest-worker/wrangler.jsonc ---
+  # --- Update INSTANCE_DOMAIN in worker wrangler.jsonc ---
   info "Updating INSTANCE_DOMAIN to: $DOMAIN"
   if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
     node -e "
@@ -125,14 +88,14 @@ let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
 fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
 "
-    success "Updated siliconbeest-worker/wrangler.jsonc INSTANCE_DOMAIN"
+    success "Updated $(basename "$WORKER_DIR")/wrangler.jsonc INSTANCE_DOMAIN"
   else
-    error "siliconbeest-worker/wrangler.jsonc not found"
+    error "$(basename "$WORKER_DIR")/wrangler.jsonc not found"
     exit 1
   fi
 
-  # --- Add routes to siliconbeest-worker/wrangler.jsonc for API paths ---
-  info "Setting API routes in siliconbeest-worker/wrangler.jsonc..."
+  # --- Add routes to worker wrangler.jsonc for API paths ---
+  info "Setting API routes in $(basename "$WORKER_DIR")/wrangler.jsonc..."
   node -e "
 const fs = require('fs');
 let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
@@ -161,10 +124,10 @@ content = before + insertion + '}' + '\n';
 
 fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
 "
-  success "Added API routes to siliconbeest-worker/wrangler.jsonc"
+  success "Added API routes to $(basename "$WORKER_DIR")/wrangler.jsonc"
 
-  # --- Add routes to siliconbeest-vue/wrangler.jsonc for catch-all ---
-  info "Setting catch-all route in siliconbeest-vue/wrangler.jsonc..."
+  # --- Add routes to $(basename "$VUE_DIR")/wrangler.jsonc for catch-all ---
+  info "Setting catch-all route in $(basename "$VUE_DIR")/wrangler.jsonc..."
   node -e "
 const fs = require('fs');
 let content = fs.readFileSync('$VUE_DIR/wrangler.jsonc', 'utf8');
@@ -187,7 +150,7 @@ content = before + insertion + '}' + '\n';
 
 fs.writeFileSync('$VUE_DIR/wrangler.jsonc', content);
 "
-  success "Added catch-all route to siliconbeest-vue/wrangler.jsonc"
+  success "Added catch-all route to $(basename "$VUE_DIR")/wrangler.jsonc"
 fi
 
 # ---------------------------------------------------------------------------
@@ -226,42 +189,42 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Deploy siliconbeest-worker (API)
+# Deploy $WORKER_NAME (API)
 # ---------------------------------------------------------------------------
-header "Deploying siliconbeest-worker"
+header "Deploying $WORKER_NAME"
 
 if [[ "$DRY_RUN" == true ]]; then
-  info "[DRY RUN] Would deploy siliconbeest-worker"
+  info "[DRY RUN] Would deploy $WORKER_NAME"
 else
   info "Deploying API worker..."
   (cd "$WORKER_DIR" && wrangler deploy)
-  success "siliconbeest-worker deployed"
+  success "$WORKER_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------
-# Deploy siliconbeest-queue-consumer
+# Deploy $CONSUMER_NAME
 # ---------------------------------------------------------------------------
-header "Deploying siliconbeest-queue-consumer"
+header "Deploying $CONSUMER_NAME"
 
 if [[ "$DRY_RUN" == true ]]; then
-  info "[DRY RUN] Would deploy siliconbeest-queue-consumer"
+  info "[DRY RUN] Would deploy $CONSUMER_NAME"
 else
   info "Deploying queue consumer worker..."
   (cd "$CONSUMER_DIR" && wrangler deploy)
-  success "siliconbeest-queue-consumer deployed"
+  success "$CONSUMER_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------
-# Deploy siliconbeest-vue (Frontend)
+# Deploy $VUE_NAME (Frontend)
 # ---------------------------------------------------------------------------
-header "Deploying siliconbeest-vue"
+header "Deploying $VUE_NAME"
 
 if [[ "$DRY_RUN" == true ]]; then
-  info "[DRY RUN] Would deploy siliconbeest-vue"
+  info "[DRY RUN] Would deploy $VUE_NAME"
 else
   info "Building and deploying frontend..."
   (cd "$VUE_DIR" && wrangler deploy)
-  success "siliconbeest-vue deployed"
+  success "$VUE_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------
@@ -272,9 +235,9 @@ header "Deployment Complete"
 echo -e "${GREEN}${BOLD}All workers deployed successfully!${NC}"
 echo
 echo -e "  ${BOLD}Workers deployed:${NC}"
-echo -e "    - siliconbeest-worker       (API + ActivityPub)"
-echo -e "    - siliconbeest-queue-consumer (Federation queue processor)"
-echo -e "    - siliconbeest-vue          (Frontend SPA)"
+echo -e "    - $WORKER_NAME       (API + ActivityPub)"
+echo -e "    - $CONSUMER_NAME (Federation queue processor)"
+echo -e "    - $VUE_NAME          (Frontend SPA)"
 echo
 
 # Extract domain from wrangler.jsonc
@@ -293,13 +256,13 @@ echo
 
 if [[ -n "$DOMAIN" ]]; then
   echo -e "  ${BOLD}Custom domain routes configured:${NC}"
-  echo -e "    - ${DOMAIN}/api/*           -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/oauth/*         -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/.well-known/*   -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/users/*         -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/inbox           -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/nodeinfo/*      -> siliconbeest-worker"
-  echo -e "    - ${DOMAIN}/*               -> siliconbeest-vue (catch-all)"
+  echo -e "    - ${DOMAIN}/api/*           -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/oauth/*         -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/.well-known/*   -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/users/*         -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/inbox           -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/nodeinfo/*      -> $WORKER_NAME"
+  echo -e "    - ${DOMAIN}/*               -> $VUE_NAME (catch-all)"
   echo
   echo -e "${YELLOW}Important:${NC}"
   echo "  - More specific routes (e.g. /api/*) take priority over the catch-all (/*)"
@@ -310,9 +273,9 @@ if [[ -n "$DOMAIN" ]]; then
   echo "  curl https://$DOMAIN/.well-known/webfinger?resource=acct:admin@$DOMAIN"
 else
   echo -e "  ${BOLD}Default worker URLs:${NC}"
-  echo -e "    - API:      https://siliconbeest-worker.<your-subdomain>.workers.dev"
-  echo -e "    - Consumer: https://siliconbeest-queue-consumer.<your-subdomain>.workers.dev"
-  echo -e "    - Frontend: https://siliconbeest-vue.<your-subdomain>.workers.dev"
+  echo -e "    - API:      https://$WORKER_NAME.<your-subdomain>.workers.dev"
+  echo -e "    - Consumer: https://$CONSUMER_NAME.<your-subdomain>.workers.dev"
+  echo -e "    - Frontend: https://$VUE_NAME.<your-subdomain>.workers.dev"
   echo
   echo -e "${YELLOW}To configure a custom domain, run:${NC}"
   echo -e "  ${BOLD}./scripts/deploy.sh --domain $CONFIGURED_DOMAIN${NC}"

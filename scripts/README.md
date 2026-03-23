@@ -1,168 +1,264 @@
 # SiliconBeest Scripts
 
-Setup and maintenance scripts for managing a SiliconBeest instance.
+Setup, deployment, and maintenance scripts for managing a SiliconBeest instance.
 
-> Version **0.1.0**
+All scripts share a central configuration via **`config.sh`** — no resource names are hardcoded.
+
+---
+
+## Configuration
+
+### config.sh (central defaults)
+
+Every script sources `config.sh` which defines all resource names based on a single **`PROJECT_PREFIX`** (default: `siliconbeest`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROJECT_PREFIX` | `siliconbeest` | Master prefix — changes all defaults |
+| `WORKER_NAME` | `{prefix}-worker` | API Worker name |
+| `CONSUMER_NAME` | `{prefix}-queue-consumer` | Queue Consumer name |
+| `VUE_NAME` | `{prefix}-vue` | Frontend Worker name |
+| `D1_DATABASE_NAME` | `{prefix}-db` | D1 database name |
+| `R2_BUCKET_NAME` | `{prefix}-media` | R2 bucket name |
+| `KV_CACHE_TITLE` | `{prefix}-CACHE` | KV namespace for cache |
+| `KV_SESSIONS_TITLE` | `{prefix}-SESSIONS` | KV namespace for sessions |
+| `QUEUE_FEDERATION` | `{prefix}-federation` | Federation queue |
+| `QUEUE_INTERNAL` | `{prefix}-internal` | Internal queue |
+| `QUEUE_DLQ` | `{prefix}-federation-dlq` | Dead letter queue |
+
+### Customizing names
+
+**Option 1:** Environment variable (one-off)
+```bash
+PROJECT_PREFIX=myserver ./scripts/setup.sh
+```
+
+**Option 2:** Persistent config file
+```bash
+cp scripts/config.env.example scripts/config.env
+# Edit config.env with your preferred names
+```
+
+**Option 3:** Override individual names
+```bash
+export D1_DATABASE_NAME=my-custom-db
+export R2_BUCKET_NAME=my-media-bucket
+./scripts/deploy.sh --domain social.example.com
+```
+
+---
 
 ## Script Reference
 
 | Script | Description |
 |--------|-------------|
-| `setup.sh` | Interactive first-time setup (resources, keys, admin, Sentry) |
-| `deploy.sh` | Deploy all workers (with optional `--domain` for custom domain) |
-| `update.sh` | Pull code, test, migrate, and redeploy (production updates) |
-| `configure-domain.sh` | Configure Workers Routes for a custom domain |
-| `generate-vapid-keys.sh` | Generate VAPID key pair for Web Push |
-| `seed-admin.sh` | Create an admin user account |
-| `migrate.sh` | Apply D1 database migrations |
-| `backup.sh` | Backup D1 database and R2 objects |
+| [`config.sh`](#configsh-central-defaults) | Shared configuration (sourced by all scripts) |
+| [`setup.sh`](#setupsh) | Interactive first-time setup |
+| [`deploy.sh`](#deploysh) | Deploy all workers |
+| [`update.sh`](#updatesh) | Pull, test, migrate, and redeploy |
+| [`configure-domain.sh`](#configure-domainsh) | Set up Workers Routes for a custom domain |
+| [`generate-vapid-keys.sh`](#generate-vapid-keyssh) | Generate VAPID key pair for Web Push |
+| [`seed-admin.sh`](#seed-adminsh) | Create an admin user account |
+| [`migrate.sh`](#migratesh) | Apply D1 database migrations |
+| [`backup.sh`](#backupsh) | Backup D1 database and R2 objects |
 
 ---
 
-## Setup Flow
+## setup.sh
 
-Follow these steps to configure a new SiliconBeest instance from scratch:
-
-### 1. Create Cloudflare Resources
+Interactive first-time setup. Creates all Cloudflare resources, generates cryptographic keys, configures secrets, applies migrations, and seeds an admin user.
 
 ```bash
-# Database
-wrangler d1 create siliconbeest-db
-
-# Object storage
-wrangler r2 bucket create siliconbeest-media
-
-# KV namespaces
-wrangler kv namespace create CACHE
-wrangler kv namespace create SESSIONS
-
-# Queues
-wrangler queues create siliconbeest-federation
-wrangler queues create siliconbeest-internal
-wrangler queues create siliconbeest-federation-dlq
+./scripts/setup.sh
 ```
 
-After creating each resource, update the IDs in `siliconbeest-worker/wrangler.jsonc` and `siliconbeest-queue-consumer/wrangler.jsonc`.
+Prompts for:
+- **Project prefix** (default: `siliconbeest`) — determines all resource names
+- **Instance domain** (e.g. `social.example.com`)
+- **Instance title**
+- **Registration mode** (open / approval / closed)
+- **Admin email, username, password**
+- **Sentry DSN** (optional)
 
-### 2. Apply Database Migrations
-
-```bash
-cd siliconbeest-worker
-wrangler d1 migrations apply siliconbeest-db --remote
-```
-
-### 3. Configure Environment Variables
-
-Edit the `vars` section of `siliconbeest-worker/wrangler.jsonc`:
-
-```jsonc
-"vars": {
-  "INSTANCE_DOMAIN": "your-domain.com",
-  "INSTANCE_TITLE": "Your Instance Name",
-  "REGISTRATION_MODE": "open"   // or "approval" or "closed"
-}
-```
-
-### 4. Set Secrets
-
-```bash
-cd siliconbeest-worker
-
-# Generate VAPID keys for Web Push (use a tool like web-push CLI)
-wrangler secret put VAPID_PRIVATE_KEY
-wrangler secret put VAPID_PUBLIC_KEY
-
-# Admin secret for initial setup
-wrangler secret put ADMIN_SECRET_KEY
-```
-
-### 5. Deploy
-
-```bash
-# Deploy the API worker
-cd siliconbeest-worker && npm run deploy
-
-# Deploy the queue consumer
-cd siliconbeest-queue-consumer && npm run deploy
-
-# Deploy the frontend
-cd siliconbeest-vue && npm run deploy
-```
-
-### 6. Configure DNS
-
-Point your domain to the Cloudflare Workers using a custom domain or route in the Cloudflare dashboard.
+What it does:
+1. Creates D1 database, R2 bucket, KV namespaces, Queues
+2. Generates VAPID key pair (ECDSA P-256) and OTP encryption key
+3. Updates all `wrangler.jsonc` files with resource IDs
+4. Sets secrets via `wrangler secret put`
+5. Applies D1 migrations
+6. Creates admin user
+7. Writes `siliconbeest-vue/.env`
 
 ---
 
-## How to Back Up Data
+## deploy.sh
 
-### D1 Database
-
-Export your D1 database using the Wrangler CLI:
+Build and deploy all 3 workers. Optionally configures custom domain routes.
 
 ```bash
-# Export full database as SQL dump
-wrangler d1 export siliconbeest-db --output backup.sql --remote
+# Deploy with custom domain
+./scripts/deploy.sh --domain social.example.com
+
+# Deploy to workers.dev subdomains
+./scripts/deploy.sh
+
+# Preview without deploying
+./scripts/deploy.sh --dry-run
+
+# Skip migrations
+./scripts/deploy.sh --skip-migrations
 ```
 
-### R2 Media
+| Flag | Description |
+|------|-------------|
+| `--domain <domain>` | Configure Workers Routes for custom domain |
+| `--dry-run` | Show what would be deployed |
+| `--skip-migrations` | Skip D1 migration step |
 
-Use `rclone` or the S3-compatible API to sync R2 contents to a local directory:
+When `--domain` is used, it automatically:
+- Updates `INSTANCE_DOMAIN` in worker config
+- Injects API routes (`/api/*`, `/oauth/*`, etc.) → API Worker
+- Injects catch-all route (`/*`) → Vue Frontend
+- Deploys all workers
+
+---
+
+## update.sh
+
+Production update workflow: pull latest code, validate, migrate, and deploy.
 
 ```bash
-# Using rclone (configure Cloudflare R2 as a remote first)
-rclone sync r2:siliconbeest-media ./backup/media/
+# Standard update
+./scripts/update.sh
+
+# Update from a specific branch
+./scripts/update.sh --branch release/v0.2.0
+
+# Dry run (check everything, don't deploy)
+./scripts/update.sh --dry-run
+
+# Skip tests for hotfixes
+./scripts/update.sh --skip-tests
 ```
 
-### KV Data
+| Flag | Description |
+|------|-------------|
+| `--branch <name>` | Git branch to pull (default: `main`) |
+| `--skip-pull` | Skip `git pull`, use current working tree |
+| `--skip-tests` | Skip test step |
+| `--dry-run` | Run all checks without deploying |
 
-KV namespaces can be listed and exported key-by-key:
+Steps performed:
+1. `git pull` (shows changelog)
+2. `npm install` for all projects
+3. TypeScript type check (worker + vue)
+4. Run tests (228 total)
+5. Apply D1 migrations
+6. Build frontend
+7. Deploy all workers
+
+---
+
+## configure-domain.sh
+
+Configure Cloudflare Workers Routes for a custom domain (standalone, without redeploying).
 
 ```bash
-# List all keys
-wrangler kv key list --namespace-id <CACHE_NAMESPACE_ID>
+./scripts/configure-domain.sh social.example.com
+```
 
-# Get a specific key
-wrangler kv key get --namespace-id <CACHE_NAMESPACE_ID> "key-name"
+Creates these routes:
+
+| Route | Worker |
+|-------|--------|
+| `domain/api/*` | API Worker |
+| `domain/oauth/*` | API Worker |
+| `domain/.well-known/*` | API Worker |
+| `domain/users/*` | API Worker |
+| `domain/inbox` | API Worker |
+| `domain/nodeinfo/*` | API Worker |
+| `domain/*` | Vue Frontend (catch-all) |
+
+---
+
+## generate-vapid-keys.sh
+
+Generate ECDSA P-256 key pair for Web Push (VAPID).
+
+```bash
+# Print keys to stdout
+./scripts/generate-vapid-keys.sh
+
+# Generate and set as Cloudflare secrets
+./scripts/generate-vapid-keys.sh --set-secrets
 ```
 
 ---
 
-## Maintenance Tasks
+## seed-admin.sh
 
-### Check Dead Letter Queue
-
-Inspect failed federation delivery messages:
+Create an admin user account in the D1 database.
 
 ```bash
-# View messages in the DLQ (use the Cloudflare dashboard Queues tab
-# or consume them with a temporary worker)
+# With arguments
+./scripts/seed-admin.sh admin@example.com admin MyPassword123
+
+# Interactive (prompts for input)
+./scripts/seed-admin.sh
 ```
 
-### Rotate VAPID Keys
+---
 
-If you need to rotate Web Push VAPID keys (this will invalidate all existing push subscriptions):
+## migrate.sh
+
+Apply pending D1 database migrations.
 
 ```bash
-cd siliconbeest-worker
-wrangler secret put VAPID_PRIVATE_KEY
-wrangler secret put VAPID_PUBLIC_KEY
+./scripts/migrate.sh --local       # Local development
+./scripts/migrate.sh --remote      # Production (default)
+./scripts/migrate.sh --dry-run     # List pending without applying
 ```
 
-### Apply New Migrations
+To create a new migration:
+```bash
+touch siliconbeest-worker/migrations/0003_my_change.sql
+# Write SQL, then:
+./scripts/migrate.sh --local   # Test locally
+./scripts/migrate.sh --remote  # Apply to production
+```
+
+---
+
+## backup.sh
+
+Backup D1 database tables and R2 object listing.
 
 ```bash
-cd siliconbeest-worker
+./scripts/backup.sh                    # Full backup (D1 + R2)
+./scripts/backup.sh --skip-r2         # D1 only
+./scripts/backup.sh --output-dir /backups
+```
 
-# Create a new migration
-wrangler d1 migrations create siliconbeest-db description_of_change
+Backups are saved to `./backups/{timestamp}/`.
 
-# Edit the generated SQL file in migrations/
+---
 
-# Apply locally first
-wrangler d1 migrations apply siliconbeest-db --local
+## Maintenance
 
-# Then apply to production
-wrangler d1 migrations apply siliconbeest-db --remote
+### Rotate VAPID keys
+
+```bash
+./scripts/generate-vapid-keys.sh --set-secrets
+# NOTE: This invalidates all existing Web Push subscriptions
+```
+
+### Check dead letter queue
+
+Failed federation deliveries go to the DLQ. Inspect via the Cloudflare dashboard (Queues tab).
+
+### Rotate OTP encryption key
+
+```bash
+# WARNING: Invalidates all existing 2FA enrollments
+openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name $WORKER_NAME
 ```

@@ -7,25 +7,9 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 BACKUP_DIR="$PROJECT_ROOT/backups"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -82,7 +66,7 @@ info "Backup directory: $BACKUP_SUBDIR"
 # ---------------------------------------------------------------------------
 header "Backing Up D1 Database"
 
-DB_NAME="siliconbeest-db"
+DB_NAME="$D1_DATABASE_NAME"
 DB_BACKUP_FILE="$BACKUP_SUBDIR/d1_${DB_NAME}_${TIMESTAMP}.sql"
 
 info "Exporting D1 database: $DB_NAME"
@@ -143,7 +127,7 @@ success "Statistics saved to: $STATS_FILE"
 if [[ "$SKIP_R2" == false ]]; then
   header "Listing R2 Objects"
 
-  BUCKET_NAME="siliconbeest-media"
+  BUCKET_NAME="$R2_BUCKET_NAME"
   R2_LIST_FILE="$BACKUP_SUBDIR/r2_objects_${TIMESTAMP}.txt"
 
   info "Listing objects in R2 bucket: $BUCKET_NAME"
@@ -180,5 +164,5 @@ done
 echo
 echo -e "${YELLOW}Note:${NC} R2 objects are listed but not downloaded."
 echo "  To download specific R2 objects, use:"
-echo "  wrangler r2 object get siliconbeest-media <key> --file <local-path>"
+echo "  wrangler r2 object get $R2_BUCKET_NAME <key> --file <local-path>"
 echo

@@ -8,27 +8,8 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
-CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
-VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -63,32 +44,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---------------------------------------------------------------------------
-# Helper: read D1 database name from wrangler.jsonc
+# Helpers
 # ---------------------------------------------------------------------------
 get_d1_name() {
   local DIR="$1"
-  node -e "
-const fs = require('fs');
-const content = fs.readFileSync('$DIR/wrangler.jsonc', 'utf8');
-const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-try {
-  const config = JSON.parse(cleaned);
-  const db = (config.d1_databases || [])[0];
-  process.stdout.write(db ? db.database_name : '');
-} catch(e) { process.stdout.write(''); }
-" 2>/dev/null
+  read_wrangler_json "$DIR/wrangler.jsonc" "(config.d1_databases||[])[0]?.database_name"
 }
 
 get_domain() {
-  node -e "
-const fs = require('fs');
-const content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
-const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-try {
-  const config = JSON.parse(cleaned);
-  process.stdout.write(config.vars?.INSTANCE_DOMAIN || 'unknown');
-} catch(e) { process.stdout.write('unknown'); }
-" 2>/dev/null
+  read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN"
 }
 
 # ---------------------------------------------------------------------------
@@ -175,13 +139,13 @@ done
 # ---------------------------------------------------------------------------
 header "Step 3: Type Checking"
 
-info "Checking siliconbeest-worker..."
+info "Checking $WORKER_NAME..."
 (cd "$WORKER_DIR" && npx -p typescript tsc --noEmit)
-success "Worker: 0 errors"
+success "$WORKER_NAME: 0 errors"
 
-info "Checking siliconbeest-vue..."
+info "Checking $VUE_NAME..."
 (cd "$VUE_DIR" && npx vue-tsc --noEmit)
-success "Vue: 0 errors"
+success "$VUE_NAME: 0 errors"
 
 # ---------------------------------------------------------------------------
 # Step 4: Run Tests
@@ -245,23 +209,23 @@ header "Step 7: Deploying"
 
 if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy the following:"
-  echo "  - siliconbeest-worker"
-  echo "  - siliconbeest-queue-consumer"
-  echo "  - siliconbeest-vue"
+  echo "  - $WORKER_NAME"
+  echo "  - $CONSUMER_NAME"
+  echo "  - $VUE_NAME"
   echo
   info "Run without --dry-run to actually deploy."
 else
-  info "Deploying siliconbeest-worker..."
+  info "Deploying $WORKER_NAME..."
   (cd "$WORKER_DIR" && wrangler deploy)
-  success "siliconbeest-worker deployed"
+  success "$WORKER_NAME deployed"
 
-  info "Deploying siliconbeest-queue-consumer..."
+  info "Deploying $CONSUMER_NAME..."
   (cd "$CONSUMER_DIR" && wrangler deploy)
-  success "siliconbeest-queue-consumer deployed"
+  success "$CONSUMER_NAME deployed"
 
-  info "Deploying siliconbeest-vue..."
+  info "Deploying $VUE_NAME..."
   (cd "$VUE_DIR" && wrangler deploy)
-  success "siliconbeest-vue deployed"
+  success "$VUE_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------

@@ -7,26 +7,8 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
-VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Usage
@@ -76,9 +58,9 @@ let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
 fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
 "
-  success "Updated siliconbeest-worker/wrangler.jsonc"
+  success "Updated $(basename "$WORKER_DIR")/wrangler.jsonc"
 else
-  error "siliconbeest-worker/wrangler.jsonc not found"
+  error "$(basename "$WORKER_DIR")/wrangler.jsonc not found"
   exit 1
 fi
 
@@ -108,7 +90,7 @@ success "Zone ID: $ZONE_ID"
 # ---------------------------------------------------------------------------
 header "Configuring Workers Routes"
 
-# Routes that should go to the API worker (siliconbeest-worker)
+# Routes that should go to the API worker ($WORKER_NAME)
 API_ROUTES=(
   "${DOMAIN}/api/*"
   "${DOMAIN}/oauth/*"
@@ -118,29 +100,29 @@ API_ROUTES=(
   "${DOMAIN}/nodeinfo/*"
 )
 
-# The catch-all route for the frontend (siliconbeest-vue)
+# The catch-all route for the frontend ($VUE_NAME)
 FRONTEND_ROUTE="${DOMAIN}/*"
 
-info "Creating API routes (siliconbeest-worker)..."
+info "Creating API routes ($WORKER_NAME)..."
 for ROUTE in "${API_ROUTES[@]}"; do
-  info "  Route: $ROUTE -> siliconbeest-worker"
+  info "  Route: $ROUTE -> $WORKER_NAME"
   wrangler routes create "$ROUTE" \
-    --worker "siliconbeest-worker" \
+    --worker "$WORKER_NAME" \
     --zone "$ZONE_ID" 2>/dev/null || \
   wrangler routes create "$ROUTE" \
-    --worker "siliconbeest-worker" \
+    --worker "$WORKER_NAME" \
     --zone-id "$ZONE_ID" 2>/dev/null || \
   warn "  Could not create route: $ROUTE (may already exist or use 'wrangler routes' manually)"
 done
 success "API routes configured"
 
-info "Creating frontend route (siliconbeest-vue)..."
-info "  Route: $FRONTEND_ROUTE -> siliconbeest-vue"
+info "Creating frontend route ($VUE_NAME)..."
+info "  Route: $FRONTEND_ROUTE -> $VUE_NAME"
 wrangler routes create "$FRONTEND_ROUTE" \
-  --worker "siliconbeest-vue" \
+  --worker "$VUE_NAME" \
   --zone "$ZONE_ID" 2>/dev/null || \
 wrangler routes create "$FRONTEND_ROUTE" \
-  --worker "siliconbeest-vue" \
+  --worker "$VUE_NAME" \
   --zone-id "$ZONE_ID" 2>/dev/null || \
 warn "  Could not create frontend route (may already exist or use 'wrangler routes' manually)"
 success "Frontend route configured"
@@ -150,9 +132,9 @@ success "Frontend route configured"
 # ---------------------------------------------------------------------------
 header "Redeploying Workers"
 
-info "Redeploying siliconbeest-worker with updated domain..."
+info "Redeploying $WORKER_NAME with updated domain..."
 (cd "$WORKER_DIR" && wrangler deploy)
-success "siliconbeest-worker redeployed"
+success "$WORKER_NAME redeployed"
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -163,9 +145,9 @@ echo -e "${GREEN}${BOLD}Custom domain configured for: $DOMAIN${NC}"
 echo
 echo -e "  ${BOLD}Route Mapping:${NC}"
 for ROUTE in "${API_ROUTES[@]}"; do
-  echo -e "    $ROUTE  ->  siliconbeest-worker"
+  echo -e "    $ROUTE  ->  $WORKER_NAME"
 done
-echo -e "    $FRONTEND_ROUTE             ->  siliconbeest-vue"
+echo -e "    $FRONTEND_ROUTE             ->  $VUE_NAME"
 echo
 echo -e "${YELLOW}Important:${NC}"
 echo "  - More specific routes (e.g. /api/*) take priority over the catch-all (/*)"

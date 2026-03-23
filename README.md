@@ -100,7 +100,7 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/your-org/siliconbeest.git
+git clone https://github.com/SJang1/siliconbeest.git
 cd siliconbeest
 
 # Install dependencies for all sub-projects
@@ -121,6 +121,7 @@ It will prompt for:
 
 | Setting | Description | Example |
 |---------|-------------|---------|
+| **Project prefix** | Resource naming prefix | `myserver` (default: `siliconbeest`) |
 | **Instance domain** | Your Fediverse domain | `social.example.com` |
 | **Instance title** | Display name | `My Fediverse Server` |
 | **Registration mode** | open / approval / closed | `open` |
@@ -467,10 +468,23 @@ siliconbeest/
 
 See each sub-project README for details:
 
-- [siliconbeest-worker/README.md](siliconbeest-worker/README.md) — API Worker (endpoints, federation, testing)
-- [siliconbeest-queue-consumer/README.md](siliconbeest-queue-consumer/README.md) — Queue Consumer (handlers, retry logic)
-- [siliconbeest-vue/README.md](siliconbeest-vue/README.md) — Vue Frontend (components, stores, i18n)
-- [scripts/README.md](scripts/README.md) — Scripts (setup flow, maintenance)
+- [siliconbeest-worker/](siliconbeest-worker/) — API Worker ([README](siliconbeest-worker/README.md))
+- [siliconbeest-queue-consumer/](siliconbeest-queue-consumer/) — Queue Consumer ([README](siliconbeest-queue-consumer/README.md))
+- [siliconbeest-vue/](siliconbeest-vue/) — Vue Frontend ([README](siliconbeest-vue/README.md))
+- [scripts/](scripts/) — Setup, deploy, update, backup scripts ([README](scripts/README.md))
+
+### Scripts Quick Reference
+
+All scripts read resource names from [`scripts/config.sh`](scripts/config.sh). Customize by setting `PROJECT_PREFIX` or creating `scripts/config.env` (see [`scripts/config.env.example`](scripts/config.env.example)).
+
+| Script | What it does |
+|--------|-------------|
+| `./scripts/setup.sh` | Interactive first-time setup (creates resources, keys, admin) |
+| `./scripts/deploy.sh --domain social.example.com` | Deploy with custom domain routing |
+| `./scripts/update.sh` | Pull, test, migrate, redeploy (production updates) |
+| `./scripts/backup.sh` | Backup D1 + R2 data |
+
+See the full [scripts documentation](scripts/README.md) for all options and flags.
 
 ---
 

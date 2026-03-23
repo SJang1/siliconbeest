@@ -8,27 +8,8 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
-CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
-VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -58,6 +39,15 @@ success "Authenticated with Cloudflare"
 # Collect configuration
 # ---------------------------------------------------------------------------
 header "Instance Configuration"
+
+read -rp "$(echo -e "${CYAN}Project prefix${NC} [${PROJECT_PREFIX}]: ")" USER_PREFIX
+if [[ -n "$USER_PREFIX" ]]; then
+  export PROJECT_PREFIX="$USER_PREFIX"
+  # Re-source config.sh to recompute all derived names with the new prefix
+  source "$SCRIPT_DIR/config.sh"
+  [[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
+fi
+info "Using prefix: $PROJECT_PREFIX"
 
 read -rp "$(echo -e "${CYAN}Instance domain${NC} (e.g. social.example.com): ")" INSTANCE_DOMAIN
 if [[ -z "$INSTANCE_DOMAIN" ]]; then
@@ -148,7 +138,7 @@ success "OTP encryption key generated"
 header "Creating Cloudflare Resources"
 
 # --- D1 Database ---
-DB_NAME="siliconbeest-db"
+DB_NAME="$D1_DATABASE_NAME"
 info "Creating D1 database: $DB_NAME"
 DB_OUTPUT=$(wrangler d1 create "$DB_NAME" 2>&1 || true)
 if echo "$DB_OUTPUT" | grep -q "already exists"; then
@@ -166,7 +156,7 @@ if [[ -z "$DB_ID" ]]; then
 fi
 
 # --- R2 Bucket ---
-BUCKET_NAME="siliconbeest-media"
+BUCKET_NAME="$R2_BUCKET_NAME"
 info "Creating R2 bucket: $BUCKET_NAME"
 R2_OUTPUT=$(wrangler r2 bucket create "$BUCKET_NAME" 2>&1 || true)
 if echo "$R2_OUTPUT" | grep -qi "already exists"; then
@@ -219,9 +209,9 @@ create_queue() {
   fi
 }
 
-create_queue "siliconbeest-federation"
-create_queue "siliconbeest-internal"
-create_queue "siliconbeest-federation-dlq"
+create_queue "$QUEUE_FEDERATION"
+create_queue "$QUEUE_INTERNAL"
+create_queue "$QUEUE_DLQ"
 
 # ---------------------------------------------------------------------------
 # Update wrangler.jsonc files with resource IDs
@@ -328,13 +318,13 @@ set_secret() {
 }
 
 # Worker secrets
-set_secret "siliconbeest-worker" "VAPID_PRIVATE_KEY" "$VAPID_PRIVATE_KEY"
-set_secret "siliconbeest-worker" "VAPID_PUBLIC_KEY"  "$VAPID_PUBLIC_KEY"
-set_secret "siliconbeest-worker" "OTP_ENCRYPTION_KEY" "$OTP_ENCRYPTION_KEY"
+set_secret "$WORKER_NAME" "VAPID_PRIVATE_KEY" "$VAPID_PRIVATE_KEY"
+set_secret "$WORKER_NAME" "VAPID_PUBLIC_KEY"  "$VAPID_PUBLIC_KEY"
+set_secret "$WORKER_NAME" "OTP_ENCRYPTION_KEY" "$OTP_ENCRYPTION_KEY"
 
 # Queue consumer also needs VAPID keys for Web Push dispatch
-set_secret "siliconbeest-queue-consumer" "VAPID_PRIVATE_KEY" "$VAPID_PRIVATE_KEY"
-set_secret "siliconbeest-queue-consumer" "VAPID_PUBLIC_KEY"  "$VAPID_PUBLIC_KEY"
+set_secret "$CONSUMER_NAME" "VAPID_PRIVATE_KEY" "$VAPID_PRIVATE_KEY"
+set_secret "$CONSUMER_NAME" "VAPID_PUBLIC_KEY"  "$VAPID_PUBLIC_KEY"
 
 # ---------------------------------------------------------------------------
 # Apply D1 migrations
@@ -385,6 +375,6 @@ echo "  1. Run ${BOLD}./scripts/deploy.sh --domain $INSTANCE_DOMAIN${NC} to depl
 echo "     or ${BOLD}./scripts/deploy.sh${NC} to deploy to workers.dev subdomains"
 echo
 echo -e "${YELLOW}Optional:${NC}"
-echo "  - Enable Sentry: edit ${BOLD}siliconbeest-vue/.env${NC} and set VITE_SENTRY_DSN"
-echo "  - Customize: edit ${BOLD}siliconbeest-worker/wrangler.jsonc${NC} vars section"
+echo "  - Enable Sentry: edit ${BOLD}$(basename "$VUE_DIR")/.env${NC} and set VITE_SENTRY_DSN"
+echo "  - Customize: edit ${BOLD}$(basename "$WORKER_DIR")/wrangler.jsonc${NC} vars section"
 echo

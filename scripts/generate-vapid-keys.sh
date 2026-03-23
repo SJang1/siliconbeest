@@ -7,21 +7,9 @@ set -e
 # Outputs base64url-encoded private (32 bytes) and public (65 bytes) keys.
 # =============================================================================
 
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -37,7 +25,7 @@ while [[ $# -gt 0 ]]; do
       echo "Generates an ECDSA P-256 key pair suitable for VAPID (Web Push)."
       echo
       echo "Options:"
-      echo "  --set-secrets   Also set the keys as wrangler secrets for siliconbeest-worker"
+      echo "  --set-secrets   Also set the keys as wrangler secrets for $WORKER_NAME"
       echo "  -h, --help      Show this help"
       exit 0
       ;;
@@ -119,20 +107,20 @@ if [[ "$SET_SECRETS" == true ]]; then
     exit 1
   fi
 
-  info "Setting VAPID_PRIVATE_KEY for siliconbeest-worker..."
-  echo "$VAPID_PRIVATE_KEY" | wrangler secret put VAPID_PRIVATE_KEY --name siliconbeest-worker
+  info "Setting VAPID_PRIVATE_KEY for $WORKER_NAME..."
+  echo "$VAPID_PRIVATE_KEY" | wrangler secret put VAPID_PRIVATE_KEY --name "$WORKER_NAME"
   success "VAPID_PRIVATE_KEY set"
 
-  info "Setting VAPID_PUBLIC_KEY for siliconbeest-worker..."
-  echo "$VAPID_PUBLIC_KEY" | wrangler secret put VAPID_PUBLIC_KEY --name siliconbeest-worker
+  info "Setting VAPID_PUBLIC_KEY for $WORKER_NAME..."
+  echo "$VAPID_PUBLIC_KEY" | wrangler secret put VAPID_PUBLIC_KEY --name "$WORKER_NAME"
   success "VAPID_PUBLIC_KEY set"
 
   echo
-  success "Secrets set for siliconbeest-worker"
+  success "Secrets set for $WORKER_NAME"
 fi
 
 echo
 echo -e "${YELLOW}To set these keys as secrets manually:${NC}"
-echo "  echo '$VAPID_PRIVATE_KEY' | wrangler secret put VAPID_PRIVATE_KEY --name siliconbeest-worker"
-echo "  echo '$VAPID_PUBLIC_KEY'  | wrangler secret put VAPID_PUBLIC_KEY  --name siliconbeest-worker"
+echo "  echo '$VAPID_PRIVATE_KEY' | wrangler secret put VAPID_PRIVATE_KEY --name $WORKER_NAME"
+echo "  echo '$VAPID_PUBLIC_KEY'  | wrangler secret put VAPID_PUBLIC_KEY  --name $WORKER_NAME"
 echo

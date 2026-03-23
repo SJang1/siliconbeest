@@ -8,25 +8,8 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
-
-# ---------------------------------------------------------------------------
-# Colors
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+source "$SCRIPT_DIR/config.sh"
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 # ---------------------------------------------------------------------------
 # Collect arguments or prompt
@@ -68,15 +51,7 @@ fi
 # ---------------------------------------------------------------------------
 # Read INSTANCE_DOMAIN from wrangler.jsonc
 # ---------------------------------------------------------------------------
-INSTANCE_DOMAIN=$(node -e "
-const fs = require('fs');
-try {
-  const content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
-  const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-  const config = JSON.parse(cleaned);
-  process.stdout.write(config.vars?.INSTANCE_DOMAIN || '');
-} catch(e) { process.stderr.write(e.message); }
-")
+INSTANCE_DOMAIN=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN")
 
 if [[ -z "$INSTANCE_DOMAIN" ]]; then
   error "Could not read INSTANCE_DOMAIN from wrangler.jsonc"
@@ -180,7 +155,7 @@ KEY_ID_URI=$(get_field keyIdUri)
 # ---------------------------------------------------------------------------
 header "Inserting Admin User into D1"
 
-DB_NAME="siliconbeest-db"
+DB_NAME="$D1_DATABASE_NAME"
 
 # Insert account
 info "Creating account..."
