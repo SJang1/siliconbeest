@@ -215,6 +215,50 @@ export async function processCreate(
 		}
 	}
 
+	// Process hashtags from tags
+	const hashtagTags = tags.filter((t) => t.type === 'Hashtag');
+	for (const ht of hashtagTags) {
+		const tagName = ((ht.name as string) || '').replace(/^#/, '').toLowerCase();
+		if (!tagName) continue;
+		try {
+			const existing = await env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
+			let tagId: string;
+			if (existing) {
+				tagId = existing.id;
+				await env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
+			} else {
+				tagId = generateUlid();
+				await env.DB.prepare(
+					'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
+				).bind(tagId, tagName, tagName, now).run();
+			}
+			await env.DB.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
+		} catch {
+			// ignore duplicates
+		}
+	}
+
+	// Process custom emojis from tags — store remote emojis for rendering
+	const emojiTags = tags.filter((t) => t.type === 'Emoji');
+	for (const et of emojiTags) {
+		const emojiName = ((et.name as string) || '').replace(/^:|:$/g, '');
+		const iconObj = (et as any).icon as { url?: string } | undefined;
+		const emojiUrl = iconObj?.url;
+		if (!emojiName || !emojiUrl) continue;
+		let emojiDomain: string | null = null;
+		try { emojiDomain = new URL(emojiUrl).hostname; } catch { /* skip */ }
+		if (!emojiDomain) continue;
+		try {
+			await env.DB.prepare(
+				`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
+				 VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
+				 ON CONFLICT(shortcode, domain) DO UPDATE SET image_key = excluded.image_key, updated_at = excluded.updated_at`,
+			).bind(generateUlid(), emojiName, emojiDomain, emojiUrl, now).run();
+		} catch {
+			// ignore
+		}
+	}
+
 	// Fan out to local followers' home timelines
 	await env.QUEUE_INTERNAL.send({
 		type: 'timeline_fanout',
