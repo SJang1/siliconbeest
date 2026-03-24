@@ -25,11 +25,31 @@ app.get('/', async (c) => {
 		return c.json({ error: 'Resource not found' }, 404);
 	}
 
+	// Instance actor: domain itself as username (e.g. acct:siliconbeest.sjang.dev@siliconbeest.sjang.dev)
+	if (username!.toLowerCase() === instanceDomain.toLowerCase()) {
+		const actorUri = `https://${instanceDomain}/actor`;
+		return c.json(
+			{
+				subject: `acct:${instanceDomain}@${instanceDomain}`,
+				aliases: [actorUri],
+				links: [
+					{ rel: 'self', type: 'application/activity+json', href: actorUri },
+				],
+			},
+			200,
+			{
+				'Content-Type': 'application/jrd+json; charset=utf-8',
+				'Cache-Control': 'max-age=259200, public',
+				'Access-Control-Allow-Origin': '*',
+			},
+		);
+	}
+
 	// Query local account
 	const account = await c.env.DB.prepare(
 		`SELECT id, username FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1`,
 	)
-		.bind(username.toLowerCase())
+		.bind(username!.toLowerCase())
 		.first();
 
 	if (!account) {
