@@ -6,6 +6,8 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 
 > Version **0.1.0** — Early development
 
+> **Warning: Do not change your instance domain after federating.** ActivityPub actor URIs contain the domain and are permanent identifiers across the Fediverse. Changing the domain after other servers have cached your actors will break all existing federation relationships, followers, and conversations. Choose your domain carefully before launch.
+
 ---
 
 ## Features

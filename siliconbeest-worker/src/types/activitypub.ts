@@ -52,7 +52,7 @@ export interface APObject {
   attributedTo?: APOneOrMany<string>;
   inReplyTo?: string | null;
   tag?: APTag[];
-  attachment?: APDocument[];
+  attachment?: (APDocument | APPropertyValue | Record<string, unknown>)[];
   sensitive?: boolean;
   mediaType?: string;
   replies?: APCollection | APOrderedCollection | string;
@@ -189,7 +189,7 @@ export interface APActivity {
   id?: string;
   type: string;
   actor: string;
-  object?: APOneOrMany<string | APObject>;
+  object?: APOneOrMany<string | APObject | Record<string, unknown>>;
   target?: string | APObject;
   published?: string;
   to?: APOneOrMany<string>;

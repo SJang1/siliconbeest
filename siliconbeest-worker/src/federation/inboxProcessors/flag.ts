@@ -32,7 +32,7 @@ export async function processFlag(
 			if (typeof obj === 'string') {
 				objectUris.push(obj);
 			} else if (obj && typeof obj === 'object' && 'id' in obj && obj.id) {
-				objectUris.push(obj.id);
+				objectUris.push(obj.id as string);
 			}
 		}
 	}

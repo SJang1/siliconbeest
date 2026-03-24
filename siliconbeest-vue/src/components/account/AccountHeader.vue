@@ -73,7 +73,11 @@ function handleToggle() {
         <Avatar :src="account.avatar" :alt="account.display_name" size="xl"
           class="ring-4 ring-white dark:ring-gray-900 relative z-10"
         />
-        <div class="flex gap-2 pt-16">
+        <div class="flex items-center gap-2 pt-16">
+          <span
+            v-if="!isOwn && relationship?.followed_by"
+            class="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+          >{{ t('profile.follows_you') }}</span>
           <FollowButton
             v-if="!isOwn"
             :account-id="account.id"

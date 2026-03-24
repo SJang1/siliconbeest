@@ -192,7 +192,7 @@ export async function fetchRemoteActor(
 		try {
 			const keyRow = await db.prepare(
 				`SELECT ak.private_key, ak.key_id FROM actor_keys ak WHERE ak.account_id = '__instance__' LIMIT 1`,
-			).first<{ private_key: string; key_id: string }>();
+			).first() as { private_key: string; key_id: string } | null;
 
 			if (keyRow) {
 				const { signRequest } = await import('./httpSignatures');

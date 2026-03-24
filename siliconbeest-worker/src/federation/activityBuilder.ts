@@ -6,7 +6,7 @@
  * object in the appropriate activity envelope.
  */
 
-import type { APActivity, APNote, APActor, APContext } from '../types/activitypub';
+import type { APActivity, APNote, APActor, APObject, APContext } from '../types/activitypub';
 import { generateUlid } from '../utils/ulid';
 
 const AP_CONTEXT: APContext = [
@@ -152,7 +152,7 @@ export function buildUpdateActivity(actor: string, object: APNote | APActor): AP
 		id: activityId(actor),
 		type: 'Update',
 		actor,
-		object,
+		object: object as unknown as APObject,
 		published: new Date().toISOString(),
 		to: object.to,
 		cc: object.cc,

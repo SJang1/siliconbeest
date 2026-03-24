@@ -90,6 +90,7 @@ app.get('/', async (c) => {
 			public_key: publicKeyPem,
 			private_key: privateKeyPem,
 			key_id: keyId,
+			ed25519_public_key: null,
 		};
 	}
 

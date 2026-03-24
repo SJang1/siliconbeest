@@ -105,7 +105,7 @@ export function serializeActor(
 	}
 
 	// Profile metadata fields (PropertyValue attachments)
-	const fieldsJson = (account as Record<string, unknown>).fields as string | null | undefined;
+	const fieldsJson = (account as unknown as Record<string, unknown>).fields as string | null | undefined;
 	if (fieldsJson) {
 		try {
 			const fields: ProfileField[] = JSON.parse(fieldsJson);

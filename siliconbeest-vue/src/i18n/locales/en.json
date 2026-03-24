@@ -210,7 +210,8 @@
     "edit": "Edit profile",
     "not_found": "Profile not found",
     "remote_server": "Remote server",
-    "report_user": "Report user"
+    "report_user": "Report user",
+    "follows_you": "Follows you"
   },
   "settings": {
     "title": "Settings",

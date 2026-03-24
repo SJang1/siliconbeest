@@ -210,7 +210,8 @@
     "edit": "프로필 편집",
     "not_found": "프로필을 찾을 수 없습니다",
     "remote_server": "원격 서버",
-    "report_user": "사용자 신고"
+    "report_user": "사용자 신고",
+    "follows_you": "나를 팔로우합니다"
   },
   "settings": {
     "title": "설정",
