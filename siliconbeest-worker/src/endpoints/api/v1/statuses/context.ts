@@ -73,8 +73,8 @@ app.get('/:id/context', authOptional, async (c) => {
   const enrichments = await enrichStatuses(c.env.DB, domain, allIds, currentAccountId);
 
   function enrichAndSerialize(r: Record<string, unknown>) {
-    const s = serializeStatus(r, domain);
     const e = enrichments.get(r.id as string);
+    const s = serializeStatus(r, domain, undefined, e?.accountEmojis);
     if (e) {
       s.media_attachments = e.mediaAttachments as any[];
       s.favourited = e.favourited ?? false;

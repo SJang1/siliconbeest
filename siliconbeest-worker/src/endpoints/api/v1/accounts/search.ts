@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { fetchAccountEmojis, getAccountEmojis } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -44,8 +45,29 @@ app.get('/search', authRequired, async (c) => {
 
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
 
+  // Batch-fetch account emojis
+  const domainTexts = new Map<string, string[]>();
+  for (const row of results as Record<string, unknown>[]) {
+    const dk = (row.domain as string) || '__local__';
+    if (!domainTexts.has(dk)) domainTexts.set(dk, []);
+    domainTexts.get(dk)!.push((row.display_name as string) || '', (row.note as string) || '');
+  }
+  const emojiMaps = new Map<string, Map<string, any>>();
+  const emojiPromises: Promise<void>[] = [];
+  for (const [dk, texts] of domainTexts) {
+    emojiPromises.push(
+      fetchAccountEmojis(c.env.DB, texts, dk === '__local__' ? null : dk).then((m) => {
+        if (m.size > 0) emojiMaps.set(dk, m);
+      }),
+    );
+  }
+  await Promise.all(emojiPromises);
+
   const accounts = (results as Record<string, unknown>[]).map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
+    const dk = (row.domain as string) || '__local__';
+    const em = emojiMaps.get(dk);
+    const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
     return {
       id: row.id as string,
       username: row.username as string,
@@ -67,7 +89,7 @@ app.get('/search', authRequired, async (c) => {
       following_count: (row.following_count as number) || 0,
       statuses_count: (row.statuses_count as number) || 0,
       last_status_at: (row.last_status_at as string) || null,
-      emojis: [],
+      emojis: acctEmojis,
       fields: [],
     };
   });

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authOptional } from '../../../middleware/auth';
 import { serializeAccount, serializeStatus, serializeTag } from '../../../utils/mastodonSerializer';
-import { enrichStatuses } from '../../../utils/statusEnrichment';
+import { enrichStatuses, fetchAccountEmojis, getAccountEmojis } from '../../../utils/statusEnrichment';
 import { resolveWebFinger, fetchRemoteActor } from '../../../federation/webfinger';
 import { generateUlid } from '../../../utils/ulid';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
@@ -39,9 +39,30 @@ app.get('/', authOptional, async (c) => {
       LIMIT ?2 OFFSET ?3
     `).bind(searchTerm, limit, offset).all();
 
-    accounts = (results ?? []).map((row: any) =>
-      serializeAccount(row as AccountRow),
-    );
+    // Batch-fetch account emojis
+    const acctDomainTexts = new Map<string, string[]>();
+    for (const row of (results ?? []) as any[]) {
+      const dk = (row.domain as string) || '__local__';
+      if (!acctDomainTexts.has(dk)) acctDomainTexts.set(dk, []);
+      acctDomainTexts.get(dk)!.push((row.display_name as string) || '', (row.note as string) || '');
+    }
+    const acctEmojiMaps = new Map<string, Map<string, any>>();
+    const acctEmojiPromises: Promise<void>[] = [];
+    for (const [dk, texts] of acctDomainTexts) {
+      acctEmojiPromises.push(
+        fetchAccountEmojis(c.env.DB, texts, dk === '__local__' ? null : dk).then((m) => {
+          if (m.size > 0) acctEmojiMaps.set(dk, m);
+        }),
+      );
+    }
+    await Promise.all(acctEmojiPromises);
+
+    accounts = (results ?? []).map((row: any) => {
+      const dk = (row.domain as string) || '__local__';
+      const em = acctEmojiMaps.get(dk);
+      const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
+      return serializeAccount(row as AccountRow, { emojis: acctEmojis });
+    });
 
     // WebFinger resolution: if resolve=true and query looks like user@domain
     const looksLikeAcct = /^@?[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q);
@@ -161,7 +182,7 @@ app.get('/', authOptional, async (c) => {
       };
       const e = enrichments.get(row.id);
       return serializeStatus(row as StatusRow, {
-        account: serializeAccount(accountRow),
+        account: serializeAccount(accountRow, { emojis: e?.accountEmojis }),
         mediaAttachments: e?.mediaAttachments,
         mentions: e?.mentions,
         favourited: e?.favourited,

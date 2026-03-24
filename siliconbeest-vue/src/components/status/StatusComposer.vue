@@ -40,6 +40,24 @@ const charsRemaining = computed(() => charLimit.value - content.value.length)
 // ── Emoji picker state ──────────────────────────────────────────────
 const showEmojiPicker = ref(false)
 const emojiPickerRef = ref<HTMLElement | null>(null)
+const emojiButtonRef = ref<HTMLElement | null>(null)
+
+/** Position the emoji picker above the button, teleported to body */
+const emojiPickerPosition = computed(() => {
+  if (!emojiButtonRef.value) return { top: '0px', left: '0px' }
+  const rect = emojiButtonRef.value.getBoundingClientRect()
+  const pickerHeight = 340 // max-h-80 = 320 + some margin
+  const pickerWidth = 288 // w-72
+
+  // Try above the button first
+  let top = rect.top - pickerHeight
+  if (top < 8) top = rect.bottom + 4 // Fall back to below if no space above
+
+  let left = rect.right - pickerWidth
+  if (left < 8) left = 8
+
+  return { top: `${top}px`, left: `${left}px` }
+})
 
 onMounted(() => {
   fetchCustomEmojis()
@@ -636,6 +654,7 @@ function submit() {
         <div class="relative" ref="emojiPickerRef">
           <button
             type="button"
+            ref="emojiButtonRef"
             @click.stop="toggleEmojiPicker"
             class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors text-lg"
             :class="showEmojiPicker ? 'bg-gray-200 dark:bg-gray-700' : ''"
@@ -644,9 +663,16 @@ function submit() {
           >
             😀
           </button>
-          <div v-if="showEmojiPicker" class="absolute bottom-full mb-1 right-0 z-30" @click.stop>
-            <EmojiPicker @select="onEmojiSelect" />
-          </div>
+          <Teleport to="body">
+            <div
+              v-if="showEmojiPicker"
+              class="fixed z-[9999]"
+              :style="emojiPickerPosition"
+              @click.stop
+            >
+              <EmojiPicker @select="onEmojiSelect" />
+            </div>
+          </Teleport>
         </div>
 
         <!-- Visibility selector -->

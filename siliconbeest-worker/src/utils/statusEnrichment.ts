@@ -30,6 +30,7 @@ export interface StatusEnrichment {
   mentions: MentionInfo[];
   card: PreviewCard | null;
   emojis: EmojiInfo[];
+  accountEmojis: AccountEmojiInfo[];
 }
 
 const EMPTY: StatusEnrichment = {
@@ -41,6 +42,7 @@ const EMPTY: StatusEnrichment = {
   mentions: [],
   card: null,
   emojis: [],
+  accountEmojis: [],
 };
 
 /**
@@ -60,7 +62,7 @@ export async function enrichStatuses(
 
   // Initialize all entries
   for (const id of statusIds) {
-    result.set(id, { ...EMPTY, mediaAttachments: [], reactions: [], mentions: [], card: null, emojis: [] });
+    result.set(id, { ...EMPTY, mediaAttachments: [], reactions: [], mentions: [], card: null, emojis: [], accountEmojis: [] });
   }
 
   // Build parallel queries
@@ -306,10 +308,65 @@ export async function enrichStatuses(
         seen.add(code);
         const domainMap = emojiByShortcodeDomain.get(code);
         if (!domainMap) continue;
-        // Priority: 1) same domain as account, 2) local instance emoji, 3) skip
-        const info = domainMap.get(accountDomain) ?? domainMap.get('__local__');
+        // Strict domain matching: same domain as account only
+        const info = domainMap.get(accountDomain);
         if (info) {
           entry.emojis.push(info);
+        }
+      }
+    }
+  }
+
+  // 9. Account emojis — fetch :shortcode: from display_name and note of each status's account
+  // We need the account info (display_name, note, domain) per status
+  if (statusIds.length > 0) {
+    const acctInfoPlaceholders = statusIds.map(() => '?').join(',');
+    const { results: acctInfoRows } = await db
+      .prepare(
+        `SELECT s.id AS status_id, a.display_name, a.note, a.domain
+         FROM statuses s JOIN accounts a ON a.id = s.account_id
+         WHERE s.id IN (${acctInfoPlaceholders})`,
+      )
+      .bind(...statusIds)
+      .all();
+
+    // Group statuses by account domain, collect all texts
+    const acctTextsByDomain = new Map<string, string[]>();
+    const statusAccountDomainMap = new Map<string, string>();
+    for (const row of acctInfoRows ?? []) {
+      const sid = row.status_id as string;
+      const displayName = (row.display_name as string) || '';
+      const note = (row.note as string) || '';
+      const acctDomain = (row.domain as string) || null;
+      const domainKey = acctDomain || '__local__';
+      statusAccountDomainMap.set(sid, domainKey);
+      if (!acctTextsByDomain.has(domainKey)) acctTextsByDomain.set(domainKey, []);
+      acctTextsByDomain.get(domainKey)!.push(displayName, note);
+    }
+
+    // Batch-fetch account emojis per domain
+    const acctEmojiMaps = new Map<string, Map<string, AccountEmojiInfo>>();
+    const domainFetches: Promise<void>[] = [];
+    for (const [domainKey, texts] of acctTextsByDomain) {
+      domainFetches.push(
+        fetchAccountEmojis(db, texts, domainKey === '__local__' ? null : domainKey).then((emojiMap) => {
+          if (emojiMap.size > 0) acctEmojiMaps.set(domainKey, emojiMap);
+        }),
+      );
+    }
+    await Promise.all(domainFetches);
+
+    // Assign account emojis to each status enrichment
+    for (const row of acctInfoRows ?? []) {
+      const sid = row.status_id as string;
+      const displayName = (row.display_name as string) || '';
+      const note = (row.note as string) || '';
+      const domainKey = statusAccountDomainMap.get(sid) || '__local__';
+      const emojiMap = acctEmojiMaps.get(domainKey);
+      if (emojiMap && emojiMap.size > 0) {
+        const entry = result.get(sid);
+        if (entry) {
+          entry.accountEmojis = getAccountEmojis(emojiMap, displayName, note);
         }
       }
     }
@@ -357,14 +414,22 @@ export async function fetchAccountEmojis(
     .all();
 
   const targetDomain = accountDomain || null;
+  // Group by shortcode, prefer same domain
+  const byShortcode = new Map<string, Array<{ domain: string | null; url: string }>>();
   for (const r of results ?? []) {
     const sc = r.shortcode as string;
     const emojiDomain = (r.domain as string) || null;
-    // Only match: same domain as account, OR local emojis (domain IS NULL)
-    if (emojiDomain !== targetDomain && emojiDomain !== null) continue;
     const imageKey = r.image_key as string;
     const url = imageKey.startsWith('http') ? imageKey : `https://${r.domain}/emoji/${imageKey}`;
-    result.set(sc, { shortcode: sc, url, static_url: url, visible_in_picker: false });
+    if (!byShortcode.has(sc)) byShortcode.set(sc, []);
+    byShortcode.get(sc)!.push({ domain: emojiDomain, url });
+  }
+  for (const [sc, entries] of byShortcode) {
+    // Strict domain matching only
+    const match = entries.find(e => e.domain === targetDomain);
+    if (match) {
+      result.set(sc, { shortcode: sc, url: match.url, static_url: match.url, visible_in_picker: false });
+    }
   }
 
   return result;

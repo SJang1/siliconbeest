@@ -12,9 +12,9 @@ app.get('/', async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM custom_emojis
-     WHERE visible_in_picker = 1 AND domain IS NULL
+     WHERE visible_in_picker = 1 AND (domain IS NULL OR domain = ?1)
      ORDER BY category ASC, shortcode ASC`,
-  ).all();
+  ).bind(domain).all();
 
   const emojis = (results ?? []).map((row: any) => ({
     shortcode: row.shortcode as string,

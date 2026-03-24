@@ -84,7 +84,7 @@ app.get('/:tag', authOptional, async (c) => {
     };
     const e = enrichments.get(row.id);
     return serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow),
+      account: serializeAccount(accountRow, { emojis: e?.accountEmojis }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,

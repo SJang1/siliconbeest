@@ -6,7 +6,7 @@ import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
-function serializeStatus(row: Record<string, unknown>, domain: string, currentAccountId?: string) {
+function serializeStatus(row: Record<string, unknown>, domain: string, currentAccountId?: string, accountEmojis?: any[]) {
   const acct = row.account_domain
     ? `${row.account_username}@${row.account_domain}`
     : (row.account_username as string);
@@ -54,7 +54,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
       following_count: (row.account_following_count as number) || 0,
       statuses_count: (row.account_statuses_count as number) || 0,
       last_status_at: (row.account_last_status_at as string) || null,
-      emojis: [],
+      emojis: accountEmojis ?? [],
       fields: [],
     },
     media_attachments: [] as any[],
@@ -77,10 +77,10 @@ async function serializeStatusEnriched(
   domain: string,
   currentAccountId?: string | null,
 ) {
-  const status = serializeStatus(row, domain);
   const statusId = row.id as string;
   const enrichments = await enrichStatuses(db, domain, [statusId], currentAccountId);
   const e = enrichments.get(statusId);
+  const status = serializeStatus(row, domain, undefined, e?.accountEmojis);
   if (e) {
     status.media_attachments = e.mediaAttachments as any[];
     status.favourited = e.favourited ?? false;

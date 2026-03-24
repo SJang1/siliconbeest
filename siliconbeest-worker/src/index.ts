@@ -113,6 +113,41 @@ app.use('*', logger());
 app.get('/healthz', (c) => c.text('ok'));
 
 // ---------------------------------------------------------------------------
+// Authorize Interaction (remote follow)
+// ---------------------------------------------------------------------------
+
+app.get('/authorize_interaction', (c) => {
+  const uri = c.req.query('uri');
+  if (!uri) {
+    return c.json({ error: 'Missing uri parameter' }, 400);
+  }
+
+  // Parse the URI: could be @user@domain, acct:user@domain, or a full URL
+  let acct = uri;
+
+  // Strip leading @ if present
+  if (acct.startsWith('@')) acct = acct.slice(1);
+  // Strip acct: prefix
+  if (acct.startsWith('acct:')) acct = acct.slice(5);
+
+  // If it looks like user@domain, redirect to /@user@domain profile page
+  if (acct.includes('@')) {
+    const atAcct = acct.startsWith('@') ? acct : `@${acct}`;
+    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/${atAcct}`, 302);
+  }
+
+  // If it's a full URL, try to extract the path
+  try {
+    const url = new URL(acct);
+    // Redirect to the URL path on our instance
+    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}${url.pathname}`, 302);
+  } catch {
+    // Not a URL, just redirect to search
+    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/search?q=${encodeURIComponent(uri)}`, 302);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Well-Known / Discovery
 // ---------------------------------------------------------------------------
 

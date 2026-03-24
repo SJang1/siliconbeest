@@ -3,7 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
-import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { enrichStatuses, fetchAccountEmojis, getAccountEmojis } from '../../../../utils/statusEnrichment';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -122,13 +122,26 @@ app.get('/:id', authRequired, async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow),
+        account: serializeAccount(statusAccountRow, { emojis: e?.accountEmojis }),
       };
     }
   }
 
+  // Fetch account emojis for the notification from_account
+  const notifAcctDomain = (row.a_domain as string) || null;
+  const notifAcctEmojiMap = await fetchAccountEmojis(
+    c.env.DB,
+    [(row.a_display_name as string) || '', (row.a_note as string) || ''],
+    notifAcctDomain,
+  );
+  const notifAcctEmojis = getAccountEmojis(
+    notifAcctEmojiMap,
+    (row.a_display_name as string) || '',
+    (row.a_note as string) || '',
+  );
+
   return c.json(serializeNotification(notifRow, {
-    account: serializeAccount(accountRow),
+    account: serializeAccount(accountRow, { emojis: notifAcctEmojis }),
     status: statusObj,
   }));
 });

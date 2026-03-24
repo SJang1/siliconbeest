@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
+import { fetchAccountEmojis, getAccountEmojis } from '../../../utils/statusEnrichment';
 import type { AccountRow } from '../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -52,10 +53,32 @@ app.get('/', authRequired, async (c) => {
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 
+  // Batch-fetch account emojis
+  const allRows = results ?? [];
+  const domainTexts = new Map<string, string[]>();
+  for (const row of allRows as any[]) {
+    const dk = (row.domain as string) || '__local__';
+    if (!domainTexts.has(dk)) domainTexts.set(dk, []);
+    domainTexts.get(dk)!.push((row.display_name as string) || '', (row.note as string) || '');
+  }
+  const emojiMaps = new Map<string, Map<string, any>>();
+  const emojiPromises: Promise<void>[] = [];
+  for (const [dk, texts] of domainTexts) {
+    emojiPromises.push(
+      fetchAccountEmojis(c.env.DB, texts, dk === '__local__' ? null : dk).then((m) => {
+        if (m.size > 0) emojiMaps.set(dk, m);
+      }),
+    );
+  }
+  await Promise.all(emojiPromises);
+
   // Restore actual account IDs in the response
-  const serialized = (results ?? []).map((row: any) =>
-    serializeAccount(row as AccountRow),
-  );
+  const serialized = (allRows as any[]).map((row: any) => {
+    const dk = (row.domain as string) || '__local__';
+    const em = emojiMaps.get(dk);
+    const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
+    return serializeAccount(row as AccountRow, { emojis: acctEmojis });
+  });
   if (pag.minId) serialized.reverse();
 
   return c.json(serialized, 200, headers);

@@ -8,19 +8,20 @@
 import type { Env } from '../env';
 import type { TimelineFanoutMessage } from '../shared/types/queue';
 
-/** Extract :shortcode: patterns from HTML content and fetch emoji info from DB */
+/** Extract :shortcode: patterns from HTML content and fetch emoji info from DB, matching by account domain */
 async function fetchEmojisForContent(
   db: D1Database,
   content: string | null,
+  accountDomain: string | null,
 ): Promise<Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>> {
-  if (!content) return [];
+  if (!content || !accountDomain) return [];
   const matches = [...content.matchAll(/:([a-zA-Z0-9_]{2,}?):/g)];
   if (matches.length === 0) return [];
   const shortcodes = [...new Set(matches.map((m) => m[1]))];
   const placeholders = shortcodes.map(() => '?').join(',');
   const { results } = await db.prepare(
-    `SELECT shortcode, image_key, domain FROM custom_emojis WHERE shortcode IN (${placeholders})`,
-  ).bind(...shortcodes).all();
+    `SELECT shortcode, image_key, domain FROM custom_emojis WHERE shortcode IN (${placeholders}) AND domain = ?`,
+  ).bind(...shortcodes, accountDomain).all();
   return (results ?? []).map((r: any) => ({
     shortcode: r.shortcode as string,
     url: (r.image_key as string).startsWith('http') ? r.image_key : `https://${r.domain}/emoji/${r.image_key}`,
@@ -113,7 +114,14 @@ export async function handleTimelineFanout(
 
       if (statusRow) {
         // Fetch custom emojis referenced in content
-        const statusEmojis = await fetchEmojisForContent(env.DB, statusRow.content as string | null);
+        const statusEmojis = await fetchEmojisForContent(env.DB, statusRow.content as string | null, (statusRow.domain as string) || null);
+
+        // Fetch account emojis for display_name and note
+        const accountEmojis = await fetchEmojisForContent(
+          env.DB,
+          `${(statusRow.display_name as string) || ''} ${(statusRow.account_note as string) || ''}`,
+          (statusRow.domain as string) || null,
+        );
 
         // Fetch media attachments
         const { results: streamMediaRows } = await env.DB.prepare(
@@ -177,7 +185,7 @@ export async function handleTimelineFanout(
             following_count: statusRow.following_count || 0,
             statuses_count: statusRow.statuses_count || 0,
             last_status_at: null,
-            emojis: [],
+            emojis: accountEmojis,
             fields: [],
           },
         });
@@ -199,6 +207,11 @@ export async function handleTimelineFanout(
           ).bind(statusRow.reblog_of_id).first();
 
           if (origRow) {
+            const origAcctEmojis = await fetchEmojisForContent(
+              env.DB,
+              `${origRow.display_name || ''} ${origRow.account_note || ''}`,
+              (origRow.domain as string) || null,
+            );
             const parsed = JSON.parse(statusPayload);
             parsed.reblog = {
               id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
@@ -220,7 +233,7 @@ export async function handleTimelineFanout(
                 avatar: origRow.avatar_url || '', avatar_static: origRow.avatar_url || '',
                 header: origRow.header_url || '', header_static: origRow.header_url || '',
                 followers_count: origRow.followers_count || 0, following_count: origRow.following_count || 0,
-                statuses_count: origRow.statuses_count || 0, last_status_at: null, emojis: [], fields: [],
+                statuses_count: origRow.statuses_count || 0, last_status_at: null, emojis: origAcctEmojis, fields: [],
               },
             };
             statusPayload = JSON.stringify(parsed);
@@ -271,7 +284,13 @@ export async function handleTimelineFanout(
   ).bind(statusId).first();
 
   if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
-    const pubEmojis = await fetchEmojisForContent(env.DB, publicStatusRow.content as string | null);
+    const pubEmojis = await fetchEmojisForContent(env.DB, publicStatusRow.content as string | null, (publicStatusRow.domain as string) || null);
+    // Fetch account emojis for public stream
+    const pubAccountEmojis = await fetchEmojisForContent(
+      env.DB,
+      `${(publicStatusRow.display_name as string) || ''} ${(publicStatusRow.account_note as string) || ''}`,
+      (publicStatusRow.domain as string) || null,
+    );
     // Fetch media for public streaming
     const { results: pubMediaRows } = await env.DB.prepare(
       'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
@@ -309,7 +328,7 @@ export async function handleTimelineFanout(
         followers_count: publicStatusRow.followers_count || 0,
         following_count: publicStatusRow.following_count || 0,
         statuses_count: publicStatusRow.statuses_count || 0,
-        last_status_at: null, emojis: [], fields: [],
+        last_status_at: null, emojis: pubAccountEmojis, fields: [],
       },
     });
 
@@ -325,6 +344,11 @@ export async function handleTimelineFanout(
          WHERE s.id = ? AND s.deleted_at IS NULL`,
       ).bind(publicStatusRow.reblog_of_id).first();
       if (origRow) {
+        const origAcctEmojis = await fetchEmojisForContent(
+          env.DB,
+          `${(origRow as any).display_name || ''} ${(origRow as any).account_note || ''}`,
+          (origRow as any).domain || null,
+        );
         const parsed = JSON.parse(pubPayload);
         parsed.reblog = {
           id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
@@ -348,7 +372,7 @@ export async function handleTimelineFanout(
             followers_count: (origRow as any).followers_count || 0,
             following_count: (origRow as any).following_count || 0,
             statuses_count: (origRow as any).statuses_count || 0,
-            last_status_at: null, emojis: [], fields: [],
+            last_status_at: null, emojis: origAcctEmojis, fields: [],
           },
         };
         pubPayload = JSON.stringify(parsed);

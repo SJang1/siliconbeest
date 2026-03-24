@@ -187,9 +187,10 @@ export async function handleFetchRemoteStatus(
         const emojiUrl = iconObj?.url as string | undefined;
         if (!emojiName || !emojiUrl) continue;
 
+        // Use the server domain (from status URI), NOT the CDN/media URL hostname
         let emojiDomain: string | null = null;
         try {
-          emojiDomain = new URL(emojiUrl).hostname;
+          emojiDomain = new URL(uri).hostname;
         } catch { /* skip */ }
 
         if (emojiDomain) {

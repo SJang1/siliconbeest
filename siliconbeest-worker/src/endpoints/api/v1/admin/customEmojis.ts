@@ -18,9 +18,9 @@ app.get('/', async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM custom_emojis
-     WHERE domain IS NULL
+     WHERE domain IS NULL OR domain = ?1
      ORDER BY category ASC, shortcode ASC`,
-  ).all();
+  ).bind(domain).all();
 
   return c.json((results ?? []).map((row: any) => formatEmoji(row, domain)));
 });
@@ -49,10 +49,10 @@ app.post('/', async (c) => {
     throw new AppError(422, 'shortcode must contain only letters, numbers, and underscores');
   }
 
-  // Check for duplicate shortcode
+  // Check for duplicate shortcode (local emojis: domain IS NULL or domain = INSTANCE_DOMAIN)
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM custom_emojis WHERE shortcode = ?1 AND domain IS NULL',
-  ).bind(shortcode).first();
+    'SELECT id FROM custom_emojis WHERE shortcode = ?1 AND (domain IS NULL OR domain = ?2)',
+  ).bind(shortcode, c.env.INSTANCE_DOMAIN).first();
 
   if (existing) {
     throw new AppError(422, 'shortcode already exists');
@@ -72,10 +72,11 @@ app.post('/', async (c) => {
 
   // Insert into DB
   const now = new Date().toISOString();
+  const instanceDomain = c.env.INSTANCE_DOMAIN;
   await c.env.DB.prepare(
     `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, category, created_at, updated_at)
-     VALUES (?1, ?2, NULL, ?3, 1, ?4, ?5, ?6)`,
-  ).bind(id, shortcode.trim(), imageKey, category, now, now).run();
+     VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, ?7)`,
+  ).bind(id, shortcode.trim(), instanceDomain, imageKey, category, now, now).run();
 
   const row = await c.env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
   return c.json(formatEmoji(row!, domain), 200);
