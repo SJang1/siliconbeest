@@ -62,4 +62,21 @@ const processedSpoiler = computed(() => emojify(props.spoilerText || '', props.e
   vertical-align: middle;
   margin: 0 0.05em;
 }
+
+/* Ensure paragraph spacing for \n\n line breaks */
+:deep(p) {
+  margin-bottom: 0.75em;
+}
+:deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+/* Links styling */
+:deep(a) {
+  color: rgb(99 102 241);
+  text-decoration: none;
+}
+:deep(a:hover) {
+  text-decoration: underline;
+}
 </style>

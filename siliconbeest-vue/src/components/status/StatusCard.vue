@@ -93,24 +93,25 @@ const hasAccountEmojis = computed(() => {
 })
 
 const replyToDisplay = computed(() => {
+  const status = displayStatus.value
   // Try to find the reply-to account from mentions
-  if (props.status.mentions?.length) {
-    const mention = props.status.mentions.find(
-      (m: any) => m.id === props.status.in_reply_to_account_id
+  if (status.mentions?.length) {
+    const mention = status.mentions.find(
+      (m: any) => m.id === status.in_reply_to_account_id
     )
     if (mention) return `@${(mention as any).acct || (mention as any).username}`
   }
   // Fallback: if replying to self
-  if (props.status.in_reply_to_account_id === props.status.account.id) {
-    return `@${props.status.account.acct}`
+  if (status.in_reply_to_account_id === status.account.id) {
+    return `@${status.account.acct}`
   }
   // Try accounts cache
   const accountsStore = useAccountsStore()
-  const cached = accountsStore.getCached(props.status.in_reply_to_account_id!)
+  const cached = accountsStore.getCached(status.in_reply_to_account_id!)
   if (cached) return `@${cached.acct}`
   // Async fetch (will update on next render)
-  if (props.status.in_reply_to_account_id) {
-    accountsStore.getAccount(props.status.in_reply_to_account_id)
+  if (status.in_reply_to_account_id) {
+    accountsStore.getAccount(status.in_reply_to_account_id)
   }
   return '...'
 })
