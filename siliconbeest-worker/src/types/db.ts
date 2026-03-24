@@ -36,8 +36,8 @@ export interface AccountRow {
   silenced_at: string | null;
   memorial: number;
   moved_to_account_id: string | null;
-  also_known_as: string | null;
-  moved_at: string | null;
+  also_known_as?: string | null;
+  moved_at?: string | null;
 }
 
 export interface UserRow {

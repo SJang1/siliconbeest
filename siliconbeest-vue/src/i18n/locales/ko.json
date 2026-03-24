@@ -86,6 +86,8 @@
     "add_media": "미디어 추가",
     "language": "게시글 언어",
     "uploading": "미디어 업로드 중...",
+    "alt_text": "대체 텍스트 (이미지 설명)",
+    "alt_placeholder": "시각장애인을 위해 이미지 내용을 설명해 주세요...",
     "cw_placeholder": "내용 경고",
     "replying_to": "{name}에게 답글",
     "submit": "게시",

@@ -27,8 +27,29 @@ function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; 
   return result
 }
 
-const processedContent = computed(() => emojify(props.content, props.emojis))
-const processedSpoiler = computed(() => emojify(props.spoilerText || '', props.emojis))
+/**
+ * Enrich mention links to always show @username@domain for remote users.
+ * Remote servers often send `<a href="https://remote.server/@user">@<span>user</span></a>`
+ * which only shows @user. We extract the domain from href and append it.
+ */
+function enrichMentions(html: string): string {
+  // Match mention links: <a href="https://domain/@user" class="...mention...">@<span>username</span></a>
+  return html.replace(
+    /<a\s+([^>]*class="[^"]*mention[^"]*"[^>]*)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*)>@<span>([^<]+)<\/span><\/a>/gi,
+    (match, pre, href, domain, _pathUser, post, displayName) => {
+      // Check if the display already includes @domain
+      if (displayName.includes('@')) return match
+      // Check if this is our own domain
+      const currentDomain = window.location.hostname
+      if (domain === currentDomain) return match
+      // Append @domain to the display
+      return `<a ${pre}href="${href}"${post}>@<span>${displayName}@${domain}</span></a>`
+    }
+  )
+}
+
+const processedContent = computed(() => emojify(enrichMentions(props.content), props.emojis))
+const processedSpoiler = computed(() => emojify(enrichMentions(props.spoilerText || ''), props.emojis))
 </script>
 
 <template>

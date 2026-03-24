@@ -99,7 +99,7 @@ function handleDeleted(deletedId: string) {
   }
 }
 
-async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
+async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string; media_ids?: string[] }) {
   if (!auth.token || !status.value) return
   const target = replyTarget.value ?? status.value
   try {
@@ -109,6 +109,7 @@ async function handleReply(payload: { content: string; visibility?: string; sens
       visibility: (payload.visibility as any) ?? target.visibility,
       sensitive: payload.sensitive,
       spoiler_text: payload.spoiler_text,
+      media_ids: payload.media_ids,
     }, auth.token)
     // Reload full thread to get correct ordering
     await loadThread()

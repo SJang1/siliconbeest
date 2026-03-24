@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { useComposeStore } from '@/stores/compose'
@@ -14,7 +14,7 @@ const auth = useAuthStore()
 const { fetchCustomEmojis, searchEmojis } = useEmojis()
 
 const props = defineProps<{
-  replyTo?: { id: string; account: { acct: string } }
+  replyTo?: { id: string; account: { acct: string }; mentions?: Array<{ acct: string }>; visibility?: string }
   maxChars?: number
 }>()
 
@@ -44,6 +44,75 @@ const emojiPickerRef = ref<HTMLElement | null>(null)
 onMounted(() => {
   fetchCustomEmojis()
   document.addEventListener('click', handleClickOutside)
+
+  // Auto-populate mentions when replying
+  if (props.replyTo) {
+    populateReplyMentions(props.replyTo)
+  }
+})
+
+/** Extract @user@domain mentions from HTML content by parsing mention links */
+function extractMentionsFromContent(htmlContent?: string): string[] {
+  if (!htmlContent) return []
+  const results: string[] = []
+  const currentDomain = window.location.hostname
+  // Match: <a href="https://domain/@username" class="...mention...">
+  const regex = /href="https?:\/\/([^/]+)\/@([^"]+)"[^>]*class="[^"]*mention/gi
+  let match
+  while ((match = regex.exec(htmlContent)) !== null) {
+    const domain = match[1]
+    const username = match[2]
+    if (domain === currentDomain) {
+      results.push(username) // local user
+    } else {
+      results.push(`${username}@${domain}`)
+    }
+  }
+  return results
+}
+
+/** Populate reply mentions from status data */
+function populateReplyMentions(replyTo: typeof props.replyTo) {
+  if (!replyTo) return
+  const myAcct = auth.currentUser?.acct
+  const seen = new Set<string>()
+  const mentions: string[] = []
+
+  function addMention(acct: string) {
+    const normalized = acct.replace(/^@/, '')
+    if (normalized === myAcct || seen.has(normalized)) return
+    seen.add(normalized)
+    mentions.push(`@${normalized}`)
+  }
+
+  // 1. Author of the post
+  addMention(replyTo.account.acct)
+
+  // 2. Mentions from API response
+  if (replyTo.mentions) {
+    for (const m of replyTo.mentions) addMention(m.acct)
+  }
+
+  // 3. Mentions extracted from HTML content (catches ones missing from mentions array)
+  const contentMentions = extractMentionsFromContent((replyTo as any).content)
+  for (const acct of contentMentions) addMention(acct)
+
+  if (mentions.length > 0) {
+    content.value = mentions.join(' ') + ' '
+    nextTick(() => {
+      if (textareaRef.value) {
+        textareaRef.value.focus()
+        textareaRef.value.selectionStart = content.value.length
+        textareaRef.value.selectionEnd = content.value.length
+      }
+    })
+  }
+}
+
+// When reply target changes
+watch(() => props.replyTo?.id, (newId, oldId) => {
+  if (!newId || newId === oldId) return
+  populateReplyMentions(props.replyTo)
 })
 
 onUnmounted(() => {
@@ -316,6 +385,61 @@ async function onFileSelect(event: Event) {
   input.value = ''
 }
 
+// ── ALT text editor ─────────────────────────────────────────────────
+const altEditMedia = ref<any>(null)
+const altEditText = ref('')
+
+function openAltEditor(media: any) {
+  altEditMedia.value = media
+  altEditText.value = media.description || ''
+}
+
+async function saveAlt() {
+  if (!altEditMedia.value || !auth.token) return
+  try {
+    // Update via API
+    const res = await fetch(`/api/v1/media/${altEditMedia.value.id}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: altEditText.value }),
+    })
+    if (res.ok) {
+      // Update local state
+      altEditMedia.value.description = altEditText.value
+    }
+  } catch { /* ignore */ }
+  altEditMedia.value = null
+}
+
+/** Handle paste events — if clipboard contains images, upload them */
+async function onPaste(event: ClipboardEvent) {
+  const items = event.clipboardData?.items
+  if (!items) return
+
+  for (const item of Array.from(items)) {
+    if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
+      event.preventDefault()
+      const file = item.getAsFile()
+      if (file && compose.mediaAttachments.length < 4) {
+        await compose.addMedia(file)
+      }
+    }
+  }
+}
+
+/** Handle drag & drop of files */
+async function onDrop(event: DragEvent) {
+  const files = event.dataTransfer?.files
+  if (!files) return
+
+  for (const file of Array.from(files)) {
+    if (compose.mediaAttachments.length >= 4) break
+    if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+      await compose.addMedia(file)
+    }
+  }
+}
+
 function submit() {
   if (!canSubmit.value) return
   emit('submit', {
@@ -367,6 +491,9 @@ function submit() {
         :placeholder="t('compose.placeholder')"
         rows="4"
         class="w-full px-3 py-2 text-base bg-transparent border-0 resize-none focus:outline-none placeholder-gray-400 dark:placeholder-gray-500"
+        @paste="onPaste"
+        @drop.prevent="onDrop"
+        @dragover.prevent
         :aria-label="t('compose.placeholder')"
         @input="onTextareaInput"
         @keydown="onTextareaKeydown"
@@ -418,6 +545,16 @@ function submit() {
         <div v-else class="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-2xl">
           {{ media.type === 'video' ? '🎬' : '🎵' }}
         </div>
+        <!-- ALT button -->
+        <button
+          type="button"
+          @click="openAltEditor(media)"
+          class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-opacity"
+          :class="media.description ? 'bg-indigo-500 text-white opacity-90' : 'bg-black/60 text-white opacity-0 group-hover:opacity-100'"
+        >
+          ALT
+        </button>
+        <!-- Remove button -->
         <button
           type="button"
           @click="compose.removeMedia(media.id)"
@@ -426,6 +563,38 @@ function submit() {
         >
           ✕
         </button>
+      </div>
+    </div>
+
+    <!-- ALT text editor modal -->
+    <div v-if="altEditMedia" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="altEditMedia = null">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-sm">{{ t('compose.alt_text') }}</h3>
+          <button type="button" @click="altEditMedia = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+        </div>
+        <img
+          v-if="altEditMedia.type === 'image' || altEditMedia.type === 'gifv'"
+          :src="altEditMedia.preview_url ?? altEditMedia.url"
+          class="w-full h-40 object-contain rounded-lg bg-gray-100 dark:bg-gray-900 mb-3"
+        />
+        <textarea
+          v-model="altEditText"
+          :placeholder="t('compose.alt_placeholder')"
+          rows="3"
+          class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          maxlength="1500"
+        />
+        <div class="flex justify-between items-center mt-2">
+          <span class="text-xs text-gray-400">{{ altEditText.length }}/1500</span>
+          <button
+            type="button"
+            @click="saveAlt"
+            class="px-4 py-1.5 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
+          >
+            {{ t('common.save') }}
+          </button>
+        </div>
       </div>
     </div>
 

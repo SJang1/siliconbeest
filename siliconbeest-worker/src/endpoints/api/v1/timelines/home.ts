@@ -17,10 +17,12 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  // Order by the status's own created_at (not the fanout time) for correct chronological order.
-  // This ensures replies appear at the correct position based on when they were actually posted.
+  // Order by datetime(hte.created_at) to handle mixed date formats:
+  // - Local entries use ISO 8601 with T and Z: "2026-03-24T07:17:25.231Z"
+  // - Remote entries from queue consumer use space-separated: "2026-03-24 07:19:36"
+  // SQLite's datetime() normalizes both to "YYYY-MM-DD HH:MM:SS" for correct comparison.
   const { whereClause, limitValue, params } = buildPaginationQuery(pag, 'hte.status_id');
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const orderClause = pag.minId ? 'datetime(hte.created_at) ASC' : 'datetime(hte.created_at) DESC';
 
   const conditions = [`hte.account_id = ?`];
   const binds: (string | number)[] = [account.id];

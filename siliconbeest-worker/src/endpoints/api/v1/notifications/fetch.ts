@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { serializeAccount, serializeNotification } from '../../../../utils/mastodonSerializer';
+import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
@@ -78,11 +78,24 @@ app.get('/:id', authRequired, async (c) => {
         ? `${sr.sa_username}@${sr.sa_domain}`
         : sr.sa_username;
 
+      const statusAccountRow: AccountRow = {
+        id: sr.sa_id as string, username: sr.sa_username as string, domain: sr.sa_domain as string | null,
+        display_name: (sr.sa_display_name as string) || '', note: (sr.sa_note as string) || '',
+        uri: sr.sa_uri as string, url: (sr.sa_url as string) || '',
+        avatar_url: (sr.sa_avatar_url as string) || '', avatar_static_url: (sr.sa_avatar_static_url as string) || '',
+        header_url: (sr.sa_header_url as string) || '', header_static_url: (sr.sa_header_static_url as string) || '',
+        locked: sr.sa_locked as number, bot: sr.sa_bot as number, discoverable: sr.sa_discoverable as number | null,
+        manually_approves_followers: 0, statuses_count: (sr.sa_statuses_count || 0) as number,
+        followers_count: (sr.sa_followers_count || 0) as number, following_count: (sr.sa_following_count || 0) as number,
+        last_status_at: sr.sa_last_status_at as string | null, created_at: sr.sa_created_at as string,
+        updated_at: sr.sa_created_at as string, suspended_at: null, silenced_at: null, memorial: 0, moved_to_account_id: null,
+      };
+
       statusObj = {
-        id: sr.id,
+        id: sr.id as string,
         uri: sr.uri,
         url: sr.url || null,
-        created_at: sr.created_at,
+        created_at: ensureISO8601(sr.created_at as string),
         content: sr.content || '',
         visibility: sr.visibility || 'public',
         sensitive: !!sr.sensitive,
@@ -109,30 +122,7 @@ app.get('/:id', authRequired, async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: {
-          id: sr.sa_id,
-          username: sr.sa_username,
-          acct: saAcct,
-          display_name: (sr.sa_display_name as string) || '',
-          locked: !!sr.sa_locked,
-          bot: !!sr.sa_bot,
-          discoverable: !!sr.sa_discoverable,
-          group: false,
-          created_at: sr.sa_created_at,
-          note: (sr.sa_note as string) || '',
-          url: (sr.sa_url as string) || `https://${domain}/@${sr.sa_username}`,
-          uri: sr.sa_uri,
-          avatar: (sr.sa_avatar_url as string) || null,
-          avatar_static: (sr.sa_avatar_static_url as string) || null,
-          header: (sr.sa_header_url as string) || null,
-          header_static: (sr.sa_header_static_url as string) || null,
-          followers_count: sr.sa_followers_count || 0,
-          following_count: sr.sa_following_count || 0,
-          statuses_count: sr.sa_statuses_count || 0,
-          last_status_at: sr.sa_last_status_at || null,
-          emojis: [],
-          fields: [],
-        },
+        account: serializeAccount(statusAccountRow),
       };
     }
   }

@@ -167,6 +167,66 @@ export async function processCreate(
 		)
 		.run();
 
+	// Process media attachments from Note
+	const rawAttachments = (note as any).attachment;
+	const attachments = Array.isArray(rawAttachments) ? rawAttachments : rawAttachments ? [rawAttachments] : [];
+	console.log(`[create] Processing ${attachments.length} attachments for ${statusId}`);
+	for (const att of attachments as any[]) {
+		if (!att || typeof att !== 'object') continue;
+		// url can be a string, an array of objects, or an object with href
+		let url: string | null = null;
+		if (typeof att.url === 'string') {
+			url = att.url;
+		} else if (Array.isArray(att.url)) {
+			// Some servers send url as array: [{ type: "Link", mediaType: "...", href: "..." }]
+			const link = att.url.find((u: any) => typeof u === 'string' || (u && u.href));
+			url = typeof link === 'string' ? link : link?.href ?? null;
+		} else if (att.url && typeof att.url === 'object' && att.url.href) {
+			url = att.url.href;
+		} else if (typeof att.href === 'string') {
+			url = att.href;
+		}
+		if (!url) {
+			console.log(`[create] Skipping attachment with no URL:`, JSON.stringify(att).substring(0, 200));
+			continue;
+		}
+		console.log(`[create] Inserting media: ${url.substring(0, 80)}`);
+
+		const mediaType = att.mediaType || att.mimeType || 'image/jpeg';
+		let type = 'unknown';
+		if (mediaType.startsWith('image/')) type = 'image';
+		else if (mediaType.startsWith('video/')) type = 'video';
+		else if (mediaType.startsWith('audio/')) type = 'audio';
+		else if (att.type === 'Image') type = 'image';
+		else if (att.type === 'Video') type = 'video';
+		else if (att.type === 'Audio') type = 'audio';
+		else type = 'image'; // fallback
+
+		const mediaId = generateUlid();
+		try {
+			await env.DB.prepare(
+				`INSERT OR IGNORE INTO media_attachments
+				 (id, status_id, account_id, type, remote_url, file_key, file_content_type, description, width, height, blurhash, created_at, updated_at)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)`,
+			).bind(
+				mediaId,
+				statusId,
+				authorAccountId,
+				type,
+				url,
+				url, // file_key = remote URL for remote media
+				mediaType,
+				att.name || att.summary || null,
+				att.width || null,
+				att.height || null,
+				att.blurhash || null,
+				now,
+			).run();
+		} catch (e) {
+			console.error(`Failed to insert media attachment for ${statusId}:`, e);
+		}
+	}
+
 	// Update replies_count on parent if this is a reply
 	if (inReplyToId) {
 		await env.DB.prepare(

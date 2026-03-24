@@ -86,6 +86,8 @@
     "add_media": "Add media",
     "language": "Post language",
     "uploading": "Uploading media...",
+    "alt_text": "Alt text (image description)",
+    "alt_placeholder": "Describe what's in this image for visually impaired users...",
     "cw_placeholder": "Content warning",
     "replying_to": "Replying to {name}",
     "submit": "Publish",

@@ -194,8 +194,12 @@ export interface Notification {
   id: string;
   type: NotificationType;
   created_at: string;
+  group_key?: string;
   account: Account;
   status?: Status;
+  read?: boolean;
+  emoji?: string;
+  emoji_url?: string;
 }
 
 export type NotificationType =

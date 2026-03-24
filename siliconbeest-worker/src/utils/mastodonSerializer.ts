@@ -65,6 +65,13 @@ function parseJsonField<T>(value: string | null | undefined, fallback: T): T {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+/** Ensure a date string is in ISO 8601 format (with T separator and Z suffix). */
+export function ensureISO8601(dateStr: string): string {
+  if (!dateStr) return dateStr;
+  if (dateStr.includes('T')) return dateStr;
+  return dateStr.replace(' ', 'T') + (dateStr.endsWith('Z') ? '' : 'Z');
+}
+
 // ---------------------------------------------------------------------------
 // Account
 // ---------------------------------------------------------------------------
@@ -187,12 +194,18 @@ export function serializeMediaAttachment(
       : null;
 
   const baseUrl = domain ? `https://${domain}/media/` : '';
+  // For remote media, file_key is the full remote URL; for local, it's a relative R2 key
+  const isRemoteUrl = row.file_key?.startsWith('http://') || row.file_key?.startsWith('https://');
+  const mediaUrl = isRemoteUrl ? row.file_key : `${baseUrl}${row.file_key}`;
+  const previewUrl = row.thumbnail_key
+    ? (row.thumbnail_key.startsWith('http') ? row.thumbnail_key : `${baseUrl}${row.thumbnail_key}`)
+    : mediaUrl;
 
   return {
     id: row.id,
     type: row.type as MastodonMediaAttachment['type'],
-    url: `${baseUrl}${row.file_key}`,
-    preview_url: row.thumbnail_key ? `${baseUrl}${row.thumbnail_key}` : (row.file_key ? `${baseUrl}${row.file_key}` : null),
+    url: mediaUrl,
+    preview_url: previewUrl,
     remote_url: row.remote_url ?? null,
     description: row.description || null,
     blurhash: row.blurhash ?? null,
@@ -211,10 +224,11 @@ export function serializeNotification(
     status?: MastodonStatus | null;
   },
 ): MastodonNotification {
-  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean } = {
+  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean; group_key?: string } = {
     id: row.id,
     type: row.type as NotificationType,
-    created_at: row.created_at,
+    created_at: ensureISO8601(row.created_at),
+    group_key: `ungrouped-${row.id}`,
     account: opts.account,
     read: !!((row as any).read),
   };
