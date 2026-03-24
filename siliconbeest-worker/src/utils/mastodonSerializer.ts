@@ -72,6 +72,16 @@ export function ensureISO8601(dateStr: string): string {
   return dateStr.replace(' ', 'T') + (dateStr.endsWith('Z') ? '' : 'Z');
 }
 
+/** Ensure ISO 8601 with milliseconds (e.g. 2026-03-24T11:38:40.344Z). */
+export function ensureISO8601WithMs(dateStr: string): string {
+  if (!dateStr) return dateStr;
+  try {
+    return new Date(dateStr).toISOString(); // Always produces .xxxZ format
+  } catch {
+    return ensureISO8601(dateStr);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Account
 // ---------------------------------------------------------------------------
@@ -100,7 +110,7 @@ export function serializeAccount(
     bot: bool(row.bot),
     discoverable: bool(row.discoverable),
     group: false,
-    created_at: row.created_at,
+    created_at: ensureISO8601WithMs(row.created_at),
     last_status_at: isoOrNull(row.last_status_at),
     statuses_count: row.statuses_count,
     followers_count: row.followers_count,
@@ -151,7 +161,7 @@ export function serializeStatus(
     sensitive: bool(row.sensitive),
     spoiler_text: row.content_warning || '',
     media_attachments: opts.mediaAttachments ?? [],
-    created_at: row.created_at,
+    created_at: ensureISO8601WithMs(row.created_at),
     edited_at: isoOrNull(row.edited_at),
     reblogs_count: row.reblogs_count,
     favourites_count: row.favourites_count,
@@ -227,8 +237,10 @@ export function serializeNotification(
   const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean; group_key?: string } = {
     id: row.id,
     type: row.type as NotificationType,
-    created_at: ensureISO8601(row.created_at),
-    group_key: `ungrouped-${row.id}`,
+    created_at: ensureISO8601WithMs(row.created_at),
+    group_key: row.status_id
+      ? `${row.type}-${row.status_id}-${row.from_account_id}`
+      : `ungrouped-${row.id}`,
     account: opts.account,
     read: !!((row as any).read),
   };

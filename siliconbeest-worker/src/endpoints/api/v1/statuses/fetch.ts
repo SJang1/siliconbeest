@@ -6,6 +6,12 @@ import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
+/** Convert any date string to ISO 8601 with milliseconds */
+function toISO(d: unknown): string {
+  if (!d || typeof d !== 'string') return new Date().toISOString();
+  try { return new Date(d).toISOString(); } catch { return d as string; }
+}
+
 function serializeStatus(row: Record<string, unknown>, domain: string, currentAccountId?: string, accountEmojis?: any[]) {
   const acct = row.account_domain
     ? `${row.account_username}@${row.account_domain}`
@@ -13,7 +19,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
 
   return {
     id: row.id as string,
-    created_at: row.created_at as string,
+    created_at: toISO(row.created_at),
     in_reply_to_id: (row.in_reply_to_id as string) || null,
     in_reply_to_account_id: (row.in_reply_to_account_id as string) || null,
     sensitive: !!(row.sensitive),
@@ -31,6 +37,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
     bookmarked: false,
     pinned: false,
     content: (row.content as string) || '',
+    filtered: [] as any[],
     reblog: null,
     application: null,
     account: {
@@ -42,19 +49,20 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
       bot: !!(row.account_bot),
       discoverable: !!(row.account_discoverable),
       group: false,
-      created_at: row.account_created_at as string,
+      created_at: toISO(row.account_created_at),
       note: (row.account_note as string) || '',
       url: (row.account_url as string) || `https://${domain}/@${row.account_username}`,
       uri: row.account_uri as string,
-      avatar: (row.account_avatar_url as string) || null,
-      avatar_static: (row.account_avatar_static_url as string) || null,
-      header: (row.account_header_url as string) || null,
-      header_static: (row.account_header_static_url as string) || null,
+      avatar: (row.account_avatar_url as string) || '',
+      avatar_static: (row.account_avatar_static_url as string) || (row.account_avatar_url as string) || '',
+      header: (row.account_header_url as string) || '',
+      header_static: (row.account_header_static_url as string) || (row.account_header_url as string) || '',
       followers_count: (row.account_followers_count as number) || 0,
       following_count: (row.account_following_count as number) || 0,
       statuses_count: (row.account_statuses_count as number) || 0,
       last_status_at: (row.account_last_status_at as string) || null,
       emojis: accountEmojis ?? [],
+      roles: [],
       fields: [],
     },
     media_attachments: [] as any[],
