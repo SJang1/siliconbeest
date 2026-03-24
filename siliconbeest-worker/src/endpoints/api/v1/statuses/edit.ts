@@ -176,10 +176,16 @@ app.put('/:id', authRequired, async (c) => {
         'SELECT * FROM statuses WHERE id = ?1',
       ).bind(statusId).first();
       if (updatedRow && accountRow) {
+        let editConvApUri: string | null = null;
+        if (updatedRow.conversation_id) {
+          const convRow = await c.env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
+          editConvApUri = convRow?.ap_uri ?? null;
+        }
         const note = serializeNote(
           updatedRow as unknown as StatusRow,
           accountRow as unknown as AccountRow,
           domain,
+          { conversationApUri: editConvApUri },
         );
         const actorUri = (accountRow.uri as string) || `https://${domain}/users/${acct}`;
         const activity = buildUpdateActivity(actorUri, note);

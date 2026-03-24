@@ -7,7 +7,7 @@
  */
 
 import type { Env } from '../../env';
-import type { APActivity, APObject, APTag } from '../../types/activitypub';
+import type { APActivity, APObject, APTag, APNote } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
@@ -73,17 +73,49 @@ export async function processCreate(
 	// Resolve in_reply_to if present
 	let inReplyToId: string | null = null;
 	let inReplyToAccountId: string | null = null;
+	let conversationId: string | null = null;
 	if (note.inReplyTo) {
 		const parentStatus = await env.DB.prepare(
-			`SELECT id, account_id FROM statuses WHERE uri = ?1 LIMIT 1`,
+			`SELECT id, account_id, conversation_id FROM statuses WHERE uri = ?1 LIMIT 1`,
 		)
 			.bind(note.inReplyTo)
-			.first<{ id: string; account_id: string }>();
+			.first<{ id: string; account_id: string; conversation_id: string | null }>();
 
 		if (parentStatus) {
 			inReplyToId = parentStatus.id;
 			inReplyToAccountId = parentStatus.account_id;
+			conversationId = parentStatus.conversation_id;
 		}
+	}
+
+	// Try to resolve conversation from AP conversation field
+	const apNote = note as APNote;
+	if (!conversationId && apNote.conversation) {
+		const existingConv = await env.DB.prepare(
+			'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
+		).bind(apNote.conversation).first<{ id: string }>();
+		if (existingConv) {
+			conversationId = existingConv.id;
+		} else {
+			// Create new conversation with AP URI
+			conversationId = generateUlid();
+			await env.DB.prepare(
+				'INSERT OR IGNORE INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)',
+			).bind(conversationId, apNote.conversation, now).run();
+			// Handle race: re-read in case another request inserted first
+			const inserted = await env.DB.prepare(
+				'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
+			).bind(apNote.conversation).first<{ id: string }>();
+			if (inserted) conversationId = inserted.id;
+		}
+	}
+
+	// Fallback: create conversation without AP URI
+	if (!conversationId) {
+		conversationId = generateUlid();
+		await env.DB.prepare(
+			'INSERT OR IGNORE INTO conversations (id, created_at, updated_at) VALUES (?1, ?2, ?2)',
+		).bind(conversationId, now).run();
 	}
 
 	// Insert the status
@@ -91,8 +123,8 @@ export async function processCreate(
 		`INSERT INTO statuses
 		 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
 		  content, content_warning, visibility, sensitive, language,
-		  local, reply, created_at, updated_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?13, ?14)`,
+		  conversation_id, local, reply, created_at, updated_at)
+		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15)`,
 	)
 		.bind(
 			statusId,
@@ -106,6 +138,7 @@ export async function processCreate(
 			visibility,
 			note.sensitive ? 1 : 0,
 			'en',
+			conversationId,
 			inReplyToId ? 1 : 0,
 			note.published ?? now,
 			now,

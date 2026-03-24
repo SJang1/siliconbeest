@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useStatusesStore } from '@/stores/statuses'
@@ -25,6 +25,30 @@ const statuses = computed(() => {
 })
 
 const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+
+// Auto-insert new posts when user is at top of page
+const isAtTop = ref(true)
+let scrollTimer: ReturnType<typeof setTimeout> | null = null
+
+function handleScroll() {
+  if (scrollTimer) return
+  scrollTimer = setTimeout(() => {
+    isAtTop.value = window.scrollY < 100
+    scrollTimer = null
+  }, 100)
+}
+
+onMounted(() => window.addEventListener('scroll', handleScroll, { passive: true }))
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+  if (scrollTimer) clearTimeout(scrollTimer)
+})
+
+watch(() => timeline.value.newStatusIds.length, (len) => {
+  if (len > 0 && isAtTop.value) {
+    timelinesStore.showNewStatuses('home')
+  }
+})
 
 async function loadTimeline() {
   if (!auth.token) return
@@ -79,6 +103,7 @@ onMounted(loadTimeline)
         :done="!timeline.hasMore"
         :has-new-posts="hasNewPosts"
         :new-posts-count="timeline.newStatusIds.length"
+        :auto-insert="isAtTop"
         @load-more="loadMore"
         @load-new="showNew"
       />

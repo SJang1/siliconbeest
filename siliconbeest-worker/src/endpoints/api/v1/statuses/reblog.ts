@@ -114,6 +114,22 @@ app.post('/:id/reblog', authRequired, async (c) => {
     c.env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(currentUser.account_id),
   ]);
 
+  // Add reblog to own home timeline immediately
+  try {
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+    ).bind(reblogId, currentUser.account_id, now).run();
+  } catch (_) { /* ignore */ }
+
+  // Fanout reblog to followers' home timelines
+  try {
+    await c.env.QUEUE_INTERNAL.send({
+      type: 'timeline_fanout',
+      statusId: reblogId,
+      accountId: currentUser.account_id,
+    });
+  } catch (_) { /* don't fail */ }
+
   // Create notification for the status author (don't notify yourself)
   const statusAuthorId = row.account_id as string;
   if (statusAuthorId !== currentUser.account_id) {

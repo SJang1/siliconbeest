@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -15,7 +15,13 @@ const props = defineProps<{
   isOwnStatus?: boolean
   accountId?: string
   accountAcct?: string
+  visibility?: string
 }>()
+
+const canReblog = computed(() => {
+  const v = props.visibility ?? 'public'
+  return v === 'public' || v === 'unlisted'
+})
 
 const emit = defineEmits<{
   reply: [id: string]
@@ -76,13 +82,17 @@ function formatCount(n: number): string {
 
     <!-- Boost -->
     <button
-      @click="emit('reblog', statusId)"
+      @click="canReblog && emit('reblog', statusId)"
+      :disabled="!canReblog"
       class="flex items-center gap-1 p-2 rounded-full transition-colors group"
-      :class="reblogged
-        ? 'text-green-600 dark:text-green-400'
-        : 'text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'"
-      :aria-label="t('status.boost')"
+      :class="!canReblog
+        ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+        : reblogged
+          ? 'text-green-600 dark:text-green-400'
+          : 'text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'"
+      :aria-label="canReblog ? t('status.boost') : t('status.cannot_boost')"
       :aria-pressed="reblogged"
+      :title="!canReblog ? t('status.cannot_boost') : undefined"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
       <span class="text-xs">{{ formatCount(reblogsCount) }}</span>

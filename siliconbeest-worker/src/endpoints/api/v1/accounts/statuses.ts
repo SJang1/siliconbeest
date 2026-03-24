@@ -135,9 +135,43 @@ app.get('/:id/statuses', authOptional, async (c) => {
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
   const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId);
 
+  // Collect reblog_of_ids to fetch original statuses
+  const reblogOfIds = (results as Record<string, unknown>[])
+    .map((r) => r.reblog_of_id as string | null)
+    .filter((id): id is string => !!id);
+
+  const reblogMap = new Map<string, Record<string, unknown>>();
+  if (reblogOfIds.length > 0) {
+    const placeholders = reblogOfIds.map(() => '?').join(',');
+    const { results: reblogResults } = await c.env.DB.prepare(
+      `SELECT s.*,
+        a.username AS account_username, a.domain AS account_domain,
+        a.display_name AS account_display_name, a.note AS account_note,
+        a.uri AS account_uri, a.url AS account_url,
+        a.avatar_url AS account_avatar_url, a.avatar_static_url AS account_avatar_static_url,
+        a.header_url AS account_header_url, a.header_static_url AS account_header_static_url,
+        a.locked AS account_locked, a.bot AS account_bot, a.discoverable AS account_discoverable,
+        a.followers_count AS account_followers_count, a.following_count AS account_following_count,
+        a.statuses_count AS account_statuses_count, a.last_status_at AS account_last_status_at,
+        a.created_at AS account_created_at
+      FROM statuses s
+      JOIN accounts a ON a.id = s.account_id
+      WHERE s.id IN (${placeholders}) AND s.deleted_at IS NULL`,
+    ).bind(...reblogOfIds).all();
+    for (const r of (reblogResults ?? []) as Record<string, unknown>[]) {
+      reblogMap.set(r.id as string, r);
+    }
+  }
+
+  // Enrich reblog originals too
+  const allIds = [...statusIds, ...reblogOfIds];
+  const allEnrichments = reblogOfIds.length > 0
+    ? await enrichStatuses(c.env.DB, domain, allIds, currentAccountId)
+    : enrichments;
+
   const statuses = (results as Record<string, unknown>[]).map((r) => {
     const s = serializeStatus(r, domain);
-    const e = enrichments.get(r.id as string);
+    const e = (reblogOfIds.length > 0 ? allEnrichments : enrichments).get(r.id as string);
     if (e) {
       s.media_attachments = e.mediaAttachments as any[];
       s.favourited = e.favourited ?? false;
@@ -145,6 +179,24 @@ app.get('/:id/statuses', authOptional, async (c) => {
       s.bookmarked = e.bookmarked ?? false;
       s.card = e.card ?? null;
       s.emojis = e.emojis ?? [];
+    }
+    // Fill reblog object
+    const reblogOfId = r.reblog_of_id as string | null;
+    if (reblogOfId) {
+      const origRow = reblogMap.get(reblogOfId);
+      if (origRow) {
+        const origStatus = serializeStatus(origRow, domain);
+        const origE = allEnrichments.get(reblogOfId);
+        if (origE) {
+          origStatus.media_attachments = origE.mediaAttachments as any[];
+          origStatus.favourited = origE.favourited ?? false;
+          origStatus.reblogged = origE.reblogged ?? false;
+          origStatus.bookmarked = origE.bookmarked ?? false;
+          origStatus.card = origE.card ?? null;
+          origStatus.emojis = origE.emojis ?? [];
+        }
+        s.reblog = origStatus as any;
+      }
     }
     return s;
   });

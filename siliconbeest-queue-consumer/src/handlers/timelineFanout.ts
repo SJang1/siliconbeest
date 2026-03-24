@@ -75,7 +75,7 @@ export async function handleTimelineFanout(
       const statusRow = await env.DB.prepare(
         `SELECT s.id, s.uri, s.content, s.visibility, s.sensitive,
                 s.content_warning, s.language, s.url, s.created_at,
-                s.in_reply_to_id, s.in_reply_to_account_id,
+                s.in_reply_to_id, s.in_reply_to_account_id, s.reblog_of_id,
                 s.reblogs_count, s.favourites_count, s.replies_count,
                 s.edited_at,
                 a.id AS account_id, a.username, a.domain, a.display_name,
@@ -91,7 +91,7 @@ export async function handleTimelineFanout(
         .first();
 
       if (statusRow) {
-        const statusPayload = JSON.stringify({
+        let statusPayload = JSON.stringify({
           id: statusRow.id,
           uri: statusRow.uri,
           created_at: statusRow.created_at,
@@ -111,7 +111,7 @@ export async function handleTimelineFanout(
           mentions: [],
           tags: [],
           emojis: [],
-          reblog: null,
+          reblog: null as any,
           poll: null,
           card: null,
           application: null,
@@ -144,6 +144,51 @@ export async function handleTimelineFanout(
             fields: [],
           },
         });
+
+        // If this is a reblog, fetch and attach the original status
+        if (statusRow.reblog_of_id) {
+          const origRow = await env.DB.prepare(
+            `SELECT s.id, s.uri, s.content, s.visibility, s.sensitive,
+                    s.content_warning, s.language, s.url, s.created_at,
+                    s.in_reply_to_id, s.in_reply_to_account_id,
+                    s.reblogs_count, s.favourites_count, s.replies_count, s.edited_at,
+                    a.id AS account_id, a.username, a.domain, a.display_name,
+                    a.note AS account_note, a.url AS account_url, a.uri AS account_uri,
+                    a.avatar_url, a.header_url, a.locked, a.bot,
+                    a.followers_count, a.following_count, a.statuses_count,
+                    a.created_at AS account_created_at
+             FROM statuses s JOIN accounts a ON a.id = s.account_id
+             WHERE s.id = ? AND s.deleted_at IS NULL`,
+          ).bind(statusRow.reblog_of_id).first();
+
+          if (origRow) {
+            const parsed = JSON.parse(statusPayload);
+            parsed.reblog = {
+              id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
+              content: origRow.content, visibility: origRow.visibility,
+              sensitive: origRow.sensitive === 1, spoiler_text: origRow.content_warning || '',
+              language: origRow.language, url: origRow.url,
+              in_reply_to_id: origRow.in_reply_to_id, in_reply_to_account_id: origRow.in_reply_to_account_id,
+              reblogs_count: origRow.reblogs_count || 0, favourites_count: origRow.favourites_count || 0,
+              replies_count: origRow.replies_count || 0, edited_at: origRow.edited_at,
+              media_attachments: [], mentions: [], tags: [], emojis: [],
+              reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
+              account: {
+                id: origRow.account_id, username: origRow.username,
+                acct: origRow.domain ? `${origRow.username}@${origRow.domain}` : origRow.username,
+                display_name: origRow.display_name || '', locked: origRow.locked === 1,
+                bot: origRow.bot === 1, discoverable: true, group: false,
+                created_at: origRow.account_created_at, note: origRow.account_note || '',
+                url: origRow.account_url, uri: origRow.account_uri,
+                avatar: origRow.avatar_url || '', avatar_static: origRow.avatar_url || '',
+                header: origRow.header_url || '', header_static: origRow.header_url || '',
+                followers_count: origRow.followers_count || 0, following_count: origRow.following_count || 0,
+                statuses_count: origRow.statuses_count || 0, last_status_at: null, emojis: [], fields: [],
+              },
+            };
+            statusPayload = JSON.stringify(parsed);
+          }
+        }
 
         // Send streaming event to each user via worker service binding
         const streamPromises = userRows.results.map((user) =>

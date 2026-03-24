@@ -138,6 +138,7 @@ export async function handleFetchPreviewCard(
   env: Env,
 ): Promise<void> {
   const { statusId, url } = msg;
+  console.log(`[preview-card] Processing URL: ${url} for status ${statusId}`);
 
   // Check KV cache first
   const cacheKey = `og:${url}`;
@@ -171,12 +172,15 @@ export async function handleFetchPreviewCard(
   }
 
   // Fetch OG metadata
+  console.log(`[preview-card] Fetching OG metadata for: ${url}`);
   const og = await fetchOgMetadata(url);
   if (!og) {
+    console.log(`[preview-card] No OG data found for: ${url}`);
     // Cache the failure to avoid repeated fetches
     await env.CACHE.put(cacheKey, '0', { expirationTtl: 3600 });
     return;
   }
+  console.log(`[preview-card] Found OG: title="${og.title}", image=${!!og.image}`);
 
   const cardId = generateId();
   const now = new Date().toISOString();

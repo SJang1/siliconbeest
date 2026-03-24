@@ -34,15 +34,59 @@ app.get('/:id/context', authOptional, async (c) => {
     currentId = (ancestor.in_reply_to_id as string) || null;
   }
 
-  // Descendants: get all replies in this conversation after this status
-  const { results: descendantRows } = await c.env.DB.prepare(
-    `${STATUS_JOIN_SQL}
-     WHERE s.conversation_id = ?1
-       AND s.id > ?2
-       AND s.deleted_at IS NULL
-     ORDER BY s.id ASC
-     LIMIT 60`,
-  ).bind(status.conversation_id as string, statusId).all();
+  // Descendants: find all replies via conversation_id OR in_reply_to chain
+  // Use both approaches to handle cases where conversation_id is null (remote statuses)
+  const descendantRows: Record<string, unknown>[] = [];
+  const seenDescendantIds = new Set<string>();
+
+  // Method 1: conversation_id based (fast, catches most cases)
+  if (status.conversation_id) {
+    const { results: convRows } = await c.env.DB.prepare(
+      `${STATUS_JOIN_SQL}
+       WHERE s.conversation_id = ?1
+         AND s.id != ?2
+         AND s.deleted_at IS NULL
+       ORDER BY s.created_at ASC
+       LIMIT 60`,
+    ).bind(status.conversation_id as string, statusId).all();
+    for (const r of (convRows ?? []) as Record<string, unknown>[]) {
+      if (!seenDescendantIds.has(r.id as string)) {
+        seenDescendantIds.add(r.id as string);
+        descendantRows.push(r);
+      }
+    }
+  }
+
+  // Method 2: in_reply_to_id based (catches replies to statuses with null conversation_id)
+  // BFS: find direct replies, then replies to those, etc.
+  const queue = [statusId];
+  let depth = 0;
+  while (queue.length > 0 && depth < 10 && descendantRows.length < 60) {
+    const batch = queue.splice(0, queue.length);
+    const ph = batch.map(() => '?').join(',');
+    const { results: replyRows } = await c.env.DB.prepare(
+      `${STATUS_JOIN_SQL}
+       WHERE s.in_reply_to_id IN (${ph})
+         AND s.deleted_at IS NULL
+       ORDER BY s.created_at ASC
+       LIMIT 60`,
+    ).bind(...batch).all();
+    for (const r of (replyRows ?? []) as Record<string, unknown>[]) {
+      const rid = r.id as string;
+      if (!seenDescendantIds.has(rid)) {
+        seenDescendantIds.add(rid);
+        descendantRows.push(r);
+        queue.push(rid);
+      }
+    }
+    depth++;
+  }
+
+  // Filter: only show descendants (created after the target status or explicitly replying to it)
+  // and sort by created_at
+  descendantRows.sort((a, b) =>
+    (a.created_at as string) < (b.created_at as string) ? -1 : 1
+  );
 
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
 

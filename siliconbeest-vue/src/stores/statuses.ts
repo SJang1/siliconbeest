@@ -13,6 +13,7 @@ import {
 } from '@/api/mastodon/statuses';
 import type { CreateStatusParams } from '@/api/mastodon/statuses';
 import { useAuthStore } from './auth';
+import { useTimelinesStore } from './timelines';
 
 export const useStatusesStore = defineStore('statuses', () => {
   const cache = ref<Map<string, Status>>(new Map());
@@ -89,6 +90,18 @@ export const useStatusesStore = defineStore('statuses', () => {
         ? await unreblogStatus(targetId, auth.token)
         : await reblogStatus(targetId, auth.token);
       cacheStatus(data);
+      // Add reblog to home timeline immediately
+      if (!wasReblogged && data.id) {
+        const timelinesStore = useTimelinesStore();
+        const timeline = timelinesStore.getTimeline('home');
+        if (!timeline.statusIds.includes(data.id)) {
+          timeline.statusIds.unshift(data.id);
+        }
+      } else if (wasReblogged && data.id) {
+        // Remove the old reblog wrapper from timelines
+        const timelinesStore = useTimelinesStore();
+        timelinesStore.removeStatus(data.id);
+      }
     } catch {
       // Revert on error
       updateCached(targetId, {

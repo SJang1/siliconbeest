@@ -24,6 +24,8 @@ export interface SerializeNoteOptions {
 		blurhash?: string | null;
 		type: string;
 	}[];
+	/** AP conversation URI (from conversations.ap_uri) */
+	conversationApUri?: string | null;
 }
 
 /**
@@ -116,7 +118,14 @@ export function serializeNote(
 	}
 
 	if (status.conversation_id) {
-		note.conversation = status.conversation_id;
+		if (opts?.conversationApUri) {
+			// Use the existing AP URI (from remote or previously set)
+			note.conversation = opts.conversationApUri;
+		} else {
+			// Generate tag: URI for local conversations
+			const year = (status.created_at || new Date().toISOString()).substring(0, 4);
+			note.conversation = `tag:${domain},${year}:objectId=${status.conversation_id}:objectType=Conversation`;
+		}
 	}
 
 	if (apTags.length > 0) {

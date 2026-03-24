@@ -72,8 +72,17 @@ app.get('/:username/outbox', async (c) => {
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
   const rows = (results ?? []) as unknown as StatusRow[];
 
+  // Batch-fetch conversation AP URIs
+  const convIds = [...new Set(rows.map((r) => r.conversation_id).filter(Boolean))] as string[];
+  const convMap = new Map<string, string | null>();
+  for (const cid of convIds) {
+    const row = await c.env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(cid).first<{ ap_uri: string | null }>();
+    convMap.set(cid, row?.ap_uri ?? null);
+  }
+
   const orderedItems = rows.map((status) => {
-    const note = serializeNote(status, account, domain);
+    const conversationApUri = status.conversation_id ? convMap.get(status.conversation_id) ?? null : null;
+    const note = serializeNote(status, account, domain, { conversationApUri });
     return {
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${status.uri}/activity`,

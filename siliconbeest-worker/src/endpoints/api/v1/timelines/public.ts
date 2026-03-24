@@ -22,7 +22,7 @@ app.get('/', authOptional, async (c) => {
 
   const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
 
-  const conditions: string[] = [`s.visibility = 'public'`, `s.deleted_at IS NULL`, `s.reblog_of_id IS NULL`];
+  const conditions: string[] = [`s.visibility = 'public'`, `s.deleted_at IS NULL`];
   const binds: (string | number)[] = [];
 
   if (whereClause) {
@@ -60,11 +60,68 @@ app.get('/', authOptional, async (c) => {
 
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
-  const statusIds = (results ?? []).map((r: any) => r.id as string);
+  const allRows = (results ?? []) as Record<string, unknown>[];
+  const statusIds = allRows.map((r) => r.id as string);
   const currentAccount = c.get('currentAccount');
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null);
+  const currentAccountId = currentAccount?.id ?? null;
 
-  const statuses = (results ?? []).map((row: any) => {
+  // Collect reblog_of_ids
+  const reblogOfIds = allRows
+    .map((r) => r.reblog_of_id as string | null)
+    .filter((id): id is string => !!id);
+  const uniqueReblogIds = [...new Set(reblogOfIds)];
+
+  // Enrich all statuses + reblog originals
+  const allIdsToEnrich = [...statusIds, ...uniqueReblogIds];
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, currentAccountId);
+
+  // Fetch reblog originals
+  const reblogMap = new Map<string, any>();
+  if (uniqueReblogIds.length > 0) {
+    const ph = uniqueReblogIds.map(() => '?').join(',');
+    const { results: reblogResults } = await c.env.DB.prepare(
+      `SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
+              a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
+              a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
+              a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
+              a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
+              a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
+              a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
+              a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
+              a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+       FROM statuses s JOIN accounts a ON a.id = s.account_id
+       WHERE s.id IN (${ph}) AND s.deleted_at IS NULL`,
+    ).bind(...uniqueReblogIds).all();
+
+    for (const rr of (reblogResults ?? []) as Record<string, unknown>[]) {
+      const origAccountRow: AccountRow = {
+        id: rr.a_id as string, username: rr.a_username as string, domain: rr.a_domain as string | null,
+        display_name: (rr.a_display_name as string) || '', note: (rr.a_note as string) || '',
+        uri: rr.a_uri as string, url: (rr.a_url as string) || '',
+        avatar_url: (rr.a_avatar_url as string) || '', avatar_static_url: (rr.a_avatar_static_url as string) || '',
+        header_url: (rr.a_header_url as string) || '', header_static_url: (rr.a_header_static_url as string) || '',
+        locked: rr.a_locked as number, bot: rr.a_bot as number, discoverable: rr.a_discoverable as number | null,
+        manually_approves_followers: 0, statuses_count: (rr.a_statuses_count as number) || 0,
+        followers_count: (rr.a_followers_count as number) || 0, following_count: (rr.a_following_count as number) || 0,
+        last_status_at: rr.a_last_status_at as string | null, created_at: rr.a_created_at as string,
+        updated_at: rr.a_created_at as string, suspended_at: rr.a_suspended_at as string | null,
+        silenced_at: null, memorial: (rr.a_memorial as number) || 0, moved_to_account_id: rr.a_moved_to_account_id as string | null,
+      };
+      const origE = enrichments.get(rr.id as string);
+      reblogMap.set(rr.id as string, serializeStatus(rr as StatusRow, {
+        account: serializeAccount(origAccountRow),
+        mediaAttachments: origE?.mediaAttachments,
+        mentions: origE?.mentions,
+        favourited: origE?.favourited,
+        reblogged: origE?.reblogged,
+        bookmarked: origE?.bookmarked,
+        card: origE?.card,
+        emojis: origE?.emojis,
+      }));
+    }
+  }
+
+  const statuses = allRows.map((row: any) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
       display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,
@@ -78,7 +135,7 @@ app.get('/', authOptional, async (c) => {
       silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
     };
     const e = enrichments.get(row.id);
-    return serializeStatus(row as StatusRow, {
+    const s = serializeStatus(row as StatusRow, {
       account: serializeAccount(accountRow),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
@@ -88,6 +145,10 @@ app.get('/', authOptional, async (c) => {
       card: e?.card,
       emojis: e?.emojis,
     });
+    if (row.reblog_of_id) {
+      s.reblog = reblogMap.get(row.reblog_of_id) ?? null;
+    }
+    return s;
   });
 
   if (pag.minId) statuses.reverse();

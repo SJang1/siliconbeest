@@ -24,6 +24,15 @@ const props = defineProps<{
   status: Status
 }>()
 
+// If this is a reblog, show the original status content
+// A status is a reblog wrapper when content is empty and reblog exists
+const isReblog = computed(() => !!props.status.reblog)
+const displayStatus = computed(() => {
+  if (props.status.reblog) return props.status.reblog
+  // Fallback: if content is empty, it might be a reblog whose inner data wasn't loaded
+  return props.status
+})
+
 const isEditing = ref(false)
 const editText = ref('')
 const editSpoilerText = ref('')
@@ -39,11 +48,11 @@ function handleReport(payload: { accountId: string; accountAcct: string; statusI
 }
 
 const isOwnStatus = computed(() => {
-  return authStore.currentUser?.id === props.status.account.id
+  return authStore.currentUser?.id === displayStatus.value.account.id
 })
 
 const relativeTime = computed(() => {
-  const date = new Date(props.status.created_at)
+  const date = new Date(displayStatus.value.created_at)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
@@ -57,10 +66,9 @@ const relativeTime = computed(() => {
 
 /** Replace :shortcode: in text with <img> tags using account emojis */
 const emojifiedDisplayName = computed(() => {
-  let name = props.status.account.display_name || ''
-  const emojis = props.status.account.emojis
+  let name = displayStatus.value.account.display_name || ''
+  const emojis = displayStatus.value.account.emojis
   if (!emojis || emojis.length === 0) return name
-  // Escape HTML in display_name first
   name = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   for (const emoji of emojis) {
     const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
@@ -73,7 +81,7 @@ const emojifiedDisplayName = computed(() => {
 })
 
 const hasAccountEmojis = computed(() => {
-  return (props.status.account.emojis?.length ?? 0) > 0
+  return (displayStatus.value.account.emojis?.length ?? 0) > 0
 })
 
 const replyToDisplay = computed(() => {
@@ -100,19 +108,25 @@ const replyToDisplay = computed(() => {
 })
 
 function handleFavourite() {
-  statusesStore.toggleFavourite(props.status)
+  // For reblogs, favourite the original status
+  const target = props.status.reblog ?? props.status
+  statusesStore.toggleFavourite(target)
 }
 
 function handleReblog() {
-  statusesStore.toggleReblog(props.status)
+  const target = props.status.reblog ?? props.status
+  statusesStore.toggleReblog(target)
 }
 
 function handleBookmark() {
-  statusesStore.toggleBookmark(props.status)
+  const target = props.status.reblog ?? props.status
+  statusesStore.toggleBookmark(target)
 }
 
 function handleReply() {
-  router.push(`/@${props.status.account.acct}/${props.status.id}`)
+  // For reblogs, reply to the original status, not the reblog wrapper
+  const target = props.status.reblog ?? props.status
+  router.push(`/@${target.account.acct}/${target.id}`)
 }
 
 async function handleShare() {
@@ -173,17 +187,29 @@ async function handleDelete() {
 
 <template>
   <article
+    v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
     class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-    :aria-label="t('status.by', { name: status.account.display_name })"
+    :aria-label="t('status.by', { name: displayStatus.account.display_name })"
   >
+    <!-- Reblog indicator -->
+    <div v-if="isReblog" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-2 ml-12">
+      <svg class="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M23.77 15.67a.749.749 0 00-1.06 0l-2.22 2.22V7.65a3.755 3.755 0 00-3.75-3.75h-5.85a.75.75 0 000 1.5h5.85a2.25 2.25 0 012.25 2.25v10.24l-2.22-2.22a.749.749 0 10-1.06 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5a.747.747 0 000-1.06zm-10.66 1.47H7.26a2.25 2.25 0 01-2.25-2.25V4.65l2.22 2.22a.744.744 0 001.06 0 .749.749 0 000-1.06l-3.5-3.5a.747.747 0 00-1.06 0l-3.5 3.5a.749.749 0 101.06 1.06l2.22-2.22v10.24a3.755 3.755 0 003.75 3.75h5.85a.75.75 0 000-1.5z"/>
+      </svg>
+      <router-link :to="`/@${status.account.acct}`" class="font-semibold hover:underline">
+        {{ status.account.display_name || status.account.username }}
+      </router-link>
+      <span>{{ t('status.reblogged') }}</span>
+    </div>
+
     <!-- Reply indicator -->
-    <div v-if="status.in_reply_to_id" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1 ml-12">
+    <div v-if="displayStatus.in_reply_to_id" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1 ml-12">
       <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
       </svg>
       <router-link
-        v-if="status.in_reply_to_account_id"
-        :to="status.in_reply_to_id ? `/@${status.account.acct}/${status.in_reply_to_id}` : '#'"
+        v-if="displayStatus.in_reply_to_account_id"
+        :to="displayStatus.in_reply_to_id ? `/@${displayStatus.account.acct}/${displayStatus.in_reply_to_id}` : '#'"
         class="hover:underline"
       >
         {{ t('status.repliedTo', { user: replyToDisplay }) }}
@@ -193,37 +219,37 @@ async function handleDelete() {
 
     <div class="flex gap-3">
       <!-- Avatar -->
-      <router-link :to="`/@${status.account.acct}`" class="flex-shrink-0">
-        <Avatar :src="status.account.avatar" :alt="status.account.display_name" size="md" />
+      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0">
+        <Avatar :src="displayStatus.account.avatar" :alt="displayStatus.account.display_name" size="md" />
       </router-link>
 
       <div class="flex-1 min-w-0">
         <!-- Header -->
         <div class="flex items-center gap-1 text-sm">
-          <router-link :to="`/@${status.account.acct}`" class="font-bold hover:underline truncate">
+          <router-link :to="`/@${displayStatus.account.acct}`" class="font-bold hover:underline truncate">
             <span v-if="hasAccountEmojis" v-html="emojifiedDisplayName" />
-            <template v-else>{{ status.account.display_name }}</template>
+            <template v-else>{{ displayStatus.account.display_name || displayStatus.account.username }}</template>
           </router-link>
-          <span class="text-gray-500 dark:text-gray-400 truncate">@{{ status.account.acct }}</span>
+          <span class="text-gray-500 dark:text-gray-400 truncate">@{{ displayStatus.account.acct }}</span>
           <span class="text-gray-400 dark:text-gray-500 mx-1" aria-hidden="true">&middot;</span>
-          <time :datetime="status.created_at" class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
+          <time :datetime="displayStatus.created_at" class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
             {{ relativeTime }}
           </time>
           <span
-            v-if="status.visibility && status.visibility !== 'public'"
+            v-if="displayStatus.visibility && displayStatus.visibility !== 'public'"
             class="text-xs ml-1"
             :class="{
-              'text-blue-500 dark:text-blue-400': status.visibility === 'unlisted',
-              'text-green-500 dark:text-green-400': status.visibility === 'private',
-              'text-yellow-500 dark:text-yellow-400': status.visibility === 'direct',
+              'text-blue-500 dark:text-blue-400': displayStatus.visibility === 'unlisted',
+              'text-green-500 dark:text-green-400': displayStatus.visibility === 'private',
+              'text-yellow-500 dark:text-yellow-400': displayStatus.visibility === 'direct',
             }"
-            :title="t(`status.visibility_${status.visibility}`)"
+            :title="t(`status.visibility_${displayStatus.visibility}`)"
           >
-            <template v-if="status.visibility === 'unlisted'">🔓</template>
-            <template v-else-if="status.visibility === 'private'">🔒</template>
-            <template v-else-if="status.visibility === 'direct'">✉️</template>
+            <template v-if="displayStatus.visibility === 'unlisted'">🔓</template>
+            <template v-else-if="displayStatus.visibility === 'private'">🔒</template>
+            <template v-else-if="displayStatus.visibility === 'direct'">✉️</template>
           </span>
-          <span v-if="status.edited_at" class="text-gray-400 dark:text-gray-500 text-xs ml-1" :title="status.edited_at">
+          <span v-if="displayStatus.edited_at" class="text-gray-400 dark:text-gray-500 text-xs ml-1" :title="displayStatus.edited_at">
             ({{ t('status.edited') }})
           </span>
         </div>
@@ -239,7 +265,7 @@ async function handleDelete() {
             rows="3"
           />
           <input
-            v-if="status.spoiler_text"
+            v-if="displayStatus.spoiler_text"
             v-model="editSpoilerText"
             type="text"
             :placeholder="t('compose.cw_placeholder')"
@@ -265,38 +291,39 @@ async function handleDelete() {
         <!-- Normal content display -->
         <template v-else>
           <StatusContent
-            :content="status.content"
-            :spoiler-text="status.spoiler_text"
-            :sensitive="status.sensitive"
-            :emojis="status.emojis"
+            :content="displayStatus.content"
+            :spoiler-text="displayStatus.spoiler_text"
+            :sensitive="displayStatus.sensitive"
+            :emojis="displayStatus.emojis"
           />
 
           <!-- Media -->
           <MediaGallery
-            v-if="status.media_attachments?.length"
-            :attachments="status.media_attachments"
+            v-if="displayStatus.media_attachments?.length"
+            :attachments="displayStatus.media_attachments"
             class="mt-2"
           />
 
           <!-- Preview Card -->
           <PreviewCard
-            v-if="status.card && !status.media_attachments?.length"
-            :card="status.card"
+            v-if="displayStatus.card && !displayStatus.media_attachments?.length"
+            :card="displayStatus.card"
           />
         </template>
 
         <!-- Actions -->
         <StatusActions
-          :status-id="status.id"
-          :replies-count="status.replies_count"
-          :reblogs-count="status.reblogs_count"
-          :favourites-count="status.favourites_count"
-          :favourited="status.favourited"
-          :reblogged="status.reblogged"
-          :bookmarked="status.bookmarked"
+          :status-id="displayStatus.id"
+          :replies-count="displayStatus.replies_count"
+          :reblogs-count="displayStatus.reblogs_count"
+          :favourites-count="displayStatus.favourites_count"
+          :favourited="displayStatus.favourited"
+          :reblogged="displayStatus.reblogged"
+          :bookmarked="displayStatus.bookmarked"
           :is-own-status="isOwnStatus"
-          :account-id="status.account.id"
-          :account-acct="status.account.acct"
+          :account-id="displayStatus.account.id"
+          :account-acct="displayStatus.account.acct"
+          :visibility="displayStatus.visibility"
           class="mt-2"
           @favourite="handleFavourite"
           @reblog="handleReblog"

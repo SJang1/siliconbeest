@@ -79,7 +79,8 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE custom_emojis ( id TEXT PRIMARY KEY, shortcode TEXT NOT NULL, domain TEXT, image_key TEXT NOT NULL, visible_in_picker INTEGER DEFAULT 1, category TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shortcode, domain) )').run();
   await env.DB.prepare('CREATE TABLE announcements ( id TEXT PRIMARY KEY, text TEXT NOT NULL, published INTEGER DEFAULT 0, starts_at TEXT, ends_at TEXT, all_day INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
   await env.DB.prepare('CREATE TABLE rules ( id TEXT PRIMARY KEY, text TEXT NOT NULL, priority INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
-  await env.DB.prepare('CREATE TABLE conversations ( id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE TABLE conversations ( id TEXT PRIMARY KEY, ap_uri TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE UNIQUE INDEX idx_conversations_ap_uri ON conversations(ap_uri)').run();
   await env.DB.prepare('CREATE TABLE conversation_accounts ( conversation_id TEXT NOT NULL REFERENCES conversations(id), account_id TEXT NOT NULL REFERENCES accounts(id), last_status_id TEXT, unread INTEGER DEFAULT 0, PRIMARY KEY (conversation_id, account_id) )').run();
   await env.DB.prepare('CREATE INDEX idx_conv_accounts ON conversation_accounts(account_id)').run();
   await env.DB.prepare('CREATE TABLE relays ( id TEXT PRIMARY KEY, inbox_url TEXT NOT NULL UNIQUE, actor_uri TEXT, state TEXT DEFAULT \'idle\', follow_activity_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();

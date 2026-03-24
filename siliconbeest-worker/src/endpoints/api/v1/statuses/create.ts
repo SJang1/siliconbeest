@@ -80,11 +80,20 @@ app.post('/', authRequired, async (c) => {
     }
   }
 
+  let conversationApUri: string | null = null;
   if (!conversationId) {
     conversationId = generateULID();
+    const year = now.substring(0, 4);
+    conversationApUri = `tag:${domain},${year}:objectId=${conversationId}:objectType=Conversation`;
     await c.env.DB.prepare(
-      'INSERT INTO conversations (id, created_at, updated_at) VALUES (?1, ?2, ?2)',
-    ).bind(conversationId, now).run();
+      'INSERT INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)',
+    ).bind(conversationId, conversationApUri, now).run();
+  } else {
+    // Inherited conversation — look up its ap_uri
+    const convRow = await c.env.DB.prepare(
+      'SELECT ap_uri FROM conversations WHERE id = ?1',
+    ).bind(conversationId).first<{ ap_uri: string | null }>();
+    conversationApUri = convRow?.ap_uri ?? null;
   }
 
   const stmts = [
@@ -346,7 +355,7 @@ app.post('/', authRequired, async (c) => {
       silent: 0,
     }));
 
-    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote });
+    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri });
     const activity = buildCreateActivity(actorUri, note);
     const activityJson = JSON.stringify(activity);
 

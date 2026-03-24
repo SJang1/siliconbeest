@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
 import { useTimelinesStore } from '@/stores/timelines'
@@ -28,6 +28,36 @@ const statuses = computed(() => {
     .map((id) => statusesStore.getCached(id))
     .filter((s): s is Status => !!s)
 })
+
+const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+
+// Auto-insert new posts when user is at top of page
+const isAtTop = ref(true)
+let scrollTimer: ReturnType<typeof setTimeout> | null = null
+
+function handleScroll() {
+  if (scrollTimer) return
+  scrollTimer = setTimeout(() => {
+    isAtTop.value = window.scrollY < 100
+    scrollTimer = null
+  }, 100)
+}
+
+onMounted(() => window.addEventListener('scroll', handleScroll, { passive: true }))
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+  if (scrollTimer) clearTimeout(scrollTimer)
+})
+
+watch(() => timeline.value.newStatusIds.length, (len) => {
+  if (len > 0 && isAtTop.value) {
+    timelinesStore.showNewStatuses(timelineType.value)
+  }
+})
+
+function showNew() {
+  timelinesStore.showNewStatuses(timelineType.value)
+}
 
 async function loadTimeline() {
   await timelinesStore.fetchTimeline(timelineType.value, { token: auth.token ?? undefined })
@@ -80,7 +110,11 @@ onMounted(loadTimeline)
         :statuses="statuses"
         :loading="timeline.loading || timeline.loadingMore"
         :done="!timeline.hasMore"
+        :has-new-posts="hasNewPosts"
+        :new-posts-count="timeline.newStatusIds.length"
+        :auto-insert="isAtTop"
         @load-more="loadMore"
+        @load-new="showNew"
       />
     </div>
   </AppShell>
