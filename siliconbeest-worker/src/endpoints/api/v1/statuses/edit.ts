@@ -187,6 +187,11 @@ app.put('/:id', authRequired, async (c) => {
           domain,
           { conversationApUri: editConvApUri },
         );
+        // Override inReplyTo with parent URI
+        if (updatedRow.in_reply_to_id) {
+          const parentUri = await c.env.DB.prepare('SELECT uri FROM statuses WHERE id = ?1').bind(updatedRow.in_reply_to_id).first<{ uri: string }>();
+          if (parentUri) note.inReplyTo = parentUri.uri;
+        }
         const actorUri = (accountRow.uri as string) || `https://${domain}/users/${acct}`;
         const activity = buildUpdateActivity(actorUri, note);
         await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentAccountId);

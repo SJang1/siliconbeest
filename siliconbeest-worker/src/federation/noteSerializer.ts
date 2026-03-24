@@ -112,9 +112,13 @@ export function serializeNote(
 	};
 
 	if (status.in_reply_to_id) {
-		// The caller should resolve the full URI of the parent status.
-		// We set the raw value so the caller can override.
-		note.inReplyTo = status.in_reply_to_id;
+		// If in_reply_to_id looks like a URI, use it directly; otherwise generate local URI
+		if (status.in_reply_to_id.startsWith('http')) {
+			note.inReplyTo = status.in_reply_to_id;
+		} else {
+			// Fallback: caller should override with actual parent URI via DB lookup
+			note.inReplyTo = `https://${domain}/users/${account.username}/statuses/${status.in_reply_to_id}`;
+		}
 	}
 
 	if (status.conversation_id) {

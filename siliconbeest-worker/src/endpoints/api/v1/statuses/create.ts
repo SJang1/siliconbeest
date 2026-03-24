@@ -356,6 +356,17 @@ app.post('/', authRequired, async (c) => {
     }));
 
     const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri });
+
+    // Override inReplyTo with the parent status URI (not internal DB ID)
+    if (inReplyToId) {
+      const parentUri = await c.env.DB.prepare(
+        'SELECT uri FROM statuses WHERE id = ?1',
+      ).bind(inReplyToId).first<{ uri: string }>();
+      if (parentUri) {
+        note.inReplyTo = parentUri.uri;
+      }
+    }
+
     const activity = buildCreateActivity(actorUri, note);
     const activityJson = JSON.stringify(activity);
 

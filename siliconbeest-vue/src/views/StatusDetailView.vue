@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
@@ -22,6 +22,39 @@ const ancestors = ref<Status[]>([])
 const descendants = ref<Status[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+// Build threaded tree with depth for indentation
+interface ThreadedStatus {
+  status: Status
+  depth: number
+}
+
+const threadedDescendants = computed<ThreadedStatus[]>(() => {
+  if (!status.value || descendants.value.length === 0) return []
+
+  const mainId = status.value.id
+  // Map: parentId -> children
+  const childrenMap = new Map<string, Status[]>()
+  for (const s of descendants.value) {
+    const parentId = s.in_reply_to_id ?? mainId
+    const list = childrenMap.get(parentId) ?? []
+    list.push(s)
+    childrenMap.set(parentId, list)
+  }
+
+  // DFS from main status
+  const result: ThreadedStatus[] = []
+  function walk(parentId: string, depth: number) {
+    const children = childrenMap.get(parentId)
+    if (!children) return
+    for (const child of children) {
+      result.push({ status: child, depth: Math.min(depth, 4) }) // cap at 4 levels
+      walk(child.id, depth + 1)
+    }
+  }
+  walk(mainId, 0)
+  return result
+})
 
 async function loadThread() {
   loading.value = true
@@ -49,6 +82,15 @@ const replyTarget = ref<Status | null>(null)
 
 function setReplyTarget(s: Status) {
   replyTarget.value = s
+}
+
+function handleDeleted(statusId: string) {
+  // Remove from descendants
+  descendants.value = descendants.value.filter((s) => s.id !== statusId)
+  // If the main status was deleted, go back
+  if (status.value?.id === statusId) {
+    router.back()
+  }
 }
 
 async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
@@ -91,15 +133,22 @@ watch(() => route.params.statusId, (newId) => {
 
       <template v-else-if="status">
         <!-- Ancestors -->
-        <StatusCard v-for="s in ancestors" :key="s.id" :status="s" />
+        <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @deleted="handleDeleted" />
 
         <!-- Main status -->
         <div class="border-l-4 border-indigo-500">
-          <StatusCard :status="status" />
+          <StatusCard :status="status" @deleted="handleDeleted" />
         </div>
 
-        <!-- Descendants -->
-        <StatusCard v-for="s in descendants" :key="s.id" :status="s" @reply="setReplyTarget(s)" />
+        <!-- Descendants (threaded with indentation) -->
+        <div
+          v-for="item in threadedDescendants"
+          :key="item.status.id"
+          :style="{ marginLeft: `${item.depth * 24}px` }"
+          :class="item.depth > 0 ? 'border-l-2 border-gray-200 dark:border-gray-700' : ''"
+        >
+          <StatusCard :status="item.status" @reply="setReplyTarget(item.status)" @deleted="handleDeleted" />
+        </div>
 
         <!-- Reply composer (below all replies) -->
         <div v-if="replyTarget && replyTarget.id !== status.id" class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2">

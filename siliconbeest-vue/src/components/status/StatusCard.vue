@@ -174,11 +174,17 @@ async function submitEdit() {
   }
 }
 
+const emit = defineEmits<{
+  reply: [status: Status]
+  deleted: [statusId: string]
+}>()
+
 async function handleDelete() {
   if (!confirm(t('status.delete_confirm'))) return
   try {
     await statusesStore.deleteStatus(props.status.id)
     timelinesStore.removeStatus(props.status.id)
+    emit('deleted', props.status.id)
   } catch {
     // Error handling
   }

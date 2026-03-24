@@ -34,30 +34,13 @@ app.get('/:id/context', authOptional, async (c) => {
     currentId = (ancestor.in_reply_to_id as string) || null;
   }
 
-  // Descendants: find all replies via conversation_id OR in_reply_to chain
-  // Use both approaches to handle cases where conversation_id is null (remote statuses)
+  // Build set of ancestor IDs + current status to exclude from descendants
+  const excludeIds = new Set<string>([statusId, ...ancestors.map((a) => a.id as string)]);
+
+  // Descendants: find all replies via BFS from current status
   const descendantRows: Record<string, unknown>[] = [];
   const seenDescendantIds = new Set<string>();
 
-  // Method 1: conversation_id based (fast, catches most cases)
-  if (status.conversation_id) {
-    const { results: convRows } = await c.env.DB.prepare(
-      `${STATUS_JOIN_SQL}
-       WHERE s.conversation_id = ?1
-         AND s.id != ?2
-         AND s.deleted_at IS NULL
-       ORDER BY s.created_at ASC
-       LIMIT 60`,
-    ).bind(status.conversation_id as string, statusId).all();
-    for (const r of (convRows ?? []) as Record<string, unknown>[]) {
-      if (!seenDescendantIds.has(r.id as string)) {
-        seenDescendantIds.add(r.id as string);
-        descendantRows.push(r);
-      }
-    }
-  }
-
-  // Method 2: in_reply_to_id based (catches replies to statuses with null conversation_id)
   // BFS: find direct replies, then replies to those, etc.
   const queue = [statusId];
   let depth = 0;
@@ -73,7 +56,7 @@ app.get('/:id/context', authOptional, async (c) => {
     ).bind(...batch).all();
     for (const r of (replyRows ?? []) as Record<string, unknown>[]) {
       const rid = r.id as string;
-      if (!seenDescendantIds.has(rid)) {
+      if (!seenDescendantIds.has(rid) && !excludeIds.has(rid)) {
         seenDescendantIds.add(rid);
         descendantRows.push(r);
         queue.push(rid);
@@ -81,12 +64,6 @@ app.get('/:id/context', authOptional, async (c) => {
     }
     depth++;
   }
-
-  // Filter: only show descendants (created after the target status or explicitly replying to it)
-  // and sort by created_at
-  descendantRows.sort((a, b) =>
-    (a.created_at as string) < (b.created_at as string) ? -1 : 1
-  );
 
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
 
