@@ -13,6 +13,7 @@ import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
 import PreviewCard from './PreviewCard.vue'
 import ReportDialog from '../common/ReportDialog.vue'
+import ImageViewer from '../common/ImageViewer.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -40,6 +41,13 @@ const editSensitive = ref(false)
 const editLoading = ref(false)
 
 const showReportDialog = ref(false)
+const showImageViewer = ref(false)
+const imageViewerIndex = ref(0)
+
+function openImageViewer(index: number) {
+  imageViewerIndex.value = index
+  showImageViewer.value = true
+}
 const reportTarget = ref<{ accountId: string; accountAcct: string; statusId: string } | null>(null)
 
 function handleReport(payload: { accountId: string; accountAcct: string; statusId: string }) {
@@ -308,6 +316,7 @@ async function handleDelete() {
             v-if="displayStatus.media_attachments?.length"
             :attachments="displayStatus.media_attachments"
             class="mt-2"
+            @expand="openImageViewer"
           />
 
           <!-- Preview Card -->
@@ -350,6 +359,14 @@ async function handleDelete() {
       :account-acct="reportTarget.accountAcct"
       :status-id="reportTarget.statusId"
       @close="showReportDialog = false"
+    />
+
+    <!-- Image Viewer Modal -->
+    <ImageViewer
+      v-if="showImageViewer && displayStatus.media_attachments?.length"
+      :images="displayStatus.media_attachments.map((a: any) => ({ url: a.url, description: a.description || undefined, type: a.type }))"
+      :initial-index="imageViewerIndex"
+      @close="showImageViewer = false"
     />
   </article>
 </template>

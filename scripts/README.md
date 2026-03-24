@@ -62,6 +62,7 @@ export R2_BUCKET_NAME=my-media-bucket
 | [`migrate.sh`](#migratesh) | Apply D1 database migrations |
 | [`backup.sh`](#backupsh) | Backup D1 database and R2 objects |
 | [`delete-account.sh`](#delete-accountsh) | AP-compliant account deletion |
+| [`sync-config.sh`](#sync-configsh) | Sync Cloudflare resource IDs to wrangler.jsonc |
 
 ---
 
@@ -314,3 +315,33 @@ Failed federation deliveries go to the DLQ. Inspect via the Cloudflare dashboard
 # WARNING: Invalidates all existing 2FA enrollments
 openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name $WORKER_NAME
 ```
+
+---
+
+## sync-config.sh
+
+Fetches resource IDs (D1, KV, R2, Queues) from your Cloudflare account and regenerates all `wrangler.jsonc` files with correct values.
+
+**Use when:**
+- You cloned the repo on a new machine
+- Your `wrangler.jsonc` files are out of date or corrupted
+- You switched Cloudflare accounts
+- Resource IDs changed after recreation
+
+```bash
+# Dry run — shows what would change, no files modified
+./scripts/sync-config.sh
+
+# Apply — regenerates all 3 wrangler.jsonc files
+./scripts/sync-config.sh --apply
+```
+
+**What it does:**
+1. Verifies `wrangler` CLI authentication
+2. Looks up D1 database ID by name
+3. Looks up KV namespace IDs by title
+4. Verifies R2 bucket existence
+5. Reads existing domain/title/registration from current config
+6. Regenerates `siliconbeest-worker/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, and `siliconbeest-vue/wrangler.jsonc`
+
+**Prerequisites:** `wrangler` CLI authenticated (`npx wrangler login`)

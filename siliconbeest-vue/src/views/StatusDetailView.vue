@@ -17,11 +17,16 @@ const router = useRouter()
 const auth = useAuthStore()
 const statusesStore = useStatusesStore()
 
-const status = ref<Status | null>(null)
-const ancestors = ref<Status[]>([])
-const descendants = ref<Status[]>([])
+const statusId = ref<string | null>(null)
+const ancestorIds = ref<string[]>([])
+const descendantIds = ref<string[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+// Resolve statuses from store cache for reactive updates
+const status = computed(() => statusId.value ? statusesStore.cache.get(statusId.value) ?? null : null)
+const ancestors = computed(() => ancestorIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[])
+const descendants = computed(() => descendantIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[])
 
 // Build threaded tree with depth for indentation
 interface ThreadedStatus {
@@ -33,7 +38,6 @@ const threadedDescendants = computed<ThreadedStatus[]>(() => {
   if (!status.value || descendants.value.length === 0) return []
 
   const mainId = status.value.id
-  // Map: parentId -> children
   const childrenMap = new Map<string, Status[]>()
   for (const s of descendants.value) {
     const parentId = s.in_reply_to_id ?? mainId
@@ -42,13 +46,12 @@ const threadedDescendants = computed<ThreadedStatus[]>(() => {
     childrenMap.set(parentId, list)
   }
 
-  // DFS from main status
   const result: ThreadedStatus[] = []
   function walk(parentId: string, depth: number) {
     const children = childrenMap.get(parentId)
     if (!children) return
     for (const child of children) {
-      result.push({ status: child, depth: Math.min(depth, 4) }) // cap at 4 levels
+      result.push({ status: child, depth: Math.min(depth, 4) })
       walk(child.id, depth + 1)
     }
   }
@@ -64,15 +67,18 @@ async function loadThread() {
 
   try {
     const { data: statusData } = await getStatus(id, auth.token ?? undefined)
-    status.value = statusData
     statusesStore.cacheStatus(statusData)
+    statusId.value = statusData.id
 
     const { data: context } = await getStatusContext(id, auth.token ?? undefined)
-    ancestors.value = context.ancestors
-    descendants.value = context.descendants
+    // Cache all statuses and store their IDs
+    for (const s of context.ancestors) statusesStore.cacheStatus(s)
+    for (const s of context.descendants) statusesStore.cacheStatus(s)
+    ancestorIds.value = context.ancestors.map((s: Status) => s.id)
+    descendantIds.value = context.descendants.map((s: Status) => s.id)
   } catch (e) {
     error.value = (e as Error).message
-    status.value = null
+    statusId.value = null
   } finally {
     loading.value = false
   }
@@ -84,11 +90,11 @@ function setReplyTarget(s: Status) {
   replyTarget.value = s
 }
 
-function handleDeleted(statusId: string) {
-  // Remove from descendants
-  descendants.value = descendants.value.filter((s) => s.id !== statusId)
+function handleDeleted(deletedId: string) {
+  // Remove from descendant IDs
+  descendantIds.value = descendantIds.value.filter((id) => id !== deletedId)
   // If the main status was deleted, go back
-  if (status.value?.id === statusId) {
+  if (statusId.value === deletedId) {
     router.back()
   }
 }
