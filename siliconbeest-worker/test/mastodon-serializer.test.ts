@@ -37,9 +37,9 @@ function makeAccountRow(overrides?: Partial<AccountRow>): AccountRow {
     statuses_count: 42,
     followers_count: 10,
     following_count: 5,
-    last_status_at: '2024-01-01T00:00:00Z',
-    created_at: '2023-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
+    last_status_at: '2024-01-01T00:00:00.000Z',
+    created_at: '2023-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
     suspended_at: null,
     silenced_at: null,
     memorial: 0,
@@ -74,8 +74,8 @@ function makeStatusRow(overrides?: Partial<StatusRow>): StatusRow {
     deleted_at: null,
     poll_id: null,
     quote_id: null,
-    created_at: '2024-01-01T12:00:00Z',
-    updated_at: '2024-01-01T12:00:00Z',
+    created_at: '2024-01-01T12:00:00.000Z',
+    updated_at: '2024-01-01T12:00:00.000Z',
     ...overrides,
   };
 }
@@ -100,7 +100,7 @@ describe('serializeAccount', () => {
     expect(account.statuses_count).toBe(42);
     expect(account.followers_count).toBe(10);
     expect(account.following_count).toBe(5);
-    expect(account.created_at).toBe('2023-01-01T00:00:00Z');
+    expect(account.created_at).toBe('2023-01-01T00:00:00.000Z');
   });
 
   it('uses username@domain for remote accounts', () => {
@@ -192,7 +192,7 @@ describe('serializeStatus', () => {
     expect(status.visibility).toBe('public');
     expect(status.reblogs_count).toBe(3);
     expect(status.favourites_count).toBe(5);
-    expect(status.created_at).toBe('2024-01-01T12:00:00Z');
+    expect(status.created_at).toBe('2024-01-01T12:00:00.000Z');
     expect(status.account).toBe(account);
   });
 
@@ -275,7 +275,7 @@ describe('serializePoll', () => {
       votes_count: 10,
       voters_count: 8,
       options: JSON.stringify(['Option A', 'Option B']),
-      created_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
       ...overrides,
     };
   }
@@ -352,12 +352,12 @@ describe('serializeNotification', () => {
       type: 'follow',
       status_id: null,
       read: 0,
-      created_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
     };
     const notif = serializeNotification(row, { account });
     expect(notif.id).toBe('notif-1');
     expect(notif.type).toBe('follow');
-    expect(notif.created_at).toBe('2024-01-01T00:00:00Z');
+    expect(notif.created_at).toBe('2024-01-01T00:00:00.000Z');
     expect(notif.account).toBe(account);
     expect(notif.status).toBeUndefined();
   });
@@ -372,7 +372,7 @@ describe('serializeNotification', () => {
       type: 'mention',
       status_id: 'status-1',
       read: 0,
-      created_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
     };
     const notif = serializeNotification(row, { account, status });
     expect(notif.status).toBe(status);
@@ -387,7 +387,7 @@ describe('serializeNotification', () => {
       type: 'favourite',
       status_id: 'status-1',
       read: 0,
-      created_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
     };
     const notif = serializeNotification(row, { account, status: null });
     expect(notif.status).toBeNull();
@@ -413,8 +413,8 @@ describe('serializeMediaAttachment', () => {
       width: 800,
       height: 600,
       type: 'image',
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
       ...overrides,
     };
   }
@@ -487,8 +487,8 @@ describe('serializeList', () => {
       title: 'My List',
       replies_policy: 'list',
       exclusive: 0,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const list = serializeList(row);
     expect(list.id).toBe('list-1');
@@ -504,8 +504,8 @@ describe('serializeList', () => {
       title: 'Exclusive List',
       replies_policy: 'followed',
       exclusive: 1,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     expect(serializeList(row).exclusive).toBe(true);
   });
@@ -524,8 +524,8 @@ describe('serializeTag', () => {
       trendable: 1,
       listable: 1,
       last_status_at: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const tag = serializeTag(row);
     expect(tag.name).toBe('fediverse');
@@ -545,8 +545,8 @@ describe('serializeFilter', () => {
       context: '["home","public"]',
       action: 'warn',
       expires_at: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const filter = serializeFilter(row);
     expect(filter.id).toBe('filter-1');
@@ -566,8 +566,8 @@ describe('serializeFilter', () => {
       context: '["home"]',
       action: 'hide',
       expires_at: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const filter = serializeFilter(row, {
       keywords: [
@@ -589,8 +589,8 @@ describe('serializeFilter', () => {
       context: 'not json',
       action: 'warn',
       expires_at: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const filter = serializeFilter(row);
     expect(filter.context).toEqual([]);
@@ -608,11 +608,11 @@ describe('serializeMarker', () => {
       timeline: 'home',
       last_read_id: 'status-99',
       version: 3,
-      updated_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
     };
     const marker = serializeMarker(row);
     expect(marker.last_read_id).toBe('status-99');
     expect(marker.version).toBe(3);
-    expect(marker.updated_at).toBe('2024-01-01T00:00:00Z');
+    expect(marker.updated_at).toBe('2024-01-01T00:00:00.000Z');
   });
 });
