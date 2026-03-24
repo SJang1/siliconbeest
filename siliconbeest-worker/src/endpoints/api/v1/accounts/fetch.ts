@@ -33,7 +33,7 @@ app.get('/:id', async (c) => {
       try {
         await c.env.QUEUE_INTERNAL.send({
           type: 'fetch_remote_account',
-          accountUri: row.uri as string,
+          actorUri: row.uri as string,
           forceRefresh: true,
         });
       } catch { /* non-blocking */ }
