@@ -142,7 +142,7 @@ app.get('/', async (c) => {
 		}];
 	}
 
-	return c.json(actorDoc, 200, { 'Content-Type': 'application/activity+json' });
+	return c.json(actorDoc, 200, { 'Content-Type': 'application/activity+json', 'Vary': 'Accept' });
 });
 
 export default app;

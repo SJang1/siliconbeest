@@ -100,6 +100,14 @@ async function verifyRequestSignature(
 }
 
 app.post('/', async (c) => {
+	// Validate Content-Type
+	const contentType = c.req.header('content-type') || '';
+	if (!contentType.includes('application/activity+json') &&
+	    !contentType.includes('application/ld+json') &&
+	    !contentType.includes('application/json')) {
+		return c.json({ error: 'Unsupported content type' }, 415);
+	}
+
 	// Parse the activity body
 	const rawBody = await c.req.text();
 	let activity: APActivity;
@@ -196,6 +204,10 @@ app.post('/', async (c) => {
 		return c.body(null, 202);
 	}
 
+	// Track processed activity+account pairs to avoid duplicate processing
+	// when an activity is addressed to multiple local users or followers collections
+	const processedAccounts = new Set<string>();
+
 	// Process for explicitly addressed local users
 	for (const username of recipients) {
 		const account = await c.env.DB.prepare(
@@ -204,7 +216,8 @@ app.post('/', async (c) => {
 			.bind(username)
 			.first<{ id: string }>();
 
-		if (account) {
+		if (account && !processedAccounts.has(account.id)) {
+			processedAccounts.add(account.id);
 			try {
 				await processInboxActivity(activity, account.id, c.env);
 			} catch (err) {
@@ -215,7 +228,7 @@ app.post('/', async (c) => {
 
 	// Process for followers collection owners (if not already covered)
 	for (const username of followerCollectionOwners) {
-		if (recipients.has(username)) continue; // Already processed
+		if (recipients.has(username)) continue; // Already processed by username
 
 		const account = await c.env.DB.prepare(
 			`SELECT id FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1`,
@@ -223,7 +236,8 @@ app.post('/', async (c) => {
 			.bind(username)
 			.first<{ id: string }>();
 
-		if (account) {
+		if (account && !processedAccounts.has(account.id)) {
+			processedAccounts.add(account.id);
 			try {
 				await processInboxActivity(activity, account.id, c.env);
 			} catch (err) {

@@ -1,17 +1,6 @@
 # SiliconBeest Vue Frontend
 
-The web frontend for SiliconBeest. A single-page application built with Vue 3 and deployed to Cloudflare Workers (via the Cloudflare Vite plugin).
-
-> Version **0.1.0**
-
----
-
-## What It Does
-
-- Provides a web interface for interacting with the SiliconBeest Mastodon-compatible API.
-- Renders timelines, profiles, notifications, and conversations.
-- Handles OAuth 2.0 login flows.
-- Supports server-side rendering and edge deployment via the Cloudflare Vite plugin.
+The web frontend for SiliconBeest. A single-page application built with Vue 3, deployed to Cloudflare Workers via the Cloudflare Vite plugin.
 
 ---
 
@@ -20,43 +9,225 @@ The web frontend for SiliconBeest. A single-page application built with Vue 3 an
 | Technology                  | Purpose                            |
 | --------------------------- | ---------------------------------- |
 | Vue 3                       | Reactive UI framework              |
-| Vue Router 5                | Client-side routing                |
+| Vue Router 5                | Client-side routing with auth guards |
 | Vite 7                      | Build tool and dev server          |
 | TypeScript                  | Type safety                        |
+| Tailwind CSS 4              | Utility-first styling              |
+| @tailwindcss/typography     | Prose content styling              |
+| Pinia 3                     | State management                   |
+| vue-i18n 11                 | Internationalization               |
+| @headlessui/vue             | Accessible UI components           |
+| @vueuse/core                | Vue composition utilities          |
+| @sentry/vue                 | Error tracking (optional)          |
 | @cloudflare/vite-plugin     | Cloudflare Workers deployment      |
-| vite-plugin-vue-devtools    | Development tooling                |
+| Vitest + @vue/test-utils    | Unit and component testing         |
 
 ---
 
-## Project Structure
+## Features
 
-```
-src/
-  App.vue                # Root application component
-  main.ts                # App entry point, plugin registration
-  assets/                # Static assets (CSS, images)
-  components/
-    icons/               # SVG icon components
-    HelloWorld.vue       # Example component
-    TheWelcome.vue       # Welcome page component
-    WelcomeItem.vue      # Welcome item component
-  views/
-    HomeView.vue         # Home page view
-    AboutView.vue        # About page view
-  router/
-    index.ts             # Vue Router configuration
-```
+- **Responsive design** -- mobile-first layout with Tailwind CSS
+- **Dark mode** -- system-aware and manual toggle
+- **Internationalization** -- 12 locales with lazy loading (en, ko, ja, zh-CN, zh-TW, es, fr, de, pt-BR, ru, ar, id)
+- **RTL support** -- Arabic locale includes RTL layout
+- **OAuth 2.0** -- full login flow including third-party app authorization
+- **Two-factor authentication** -- TOTP setup and verification
+- **Password reset** -- forgot password and reset flows
+- **Sentry integration** -- optional error tracking (enabled via `VITE_SENTRY_DSN`)
+- **Infinite scroll** -- paginated timeline loading
+- **WebSocket streaming** -- real-time timeline and notification updates
+- **Web Push** -- notification subscription management
+- **Admin dashboard** -- full administration interface
 
 ---
 
-## Pages and Routes
+## Views (38 files)
 
-| Route   | View             | Description     |
-| ------- | ---------------- | --------------- |
-| `/`     | `HomeView.vue`   | Home page       |
-| `/about`| `AboutView.vue`  | About page      |
+### Public
 
-Additional routes will be added as the frontend is built out to support timelines, profiles, notifications, settings, and the admin panel.
+| View | Route | Description |
+|------|-------|-------------|
+| `LandingView` | `/` | Landing page (redirects to `/home` if authenticated) |
+| `ExploreView` | `/explore` | Public/federated timeline |
+| `AboutView` | `/about`, `/about/more` | Instance information |
+| `SearchView` | `/search` | Search accounts, statuses, hashtags |
+| `TagTimelineView` | `/tags/:tag` | Hashtag timeline |
+| `ProfileView` | `/@:acct` | User profile |
+| `FollowListView` | `/@:acct/followers`, `/@:acct/following` | Followers/following lists |
+| `StatusDetailView` | `/@:acct/:statusId` | Status detail with thread context |
+| `NotFoundView` | `*` | 404 page |
+
+### Authentication
+
+| View | Route | Description |
+|------|-------|-------------|
+| `LoginView` | `/login` | Login form |
+| `RegisterView` | `/register` | Registration form |
+| `OAuthAuthorizeView` | `/oauth/authorize` | OAuth app authorization |
+| `ForgotPasswordView` | `/auth/forgot-password` | Password reset request |
+| `ResetPasswordView` | `/auth/reset-password` | Password reset form |
+
+### Authenticated
+
+| View | Route | Description |
+|------|-------|-------------|
+| `HomeView` | `/home` | Home timeline |
+| `NotificationsView` | `/notifications` | Notifications |
+| `ConversationsView` | `/conversations` | Direct message conversations |
+| `BookmarksView` | `/bookmarks` | Bookmarked statuses |
+| `FavouritesView` | `/favourites` | Favourited statuses |
+| `ListsView` | `/lists` | User lists |
+| `ListTimelineView` | `/lists/:id` | List timeline |
+| `FollowRequestsView` | `/follow-requests` | Pending follow requests |
+
+### Settings
+
+| View | Route | Description |
+|------|-------|-------------|
+| `SettingsView` | `/settings` | Settings layout (parent) |
+| `SettingsProfileView` | `/settings/profile` | Edit profile |
+| `SettingsAccountView` | `/settings/account` | Account settings (password, 2FA) |
+| `SettingsAppearanceView` | `/settings/appearance` | Theme and display |
+| `SettingsNotificationsView` | `/settings/notifications` | Notification preferences |
+| `SettingsFiltersView` | `/settings/filters` | Content filters |
+
+### Admin
+
+| View | Route | Description |
+|------|-------|-------------|
+| `AdminDashboardView` | `/admin` | Admin dashboard |
+| `AdminAccountsView` | `/admin/accounts` | Account management |
+| `AdminReportsView` | `/admin/reports` | Report management |
+| `AdminDomainBlocksView` | `/admin/domain-blocks` | Domain blocks |
+| `AdminSettingsView` | `/admin/settings` | Instance settings |
+| `AdminAnnouncementsView` | `/admin/announcements` | Announcements |
+| `AdminRulesView` | `/admin/rules` | Server rules |
+| `AdminRelaysView` | `/admin/relays` | Relay management |
+| `AdminCustomEmojisView` | `/admin/custom-emojis` | Custom emoji management |
+| `AdminFederationView` | `/admin/federation` | Federation status |
+
+---
+
+## Components
+
+### Layout
+
+| Component | Description |
+|-----------|-------------|
+| `AppShell` | Main application shell (sidebar + content) |
+| `Sidebar` | Navigation sidebar |
+| `MobileNav` | Mobile bottom navigation |
+| `AdminLayout` | Admin section layout wrapper |
+
+### Status
+
+| Component | Description |
+|-----------|-------------|
+| `StatusCard` | Status display card |
+| `StatusContent` | Rendered status content (HTML, CW) |
+| `StatusActions` | Interaction buttons (reply, boost, favourite, bookmark, reactions) |
+| `StatusComposer` | Status composition form |
+| `MediaGallery` | Media attachment grid |
+| `PreviewCard` | URL preview card (OpenGraph) |
+
+### Account
+
+| Component | Description |
+|-----------|-------------|
+| `AccountCard` | Account display card |
+| `AccountHeader` | Profile header with stats |
+| `FollowButton` | Follow/unfollow button |
+
+### Auth
+
+| Component | Description |
+|-----------|-------------|
+| `LoginForm` | Login form with 2FA support |
+| `RegisterForm` | Registration form |
+| `TwoFactorForm` | TOTP verification form |
+
+### Notification
+
+| Component | Description |
+|-----------|-------------|
+| `NotificationItem` | Individual notification display |
+
+### Common
+
+| Component | Description |
+|-----------|-------------|
+| `Avatar` | User avatar with fallback |
+| `LoadingSpinner` | Loading indicator |
+| `Modal` | Dialog/modal component |
+| `Toast` | Toast notification |
+| `InfiniteScroll` | Infinite scroll pagination |
+| `ReportDialog` | Report submission dialog |
+
+### Settings
+
+| Component | Description |
+|-----------|-------------|
+| `LanguageSelector` | Language picker dropdown |
+
+### Timeline
+
+| Component | Description |
+|-----------|-------------|
+| `TimelineFeed` | Timeline rendering with infinite scroll |
+
+---
+
+## Stores (Pinia)
+
+| Store | File | Description |
+|-------|------|-------------|
+| `auth` | `stores/auth.ts` | Authentication state, token management, login/logout |
+| `accounts` | `stores/accounts.ts` | Account data cache, follow/block/mute actions |
+| `statuses` | `stores/statuses.ts` | Status data cache, favourite/reblog/bookmark actions |
+| `timelines` | `stores/timelines.ts` | Timeline pagination and caching |
+| `notifications` | `stores/notifications.ts` | Notification list and management |
+| `compose` | `stores/compose.ts` | Status composition state |
+| `instance` | `stores/instance.ts` | Instance information and configuration |
+| `ui` | `stores/ui.ts` | UI state (theme, sidebar, modals) |
+
+---
+
+## API Modules
+
+| Module | File | Description |
+|--------|------|-------------|
+| `client` | `api/client.ts` | HTTP client with auth headers and error handling |
+| `streaming` | `api/streaming.ts` | WebSocket streaming client |
+| `accounts` | `api/mastodon/accounts.ts` | Account API calls |
+| `statuses` | `api/mastodon/statuses.ts` | Status API calls |
+| `timelines` | `api/mastodon/timelines.ts` | Timeline API calls |
+| `notifications` | `api/mastodon/notifications.ts` | Notification API calls |
+| `instance` | `api/mastodon/instance.ts` | Instance API calls |
+| `search` | `api/mastodon/search.ts` | Search API calls |
+| `media` | `api/mastodon/media.ts` | Media upload API calls |
+| `bookmarks` | `api/mastodon/bookmarks.ts` | Bookmark API calls |
+| `favourites` | `api/mastodon/favourites.ts` | Favourite API calls |
+| `oauth` | `api/mastodon/oauth.ts` | OAuth API calls |
+| `admin` | `api/mastodon/admin.ts` | Admin API calls |
+| `reports` | `api/mastodon/reports.ts` | Report API calls |
+
+---
+
+## Internationalization
+
+Bundled locales: **en** (English) and **ko** (Korean) are included in the main bundle.
+
+Lazy-loaded locales (12 total): ja, zh-CN, zh-TW, es, fr, de, pt-BR, ru, ar (RTL), id.
+
+Language detection uses `navigator.language` with fallback to English.
+
+---
+
+## Route Guards
+
+- `requireAuth` -- redirects to `/login` if not authenticated
+- `requireAdmin` -- redirects to `/home` if not an admin
+- `redirectIfAuthenticated` -- redirects to `/home` if already logged in (for login/register pages)
 
 ---
 
@@ -78,15 +249,13 @@ npm install
 npm run dev
 ```
 
-This starts the Vite dev server with hot module replacement. The app will be available at `http://localhost:5173` by default.
+This starts the Vite dev server with hot module replacement at `http://localhost:5173`.
 
 ### Type Checking
 
 ```bash
 npm run type-check
 ```
-
-Runs `vue-tsc` to verify TypeScript types across all `.vue` and `.ts` files.
 
 ---
 
@@ -98,7 +267,7 @@ Runs `vue-tsc` to verify TypeScript types across all `.vue` and `.ts` files.
 npm run build
 ```
 
-This runs type checking and Vite production build in parallel.
+Runs type checking and Vite production build in parallel.
 
 ### Preview (local Workers preview)
 
@@ -106,15 +275,11 @@ This runs type checking and Vite production build in parallel.
 npm run preview
 ```
 
-Builds the project and starts a local Wrangler dev server to preview the Workers deployment.
-
 ### Deploy to Cloudflare
 
 ```bash
 npm run deploy
 ```
-
-Builds the project and deploys to Cloudflare Workers using Wrangler.
 
 ### Generate Cloudflare Types
 
@@ -122,38 +287,32 @@ Builds the project and deploys to Cloudflare Workers using Wrangler.
 npm run cf-typegen
 ```
 
-Regenerates TypeScript types for Cloudflare bindings after changing `wrangler.jsonc`.
-
 ---
 
-## Adding New Pages
+## Testing
 
-1. Create a new view component in `src/views/`:
+The project uses [Vitest](https://vitest.dev/) with [happy-dom](https://github.com/nicedoc/happy-dom) and [@vue/test-utils](https://test-utils.vuejs.org/) for unit and component testing.
 
-```vue
-<script setup lang="ts">
-// component logic
-</script>
+```bash
+# Run all tests
+npm test
 
-<template>
-  <div>
-    <h1>My New Page</h1>
-  </div>
-</template>
+# Watch mode
+npm run test:watch
 ```
 
-2. Add a route in `src/router/index.ts`:
+### Test Files (11 files)
 
-```typescript
-{
-  path: '/my-page',
-  name: 'my-page',
-  component: () => import('../views/MyPageView.vue'),
-}
-```
-
----
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) with the [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) extension (disable Vetur if installed).
+| Test File | Coverage |
+|-----------|----------|
+| `test/stores/auth.test.ts` | Auth store (login, logout, token management) |
+| `test/stores/ui.test.ts` | UI store (theme, sidebar state) |
+| `test/stores/statuses.test.ts` | Status store (favourite, reblog, bookmark actions) |
+| `test/stores/timelines.test.ts` | Timeline store (pagination, caching) |
+| `test/components/Avatar.test.ts` | Avatar component rendering |
+| `test/components/LoadingSpinner.test.ts` | Loading spinner component |
+| `test/components/StatusActions.test.ts` | Status action buttons |
+| `test/components/FollowButton.test.ts` | Follow button states |
+| `test/api/client.test.ts` | API client (headers, error handling) |
+| `test/i18n/i18n.test.ts` | i18n setup and locale loading |
+| `test/router/guards.test.ts` | Route guard behavior |

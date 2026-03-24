@@ -7,6 +7,7 @@ import {
 	extractKeyIdFromSignatureInput,
 } from '../../federation/httpSignatures';
 import { verifyLDSignature } from '../../federation/ldSignatures';
+import { verifyProof } from '../../federation/integrityProofs';
 import { processInboxActivity } from '../../federation/inboxProcessors';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -101,6 +102,14 @@ async function verifyRequestSignature(
 }
 
 app.post('/:username/inbox', async (c) => {
+	// Validate Content-Type
+	const contentType = c.req.header('content-type') || '';
+	if (!contentType.includes('application/activity+json') &&
+	    !contentType.includes('application/ld+json') &&
+	    !contentType.includes('application/json')) {
+		return c.json({ error: 'Unsupported content type' }, 415);
+	}
+
 	const username = c.req.param('username');
 
 	// Verify the target user exists locally
@@ -150,6 +159,44 @@ app.post('/:username/inbox', async (c) => {
 
 	if (!signatureVerified) {
 		return c.json({ error: 'Invalid or missing signature' }, 401);
+	}
+
+	// Additionally verify Object Integrity Proof if present (FEP-8b32)
+	// This is an ADDITIONAL verification, not a replacement for HTTP sig
+	if (activity.proof) {
+		try {
+			const proof = activity.proof as { verificationMethod?: string };
+			if (proof.verificationMethod) {
+				// Fetch the actor document to get the Ed25519 public key
+				const actorUri = (typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id) ?? '';
+				const actorResponse = await fetch(actorUri, {
+					headers: { Accept: 'application/activity+json, application/ld+json' },
+				});
+				if (actorResponse.ok) {
+					const actorDoc = await actorResponse.json() as {
+						assertionMethod?: Array<{ id?: string; type?: string; publicKeyMultibase?: string }>;
+					};
+					if (actorDoc.assertionMethod && Array.isArray(actorDoc.assertionMethod)) {
+						const keyEntry = actorDoc.assertionMethod.find(
+							(k) => k.id === proof.verificationMethod && k.publicKeyMultibase,
+						);
+						if (keyEntry?.publicKeyMultibase) {
+							const proofValid = await verifyProof(
+								activity as unknown as Record<string, unknown>,
+								keyEntry.publicKeyMultibase,
+							);
+							if (proofValid) {
+								console.log(`[inbox] Object Integrity Proof verified for ${activity.id}`);
+							} else {
+								console.warn(`[inbox] Object Integrity Proof verification failed for ${activity.id}`);
+							}
+						}
+					}
+				}
+			}
+		} catch (err) {
+			console.warn(`[inbox] Error verifying Object Integrity Proof:`, err);
+		}
 	}
 
 	// Idempotency check: skip if we have already processed this activity

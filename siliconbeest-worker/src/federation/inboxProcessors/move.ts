@@ -9,6 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
+import { buildFollowActivity } from '../activityBuilder';
 
 export async function processMove(
 	activity: APActivity,
@@ -60,8 +61,40 @@ export async function processMove(
 		.bind(newAccount.id, now, oldAccount.id)
 		.run();
 
-	// TODO: For each local follower of the old account, enqueue a follow
-	// of the new account. This is complex (needs alsoKnownAs verification)
-	// and should be implemented as a separate queue job.
+	// Re-follow: for each local follower of the old account, enqueue a Follow
+	// activity to the new account so they automatically migrate.
+	try {
+		const { results: localFollowers } = await env.DB.prepare(
+			`SELECT a.id, a.uri, a.username
+			 FROM follows f
+			 JOIN accounts a ON a.id = f.account_id
+			 WHERE f.target_account_id = ?1 AND a.domain IS NULL`,
+		)
+			.bind(oldAccount.id)
+			.all<{ id: string; uri: string; username: string }>();
+
+		const newActorAccount = await env.DB.prepare(
+			`SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1 LIMIT 1`,
+		)
+			.bind(newAccount.id)
+			.first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
+
+		if (newActorAccount && localFollowers) {
+			const newInbox = newActorAccount.inbox_url || newActorAccount.shared_inbox_url || `https://${newActorAccount.domain}/inbox`;
+			for (const follower of localFollowers) {
+				const followActivity = buildFollowActivity(follower.uri, newActorAccount.uri);
+				await env.QUEUE_FEDERATION.send({
+					type: 'deliver_activity',
+					activity: followActivity,
+					inboxUrl: newInbox,
+					actorAccountId: follower.id,
+				});
+			}
+			console.log(`[move] Enqueued re-follow for ${localFollowers.length} local followers: ${oldAccountUri} -> ${newAccountUri}`);
+		}
+	} catch (err) {
+		console.error(`[move] Error enqueuing re-follows:`, err);
+	}
+
 	console.log(`[move] Recorded move: ${oldAccountUri} -> ${newAccountUri}`);
 }

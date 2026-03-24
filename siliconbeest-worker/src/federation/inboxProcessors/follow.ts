@@ -103,7 +103,7 @@ export async function processFollow(
 		});
 
 		// Send Accept(Follow) back to the follower's inbox
-		const acceptActivity = buildAcceptActivity(targetAccount.uri, activity);
+		const acceptActivity = buildAcceptActivity(targetAccount.uri, activity, activity.actor);
 
 		// Look up the remote actor's inbox to deliver the Accept
 		const remoteActor = await env.DB.prepare(

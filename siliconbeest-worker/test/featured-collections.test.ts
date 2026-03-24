@@ -27,7 +27,7 @@ describe('Featured Collections (ActivityPub)', () => {
       expect(res.status).toBe(200);
       const body = await res.json<Record<string, any>>();
 
-      expect(body['@context']).toBe('https://www.w3.org/ns/activitystreams');
+      expect(body['@context']).toEqual(['https://www.w3.org/ns/activitystreams']);
       expect(body.type).toBe('OrderedCollection');
       expect(body.id).toBe(`https://${DOMAIN}/users/featureduser/collections/featured`);
       expect(body.totalItems).toBe(0);
@@ -81,7 +81,7 @@ describe('Featured Collections (ActivityPub)', () => {
       expect(res.status).toBe(200);
       const body = await res.json<Record<string, any>>();
 
-      expect(body['@context']).toBe('https://www.w3.org/ns/activitystreams');
+      expect(body['@context']).toEqual(['https://www.w3.org/ns/activitystreams']);
       expect(body.type).toBe('OrderedCollection');
       expect(body.id).toBe(`https://${DOMAIN}/users/featureduser/collections/tags`);
       expect(body.totalItems).toBe(0);

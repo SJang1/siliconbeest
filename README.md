@@ -4,26 +4,65 @@
 
 SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/api/)-compatible social networking server built entirely on the Cloudflare developer platform. It federates with the wider Fediverse via [ActivityPub](https://www.w3.org/TR/activitypub/) and can be deployed to a global edge network with zero traditional server infrastructure.
 
-> Version **0.1.0** — Early development
-
 > **Warning: Do not change your instance domain after federating.** ActivityPub actor URIs contain the domain and are permanent identifiers across the Fediverse. Changing the domain after other servers have cached your actors will break all existing federation relationships, followers, and conversations. Choose your domain carefully before launch.
 
 ---
 
 ## Features
 
-- **Mastodon API compatible** — works with existing clients (Tusky, Elk, Ice Cubes, Ivory, etc.)
-- **ActivityPub federation** — interoperate with Mastodon, Misskey, Pleroma, and any ActivityPub server
-- **OAuth 2.0 + PKCE + TOTP 2FA** — standards-compliant authentication
-- **Google OAuth SSO** — optional single sign-on (extensible to other providers)
-- **Cloudflare Zero Trust** — optional enterprise SSO integration
-- **Internationalization** — 12 language packs with lazy loading (en, ko, ja, zh-CN, zh-TW, es, fr, de, pt-BR, ru, ar, id)
-- **Admin panel** — account management, domain blocks, IP blocks, reports, rules, instance settings
-- **Web Push notifications** — VAPID + RFC 8291 encrypted push
-- **WebSocket streaming** — live updates via Cloudflare Durable Objects
-- **Media uploads** — R2 storage with async thumbnail processing
-- **Optional Sentry** — error tracking (admin opt-in via environment variable)
-- **Registration control** — open, approval-required, or closed (like Mastodon)
+### Mastodon API Compatibility
+- **Full Mastodon API v1/v2** -- works with existing clients (Tusky, Elk, Ice Cubes, Ivory, Mona, etc.)
+- Accounts, statuses, timelines, notifications, conversations, lists, filters, polls, tags, bookmarks, favourites, search
+- Admin API for moderation (accounts, reports, domain blocks, domain allows, IP blocks, email domain blocks, rules, settings, announcements, custom emojis, relays, measures)
+
+### Federation
+- **ActivityPub** server-to-server protocol
+- **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing
+- **RFC 9421 double-knock** -- modern HTTP Message Signatures for delivery
+- **Linked Data Signatures** -- signing and verification for relay forwarding
+- **Ed25519 Object Integrity Proofs** (FEP-8b32) -- `ed25519-jcs-2022` cryptosuite
+- **Activity forwarding** with original signature preservation
+- **Collection pagination** (OrderedCollection / OrderedCollectionPage)
+- **Activity idempotency** -- deduplication of incoming activities
+- **Instance actor** for relay and instance-level activities
+
+### Interoperability
+- **Misskey extensions** -- emoji reactions (`EmojiReact`), `_misskey_content`, `_misskey_quote`
+- **FEP-8b32** -- Object Integrity Proofs (Ed25519)
+- **FEP-8fcf** -- Followers Collection Synchronization
+- **FEP-67ff** -- FEDERATION.md
+- **FEP-e232** -- Quote Posts (`quoteUri`)
+- **Featured collections** (pinned posts) via `Add`/`Remove`
+- **Custom emoji** (local and remote)
+- **Relay support** (admin-managed subscriptions)
+
+### Authentication and Security
+- **OAuth 2.0 + PKCE** -- standards-compliant authorization flows
+- **TOTP two-factor authentication** (RFC 6238)
+- **Google OAuth SSO** -- optional single sign-on (extensible)
+- **Cloudflare Zero Trust** -- optional enterprise SSO integration
+- **Registration control** -- open, approval-required, or closed
+
+### Real-Time and Notifications
+- **WebSocket streaming** -- live timeline updates via Cloudflare Durable Objects
+- **Web Push notifications** -- VAPID (RFC 8292) + RFC 8291 encryption
+
+### Content
+- **URL preview cards** -- OpenGraph metadata fetching
+- **Media uploads** -- R2 storage with async thumbnail processing
+- **Polls** -- create and vote
+- **Content warnings** and sensitive media flags
+- **HTML sanitization** and content parsing (mentions, hashtags, links)
+
+### Frontend
+- **Internationalization** -- 12 language packs with lazy loading (en, ko, ja, zh-CN, zh-TW, es, fr, de, pt-BR, ru, ar, id)
+- **Dark mode** -- system-aware and manual toggle
+- **Responsive design** -- mobile-first with Tailwind CSS
+- **Admin dashboard** -- accounts, reports, domain blocks, rules, settings, announcements, relays, custom emojis, federation
+
+### Operations
+- **Email** -- SMTP via worker-mailer (password reset, notifications)
+- **Sentry integration** -- optional error tracking (admin opt-in)
 
 ---
 
@@ -83,6 +122,7 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 | Streaming     | Cloudflare Durable Objects (Hibernatable WS)|
 | Auth          | bcryptjs, OAuth 2.0, TOTP (RFC 6238)        |
 | Web Push      | VAPID (RFC 8292) + RFC 8291 encryption      |
+| Email         | worker-mailer (SMTP)                        |
 | IDs           | ULID (time-sortable)                        |
 | i18n          | vue-i18n (frontend) + custom (API errors)   |
 | Error Track   | Sentry (optional)                           |
@@ -152,18 +192,6 @@ The script automatically:
 ./scripts/deploy.sh
 ```
 
-The `--domain` flag automatically:
-- Updates `INSTANCE_DOMAIN` in worker configuration
-- Configures Cloudflare Workers Routes:
-  - `social.example.com/api/*` → API Worker
-  - `social.example.com/oauth/*` → API Worker
-  - `social.example.com/.well-known/*` → API Worker
-  - `social.example.com/users/*` → API Worker
-  - `social.example.com/inbox` → API Worker
-  - `social.example.com/nodeinfo/*` → API Worker
-  - `social.example.com/*` → Vue Frontend (catch-all)
-- Deploys all 3 workers
-
 ### 4. DNS
 
 If using a subdomain (e.g., `social.example.com`), add a DNS record in Cloudflare:
@@ -172,49 +200,20 @@ If using a subdomain (e.g., `social.example.com`), add a DNS record in Cloudflar
 |------|------|---------|-------|
 | AAAA | social | 100:: | Proxied |
 
-(The `100::` is a dummy address — Cloudflare Workers routes handle the traffic.)
+(The `100::` is a dummy address -- Cloudflare Workers routes handle the traffic.)
 
----
-
-## Deployment Options
-
-### Deploy Flags
-
-```bash
-./scripts/deploy.sh [OPTIONS]
-
-Options:
-  --domain <domain>   Configure custom domain routes
-  --dry-run           Show what would be deployed without deploying
-  --skip-migrations   Skip D1 migration step
-  -h, --help          Show help
-```
-
-### Individual Worker Deployment
-
-```bash
-# Deploy only the API worker
-cd siliconbeest-worker && npx wrangler deploy
-
-# Deploy only the queue consumer
-cd siliconbeest-queue-consumer && npx wrangler deploy
-
-# Deploy only the frontend
-cd siliconbeest-vue && npx wrangler deploy
-```
-
-### Cloudflare Bot Protection (CRITICAL)
+### 5. Cloudflare Bot Protection (CRITICAL)
 
 > **Without this step, federation is completely broken.**
 
-Cloudflare's Bot Fight Mode blocks ActivityPub traffic (403 to `/users/*`, `/inbox`). You must create a WAF **Skip** rule — see **[scripts/README.md](scripts/README.md#cloudflare-bot-protection-critical)** for full instructions.
+Cloudflare's Bot Fight Mode blocks ActivityPub traffic (403 to `/users/*`, `/inbox`). You must create a WAF **Skip** rule -- see **[scripts/README.md](scripts/README.md#cloudflare-bot-protection-critical)** for full instructions.
 
-### Updating an Existing Instance
+---
 
-When a new version is released:
+## Updating an Existing Instance
 
 ```bash
-# Full update: git pull → install deps → type check → tests → migrations → deploy
+# Full update: git pull -> install deps -> type check -> tests -> migrations -> deploy
 ./scripts/update.sh
 
 # With specific branch
@@ -222,65 +221,69 @@ When a new version is released:
 
 # Preview changes without deploying
 ./scripts/update.sh --dry-run
-
-# Skip tests for hotfixes (not recommended for regular updates)
-./scripts/update.sh --skip-tests
 ```
 
-The `update.sh` script performs these steps in order:
+See [scripts/README.md](scripts/README.md) for all update options and flags.
 
-1. **Git pull** — fetches and merges latest code (shows changelog)
-2. **Install dependencies** — runs `npm install` for all 3 projects
-3. **Type check** — `tsc --noEmit` for worker, `vue-tsc --noEmit` for frontend
-4. **Run tests** — 228 tests across worker (118) and frontend (110)
-5. **Database migrations** — applies any new migration files to remote D1
-6. **Build frontend** — `vite build` for Vue SPA
-7. **Deploy** — `wrangler deploy` for all 3 workers
+---
 
-If any step fails (type errors, test failures, migration errors), the script stops immediately and does not deploy.
+## Project Structure
+
+```
+siliconbeest/
+  siliconbeest-worker/          # API server (Hono on Workers)
+  siliconbeest-queue-consumer/  # Async job processor (Queues consumer)
+  siliconbeest-vue/             # Web frontend (Vue 3 SPA)
+  scripts/                      # Setup, deploy, and maintenance scripts
+  FEDERATION.md                 # Federation capabilities (FEP-67ff)
+```
+
+See each sub-project README for details:
+
+- [siliconbeest-worker/](siliconbeest-worker/) -- API Worker ([README](siliconbeest-worker/README.md))
+- [siliconbeest-queue-consumer/](siliconbeest-queue-consumer/) -- Queue Consumer ([README](siliconbeest-queue-consumer/README.md))
+- [siliconbeest-vue/](siliconbeest-vue/) -- Vue Frontend ([README](siliconbeest-vue/README.md))
+- [scripts/](scripts/) -- Setup, deploy, update, backup scripts ([README](scripts/README.md))
+
+---
+
+## Testing
 
 ```bash
-# Update flags
-./scripts/update.sh --help
+# API worker tests (48 test files)
+cd siliconbeest-worker && npm test
 
-Options:
-  --branch <name>   Git branch to pull (default: main)
-  --skip-pull       Skip git pull (deploy current working tree)
-  --skip-tests      Skip test step
-  --dry-run         Run checks without deploying
+# Vue frontend tests (11 test files)
+cd siliconbeest-vue && npm test
+
+# Run all tests
+cd siliconbeest-worker && npm test && cd ../siliconbeest-vue && npm test
 ```
 
-### Manual Update (Step by Step)
+| Suite | Test Files | Coverage Areas |
+|-------|------------|----------------|
+| Worker | 48 | Auth, OAuth, accounts, statuses, timelines, notifications, search, lists, markers, media, bookmarks, favourites, blocks/mutes, conversations, filters, tags, polls, reports, admin (accounts, roles, domain blocks, rules, announcements), ActivityPub, HTTP signatures, LD signatures, integrity proofs, collection pagination, activity idempotency, featured collections, emoji reactions, custom emojis, quote posts, WebFinger, NodeInfo, content parsing, serializers, sanitization, ULID, instance, discovery, passwords |
+| Vue | 11 | Stores (auth, ui, statuses, timelines), components (Avatar, LoadingSpinner, StatusActions, FollowButton), API client, i18n, router guards |
 
-If you prefer manual control:
+---
 
-```bash
-# 1. Pull latest code
-git pull origin main
+## Scripts Quick Reference
 
-# 2. Install dependencies
-cd siliconbeest-worker && npm install && cd ..
-cd siliconbeest-queue-consumer && npm install && cd ..
-cd siliconbeest-vue && npm install && cd ..
+All scripts read resource names from [`scripts/config.sh`](scripts/config.sh). Customize by setting `PROJECT_PREFIX` or creating `scripts/config.env` (see [`scripts/config.env.example`](scripts/config.env.example)).
 
-# 3. Run tests
-cd siliconbeest-worker && npm test && cd ..
-cd siliconbeest-vue && npm test && cd ..
+| Script | What it does |
+|--------|-------------|
+| `./scripts/setup.sh` | Interactive first-time setup (creates resources, keys, admin) |
+| `./scripts/deploy.sh --domain social.example.com` | Deploy with custom domain routing |
+| `./scripts/update.sh` | Pull, test, migrate, redeploy (production updates) |
+| `./scripts/backup.sh` | Backup D1 + R2 data |
+| `./scripts/migrate.sh` | Apply D1 database migrations |
+| `./scripts/seed-admin.sh` | Create an admin user account |
+| `./scripts/delete-account.sh` | AP-compliant account deletion (sends Delete to all peers) |
+| `./scripts/generate-vapid-keys.sh` | Generate/rotate VAPID key pair |
+| `./scripts/configure-domain.sh` | Set up Workers Routes for a custom domain |
 
-# 4. Apply migrations (reads DB name from wrangler.jsonc)
-cd siliconbeest-worker && npx wrangler d1 migrations apply siliconbeest-db --remote && cd ..
-
-# 5. Deploy
-./scripts/deploy.sh --skip-migrations  # migrations already applied above
-```
-
-### Domain Configuration (Standalone)
-
-If you need to change the domain after initial deployment:
-
-```bash
-./scripts/configure-domain.sh social.example.com
-```
+See the full [scripts documentation](scripts/README.md) for all options and flags.
 
 ---
 
@@ -293,16 +296,6 @@ If you need to change the domain after initial deployment:
 | `VAPID_PRIVATE_KEY` | worker, queue-consumer | `setup.sh` |
 | `VAPID_PUBLIC_KEY` | worker, queue-consumer | `setup.sh` |
 | `OTP_ENCRYPTION_KEY` | worker | `setup.sh` |
-
-Secrets are set via `wrangler secret put`. To rotate:
-
-```bash
-# Regenerate VAPID keys
-./scripts/generate-vapid-keys.sh --set-secrets
-
-# Regenerate OTP encryption key (WARNING: invalidates existing 2FA)
-openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name siliconbeest-worker
-```
 
 ### Environment Variables (in wrangler.jsonc)
 
@@ -318,30 +311,20 @@ openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name siliconbees
 |----------|-------------|----------|
 | `VITE_INSTANCE_DOMAIN` | Instance domain (for meta tags) | Yes |
 | `VITE_VAPID_PUBLIC_KEY` | VAPID public key (for Web Push) | Yes |
-| `VITE_SENTRY_DSN` | Sentry DSN for error tracking | No (optional) |
-
-The `.env` file is auto-generated by `setup.sh`. To enable Sentry later:
-
-```bash
-# Edit the .env file
-echo "VITE_SENTRY_DSN=https://your-key@sentry.io/your-project" >> siliconbeest-vue/.env
-
-# Redeploy the frontend
-cd siliconbeest-vue && npx wrangler deploy
-```
+| `VITE_SENTRY_DSN` | Sentry DSN for error tracking | No |
 
 ---
 
 ## Local Development
 
 ```bash
-# Terminal 1 — API worker (port 8787)
+# Terminal 1 -- API worker (port 8787)
 cd siliconbeest-worker && npx wrangler dev
 
-# Terminal 2 — Queue consumer
+# Terminal 2 -- Queue consumer
 cd siliconbeest-queue-consumer && npx wrangler dev
 
-# Terminal 3 — Vue frontend (port 5173)
+# Terminal 3 -- Vue frontend (port 5173)
 cd siliconbeest-vue && npm run dev
 ```
 
@@ -349,100 +332,6 @@ For local D1, apply migrations first:
 
 ```bash
 cd siliconbeest-worker && npx wrangler d1 migrations apply siliconbeest-db --local
-```
-
----
-
-## Testing
-
-```bash
-# API worker tests (118 tests)
-cd siliconbeest-worker && npm test
-
-# Vue frontend tests (110 tests)
-cd siliconbeest-vue && npm test
-
-# Run all tests
-cd siliconbeest-worker && npm test && cd ../siliconbeest-vue && npm test
-```
-
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| Worker (API + Federation) | 118 | Auth, accounts, statuses, timelines, notifications, discovery, ActivityPub, admin, search, lists, markers, media |
-| Vue (Frontend) | 110 | Stores (auth, ui, statuses, timelines), components (Avatar, Spinner, StatusActions, FollowButton), API client, i18n, router guards |
-| **Total** | **228** | |
-
----
-
-## Maintenance
-
-### Backup
-
-```bash
-./scripts/backup.sh                  # Backup D1 + R2
-./scripts/backup.sh --skip-r2       # D1 only
-./scripts/backup.sh --output-dir /path/to/backup
-```
-
-### Database Migrations
-
-```bash
-./scripts/migrate.sh --local         # Apply to local D1
-./scripts/migrate.sh --remote        # Apply to production
-./scripts/migrate.sh --dry-run       # Preview pending migrations
-```
-
-To create a new migration:
-
-```bash
-# Create a new migration file
-touch siliconbeest-worker/migrations/0002_add_reactions.sql
-
-# Write your SQL (example)
-cat > siliconbeest-worker/migrations/0002_add_reactions.sql << 'SQL'
-CREATE TABLE reactions (
-  id          TEXT PRIMARY KEY,
-  account_id  TEXT NOT NULL REFERENCES accounts(id),
-  status_id   TEXT NOT NULL REFERENCES statuses(id),
-  name        TEXT NOT NULL,
-  created_at  TEXT NOT NULL,
-  UNIQUE(account_id, status_id, name)
-);
-CREATE INDEX idx_reactions_status ON reactions(status_id);
-SQL
-
-# Test locally first
-./scripts/migrate.sh --local
-
-# Apply to production
-./scripts/migrate.sh --remote
-```
-
-Migrations are numbered sequentially (`0001_`, `0002_`, ...) and applied in order. D1 tracks which migrations have been applied — only new ones run.
-
-### Cloudflare Resource Names
-
-Resource names (D1 database, R2 bucket, KV namespaces, queues) are configured in each project's `wrangler.jsonc`. The deploy and migration scripts read these dynamically — they are **not hardcoded** in the scripts.
-
-If you need different resource names per environment (staging vs production):
-
-```bash
-# The resource names are in wrangler.jsonc:
-#   d1_databases[0].database_name  →  "siliconbeest-db"
-#   r2_buckets[0].bucket_name      →  "siliconbeest-media"
-#   kv_namespaces[0..1].id         →  KV namespace IDs
-#   queues.producers[0..1].queue   →  "siliconbeest-federation", "siliconbeest-internal"
-
-# To use different names, either:
-# 1. Edit wrangler.jsonc directly
-# 2. Use wrangler environments: wrangler deploy --env staging
-# 3. Run setup.sh again with different names (creates new resources)
-```
-
-### Admin User
-
-```bash
-./scripts/seed-admin.sh admin@example.com admin MyPassword123
 ```
 
 ---
@@ -461,38 +350,6 @@ Running on Cloudflare Workers Paid plan ($5/month base):
 | DO requests | ~300K (incl.) | ~3M ($0.30) |
 | Queues | ~100K (incl.) | ~1M (incl.) |
 | **Total** | **~$5/mo** | **~$7/mo** |
-
----
-
-## Project Structure
-
-```
-siliconbeest/
-  siliconbeest-worker/          # API server (Hono on Workers)
-  siliconbeest-queue-consumer/  # Async job processor (Queues consumer)
-  siliconbeest-vue/             # Web frontend (Vue 3 SPA)
-  scripts/                      # Setup, deploy, and maintenance scripts
-```
-
-See each sub-project README for details:
-
-- [siliconbeest-worker/](siliconbeest-worker/) — API Worker ([README](siliconbeest-worker/README.md))
-- [siliconbeest-queue-consumer/](siliconbeest-queue-consumer/) — Queue Consumer ([README](siliconbeest-queue-consumer/README.md))
-- [siliconbeest-vue/](siliconbeest-vue/) — Vue Frontend ([README](siliconbeest-vue/README.md))
-- [scripts/](scripts/) — Setup, deploy, update, backup scripts ([README](scripts/README.md))
-
-### Scripts Quick Reference
-
-All scripts read resource names from [`scripts/config.sh`](scripts/config.sh). Customize by setting `PROJECT_PREFIX` or creating `scripts/config.env` (see [`scripts/config.env.example`](scripts/config.env.example)).
-
-| Script | What it does |
-|--------|-------------|
-| `./scripts/setup.sh` | Interactive first-time setup (creates resources, keys, admin) |
-| `./scripts/deploy.sh --domain social.example.com` | Deploy with custom domain routing |
-| `./scripts/update.sh` | Pull, test, migrate, redeploy (production updates) |
-| `./scripts/backup.sh` | Backup D1 + R2 data |
-
-See the full [scripts documentation](scripts/README.md) for all options and flags.
 
 ---
 

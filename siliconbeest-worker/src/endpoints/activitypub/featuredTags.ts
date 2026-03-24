@@ -31,14 +31,14 @@ app.get('/:username/collections/tags', async (c) => {
 
 	return c.json(
 		{
-			'@context': 'https://www.w3.org/ns/activitystreams',
+			'@context': ['https://www.w3.org/ns/activitystreams'],
 			id: collectionUri,
 			type: 'OrderedCollection',
 			totalItems: 0,
 			orderedItems: [],
 		},
 		200,
-		{ 'Content-Type': 'application/activity+json; charset=utf-8' },
+		{ 'Content-Type': 'application/activity+json; charset=utf-8', 'Vary': 'Accept' },
 	);
 });
 

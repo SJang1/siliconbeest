@@ -26,13 +26,14 @@ app.get('/:username/following', async (c) => {
   // Without ?page: return the OrderedCollection summary
   if (!page) {
     return c.json({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': ['https://www.w3.org/ns/activitystreams'],
       id: collectionUri,
       type: 'OrderedCollection',
       totalItems: account.following_count,
       first: `${collectionUri}?page=1`,
     }, 200, {
       'Content-Type': 'application/activity+json; charset=utf-8',
+      'Vary': 'Accept',
     });
   }
 
@@ -69,7 +70,7 @@ app.get('/:username/following', async (c) => {
   const items = hasNext ? rows.slice(0, PAGE_SIZE) : rows;
 
   const pageObj: Record<string, unknown> = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ['https://www.w3.org/ns/activitystreams'],
     id: cursor
       ? `${collectionUri}?page=true&cursor=${cursor}`
       : `${collectionUri}?page=1`,
@@ -90,6 +91,7 @@ app.get('/:username/following', async (c) => {
 
   return c.json(pageObj, 200, {
     'Content-Type': 'application/activity+json; charset=utf-8',
+    'Vary': 'Accept',
   });
 });
 

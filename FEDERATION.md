@@ -26,14 +26,13 @@ This document describes the federation capabilities and standards supported by S
 | `Block` | `Actor` | Blocking a remote account |
 | `Move` | `Actor` | Account migration |
 | `Flag` | `Actor`, `Note` | Reporting a user or content |
+| `Add` | `Note` | Adding a status to featured collection (pin) |
+| `Remove` | `Note` | Removing a status from featured collection (unpin) |
 | `EmojiReact` | `Note` | Misskey-compatible emoji reaction |
 
 ### Inbound (Activities we process)
 
-All activities listed above are accepted and processed when received from remote servers, plus:
-
-- `Add` / `Remove` for featured collection management
-- `EmojiReact` (Misskey/Calckey emoji reactions on statuses)
+All activities listed above are accepted and processed when received from remote servers.
 
 ## Supported Object Types
 
@@ -43,6 +42,7 @@ All activities listed above are accepted and processed when received from remote
 | `Person` | User accounts |
 | `Service` | Bot accounts |
 | `Application` | Instance actor |
+| `Tombstone` | Deleted objects |
 
 ## HTTP Signatures
 
@@ -50,21 +50,41 @@ SiliconBeest supports the following HTTP signature methods for authenticating fe
 
 | Method | Support | Description |
 |--------|---------|-------------|
-| `draft-cavage-http-signatures` | Full | Legacy HTTP Signatures (draft-cavage-http-signatures-12). Used by most Mastodon-compatible software. RSA-SHA256 signing. |
-| RFC 9421 (HTTP Message Signatures) | Planned | Modern HTTP signature standard. |
-| Linked Data Signatures | Verification only | LD Signatures on activities are verified when present, used for relay forwarding. |
-| Object Integrity Proofs (FEP-8b32) | Verification only | Ed25519-based `DataIntegrityProof` with `ed25519-jcs-2022` cryptosuite. Verified on incoming activities when `proof` is present. |
+| `draft-cavage-http-signatures` | Full (sign + verify) | Legacy HTTP Signatures (draft-cavage-http-signatures-12). Used by most Mastodon-compatible software. RSA-SHA256 signing. |
+| RFC 9421 (HTTP Message Signatures) | Full (sign + verify) | Modern HTTP signature standard. Used as the preferred method with double-knock fallback to draft-cavage. |
+| Linked Data Signatures | Full (sign + verify) | LD Signatures on activities for relay forwarding and activity preservation. |
+| Object Integrity Proofs (FEP-8b32) | Full (create + verify) | Ed25519-based `DataIntegrityProof` with `ed25519-jcs-2022` cryptosuite. Created on outbound activities and verified on incoming activities when `proof` is present. |
+
+### Double-Knock Delivery Strategy
+
+When delivering activities to remote inboxes, SiliconBeest uses a "double-knock" strategy:
+1. First attempt uses RFC 9421 HTTP Message Signatures (preferred).
+2. If the recipient rejects with a signature error, falls back to draft-cavage HTTP Signatures.
+3. The recipient's preference is cached in KV for 7 days to avoid repeated fallbacks.
 
 ### Key Types
 
-- **RSA (RSASSA-PKCS1-v1_5, 2048-bit)**: Primary signing key, referenced via `publicKey` on Actor documents.
+- **RSA (RSASSA-PKCS1-v1_5, 2048-bit)**: Primary signing key for HTTP Signatures, referenced via `publicKey` on Actor documents.
 - **Ed25519**: Used for Object Integrity Proofs, referenced via `assertionMethod` using the `Multikey` type with `publicKeyMultibase` encoding.
+
+## Activity Forwarding
+
+SiliconBeest supports activity forwarding with original signature preservation. When a remote activity needs to be distributed to local followers, it is forwarded with the original HTTP headers intact so signature verification can succeed at the destination.
+
+## Activity Idempotency
+
+Incoming activities are deduplicated by their `id` field. If an activity with the same ID has already been processed, the duplicate is silently dropped.
 
 ## Extensions
 
 ### Misskey Emoji Reactions
 
 SiliconBeest supports receiving and sending emoji reactions using the `EmojiReact` activity type, compatible with Misskey, Calckey, Firefish, and other implementations.
+
+### Misskey Content Fields
+
+- `_misskey_content`: Recognized on incoming `Note` objects for Misskey-formatted content.
+- `_misskey_quote`: Recognized on incoming `Note` objects for quote post references.
 
 ### Conversation Field
 
@@ -86,6 +106,14 @@ SiliconBeest supports quote posts using the `quoteUri` property on `Note` object
 
 The `contentMap` property is supported on `Note` objects for specifying content language.
 
+### Featured Collections
+
+SiliconBeest supports the `featured` collection on actors for pinned posts. Actors expose their pinned statuses at `/users/:username/featured` as an `OrderedCollection`. The `Add` and `Remove` activities are used to manage featured items both inbound and outbound.
+
+### Featured Tags
+
+Actors expose featured tags at `/users/:username/featured_tags`.
+
 ## WebFinger
 
 SiliconBeest implements [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`.
@@ -97,7 +125,7 @@ SiliconBeest implements [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7
 
 ## NodeInfo
 
-SiliconBeest implements [NodeInfo 2.1](https://nodeinfo.diaspora.software/protocol) at `/.well-known/nodeinfo` and `/nodeinfo/2.1`.
+SiliconBeest implements [NodeInfo 2.1](https://nodeinfo.diaspora.software/protocol) at `/.well-known/nodeinfo` and `/nodeinfo/2.0`.
 
 Exposed metadata includes:
 - Software name and version
@@ -120,10 +148,11 @@ SiliconBeest supports ActivityPub relays for broader content distribution. Relay
 
 ## Collection Pagination
 
-All collection endpoints (followers, following, outbox) support pagination using `OrderedCollection` and `OrderedCollectionPage` with `next`/`prev` links, following the ActivityPub specification.
+All collection endpoints (followers, following, outbox, featured) support pagination using `OrderedCollection` and `OrderedCollectionPage` with `next`/`prev` links, following the ActivityPub specification.
 
 - Followers and following collections are paginated with a configurable page size
 - The outbox collection includes `Create(Note)` activities
+- The featured collection lists pinned statuses
 
 ## Addressing Model
 
@@ -140,7 +169,7 @@ SiliconBeest follows the Mastodon addressing convention:
 
 | FEP | Title | Status |
 |-----|-------|--------|
+| FEP-8b32 | Object Integrity Proofs | Full support (create + verify, Ed25519 `ed25519-jcs-2022`) |
 | FEP-8fcf | Followers Collection Synchronization | Supported (paginated followers collection, `alsoKnownAs` on actors) |
 | FEP-67ff | FEDERATION.md | This document |
 | FEP-e232 | Object Links (Quote Posts) | Supported (`quoteUri`, `_misskey_quote`) |
-| FEP-8b32 | Object Integrity Proofs | Verification supported |

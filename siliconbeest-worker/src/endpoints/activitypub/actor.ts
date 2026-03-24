@@ -28,6 +28,21 @@ app.get('/:username', async (c) => {
     return c.json({ error: 'Record not found' }, 404);
   }
 
+  // C2: Return Tombstone for suspended actors
+  if (account.suspended_at) {
+    const actorUri = `https://${domain}/users/${username}`;
+    return c.json({
+      '@context': ['https://www.w3.org/ns/activitystreams'],
+      id: actorUri,
+      type: 'Tombstone',
+      formerType: 'Person',
+      deleted: account.suspended_at,
+    }, 410, {
+      'Content-Type': 'application/activity+json; charset=utf-8',
+      'Vary': 'Accept',
+    });
+  }
+
   const actorKey = await c.env.DB.prepare(`
     SELECT * FROM actor_keys
     WHERE account_id = ?1
@@ -57,6 +72,7 @@ app.get('/:username', async (c) => {
   return c.json(actor, 200, {
     'Content-Type': 'application/activity+json; charset=utf-8',
     'Cache-Control': 'max-age=180, public',
+    'Vary': 'Accept',
   });
 });
 

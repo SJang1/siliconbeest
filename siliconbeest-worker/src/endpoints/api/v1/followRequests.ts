@@ -122,7 +122,7 @@ app.post('/:id/authorize', authRequired, async (c) => {
       const followActivity = buildFollowActivity(remoteAccount.uri, myUri);
       // Use the stored follow request URI if available
       if (fr.uri) followActivity.id = fr.uri as string;
-      const acceptActivity = buildAcceptActivity(myUri, followActivity);
+      const acceptActivity = buildAcceptActivity(myUri, followActivity, remoteAccount.uri);
       const inbox = remoteAccount.inbox_url || remoteAccount.shared_inbox_url || `https://${remoteAccount.domain}/inbox`;
       await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(acceptActivity), inbox, currentAccount.id);
     } catch (_) { /* don't fail the API response */ }
@@ -179,7 +179,7 @@ app.post('/:id/reject', authRequired, async (c) => {
       const myUri = `https://${domain}/users/${currentAccount.username}`;
       const followActivity = buildFollowActivity(remoteAccount2.uri, myUri);
       if (fr.uri) followActivity.id = fr.uri as string;
-      const rejectActivity = buildRejectActivity(myUri, followActivity);
+      const rejectActivity = buildRejectActivity(myUri, followActivity, remoteAccount2.uri);
       const inbox = remoteAccount2.inbox_url || remoteAccount2.shared_inbox_url || `https://${remoteAccount2.domain}/inbox`;
       await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(rejectActivity), inbox, currentAccount.id);
     } catch (_) { /* don't fail */ }

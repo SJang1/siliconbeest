@@ -23,6 +23,7 @@ function resolveVisibility(note: APObject): string {
 	if (ccArr.includes(publicNs)) return 'unlisted';
 	// If addressed to followers collection but not public
 	if (toArr.some((t) => t.endsWith('/followers'))) return 'private';
+	console.warn(`[create] Could not determine visibility for note ${note.id}, defaulting to 'direct'`);
 	return 'direct';
 }
 

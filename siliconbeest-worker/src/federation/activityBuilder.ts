@@ -12,6 +12,7 @@ import { generateUlid } from '../utils/ulid';
 const AP_CONTEXT: APContext = [
 	'https://www.w3.org/ns/activitystreams',
 	'https://w3id.org/security/v1',
+	'https://w3id.org/security/data-integrity/v1',
 ];
 
 /**
@@ -47,7 +48,7 @@ export function buildCreateActivity(actor: string, object: APNote): APActivity {
 		type: 'Create',
 		actor,
 		object,
-		published: new Date().toISOString(),
+		published: (object as any).published || new Date().toISOString(),
 		to: object.to,
 		cc: object.cc,
 	};
@@ -69,27 +70,35 @@ export function buildFollowActivity(actor: string, target: string): APActivity {
 /**
  * Build an Accept activity in response to a Follow.
  */
-export function buildAcceptActivity(actor: string, followActivity: APActivity): APActivity {
-	return {
+export function buildAcceptActivity(actor: string, followActivity: APActivity, to?: string): APActivity {
+	const activity: APActivity = {
 		'@context': AP_CONTEXT,
 		id: activityId(actor),
 		type: 'Accept',
 		actor,
 		object: followActivity,
 	};
+	if (to) {
+		activity.to = [to];
+	}
+	return activity;
 }
 
 /**
  * Build a Reject activity in response to a Follow.
  */
-export function buildRejectActivity(actor: string, followActivity: APActivity): APActivity {
-	return {
+export function buildRejectActivity(actor: string, followActivity: APActivity, to?: string): APActivity {
+	const activity: APActivity = {
 		'@context': AP_CONTEXT,
 		id: activityId(actor),
 		type: 'Reject',
 		actor,
 		object: followActivity,
 	};
+	if (to) {
+		activity.to = [to];
+	}
+	return activity;
 }
 
 /**
@@ -113,6 +122,7 @@ export function buildAnnounceActivity(
 	objectUri: string,
 	to: string[],
 	cc: string[],
+	published?: string,
 ): APActivity {
 	return {
 		'@context': AP_CONTEXT,
@@ -120,7 +130,7 @@ export function buildAnnounceActivity(
 		type: 'Announce',
 		actor,
 		object: objectUri,
-		published: new Date().toISOString(),
+		published: published || new Date().toISOString(),
 		to,
 		cc,
 	};

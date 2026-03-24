@@ -29,13 +29,13 @@ app.get('/:username/outbox', async (c) => {
   const countRow = await c.env.DB.prepare(`
     SELECT COUNT(*) AS cnt FROM statuses
     WHERE account_id = ?1 AND visibility IN ('public', 'unlisted')
-      AND deleted_at IS NULL AND reblog_of_id IS NULL
+      AND deleted_at IS NULL
   `).bind(account.id).first<{ cnt: number }>();
 
   if (!page) {
     // Return the OrderedCollection summary
     return c.json({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': ['https://www.w3.org/ns/activitystreams'],
       id: outboxUri,
       type: 'OrderedCollection',
       totalItems: countRow?.cnt ?? 0,
@@ -43,15 +43,15 @@ app.get('/:username/outbox', async (c) => {
       last: `${outboxUri}?page=true&min_id=0`,
     }, 200, {
       'Content-Type': 'application/activity+json; charset=utf-8',
+      'Vary': 'Accept',
     });
   }
 
-  // Return a page of activities
+  // Return a page of activities (includes both original posts and reblogs)
   const conditions: string[] = [
     'account_id = ?',
     `visibility IN ('public', 'unlisted')`,
     'deleted_at IS NULL',
-    'reblog_of_id IS NULL',
   ];
   const binds: (string | number)[] = [account.id];
 
@@ -80,11 +80,39 @@ app.get('/:username/outbox', async (c) => {
     convMap.set(cid, row?.ap_uri ?? null);
   }
 
+  // Resolve URIs for reblogged statuses
+  const reblogIds = rows.filter((r) => r.reblog_of_id).map((r) => r.reblog_of_id!);
+  const reblogUriMap = new Map<string, string>();
+  for (const reblogId of reblogIds) {
+    const reblogRow = await c.env.DB.prepare('SELECT uri FROM statuses WHERE id = ?1 LIMIT 1').bind(reblogId).first<{ uri: string }>();
+    if (reblogRow) {
+      reblogUriMap.set(reblogId, reblogRow.uri);
+    }
+  }
+
+  const followersUri = `${actorUri}/followers`;
+
   const orderedItems = rows.map((status) => {
+    // Reblogs become Announce activities
+    if (status.reblog_of_id) {
+      const originalUri = reblogUriMap.get(status.reblog_of_id) ?? status.reblog_of_id;
+      return {
+        '@context': ['https://www.w3.org/ns/activitystreams'],
+        id: `${status.uri}/activity`,
+        type: 'Announce',
+        actor: actorUri,
+        published: status.created_at,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [followersUri],
+        object: originalUri,
+      };
+    }
+
+    // Regular posts become Create activities
     const conversationApUri = status.conversation_id ? convMap.get(status.conversation_id) ?? null : null;
     const note = serializeNote(status, account, domain, { conversationApUri });
     return {
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': ['https://www.w3.org/ns/activitystreams'],
       id: `${status.uri}/activity`,
       type: 'Create',
       actor: actorUri,
@@ -96,7 +124,7 @@ app.get('/:username/outbox', async (c) => {
   });
 
   const pageObj: Record<string, unknown> = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ['https://www.w3.org/ns/activitystreams'],
     id: maxId ? `${outboxUri}?page=true&max_id=${maxId}` : `${outboxUri}?page=true`,
     type: 'OrderedCollectionPage',
     totalItems: countRow?.cnt ?? 0,
@@ -116,6 +144,7 @@ app.get('/:username/outbox', async (c) => {
 
   return c.json(pageObj, 200, {
     'Content-Type': 'application/activity+json; charset=utf-8',
+    'Vary': 'Accept',
   });
 });
 

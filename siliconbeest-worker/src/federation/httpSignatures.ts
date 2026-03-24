@@ -163,6 +163,23 @@ export async function signRequest(
 }
 
 // ============================================================
+// TIMESTAMP VALIDATION
+// ============================================================
+
+/**
+ * Check whether a Date header string (or Unix timestamp) is within
+ * ±maxAgeSeconds of the current time. Used to prevent replay attacks.
+ */
+export function isTimestampFresh(dateStr: string, maxAgeSeconds = 300): boolean {
+	const timestamp = Date.parse(dateStr);
+	if (isNaN(timestamp)) {
+		return false;
+	}
+	const diff = Math.abs(Date.now() - timestamp);
+	return diff <= maxAgeSeconds * 1000;
+}
+
+// ============================================================
 // VERIFICATION
 // ============================================================
 
@@ -214,6 +231,12 @@ export async function verifySignature(
 
 	const parsed = parseSignatureHeader(signatureHeader);
 	if (!parsed.signature || parsed.headers.length === 0) {
+		return false;
+	}
+
+	// Check Date header freshness to prevent replay attacks
+	const dateHeader = request.headers.get('Date');
+	if (dateHeader && !isTimestampFresh(dateHeader)) {
 		return false;
 	}
 
@@ -517,6 +540,15 @@ export async function verifySignatureRFC9421(
 	const parsed = parseSignatureInput(signatureInputHeader, label);
 	if (!parsed || parsed.components.length === 0) {
 		return false;
+	}
+
+	// Check created timestamp freshness to prevent replay attacks
+	if (parsed.created !== undefined) {
+		const createdMs = parsed.created * 1000;
+		const diff = Math.abs(Date.now() - createdMs);
+		if (diff > 300 * 1000) {
+			return false;
+		}
 	}
 
 	// Verify Content-Digest if the component list includes it

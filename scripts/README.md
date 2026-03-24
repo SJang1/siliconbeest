@@ -2,7 +2,7 @@
 
 Setup, deployment, and maintenance scripts for managing a SiliconBeest instance.
 
-All scripts share a central configuration via **`config.sh`** — no resource names are hardcoded.
+All scripts share a central configuration via **`config.sh`** -- no resource names are hardcoded.
 
 ---
 
@@ -14,7 +14,7 @@ Every script sources `config.sh` which defines all resource names based on a sin
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROJECT_PREFIX` | `siliconbeest` | Master prefix — changes all defaults |
+| `PROJECT_PREFIX` | `siliconbeest` | Master prefix -- changes all defaults |
 | `WORKER_NAME` | `{prefix}-worker` | API Worker name |
 | `CONSUMER_NAME` | `{prefix}-queue-consumer` | Queue Consumer name |
 | `VUE_NAME` | `{prefix}-vue` | Frontend Worker name |
@@ -61,6 +61,7 @@ export R2_BUCKET_NAME=my-media-bucket
 | [`seed-admin.sh`](#seed-adminsh) | Create an admin user account |
 | [`migrate.sh`](#migratesh) | Apply D1 database migrations |
 | [`backup.sh`](#backupsh) | Backup D1 database and R2 objects |
+| [`delete-account.sh`](#delete-accountsh) | AP-compliant account deletion |
 
 ---
 
@@ -73,7 +74,7 @@ Interactive first-time setup. Creates all Cloudflare resources, generates crypto
 ```
 
 Prompts for:
-- **Project prefix** (default: `siliconbeest`) — determines all resource names
+- **Project prefix** (default: `siliconbeest`) -- determines all resource names
 - **Instance domain** (e.g. `social.example.com`)
 - **Instance title**
 - **Registration mode** (open / approval / closed)
@@ -117,8 +118,8 @@ Build and deploy all 3 workers. Optionally configures custom domain routes.
 
 When `--domain` is used, it automatically:
 - Updates `INSTANCE_DOMAIN` in worker config
-- Injects API routes (`/api/*`, `/oauth/*`, etc.) → API Worker
-- Injects catch-all route (`/*`) → Vue Frontend
+- Injects API routes (`/api/*`, `/oauth/*`, `/.well-known/*`, `/users/*`, `/inbox`, `/nodeinfo/*`) to the API Worker
+- Injects catch-all route (`/*`) to the Vue Frontend
 - Deploys all workers
 
 ---
@@ -152,10 +153,12 @@ Steps performed:
 1. `git pull` (shows changelog)
 2. `npm install` for all projects
 3. TypeScript type check (worker + vue)
-4. Run tests (228 total)
+4. Run tests
 5. Apply D1 migrations
 6. Build frontend
 7. Deploy all workers
+
+If any step fails (type errors, test failures, migration errors), the script stops immediately and does not deploy.
 
 ---
 
@@ -243,9 +246,30 @@ Backups are saved to `./backups/{timestamp}/`.
 
 ---
 
+## delete-account.sh
+
+ActivityPub-compliant account deletion. Sends a `Delete(Actor)` activity to ALL known federated servers, then removes the account from the local database.
+
+**This is destructive and irreversible.**
+
+```bash
+# Dry run (shows what would happen)
+./scripts/delete-account.sh <username>
+
+# Actually execute
+./scripts/delete-account.sh <username> --confirm
+
+# Delete ALL accounts (server shutdown)
+./scripts/delete-account.sh --all --confirm
+```
+
+Follows the [ActivityPub Delete activity spec](https://www.w3.org/TR/activitypub/#delete-activity-outbound) -- remote servers should remove all cached data for the deleted actor.
+
+---
+
 ## Cloudflare Bot Protection (CRITICAL)
 
-Cloudflare's **Bot Fight Mode** and **Super Bot Fight Mode** block ActivityPub federation traffic — other Fediverse servers appear as "bots" and receive 403 responses on `/users/*` and `/inbox`.
+Cloudflare's **Bot Fight Mode** and **Super Bot Fight Mode** block ActivityPub federation traffic -- other Fediverse servers appear as "bots" and receive 403 responses on `/users/*` and `/inbox`.
 
 **You MUST create a WAF exception rule:**
 
@@ -258,7 +282,7 @@ Cloudflare's **Bot Fight Mode** and **Super Bot Fight Mode** block ActivityPub f
     http.request.uri.path matches "^/nodeinfo/.*" or
     http.request.uri.path matches "^/.well-known/.*")
    ```
-3. Action: **Skip** → check **All remaining custom rules** + **Super Bot Fight Mode**
+3. Action: **Skip** -- check **All remaining custom rules** + **Super Bot Fight Mode**
 4. Place it **FIRST** in your rule list (highest priority)
 
 **Verify:**
@@ -267,7 +291,7 @@ curl -H 'Accept: application/activity+json' https://your-domain.com/users/admin
 # Should return JSON, NOT an HTML challenge page
 ```
 
-Without this rule, federation is completely broken — no remote server can discover or interact with your instance.
+Without this rule, federation is completely broken -- no remote server can discover or interact with your instance.
 
 ---
 

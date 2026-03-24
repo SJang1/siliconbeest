@@ -62,14 +62,14 @@ app.get('/:username/collections/featured', async (c) => {
 
 	return c.json(
 		{
-			'@context': 'https://www.w3.org/ns/activitystreams',
+			'@context': ['https://www.w3.org/ns/activitystreams'],
 			id: collectionUri,
 			type: 'OrderedCollection',
 			totalItems: orderedItems.length,
 			orderedItems,
 		},
 		200,
-		{ 'Content-Type': 'application/activity+json; charset=utf-8' },
+		{ 'Content-Type': 'application/activity+json; charset=utf-8', 'Vary': 'Accept' },
 	);
 });
 

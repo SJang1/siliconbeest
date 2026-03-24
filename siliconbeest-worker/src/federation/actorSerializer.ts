@@ -37,6 +37,7 @@ export function serializeActor(
 		'@context': [
 			'https://www.w3.org/ns/activitystreams',
 			'https://w3id.org/security/v1',
+			'https://w3id.org/security/data-integrity/v1',
 			{
 				'toot': 'http://joinmastodon.org/ns#',
 				'Emoji': 'toot:Emoji',

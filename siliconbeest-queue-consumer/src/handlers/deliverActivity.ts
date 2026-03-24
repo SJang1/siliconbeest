@@ -312,9 +312,23 @@ export async function handleDeliverActivity(
   let response: Response;
 
   if (preference === 'cavage') {
-    // Domain is known to only accept draft-cavage — skip RFC 9421
+    // Domain is known to prefer draft-cavage — try it first
     const headers = await signRequestCavage(keyRow.private_key, keyId, inboxUrl, body);
     response = await fetch(inboxUrl, { method: 'POST', headers, body });
+
+    // If cavage fails with 401/403, try RFC 9421 as fallback
+    if (response.status === 401 || response.status === 403) {
+      console.log(
+        `[deliver] draft-cavage rejected by ${targetDomain} (${response.status}), falling back to RFC 9421`,
+      );
+      const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
+      response = await fetch(inboxUrl, { method: 'POST', headers: rfc9421Headers, body });
+
+      if (response.ok || response.status === 202) {
+        // RFC 9421 worked — update cached preference
+        await setSignaturePreference(targetDomain, 'rfc9421', env.CACHE);
+      }
+    }
   } else {
     // Try RFC 9421 first (default or known to support it)
     const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
