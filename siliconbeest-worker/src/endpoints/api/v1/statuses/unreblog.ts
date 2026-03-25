@@ -53,7 +53,7 @@ app.post('/:id/unreblog', authRequired, async (c) => {
     }
   }
 
-  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.reblogged = false;
   if (reblog) {
     status.reblogs_count = Math.max(0, status.reblogs_count - 1);

@@ -72,7 +72,7 @@ app.get('/:id', authRequired, async (c) => {
     ).bind(row.status_id).first();
 
     if (sr) {
-      const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id);
+      const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id, c.env.CACHE);
       const e = enrichments.get(sr.id);
       const saAcct = sr.sa_domain
         ? `${sr.sa_username}@${sr.sa_domain}`

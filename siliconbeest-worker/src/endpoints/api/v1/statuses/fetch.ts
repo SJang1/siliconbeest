@@ -84,9 +84,10 @@ async function serializeStatusEnriched(
   db: D1Database,
   domain: string,
   currentAccountId?: string | null,
+  cache?: KVNamespace,
 ) {
   const statusId = row.id as string;
-  const enrichments = await enrichStatuses(db, domain, [statusId], currentAccountId);
+  const enrichments = await enrichStatuses(db, domain, [statusId], currentAccountId, cache);
   const e = enrichments.get(statusId);
   const status = serializeStatus(row, domain, undefined, e?.accountEmojis);
   if (e) {
@@ -129,7 +130,7 @@ app.get('/:id', authOptional, async (c) => {
 
   if (!row) throw new AppError(404, 'Record not found');
 
-  return c.json(await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId));
+  return c.json(await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE));
 });
 
 export { STATUS_JOIN_SQL, serializeStatus, serializeStatusEnriched };

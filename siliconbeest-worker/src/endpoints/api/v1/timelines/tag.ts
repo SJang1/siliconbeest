@@ -67,7 +67,7 @@ app.get('/:tag', authOptional, async (c) => {
 
   const statusIds = (results ?? []).map((r: any) => r.id as string);
   const currentAccount = c.get('currentAccount');
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null);
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null, c.env.CACHE);
 
   const statuses = (results ?? []).map((row: any) => {
     const accountRow: AccountRow = {

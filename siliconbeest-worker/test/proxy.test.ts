@@ -140,7 +140,7 @@ describe('Proxy Endpoint', () => {
       expect(res.headers.get('Content-Type')).toBeTruthy();
     } else {
       // In offline/sandboxed test environments, fetch to external URLs may fail
-      expect([502, 403]).toContain(res.status);
+      expect([502, 403, 404]).toContain(res.status);
     }
   });
 

@@ -8,26 +8,53 @@
 import type { Env } from '../env';
 import type { TimelineFanoutMessage } from '../shared/types/queue';
 
-/** Extract :shortcode: patterns from HTML content and fetch emoji info from DB, matching by account domain */
-async function fetchEmojisForContent(
+/** Read emoji_tags JSON from the status and return proxied emoji objects */
+async function fetchEmojisForStatus(
   db: D1Database,
-  content: string | null,
-  accountDomain: string | null,
+  statusId: string,
+  instanceDomain: string,
 ): Promise<Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>> {
-  if (!content || !accountDomain) return [];
-  const matches = [...content.matchAll(/:([a-zA-Z0-9_]{2,}?):/g)];
-  if (matches.length === 0) return [];
-  const shortcodes = [...new Set(matches.map((m) => m[1]))];
-  const placeholders = shortcodes.map(() => '?').join(',');
-  const { results } = await db.prepare(
-    `SELECT shortcode, image_key, domain FROM custom_emojis WHERE shortcode IN (${placeholders}) AND domain = ?`,
-  ).bind(...shortcodes, accountDomain).all();
-  return (results ?? []).map((r: any) => ({
-    shortcode: r.shortcode as string,
-    url: (r.image_key as string).startsWith('http') ? r.image_key : `https://${r.domain}/emoji/${r.image_key}`,
-    static_url: (r.image_key as string).startsWith('http') ? r.image_key : `https://${r.domain}/emoji/${r.image_key}`,
-    visible_in_picker: false,
-  }));
+  const row = await db.prepare(
+    'SELECT emoji_tags, content, content_warning FROM statuses WHERE id = ?',
+  ).bind(statusId).first();
+  if (!row) return [];
+
+  const tagsJson = row.emoji_tags as string | null;
+  if (!tagsJson) return [];
+
+  let tags: Array<{ shortcode?: string; name?: string; url?: string; icon?: { url?: string } }> = [];
+  try { tags = JSON.parse(tagsJson); } catch { return []; }
+
+  // Extract shortcodes actually used in content
+  const text = ((row.content as string) || '') + ' ' + ((row.content_warning as string) || '');
+  const shortcodesInContent = new Set<string>();
+  const regex = /:([a-zA-Z0-9_]+):/g;
+  let m;
+  while ((m = regex.exec(text)) !== null) shortcodesInContent.add(m[1]);
+
+  return tags
+    .map((t) => {
+      const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+      const url = t.url || t.icon?.url || '';
+      if (!sc || !url || !shortcodesInContent.has(sc)) return null;
+      const proxied = url.startsWith('http')
+        ? `https://${instanceDomain}/proxy?url=${encodeURIComponent(url)}`
+        : url;
+      return { shortcode: sc, url: proxied, static_url: proxied, visible_in_picker: false };
+    })
+    .filter(Boolean) as Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>;
+}
+
+/** Fetch account emojis from emoji_tags of the account's display_name/note (stored in statuses or via custom_emojis) */
+async function fetchAccountEmojis(
+  _db: D1Database,
+  _displayName: string,
+  _note: string,
+  _domain: string | null,
+): Promise<Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>> {
+  // Account emojis are not stored in emoji_tags — they come from the actor document.
+  // For streaming payloads, we return empty and let the frontend handle display name emojis.
+  return [];
 }
 
 export async function handleTimelineFanout(
@@ -113,13 +140,14 @@ export async function handleTimelineFanout(
         .first();
 
       if (statusRow) {
-        // Fetch custom emojis referenced in content
-        const statusEmojis = await fetchEmojisForContent(env.DB, statusRow.content as string | null, (statusRow.domain as string) || null);
+        // Fetch custom emojis from emoji_tags JSON column
+        const statusEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
 
-        // Fetch account emojis for display_name and note
-        const accountEmojis = await fetchEmojisForContent(
+        // Account emojis (not available via emoji_tags, return empty)
+        const accountEmojis = await fetchAccountEmojis(
           env.DB,
-          `${(statusRow.display_name as string) || ''} ${(statusRow.account_note as string) || ''}`,
+          (statusRow.display_name as string) || '',
+          (statusRow.account_note as string) || '',
           (statusRow.domain as string) || null,
         );
 
@@ -216,11 +244,7 @@ export async function handleTimelineFanout(
           ).bind(statusRow.reblog_of_id).first();
 
           if (origRow) {
-            const origAcctEmojis = await fetchEmojisForContent(
-              env.DB,
-              `${origRow.display_name || ''} ${origRow.account_note || ''}`,
-              (origRow.domain as string) || null,
-            );
+            const origAcctEmojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
             const parsed = JSON.parse(statusPayload);
             parsed.reblog = {
               id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
@@ -293,11 +317,12 @@ export async function handleTimelineFanout(
   ).bind(statusId).first();
 
   if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
-    const pubEmojis = await fetchEmojisForContent(env.DB, publicStatusRow.content as string | null, (publicStatusRow.domain as string) || null);
-    // Fetch account emojis for public stream
-    const pubAccountEmojis = await fetchEmojisForContent(
+    const pubEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
+    // Account emojis (empty for streaming)
+    const pubAccountEmojis = await fetchAccountEmojis(
       env.DB,
-      `${(publicStatusRow.display_name as string) || ''} ${(publicStatusRow.account_note as string) || ''}`,
+      (publicStatusRow.display_name as string) || '',
+      (publicStatusRow.account_note as string) || '',
       (publicStatusRow.domain as string) || null,
     );
     // Fetch media for public streaming
@@ -359,11 +384,7 @@ export async function handleTimelineFanout(
          WHERE s.id = ? AND s.deleted_at IS NULL`,
       ).bind(publicStatusRow.reblog_of_id).first();
       if (origRow) {
-        const origAcctEmojis = await fetchEmojisForContent(
-          env.DB,
-          `${(origRow as any).display_name || ''} ${(origRow as any).account_note || ''}`,
-          (origRow as any).domain || null,
-        );
+        const origAcctEmojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
         const parsed = JSON.parse(pubPayload);
         parsed.reblog = {
           id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,

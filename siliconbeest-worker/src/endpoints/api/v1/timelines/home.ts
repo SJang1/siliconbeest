@@ -17,19 +17,27 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  // Use status_id for both ordering AND cursor pagination to ensure consistency.
-  // Both must use the same column, otherwise scrolling loads duplicate results.
-  // While local (00MN...) and remote (01KM...) ULIDs have different prefixes,
-  // within each pagination page the ordering is consistent enough for cursor-based pagination.
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  const orderClause = pag.minId ? 's.id ASC' : 's.id DESC';
-
+  // Use hte.rowid for ordering — it's auto-incrementing on INSERT and
+  // correctly reflects the order statuses entered the home timeline,
+  // regardless of whether the status ID is local (00MN) or remote (01KM).
+  // For cursor pagination, we resolve the status ID to its rowid via subquery.
   const conditions = [`hte.account_id = ?`];
   const binds: (string | number)[] = [account.id];
+  let orderClause = 'hte.rowid DESC';
+  const limitValue = pag.limit;
 
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
+  if (pag.maxId) {
+    conditions.push(`hte.rowid < (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
+    binds.push(account.id, pag.maxId);
+  }
+  if (pag.sinceId) {
+    conditions.push(`hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
+    binds.push(account.id, pag.sinceId);
+  }
+  if (pag.minId) {
+    conditions.push(`hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
+    binds.push(account.id, pag.minId);
+    orderClause = 'hte.rowid ASC';
   }
 
   conditions.push('s.deleted_at IS NULL');
@@ -66,7 +74,7 @@ app.get('/', authRequired, async (c) => {
 
   // Enrich both normal statuses and reblog originals
   const allIdsToEnrich = [...statusIds, ...uniqueReblogIds];
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, account.id);
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, account.id, c.env.CACHE);
 
   // Fetch reblog original rows
   const reblogMap = new Map<string, any>();

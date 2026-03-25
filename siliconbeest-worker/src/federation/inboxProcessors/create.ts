@@ -139,13 +139,26 @@ export async function processCreate(
 		}
 	}
 
+	// Extract emoji tags from AP Note for emoji_tags column
+	// Use note.tag directly (not the `tags` variable which is declared later)
+	const rawTags: Array<Record<string, unknown>> = Array.isArray(note.tag) ? note.tag as any : [];
+	const emojiTagsForDb = rawTags
+		.filter((t) => t.type === 'Emoji')
+		.map((et) => {
+			const name = ((et.name as string) || '').replace(/^:|:$/g, '');
+			const iconObj = (et as any).icon as { url?: string } | undefined;
+			return name && iconObj?.url ? { shortcode: name, url: iconObj.url, static_url: iconObj.url } : null;
+		})
+		.filter(Boolean);
+	const emojiTagsJson = emojiTagsForDb.length > 0 ? JSON.stringify(emojiTagsForDb) : null;
+
 	// Insert the status
 	await env.DB.prepare(
 		`INSERT INTO statuses
 		 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
 		  content, content_warning, visibility, sensitive, language,
-		  conversation_id, local, reply, quote_id, created_at, updated_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16)`,
+		  conversation_id, local, reply, quote_id, emoji_tags, created_at, updated_at)
+		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16, ?17)`,
 	)
 		.bind(
 			statusId,
@@ -162,6 +175,7 @@ export async function processCreate(
 			conversationId,
 			inReplyToId ? 1 : 0,
 			quoteId,
+			emojiTagsJson,
 			note.published ? new Date(note.published).toISOString() : now,
 			now,
 		)

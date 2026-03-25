@@ -64,7 +64,7 @@ app.get('/:listId', authRequired, async (c) => {
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
   const statusIds = (results ?? []).map((r: any) => r.id as string);
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id);
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id, c.env.CACHE);
 
   const statuses = (results ?? []).map((row: any) => {
     const accountRow: AccountRow = {

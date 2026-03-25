@@ -96,7 +96,7 @@ app.get('/', authRequired, async (c) => {
     ).bind(...uniqueStatusIds).all();
 
     // Get enrichments (media, interactions)
-    const enrichments = await enrichStatuses(c.env.DB, domain, uniqueStatusIds, account.id);
+    const enrichments = await enrichStatuses(c.env.DB, domain, uniqueStatusIds, account.id, c.env.CACHE);
 
     for (const sr of statusRows ?? []) {
       const sId = sr.id as string;

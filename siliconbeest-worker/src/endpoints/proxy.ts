@@ -173,7 +173,11 @@ app.get('/', async (c) => {
   }
 
   if (!originResponse.ok) {
-    return c.json({ error: `Remote server returned ${originResponse.status}` }, 502);
+    // Pass through the original status code (404, 403, 410, etc.) instead of always 502
+    const status = originResponse.status >= 400 && originResponse.status < 600
+      ? originResponse.status
+      : 502;
+    return c.json({ error: `Remote server returned ${originResponse.status}` }, status as any);
   }
 
   const contentType = originResponse.headers.get('Content-Type');

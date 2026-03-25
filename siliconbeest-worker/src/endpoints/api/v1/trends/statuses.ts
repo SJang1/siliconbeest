@@ -44,6 +44,7 @@ app.get('/', authOptional, async (c) => {
     c.env.INSTANCE_DOMAIN,
     statusIds,
     currentAccount?.id ?? null,
+    c.env.CACHE,
   );
 
   const statuses = (results ?? []).map((row: any) => {

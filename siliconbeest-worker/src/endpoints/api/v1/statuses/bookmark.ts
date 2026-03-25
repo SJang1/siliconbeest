@@ -39,7 +39,7 @@ app.post('/:id/bookmark', authRequired, async (c) => {
     ).bind(id, currentAccountId, statusId, now).run();
   }
 
-  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.bookmarked = true;
   return c.json(status);
 });

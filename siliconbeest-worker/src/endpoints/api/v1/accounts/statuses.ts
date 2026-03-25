@@ -133,7 +133,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
 
   const statusIds = (results as Record<string, unknown>[]).map((r) => r.id as string);
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
-  const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId);
+  const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId, c.env.CACHE);
 
   // Collect reblog_of_ids to fetch original statuses
   const reblogOfIds = (results as Record<string, unknown>[])
@@ -166,7 +166,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
   // Enrich reblog originals too
   const allIds = [...statusIds, ...reblogOfIds];
   const allEnrichments = reblogOfIds.length > 0
-    ? await enrichStatuses(c.env.DB, domain, allIds, currentAccountId)
+    ? await enrichStatuses(c.env.DB, domain, allIds, currentAccountId, c.env.CACHE)
     : enrichments;
 
   const statuses = (results as Record<string, unknown>[]).map((r) => {

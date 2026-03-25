@@ -73,7 +73,7 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 		}
 	}
 
-	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId);
+	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
 	return c.json(status);
 });
 
@@ -115,7 +115,7 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		}
 	}
 
-	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId);
+	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
 	return c.json(status);
 });
 

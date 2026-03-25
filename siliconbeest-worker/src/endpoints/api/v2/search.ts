@@ -147,6 +147,7 @@ app.get('/', authOptional, async (c) => {
       domain,
       statusIds,
       currentAccount?.id ?? null,
+      c.env.CACHE,
     );
 
     statuses = (results ?? []).map((row: any) => {

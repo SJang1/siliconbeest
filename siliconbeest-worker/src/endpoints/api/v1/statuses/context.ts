@@ -70,7 +70,7 @@ app.get('/:id/context', authOptional, async (c) => {
   // Collect all status IDs for batch enrichment
   const allRows = [...ancestors, ...(descendantRows as Record<string, unknown>[])];
   const allIds = allRows.map((r) => r.id as string);
-  const enrichments = await enrichStatuses(c.env.DB, domain, allIds, currentAccountId);
+  const enrichments = await enrichStatuses(c.env.DB, domain, allIds, currentAccountId, c.env.CACHE);
 
   function enrichAndSerialize(r: Record<string, unknown>) {
     const e = enrichments.get(r.id as string);

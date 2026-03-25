@@ -21,7 +21,7 @@ function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; 
     const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
     result = result.replace(
       pattern,
-      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" />`
+      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" onerror="this.replaceWith(document.createTextNode(this.alt))" />`
     )
   }
   return result

@@ -22,7 +22,7 @@ app.post('/:id/unbookmark', authRequired, async (c) => {
     'DELETE FROM bookmarks WHERE account_id = ?1 AND status_id = ?2',
   ).bind(currentAccountId, statusId).run();
 
-  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.bookmarked = false;
   return c.json(status);
 });

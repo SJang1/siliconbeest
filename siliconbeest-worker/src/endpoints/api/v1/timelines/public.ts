@@ -76,7 +76,7 @@ app.get('/', authOptional, async (c) => {
 
   // Enrich all statuses + reblog originals
   const allIdsToEnrich = [...statusIds, ...uniqueReblogIds];
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, currentAccountId);
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, currentAccountId, c.env.CACHE);
 
   // Fetch reblog originals
   const reblogMap = new Map<string, any>();

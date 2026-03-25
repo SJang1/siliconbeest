@@ -43,7 +43,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
 
   if (existing) {
     // Return the existing reblog
-    const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id);
+    const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);
     rebloggedStatus.reblogged = true;
     return c.json({
       id: existing.id as string,
@@ -160,7 +160,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
     console.error('Federation delivery failed for reblog:', e);
   }
 
-  const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id);
+  const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);
   rebloggedStatus.reblogged = true;
   rebloggedStatus.reblogs_count += 1;
 

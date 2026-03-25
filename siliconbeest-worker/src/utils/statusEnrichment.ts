@@ -71,6 +71,7 @@ export async function enrichStatuses(
   domain: string,
   statusIds: string[],
   currentAccountId?: string | null,
+  cache?: KVNamespace,
 ): Promise<Map<string, StatusEnrichment>> {
   if (statusIds.length === 0) return new Map();
 
@@ -246,8 +247,7 @@ export async function enrichStatuses(
 
   await Promise.all(queries);
 
-  // 8. Custom emojis — extract from status emoji_tags (lazy-load, no caching)
-  // Fetch emoji_tags JSON from statuses table
+  // 8. Custom emojis — extract from emoji_tags JSON, verify accessibility, proxy URLs
   const emojiTagsQuery = await db
     .prepare(
       `SELECT id, content, content_warning, emoji_tags FROM statuses WHERE id IN (${placeholders})`,
@@ -257,13 +257,15 @@ export async function enrichStatuses(
 
   const statusEmojiMap = new Map<string, EmojiInfo[]>();
 
+  // Collect all unique emoji URLs across all statuses for batch verification
+  const allEmojiCandidates: Array<{ statusId: string; shortcode: string; url: string }> = [];
+
   for (const row of emojiTagsQuery.results ?? []) {
     const statusId = row.id as string;
     const content = (row.content as string) || '';
     const cw = (row.content_warning as string) || '';
     const text = content + ' ' + cw;
 
-    // Extract shortcodes found in content
     const shortcodesInContent = new Set<string>();
     const emojiRegex = /:([a-zA-Z0-9_]+):/g;
     let match;
@@ -271,39 +273,97 @@ export async function enrichStatuses(
       shortcodesInContent.add(match[1]);
     }
 
-    // Parse emoji_tags array from JSON
     let emojiTags: Array<Record<string, unknown>> = [];
     try {
       const tagsJson = row.emoji_tags as string | null;
-      if (tagsJson) {
-        emojiTags = JSON.parse(tagsJson);
-      }
-    } catch { /* invalid JSON, skip */ }
+      if (tagsJson) emojiTags = JSON.parse(tagsJson);
+    } catch { /* skip */ }
 
-    // Match emojis: filter emojiTags to only those referenced in content
-    const emojis: EmojiInfo[] = [];
     for (const tag of emojiTags) {
-      const tagName = (tag.name as string || '').replace(/^:|:$/g, '');
-      if (!shortcodesInContent.has(tagName)) continue;
+      const shortcode = (typeof tag.shortcode === 'string' ? tag.shortcode : ((tag.name as string) || '').replace(/^:|:$/g, ''));
+      if (!shortcodesInContent.has(shortcode)) continue;
+      const url = (tag.url as string) || (tag.icon as any)?.url;
+      if (!url) continue;
+      allEmojiCandidates.push({ statusId, shortcode, url });
+    }
+  }
 
-      const iconObj = tag.icon as Record<string, unknown> | undefined;
-      const iconUrl = iconObj?.url as string | undefined;
-      if (!iconUrl) continue;
+  // Batch-verify emoji URLs: KV cache check → HEAD request for unknowns
+  // KV key: "emoji_ok:{sha256(url)}" → "1" (valid) or "0" (invalid), TTL 2 hours
+  const verifiedEmojis = new Map<string, boolean>(); // url → accessible
+  const urlsToCheck: string[] = [];
 
-      // Proxy remote emoji URLs through /proxy endpoint
-      let proxyUrl = proxyEmojiUrl(iconUrl, domain);
+  if (cache && allEmojiCandidates.length > 0) {
+    // Deduplicate URLs
+    const uniqueUrls = [...new Set(allEmojiCandidates.map((e) => e.url))];
 
-      emojis.push({
-        shortcode: tagName,
-        url: proxyUrl,
-        static_url: proxyUrl,
-        visible_in_picker: false,
-      });
+    // Check KV cache first (batch get not available, use parallel single gets)
+    const kvChecks = await Promise.all(
+      uniqueUrls.map(async (url) => {
+        const key = `emoji_ok:${url.length}:${url.substring(url.length - 40)}`;
+        const cached = await cache.get(key);
+        return { url, cached };
+      }),
+    );
+
+    for (const { url, cached } of kvChecks) {
+      if (cached !== null) {
+        verifiedEmojis.set(url, cached === '1');
+      } else {
+        urlsToCheck.push(url);
+      }
     }
 
-    if (emojis.length > 0) {
-      statusEmojiMap.set(statusId, emojis);
+    // HEAD-check unknown URLs in parallel (max 10 concurrent, 2s timeout each)
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < urlsToCheck.length; i += BATCH_SIZE) {
+      const batch = urlsToCheck.slice(i, i + BATCH_SIZE);
+      const headResults = await Promise.allSettled(
+        batch.map(async (url) => {
+          try {
+            const res = await fetch(url, {
+              method: 'HEAD',
+              signal: AbortSignal.timeout(2000),
+              headers: { 'User-Agent': 'SiliconBeest/0.1.0' },
+            });
+            return { url, ok: res.ok };
+          } catch {
+            return { url, ok: false };
+          }
+        }),
+      );
+
+      for (const r of headResults) {
+        if (r.status === 'fulfilled') {
+          verifiedEmojis.set(r.value.url, r.value.ok);
+          // Cache result in KV (2 hour TTL)
+          const key = `emoji_ok:${r.value.url.length}:${r.value.url.substring(r.value.url.length - 40)}`;
+          try {
+            await cache.put(key, r.value.ok ? '1' : '0', { expirationTtl: 7200 });
+          } catch { /* KV rate limit, ignore */ }
+        }
+      }
     }
+  } else {
+    // No cache available — assume all valid (don't block on HEAD checks)
+    for (const e of allEmojiCandidates) {
+      verifiedEmojis.set(e.url, true);
+    }
+  }
+
+  // Build emoji arrays per status, only including verified-accessible emojis
+  for (const { statusId, shortcode, url } of allEmojiCandidates) {
+    const isValid = verifiedEmojis.get(url) ?? true; // default to true if somehow missing
+    if (!isValid) continue; // Skip broken emoji URLs — client won't see them
+
+    const proxyUrl = proxyEmojiUrl(url, domain);
+    if (!statusEmojiMap.has(statusId)) statusEmojiMap.set(statusId, []);
+    statusEmojiMap.get(statusId)!.push({
+      shortcode,
+      url: proxyUrl,
+      static_url: proxyUrl,
+      visible_in_picker: false,
+    });
   }
 
   // Assign emojis to enrichment results

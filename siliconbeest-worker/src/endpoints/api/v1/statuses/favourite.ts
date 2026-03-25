@@ -77,7 +77,7 @@ app.post('/:id/favourite', authRequired, async (c) => {
     }
   }
 
-  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.favourited = true;
   if (!existing) {
     status.favourites_count += 1;
