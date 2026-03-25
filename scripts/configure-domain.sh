@@ -51,6 +51,8 @@ success "Authenticated"
 header "Updating Instance Domain"
 
 info "Setting INSTANCE_DOMAIN to: $DOMAIN"
+
+# Update worker wrangler.jsonc
 if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
   node -e "
 const fs = require('fs');
@@ -62,6 +64,19 @@ fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
 else
   error "$(basename "$WORKER_DIR")/wrangler.jsonc not found"
   exit 1
+fi
+
+# Update queue consumer wrangler.jsonc
+if [[ -f "$CONSUMER_DIR/wrangler.jsonc" ]]; then
+  node -e "
+const fs = require('fs');
+let content = fs.readFileSync('$CONSUMER_DIR/wrangler.jsonc', 'utf8');
+content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
+fs.writeFileSync('$CONSUMER_DIR/wrangler.jsonc', content);
+"
+  success "Updated $(basename "$CONSUMER_DIR")/wrangler.jsonc"
+else
+  warn "$(basename "$CONSUMER_DIR")/wrangler.jsonc not found, skipping"
 fi
 
 # ---------------------------------------------------------------------------
@@ -91,6 +106,7 @@ success "Zone ID: $ZONE_ID"
 header "Configuring Workers Routes"
 
 # Routes that should go to the API worker ($WORKER_NAME)
+# Keep in sync with wrangler.jsonc routes
 API_ROUTES=(
   "${DOMAIN}/api/*"
   "${DOMAIN}/oauth/*"
@@ -98,6 +114,14 @@ API_ROUTES=(
   "${DOMAIN}/users/*"
   "${DOMAIN}/inbox"
   "${DOMAIN}/nodeinfo/*"
+  "${DOMAIN}/media/*"
+  "${DOMAIN}/actor"
+  "${DOMAIN}/authorize_interaction*"
+  "${DOMAIN}/auth/confirm*"
+  "${DOMAIN}/healthz"
+  "${DOMAIN}/thumbnail.png"
+  "${DOMAIN}/favicon.ico"
+  "${DOMAIN}/proxy*"
 )
 
 # The catch-all route for the frontend ($VUE_NAME)

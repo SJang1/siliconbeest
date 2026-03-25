@@ -25,7 +25,7 @@ app.get('/', async (c) => {
 		return c.json({ error: 'Resource not found' }, 404);
 	}
 
-	// Instance actor: domain itself as username (e.g. acct:siliconbeest.sjang.dev@siliconbeest.sjang.dev)
+	// Instance actor: domain itself as username (e.g. acct:domain@domain)
 	if (username!.toLowerCase() === instanceDomain.toLowerCase()) {
 		const actorUri = `https://${instanceDomain}/actor`;
 		return c.json(

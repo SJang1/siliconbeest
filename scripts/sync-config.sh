@@ -303,7 +303,13 @@ cat > "$WORKER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		{ "pattern": "${CURRENT_DOMAIN}/inbox", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
 		{ "pattern": "${CURRENT_DOMAIN}/nodeinfo/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
 		{ "pattern": "${CURRENT_DOMAIN}/media/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/actor", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" }
+		{ "pattern": "${CURRENT_DOMAIN}/actor", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/authorize_interaction*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/auth/confirm*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/healthz", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/thumbnail.png", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/favicon.ico", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
+		{ "pattern": "${CURRENT_DOMAIN}/proxy*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" }
 	]
 }
 WRANGLER_EOF
@@ -320,6 +326,13 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
+	},
+	"workers_dev": false,
+	"placement": {
+		"mode": "smart"
+	},
+	"vars": {
+		"INSTANCE_DOMAIN": "${CURRENT_DOMAIN}"
 	},
 
 	// D1 Database (same as worker)

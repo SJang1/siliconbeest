@@ -273,7 +273,7 @@ fi
 
 # Update instance vars
 info "Updating instance variables..."
-for DIR in "$WORKER_DIR"; do
+for DIR in "$WORKER_DIR" "$CONSUMER_DIR"; do
   if [[ -f "$DIR/wrangler.jsonc" ]]; then
     node -e "
 const fs = require('fs');

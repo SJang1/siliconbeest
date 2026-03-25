@@ -127,14 +127,23 @@ export async function handleTimelineFanout(
         const { results: streamMediaRows } = await env.DB.prepare(
           'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
         ).bind(statusId).all();
-        const streamMedia = (streamMediaRows ?? []).map((m: any) => ({
+        const streamMedia = (streamMediaRows ?? []).map((m: any) => {
+          const fk = m.file_key as string;
+          // file_key is a full URL for remote media, or a relative path for local
+          const baseUrl = fk.startsWith('http') ? fk : `https://${env.INSTANCE_DOMAIN}/media/${fk}`;
+          // Proxy remote URLs through our proxy endpoint
+          const mediaUrl = fk.startsWith('http')
+            ? `https://${env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(fk)}`
+            : baseUrl;
+          return {
           id: m.id, type: m.type || 'image',
-          url: `https://${(statusRow as any).domain ? (statusRow as any).domain : 'siliconbeest.sjang.dev'}/media/${m.file_key}`,
-          preview_url: `https://${(statusRow as any).domain ? (statusRow as any).domain : 'siliconbeest.sjang.dev'}/media/${m.file_key}`,
-          remote_url: null, text_url: null,
+          url: mediaUrl,
+          preview_url: mediaUrl,
+          remote_url: fk.startsWith('http') ? fk : null, text_url: null,
           meta: m.width ? { original: { width: m.width, height: m.height } } : null,
           description: m.description || null, blurhash: m.blurhash || null,
-        }));
+        };
+        });
 
         let statusPayload = JSON.stringify({
           id: statusRow.id,
@@ -295,14 +304,20 @@ export async function handleTimelineFanout(
     const { results: pubMediaRows } = await env.DB.prepare(
       'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
     ).bind(publicStatusRow.id).all();
-    const pubMedia = (pubMediaRows ?? []).map((m: any) => ({
+    const pubMedia = (pubMediaRows ?? []).map((m: any) => {
+      const pfk = m.file_key as string;
+      const pubMediaUrl = pfk.startsWith('http')
+        ? `https://${env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(pfk)}`
+        : `https://${env.INSTANCE_DOMAIN}/media/${pfk}`;
+      return {
       id: m.id, type: m.type || 'image',
-      url: `https://siliconbeest.sjang.dev/media/${m.file_key}`,
-      preview_url: `https://siliconbeest.sjang.dev/media/${m.file_key}`,
-      remote_url: null, text_url: null,
+      url: pubMediaUrl,
+      preview_url: pubMediaUrl,
+      remote_url: pfk.startsWith('http') ? pfk : null, text_url: null,
       meta: m.width ? { original: { width: m.width, height: m.height } } : null,
       description: m.description || null, blurhash: m.blurhash || null,
-    }));
+      };
+    });
     let pubPayload = JSON.stringify({
       id: publicStatusRow.id, uri: publicStatusRow.uri, created_at: publicStatusRow.created_at,
       content: publicStatusRow.content, visibility: publicStatusRow.visibility,

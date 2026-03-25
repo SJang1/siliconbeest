@@ -11,6 +11,9 @@
 	"placement": {
 		"mode": "smart"
 	},
+	"vars": {
+		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev"
+	},
 	// D1 Database
 	"d1_databases": [
 		{
