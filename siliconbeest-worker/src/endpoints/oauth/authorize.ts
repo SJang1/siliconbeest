@@ -59,7 +59,7 @@ function loginPage(params: {
     <input type="hidden" name="state" value="${escapeAttr(params.state)}" />
     <input type="hidden" name="response_type" value="${escapeAttr(params.responseType)}" />
     <label for="email">Email</label>
-    <input id="email" type="email" name="email" required autocomplete="email" />
+    <input id="email" type="email" name="email" required autocomplete="username" />
     <label for="password">Password</label>
     <input id="password" type="password" name="password" required autocomplete="current-password" />
     <button type="submit" class="btn-primary">Sign in</button>
