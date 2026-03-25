@@ -57,7 +57,13 @@
     "username": "Username",
     "verify": "Verify",
     "welcome": "Welcome back",
-    "enter_2fa_code": "Enter the code from your authenticator app"
+    "enter_2fa_code": "Enter the code from your authenticator app",
+    "confirmation_required": "Check your email",
+    "confirmation_sent": "We've sent a confirmation link to {email}.",
+    "resend_confirmation": "Resend confirmation email",
+    "resend_cooldown": "Please wait before requesting another email",
+    "resend_success": "Confirmation email sent",
+    "email_not_confirmed": "Please confirm your email address before signing in."
   },
   "compose": {
     "placeholder": "What's on your mind?",
@@ -228,6 +234,7 @@
     "notifications": "Notifications",
     "filters": "Filters",
     "migration": "Migration",
+    "security": "Security",
     "language": "Language",
     "theme": "Theme",
     "themeLight": "Light",
@@ -596,6 +603,22 @@
     "import_start": "Start Import",
     "import_processing": "Importing...",
     "import_success": "Import completed successfully."
+  },
+  "webauthn": {
+    "title": "Passkeys",
+    "description": "Sign in without a password using your device's biometrics or security key.",
+    "add": "Add a passkey",
+    "remove": "Remove",
+    "remove_confirm": "Are you sure you want to remove this passkey?",
+    "name_label": "Passkey name",
+    "name_placeholder": "e.g. MacBook Pro, iPhone",
+    "sign_in_with_passkey": "Sign in with a passkey",
+    "no_passkeys": "You haven't added any passkeys yet.",
+    "added": "Passkey added successfully",
+    "removed": "Passkey removed",
+    "error_not_supported": "Passkeys are not supported in this browser",
+    "error_cancelled": "Passkey operation was cancelled",
+    "error_failed": "Passkey verification failed"
   },
   "report": {
     "title": "Report",

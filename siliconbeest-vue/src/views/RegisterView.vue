@@ -14,13 +14,17 @@ const error = ref<string | null>(null)
 async function handleRegister(data: { username: string; email: string; password: string; agreement?: boolean }) {
   error.value = null
   try {
-    await auth.register({
+    const result = await auth.register({
       username: data.username,
       email: data.email,
       password: data.password,
       agreement: true,
     })
-    router.push('/home')
+    if (result.confirmationRequired) {
+      router.push({ path: '/auth/confirm-email-sent', query: { email: data.email } })
+    } else {
+      router.push('/home')
+    }
   } catch (e) {
     error.value = (e as Error).message
   }

@@ -54,6 +54,14 @@ export function login(email: string, password: string) {
   });
 }
 
+export interface RegisterResponse {
+  access_token?: string;
+  token_type?: string;
+  scope?: string;
+  created_at?: number;
+  confirmation_required?: boolean;
+}
+
 export function register(params: {
   username: string;
   email: string;
@@ -62,7 +70,7 @@ export function register(params: {
   locale?: string;
   reason?: string;
 }) {
-  return apiFetch<Token>('/v1/accounts', {
+  return apiFetch<RegisterResponse>('/v1/accounts', {
     method: 'POST',
     body: JSON.stringify(params),
   });

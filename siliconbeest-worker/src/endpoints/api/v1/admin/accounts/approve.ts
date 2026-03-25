@@ -22,6 +22,7 @@ app.post('/:id/approve', async (c) => {
 	const user = await c.env.DB.prepare('SELECT * FROM users WHERE account_id = ?1').bind(id).first();
 	if (!user) throw new AppError(404, 'Record not found');
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
+	if (!user.confirmed_at) throw new AppError(422, 'User has not confirmed their email address');
 
 	// Approve
 	await c.env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(id).run();

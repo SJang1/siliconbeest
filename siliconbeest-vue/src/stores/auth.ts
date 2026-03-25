@@ -3,6 +3,12 @@ import { ref, computed } from 'vue';
 import type { CredentialAccount, Token } from '@/types/mastodon';
 import { verifyCredentials } from '@/api/mastodon/accounts';
 import { login as apiLogin, register as apiRegister } from '@/api/mastodon/oauth';
+import {
+  getAuthenticateOptions,
+  verifyAuthentication,
+  base64urlEncode,
+  base64urlDecode,
+} from '@/api/mastodon/webauthn';
 import { useTimelinesStore } from './timelines';
 import { useNotificationsStore } from './notifications';
 
@@ -71,11 +77,75 @@ export const useAuthStore = defineStore('auth', () => {
     agreement?: boolean;
     locale?: string;
     reason?: string;
-  }) {
+  }): Promise<{ confirmationRequired: boolean }> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await apiRegister(params);
+      if (data.confirmation_required) {
+        return { confirmationRequired: true };
+      }
+      if (data.access_token) {
+        setToken(data.access_token);
+        await fetchCurrentUser();
+      }
+      return { confirmationRequired: false };
+    } catch (e) {
+      error.value = (e as Error).message;
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function loginWithPasskey() {
+    loading.value = true;
+    error.value = null;
+    try {
+      // 1. Get authentication options from server
+      const { data: options } = await getAuthenticateOptions();
+
+      // 2. Build publicKey options with ArrayBuffers
+      const publicKeyOptions: PublicKeyCredentialRequestOptions = {
+        challenge: base64urlDecode(options.challenge),
+        timeout: options.timeout,
+        rpId: options.rpId,
+        allowCredentials: options.allowCredentials?.map((c) => ({
+          id: base64urlDecode(c.id),
+          type: c.type as PublicKeyCredentialType,
+          transports: c.transports as AuthenticatorTransport[] | undefined,
+        })),
+        userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
+      };
+
+      // 3. Get credential via browser API
+      const credential = (await navigator.credentials.get({
+        publicKey: publicKeyOptions,
+      })) as PublicKeyCredential | null;
+
+      if (!credential) {
+        const err = new Error('Passkey operation was cancelled');
+        err.name = 'NotAllowedError';
+        throw err;
+      }
+
+      const response = credential.response as AuthenticatorAssertionResponse;
+
+      // 4. Serialize credential for the server
+      const serialized = {
+        id: credential.id,
+        rawId: base64urlEncode(credential.rawId),
+        type: credential.type,
+        response: {
+          authenticatorData: base64urlEncode(response.authenticatorData),
+          clientDataJSON: base64urlEncode(response.clientDataJSON),
+          signature: base64urlEncode(response.signature),
+          userHandle: response.userHandle ? base64urlEncode(response.userHandle) : null,
+        },
+      };
+
+      // 5. Verify with server
+      const { data } = await verifyAuthentication(serialized);
       setToken(data.access_token);
       await fetchCurrentUser();
     } catch (e) {
@@ -108,6 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearToken,
     fetchCurrentUser,
     login,
+    loginWithPasskey,
     register,
     logout,
   };

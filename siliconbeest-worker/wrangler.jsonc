@@ -122,6 +122,10 @@
 	    "zone_name": "sjang.dev"
 	  },
 	  {
+	    "pattern": "siliconbeest.sjang.dev/auth/confirm*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
 	    "pattern": "siliconbeest.sjang.dev/healthz",
 	    "zone_name": "sjang.dev"
 	  },

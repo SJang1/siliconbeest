@@ -81,6 +81,11 @@ const router = createRouter({
       name: 'reset-password',
       component: () => import('@/views/ResetPasswordView.vue'),
     },
+    {
+      path: '/auth/confirm-email-sent',
+      name: 'confirm-email-sent',
+      component: () => import('@/views/ConfirmEmailSentView.vue'),
+    },
 
     // Authenticated routes
     {
@@ -167,6 +172,11 @@ const router = createRouter({
           path: 'migration',
           name: 'settings-migration',
           component: () => import('@/views/SettingsMigrationView.vue'),
+        },
+        {
+          path: 'security',
+          name: 'settings-security',
+          component: () => import('@/views/SettingsSecurityView.vue'),
         },
       ],
     },

@@ -55,6 +55,9 @@ import csvImport from './endpoints/api/v1/import';
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
 import authLogin from './endpoints/api/v1/auth/login';
+import authWebauthn from './endpoints/api/v1/auth/webauthn';
+import resendConfirmation from './endpoints/api/v1/auth/resendConfirmation';
+import emailConfirmPage from './endpoints/auth/confirm';
 
 // -- Account extras --
 import changePassword from './endpoints/api/v1/accounts/change_password';
@@ -198,6 +201,9 @@ app.route('/api/v1/instance/rules', rules);
 app.route('/api/v1/trends', trends);
 app.route('/api/v1/auth/passwords', passwords);
 app.route('/api/v1/auth/login', authLogin);
+app.route('/api/v1/auth/webauthn', authWebauthn);
+app.route('/api/v1/auth/resend_confirmation', resendConfirmation);
+app.route('/auth/confirm', emailConfirmPage);
 app.route('/api/v1/accounts', changePassword);
 app.route('/api/v1/admin', admin);
 app.route('/api/v1/export', csvExport);

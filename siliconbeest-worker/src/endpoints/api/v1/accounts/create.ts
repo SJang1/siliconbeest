@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { createDefaultImages } from '../../../../utils/defaultImages';
+import { generateToken } from '../../../../utils/crypto';
+import { sendConfirmation } from '../../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -145,17 +147,29 @@ app.post('/', async (c) => {
     ).bind(accountId, body.username, actorUri, `https://${domain}/@${body.username}`, now, avatarUrl, headerUrl),
     c.env.DB.prepare(
       `INSERT INTO users (id, account_id, email, encrypted_password, locale, confirmed_at, role, approved, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'user', ?7, ?6, ?6)`,
-    ).bind(userId, accountId, body.email, encryptedPassword, body.locale || 'en', now, approved),
+       VALUES (?1, ?2, ?3, ?4, ?5, NULL, 'user', ?6, ?7, ?7)`,
+    ).bind(userId, accountId, body.email, encryptedPassword, body.locale || 'en', approved, now),
     c.env.DB.prepare(
       `INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, ed25519_public_key, ed25519_private_key, created_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
     ).bind(keyId, accountId, pubKeyPem, privKeyPem, `${actorUri}#main-key`, ed25519PubB64, ed25519PrivB64, now),
   ]);
 
-  const account = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(accountId).first();
+  // Generate email confirmation token and store in KV
+  const confirmToken = generateToken(64);
+  await c.env.CACHE.put(
+    'email_confirm:' + confirmToken,
+    JSON.stringify({ userId, email: body.email }),
+    { expirationTtl: 86400 },
+  );
+  await c.env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(confirmToken, userId).run();
 
-  return c.json(serializeAccount(account as Record<string, unknown>, domain));
+  // Send confirmation email (best-effort)
+  try {
+    await sendConfirmation(c.env, body.email, confirmToken);
+  } catch { /* email queue failure should not block registration */ }
+
+  return c.json({ confirmation_required: true });
 });
 
 export default app;

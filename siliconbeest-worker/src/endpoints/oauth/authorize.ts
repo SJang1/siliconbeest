@@ -348,7 +348,7 @@ app.post('/', async (c) => {
 
 	// Look up user
 	const user = await c.env.DB.prepare(
-		`SELECT id, encrypted_password, otp_enabled FROM users WHERE email = ?1 LIMIT 1`,
+		`SELECT id, encrypted_password, otp_enabled, confirmed_at FROM users WHERE email = ?1 LIMIT 1`,
 	)
 		.bind(email.toLowerCase())
 		.first();
@@ -382,6 +382,22 @@ app.post('/', async (c) => {
 				instanceTitle: c.env.INSTANCE_TITLE,
 			}),
 			400,
+		);
+	}
+
+	// Check if email is confirmed
+	if (!user.confirmed_at) {
+		return c.html(
+			loginPage({
+				clientId,
+				redirectUri,
+				scope,
+				state,
+				responseType,
+				error: 'Please confirm your email address before signing in',
+				instanceTitle: c.env.INSTANCE_TITLE,
+			}),
+			403,
 		);
 	}
 

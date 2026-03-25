@@ -57,7 +57,13 @@
     "username": "사용자 이름",
     "verify": "인증",
     "welcome": "다시 오신 것을 환영합니다",
-    "enter_2fa_code": "인증기 앱의 코드를 입력하세요"
+    "enter_2fa_code": "인증기 앱의 코드를 입력하세요",
+    "confirmation_required": "이메일을 확인하세요",
+    "confirmation_sent": "{email}(으)로 확인 링크를 보냈습니다.",
+    "resend_confirmation": "확인 이메일 다시 보내기",
+    "resend_cooldown": "다시 요청하기 전에 잠시 기다려 주세요",
+    "resend_success": "확인 이메일이 전송되었습니다",
+    "email_not_confirmed": "로그인하기 전에 이메일 주소를 확인해 주세요."
   },
   "compose": {
     "placeholder": "무슨 생각을 하고 계신가요?",
@@ -228,6 +234,7 @@
     "notifications": "알림",
     "filters": "필터",
     "migration": "계정 이전",
+    "security": "보안",
     "language": "언어",
     "theme": "테마",
     "themeLight": "라이트",
@@ -596,6 +603,22 @@
     "import_start": "가져오기 시작",
     "import_processing": "가져오는 중...",
     "import_success": "가져오기가 완료되었습니다."
+  },
+  "webauthn": {
+    "title": "패스키",
+    "description": "기기의 생체 인증 또는 보안 키를 사용하여 비밀번호 없이 로그인하세요.",
+    "add": "패스키 추가",
+    "remove": "삭제",
+    "remove_confirm": "이 패스키를 삭제하시겠습니까?",
+    "name_label": "패스키 이름",
+    "name_placeholder": "예: MacBook Pro, iPhone",
+    "sign_in_with_passkey": "패스키로 로그인",
+    "no_passkeys": "아직 추가된 패스키가 없습니다.",
+    "added": "패스키가 추가되었습니다",
+    "removed": "패스키가 삭제되었습니다",
+    "error_not_supported": "이 브라우저에서 패스키를 지원하지 않습니다",
+    "error_cancelled": "패스키 작업이 취소되었습니다",
+    "error_failed": "패스키 인증에 실패했습니다"
   },
   "report": {
     "title": "신고",

@@ -7,6 +7,7 @@
 	"observability": {
 		"enabled": true
 	},
+	"workers_dev": false,
 
 	// Consumes from dedicated email queue
 	"queues": {

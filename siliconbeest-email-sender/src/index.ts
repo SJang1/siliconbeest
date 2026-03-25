@@ -93,6 +93,10 @@ async function getEmailConfig(env: Env): Promise<EmailConfig | null> {
 // ============================================================================
 
 export default {
+	async fetch(): Promise<Response> {
+		return new Response('siliconbeest-email-sender: queue consumer only', { status: 200 });
+	},
+
 	async queue(batch: MessageBatch<EmailMessage>, env: Env): Promise<void> {
 		for (const msg of batch.messages) {
 			try {

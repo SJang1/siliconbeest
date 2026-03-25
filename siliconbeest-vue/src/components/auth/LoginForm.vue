@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -8,8 +8,11 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const passkeyLoading = ref(false)
 
-const emit = defineEmits(['submit', 'sso'])
+const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
+
+const emit = defineEmits(['submit', 'sso', 'passkey'])
 
 async function handleSubmit() {
   if (!email.value || !password.value) return
@@ -17,6 +20,13 @@ async function handleSubmit() {
   error.value = ''
   emit('submit', { email: email.value, password: password.value })
   loading.value = false
+}
+
+function handlePasskeyLogin() {
+  passkeyLoading.value = true
+  error.value = ''
+  emit('passkey')
+  passkeyLoading.value = false
 }
 </script>
 
@@ -79,6 +89,17 @@ async function handleSubmit() {
       <span class="text-xs">{{ t('auth.or') }}</span>
       <hr class="flex-1 border-gray-200 dark:border-gray-700" />
     </div>
+
+    <!-- Passkey login -->
+    <button
+      v-if="supportsPasskeys"
+      type="button"
+      @click="handlePasskeyLogin"
+      :disabled="passkeyLoading"
+      class="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+    >
+      {{ passkeyLoading ? t('common.loading') : t('webauthn.sign_in_with_passkey') }}
+    </button>
 
     <!-- SSO -->
     <button

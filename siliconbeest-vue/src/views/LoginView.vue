@@ -22,6 +22,25 @@ async function handleLogin(credentials: { email: string; password: string }) {
   }
 }
 
+async function handlePasskey() {
+  error.value = ''
+  try {
+    await auth.loginWithPasskey()
+    const redirect = (route.query.redirect as string) || '/home'
+    router.push(redirect)
+  } catch (e: any) {
+    if (e.name === 'NotAllowedError') {
+      error.value = t('webauthn.error_cancelled')
+    } else if (e.name === 'AbortError') {
+      error.value = t('webauthn.error_cancelled')
+    } else if (e.message?.includes('not confirmed')) {
+      error.value = t('auth.email_not_confirmed')
+    } else {
+      error.value = e.message || t('webauthn.error_failed')
+    }
+  }
+}
+
 function handleSso(provider: string) {
   // Redirect to OAuth SSO flow
   window.location.href = `/oauth/authorize?provider=${provider}`
@@ -44,7 +63,7 @@ function handleSso(provider: string) {
         <div v-if="auth.loading" class="text-center py-4 text-gray-500">
           {{ t('common.loading') }}
         </div>
-        <LoginForm v-else @submit="handleLogin" @sso="handleSso" />
+        <LoginForm v-else @submit="handleLogin" @passkey="handlePasskey" @sso="handleSso" />
       </div>
     </div>
   </div>

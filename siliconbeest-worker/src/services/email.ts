@@ -48,6 +48,24 @@ export async function sendPasswordReset(
 }
 
 /**
+ * Send an email confirmation link after registration.
+ */
+export async function sendConfirmation(
+	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_DOMAIN: string; INSTANCE_TITLE?: string },
+	email: string,
+	token: string,
+): Promise<boolean> {
+	const domain = env.INSTANCE_DOMAIN;
+	const title = env.INSTANCE_TITLE || 'SiliconBeest';
+	const confirmUrl = `https://${domain}/auth/confirm?token=${token}`;
+	const html = `<h1>Confirm your email - ${title}</h1>
+<p>Click the link below to confirm your email address:</p>
+<p><a href="${confirmUrl}">${confirmUrl}</a></p>
+<p>This link expires in 24 hours.</p>`;
+	return sendEmail(env, email, `Confirm your email - ${title}`, html);
+}
+
+/**
  * Send a welcome email after account approval.
  */
 export async function sendWelcome(

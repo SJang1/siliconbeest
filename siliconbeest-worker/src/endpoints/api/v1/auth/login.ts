@@ -22,7 +22,7 @@ app.post('/', async (c) => {
 
 	// Find user by email
 	const user = await c.env.DB.prepare(
-		`SELECT u.id, u.account_id, u.encrypted_password, u.role, u.approved, u.disabled, u.otp_enabled,
+		`SELECT u.id, u.account_id, u.encrypted_password, u.role, u.approved, u.disabled, u.otp_enabled, u.confirmed_at,
 		        a.username, a.display_name
 		 FROM users u
 		 JOIN accounts a ON a.id = u.account_id
@@ -37,6 +37,7 @@ app.post('/', async (c) => {
 			approved: number;
 			disabled: number;
 			otp_enabled: number;
+			confirmed_at: string | null;
 			username: string;
 			display_name: string;
 		}>();
@@ -86,6 +87,10 @@ app.post('/', async (c) => {
 
 	if (!passwordValid) {
 		return c.json({ error: 'Invalid email or password' }, 401);
+	}
+
+	if (!user.confirmed_at) {
+		return c.json({ error: 'Email not confirmed', error_description: 'Please confirm your email address' }, 403);
 	}
 
 	// TODO: Handle 2FA (otp_enabled) — for now, skip
