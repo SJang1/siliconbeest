@@ -135,8 +135,17 @@ function isValidProxyUrl(urlStr: string): boolean {
  */
 app.get('/', async (c) => {
   const remoteUrl = c.req.query('url');
+  function _createProxyHeaders(contentType: string | null, cacheControl: string): Headers {
+    const headers = new Headers();
+    headers.set('Content-Type', contentType || 'application/octet-stream');
+    headers.set('Cache-Control', cacheControl);
+    if (contentType === 'image/svg+xml') {
+      headers.set('X-Content-Type-Options', 'nosniff');
+    }
+    return headers;
+  }
 
-  // 1. Validate URL param
+  // Validate URL param
   if (!remoteUrl) {
     return c.json({ error: 'Missing url parameter' }, 400);
   }
@@ -145,7 +154,7 @@ app.get('/', async (c) => {
     return c.json({ error: 'Invalid or disallowed URL' }, 400);
   }
 
-  // 2. Fetch from origin with timeout
+  // Fetch from origin with timeout
   let originResponse: Response;
   try {
     const controller = new AbortController();
@@ -174,39 +183,27 @@ app.get('/', async (c) => {
     return c.json({ error: 'Content type not allowed for proxying' }, 403);
   }
 
-  // Additional safety: Block dangerous MIME types even if they passed the prefix check
-  if (contentType && DANGEROUS_MIME_TYPES.includes(contentType.split(';')[0].trim().toLowerCase())) {
-    return c.json({ error: 'Content type not allowed for proxying' }, 403);
-  }
-
-  // 3. Check size from Content-Length header (if available)
+  // Check size from Content-Length header (if available)
   const contentLength = originResponse.headers.get('Content-Length');
   if (contentLength && parseInt(contentLength, 10) > MAX_CACHE_SIZE) {
     // Too large to cache with long TTL — serve through with short TTL
-    const headers = new Headers();
-    headers.set('Content-Type', contentType || 'application/octet-stream');
-    headers.set('Cache-Control', CACHE_CONTROL_SKIPPED); // 1 hour edge cache
-    if (contentType === 'image/svg+xml') {
-      headers.set('X-Content-Type-Options', 'nosniff');
-    }
+    const headers = _createProxyHeaders(contentType, CACHE_CONTROL_SKIPPED);
     return new Response(originResponse.body, { status: 200, headers });
   }
 
-  // 4. Read full body to check actual size
+  // Read full body to check actual size
   const bodyBuffer = await originResponse.arrayBuffer();
 
   if (bodyBuffer.byteLength > MAX_CACHE_SIZE) {
     // Large file — serve with short TTL
-    const headers = new Headers();
-    headers.set('Content-Type', contentType || 'application/octet-stream');
-    headers.set('Cache-Control', CACHE_CONTROL_SKIPPED); // 1 hour edge cache
+    const headers = _createProxyHeaders(contentType, CACHE_CONTROL_SKIPPED);
     if (contentType === 'image/svg+xml') {
       headers.set('X-Content-Type-Options', 'nosniff');
     }
     return new Response(bodyBuffer, { status: 200, headers });
   }
 
-  // 5. Small file — cache in Cloudflare edge with long TTL
+  // Small file — cache in Cloudflare edge with long TTL
   const resolvedContentType = contentType || 'application/octet-stream';
   const responseHeaders = new Headers();
   responseHeaders.set('Content-Type', resolvedContentType);

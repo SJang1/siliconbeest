@@ -291,13 +291,7 @@ export async function enrichStatuses(
       if (!iconUrl) continue;
 
       // Proxy remote emoji URLs through /proxy endpoint
-      let proxyUrl = iconUrl;
-      try {
-        const parsed = new URL(iconUrl);
-        if (parsed.hostname !== domain) {
-          proxyUrl = `https://${domain}/proxy?url=${encodeURIComponent(iconUrl)}`;
-        }
-      } catch { /* skip proxying if URL invalid */ }
+      let proxyUrl = proxyEmojiUrl(iconUrl, domain);
 
       emojis.push({
         shortcode: tagName,
