@@ -41,6 +41,7 @@ async function fetchActorPublicKey(
 		const response = await fetch(actorUri, {
 			headers: {
 				Accept: 'application/activity+json, application/ld+json',
+				'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 			},
 		});
 
@@ -170,7 +171,10 @@ app.post('/:username/inbox', async (c) => {
 				// Fetch the actor document to get the Ed25519 public key
 				const actorUri = (typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id) ?? '';
 				const actorResponse = await fetch(actorUri, {
-					headers: { Accept: 'application/activity+json, application/ld+json' },
+					headers: {
+						Accept: 'application/activity+json, application/ld+json',
+						'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+					},
 				});
 				if (actorResponse.ok) {
 					const actorDoc = await actorResponse.json() as {

@@ -68,6 +68,7 @@ export async function handleFetchRemoteAccount(
     const response = await fetch(actorUri, {
       headers: {
         Accept: AP_ACCEPT,
+        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
       },
     });
 
@@ -246,7 +247,10 @@ export async function handleFetchRemoteAccount(
     const cached = await env.CACHE.get(nodeinfoKey);
     if (!cached) {
       const wellKnownRes = await fetch(`https://${actorDomain}/.well-known/nodeinfo`, {
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+        },
       });
       if (wellKnownRes.ok) {
         const wellKnown = (await wellKnownRes.json()) as {
@@ -259,7 +263,10 @@ export async function handleFetchRemoteAccount(
         );
         if (link?.href) {
           const nodeinfoRes = await fetch(link.href, {
-            headers: { Accept: 'application/json' },
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+            },
           });
           if (nodeinfoRes.ok) {
             const nodeinfo = (await nodeinfoRes.json()) as {

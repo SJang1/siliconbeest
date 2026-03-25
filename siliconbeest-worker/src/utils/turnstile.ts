@@ -21,7 +21,10 @@ export async function verifyTurnstile(
     'https://challenges.cloudflare.com/turnstile/v0/siteverify',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'SiliconBeest/1.0 (+https://github.com/SJang1/siliconbeest)',
+      },
       body: JSON.stringify(payload),
     },
   );

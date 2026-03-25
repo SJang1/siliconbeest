@@ -40,6 +40,7 @@ async function fetchActorPublicKey(
 		const response = await fetch(actorUri, {
 			headers: {
 				Accept: 'application/activity+json, application/ld+json',
+				'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 			},
 		});
 

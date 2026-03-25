@@ -314,7 +314,14 @@ export async function handleDeliverActivity(
   if (preference === 'cavage') {
     // Domain is known to prefer draft-cavage — try it first
     const headers = await signRequestCavage(keyRow.private_key, keyId, inboxUrl, body);
-    response = await fetch(inboxUrl, { method: 'POST', headers, body });
+    response = await fetch(inboxUrl, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+      },
+      body
+    });
 
     // If cavage fails with 401/403, try RFC 9421 as fallback
     if (response.status === 401 || response.status === 403) {
@@ -322,7 +329,14 @@ export async function handleDeliverActivity(
         `[deliver] draft-cavage rejected by ${targetDomain} (${response.status}), falling back to RFC 9421`,
       );
       const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
-      response = await fetch(inboxUrl, { method: 'POST', headers: rfc9421Headers, body });
+      response = await fetch(inboxUrl, {
+        method: 'POST',
+        headers: {
+          ...rfc9421Headers,
+          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+        },
+        body
+      });
 
       if (response.ok || response.status === 202) {
         // RFC 9421 worked — update cached preference
@@ -332,7 +346,14 @@ export async function handleDeliverActivity(
   } else {
     // Try RFC 9421 first (default or known to support it)
     const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
-    response = await fetch(inboxUrl, { method: 'POST', headers: rfc9421Headers, body });
+    response = await fetch(inboxUrl, {
+      method: 'POST',
+      headers: {
+        ...rfc9421Headers,
+        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+      },
+      body
+    });
 
     if (response.status === 401 || response.status === 403) {
       // RFC 9421 rejected — fall back to draft-cavage
@@ -340,7 +361,14 @@ export async function handleDeliverActivity(
         `[deliver] RFC 9421 rejected by ${targetDomain} (${response.status}), falling back to draft-cavage`,
       );
       const cavageHeaders = await signRequestCavage(keyRow.private_key, keyId, inboxUrl, body);
-      response = await fetch(inboxUrl, { method: 'POST', headers: cavageHeaders, body });
+      response = await fetch(inboxUrl, {
+        method: 'POST',
+        headers: {
+          ...cavageHeaders,
+          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+        },
+        body
+      });
 
       if (response.ok || response.status === 202) {
         // Draft-cavage worked — remember this preference
