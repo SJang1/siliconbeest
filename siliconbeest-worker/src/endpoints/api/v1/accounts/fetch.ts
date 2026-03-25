@@ -24,10 +24,10 @@ app.get('/:id', async (c) => {
   const note = (row.note as string) || '';
   const acctDomain = (row.domain as string) || null;
 
-  // Background refresh for stale remote accounts (24h)
+  // Background refresh for stale remote accounts (2h)
   if (acctDomain && row.uri) {
     const fetchedAt = row.fetched_at as string | null;
-    const staleMs = 24 * 60 * 60 * 1000; // 24 hours
+    const staleMs = 2 * 60 * 60 * 1000; // 2 hours
     const isStale = !fetchedAt || (Date.now() - new Date(fetchedAt).getTime() > staleMs);
     if (isStale) {
       try {

@@ -223,10 +223,14 @@ export async function handleFetchRemoteAccount(
     }
   }
 
-  // Step 4: Cache in KV
-  await env.CACHE.put(cacheKey, JSON.stringify(actorDoc), {
-    expirationTtl: ACTOR_CACHE_TTL,
-  });
+  // Step 4: Cache in KV (best-effort — rate limit may reject)
+  try {
+    await env.CACHE.put(cacheKey, JSON.stringify(actorDoc), {
+      expirationTtl: ACTOR_CACHE_TTL,
+    });
+  } catch {
+    // KV write failed (429 rate limit) — non-fatal, DB is the source of truth
+  }
 
   // Ensure the instance record exists
   await env.DB.prepare(
@@ -270,10 +274,10 @@ export async function handleFetchRemoteAccount(
                 .bind(softwareName, softwareVersion, actorDomain)
                 .run();
             }
-            // Cache for 24 hours to avoid re-fetching
-            await env.CACHE.put(nodeinfoKey, JSON.stringify({ softwareName, softwareVersion }), {
-              expirationTtl: 86400,
-            });
+            // Cache for 2 hours (best-effort)
+            try { await env.CACHE.put(nodeinfoKey, JSON.stringify({ softwareName, softwareVersion }), {
+              expirationTtl: 7200,
+            }); } catch { /* KV rate limit — non-fatal */ }
           }
         }
       }

@@ -104,15 +104,17 @@ export async function handleImportItem(
       return;
     }
 
-    // Enqueue fetch_remote_account and retry this import later
-    await env.QUEUE_INTERNAL.send({
-      type: 'fetch_remote_account',
-      actorUri,
-      forceRefresh: false,
-    });
-
-    // Re-enqueue this import item with a delay so the account can be fetched first
-    await env.QUEUE_INTERNAL.send(msg);
+    // Enqueue fetch_remote_account (don't re-enqueue self to avoid queue explosion)
+    try {
+      await env.QUEUE_INTERNAL.send({
+        type: 'fetch_remote_account',
+        actorUri,
+        forceRefresh: false,
+      });
+    } catch { /* Queue overloaded — will be retried via queue retry mechanism */ }
+    // Skip this import item — the account will be fetched asynchronously
+    // The user can re-import later if needed
+    console.log(`[import] Skipping ${acct} — account not found, enqueued fetch`);
     return;
   }
 

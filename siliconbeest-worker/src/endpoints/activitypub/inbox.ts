@@ -199,31 +199,14 @@ app.post('/:username/inbox', async (c) => {
 		}
 	}
 
-	// Idempotency check: skip if we have already processed this activity
-	if (activity.id) {
-		const seenKey = `activity-seen:${activity.id}`;
-		const seen = await c.env.CACHE.get(seenKey);
-		if (seen) {
-			console.log(`[inbox] Duplicate activity ${activity.id}, skipping`);
-			return c.body(null, 202);
-		}
-	}
-
 	// Log for debugging
 	console.log(`[inbox] ${username} received ${activity.type} from ${activity.actor}`);
 
-	// Process the activity
+	// Process the activity (DB UNIQUE constraints handle idempotency)
 	try {
 		await processInboxActivity(activity, account.id, c.env);
 	} catch (err) {
 		console.error(`[inbox] Error processing ${activity.type}:`, err);
-	}
-
-	// Mark activity as seen with 24h TTL
-	if (activity.id) {
-		await c.env.CACHE.put(`activity-seen:${activity.id}`, '1', {
-			expirationTtl: 86400,
-		});
 	}
 
 	return c.body(null, 202);

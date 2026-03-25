@@ -143,6 +143,14 @@ info "Checking $WORKER_NAME..."
 (cd "$WORKER_DIR" && npx -p typescript tsc --noEmit)
 success "$WORKER_NAME: 0 errors"
 
+info "Checking $CONSUMER_NAME..."
+(cd "$CONSUMER_DIR" && npx -p typescript tsc --noEmit)
+success "$CONSUMER_NAME: 0 errors"
+
+info "Checking $EMAIL_SENDER_NAME..."
+(cd "$EMAIL_DIR" && npx -p typescript tsc --noEmit)
+success "$EMAIL_SENDER_NAME: 0 errors"
+
 info "Checking $VUE_NAME..."
 (cd "$VUE_DIR" && npx vue-tsc --noEmit)
 success "$VUE_NAME: 0 errors"

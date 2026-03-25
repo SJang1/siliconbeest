@@ -238,7 +238,7 @@ async function setSignaturePreference(
   pref: SignaturePreference,
   cache: KVNamespace,
 ): Promise<void> {
-  await cache.put(`sig-pref:${domain}`, pref, { expirationTtl: SIG_PREF_TTL });
+  try { await cache.put(`sig-pref:${domain}`, pref, { expirationTtl: SIG_PREF_TTL }); } catch { /* KV rate limit */ }
 }
 
 // ============================================================

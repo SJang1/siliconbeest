@@ -167,7 +167,7 @@ export async function handleFetchPreviewCard(
       'INSERT OR IGNORE INTO status_preview_cards (status_id, preview_card_id) VALUES (?1, ?2)',
     ).bind(statusId, existingCard.id as string).run();
     // Cache the URL
-    await env.CACHE.put(cacheKey, '1', { expirationTtl: 86400 });
+    try { await env.CACHE.put(cacheKey, '1', { expirationTtl: 86400 }); } catch { /* KV rate limit */ }
     return;
   }
 
@@ -177,7 +177,7 @@ export async function handleFetchPreviewCard(
   if (!og) {
     console.log(`[preview-card] No OG data found for: ${url}`);
     // Cache the failure to avoid repeated fetches
-    await env.CACHE.put(cacheKey, '0', { expirationTtl: 3600 });
+    try { await env.CACHE.put(cacheKey, '0', { expirationTtl: 3600 }); } catch { /* KV rate limit */ }
     return;
   }
   console.log(`[preview-card] Found OG: title="${og.title}", image=${!!og.image}`);
@@ -206,5 +206,5 @@ export async function handleFetchPreviewCard(
   ]);
 
   // Cache the URL with 24h TTL
-  await env.CACHE.put(cacheKey, '1', { expirationTtl: 86400 });
+  try { await env.CACHE.put(cacheKey, '1', { expirationTtl: 86400 }); } catch { /* KV rate limit */ }
 }
