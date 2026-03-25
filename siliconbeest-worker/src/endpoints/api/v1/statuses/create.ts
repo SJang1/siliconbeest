@@ -329,6 +329,7 @@ app.post('/', authRequired, async (c) => {
       deleted_at: null,
       poll_id: null,
       quote_id: quoteId,
+      emoji_tags: null,
       created_at: now,
       updated_at: now,
     };

@@ -24,8 +24,8 @@ export class StreamingDO extends DurableObject {
   // Reconstructed from hibernating WebSockets in constructor
   sessions: Map<WebSocket, SessionAttachment>;
 
-  constructor(ctx: DurableObjectState, env: unknown) {
-    super(ctx, env);
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env as any);
     this.sessions = new Map();
 
     // Restore hibernating WebSocket sessions
