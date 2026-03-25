@@ -1,9 +1,26 @@
 /**
  * Media Proxy Endpoint
  *
- * Caches remote Fediverse media in R2 and serves it through our domain.
- * Flow: check D1 cache → HIT: serve from R2 → MISS: fetch origin, stream to client,
- * and asynchronously save to R2 + D1 via waitUntil().
+ * Implements JIT (Just-In-Time) Proxying for remote Fediverse media and custom emojis.
+ * This is the preferred paradigm for Fediverse implementations (Misskey, GoToSocial, etc.)
+ * because it:
+ *   - Eliminates storage bloat from caching remote emojis
+ *   - Reduces database churn during federation ingestion
+ *   - Maintains privacy by serving media through our domain
+ *   - Allows graceful degradation if remote servers go offline
+ *
+ * Caching Strategy: Cloudflare CDN Cache
+ *   - All responses cached at Cloudflare edge nodes globally
+ *   - Automatic cache invalidation based on Cache-Control headers
+ *   - Zero database/R2 storage required
+ *   - Instant availability across CDN
+ *
+ * Security:
+ *   - SSRF Protection: Blocks localhost, private IPs, and RFC1918 ranges
+ *   - Content-Type Validation: Only image/*, video/*, audio/* allowed
+ *   - SVG Sandboxing: SVGs returned with X-Content-Type-Options: nosniff
+ *   - Size Limits: No cache for files >50MB (proxy directly)
+ *   - Timeout Protection: 10-second fetch timeout
  */
 
 import { Hono } from 'hono';
@@ -18,60 +35,34 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 const MAX_CACHE_SIZE = 50 * 1024 * 1024; // 50 MB
 const FETCH_TIMEOUT_MS = 10_000;
 const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'video/', 'audio/', 'application/octet-stream'];
-const CACHE_CONTROL = 'public, max-age=86400, immutable';
+
+// Cache headers for different response types
+const CACHE_CONTROL_CACHED = 'public, max-age=2592000, immutable'; // 30 days for cached media
+const CACHE_CONTROL_SKIPPED = 'public, max-age=3600'; // 1 hour for large files (proxied through)
+
+// Dangerous MIME types that should never be proxied
+const DANGEROUS_MIME_TYPES = [
+  'text/html',
+  'application/javascript',
+  'application/x-javascript',
+  'text/javascript',
+  'application/xhtml+xml',
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** SHA-256 hex digest of a string. */
-async function sha256(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** Extract a file extension from a URL path or Content-Type. */
-function guessExtension(url: string, contentType: string | null): string {
-  // Try from URL path first
-  try {
-    const pathname = new URL(url).pathname;
-    const lastSegment = pathname.split('/').pop() || '';
-    const dotIdx = lastSegment.lastIndexOf('.');
-    if (dotIdx > 0) {
-      const ext = lastSegment.slice(dotIdx + 1).toLowerCase();
-      if (ext.length >= 1 && ext.length <= 10 && /^[a-z0-9]+$/.test(ext)) {
-        return ext;
-      }
-    }
-  } catch { /* ignore */ }
-
-  // Fallback: derive from content-type
-  if (contentType) {
-    const ct = contentType.split(';')[0].trim().toLowerCase();
-    const map: Record<string, string> = {
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-      'image/gif': 'gif',
-      'image/webp': 'webp',
-      'image/svg+xml': 'svg',
-      'image/avif': 'avif',
-      'video/mp4': 'mp4',
-      'video/webm': 'webm',
-      'audio/mpeg': 'mp3',
-      'audio/ogg': 'ogg',
-      'audio/wav': 'wav',
-    };
-    if (map[ct]) return map[ct];
-  }
-
-  return 'bin';
-}
-
 /** Check if a content type is allowed for proxying. */
 function isAllowedContentType(ct: string | null): boolean {
   if (!ct) return false;
   const lower = ct.split(';')[0].trim().toLowerCase();
+
+  // Explicitly block dangerous MIME types
+  if (DANGEROUS_MIME_TYPES.includes(lower)) {
+    return false;
+  }
+
   return ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) => lower.startsWith(prefix));
 }
 
@@ -125,6 +116,23 @@ function isValidProxyUrl(urlStr: string): boolean {
 // GET /proxy?url=...
 // ---------------------------------------------------------------------------
 
+/**
+ * Media Proxy Endpoint using Cloudflare CDN Caching
+ *
+ * When a client requests /proxy?url=https://remote.server/emoji.png:
+ * 1. Request hits Cloudflare edge node
+ * 2. If in edge cache: return immediately (Cloudflare serves cached response)
+ * 3. If cache miss: fetch from origin, validate, return with cache headers
+ * 4. Cloudflare automatically caches response based on Cache-Control header
+ * 5. Next request from any user served from edge cache (global CDN)
+ *
+ * Benefits over R2+D1 caching:
+ * - Zero database writes
+ * - Zero R2 storage
+ * - Automatic edge caching at all Cloudflare locations
+ * - Global CDN distribution
+ * - 30-day edge cache for validated media
+ */
 app.get('/', async (c) => {
   const remoteUrl = c.req.query('url');
 
@@ -137,35 +145,7 @@ app.get('/', async (c) => {
     return c.json({ error: 'Invalid or disallowed URL' }, 400);
   }
 
-  // 2. Check D1 cache
-  const cached = await c.env.DB.prepare(
-    'SELECT r2_key, content_type FROM media_proxy_cache WHERE remote_url = ?',
-  )
-    .bind(remoteUrl)
-    .first<{ r2_key: string; content_type: string }>();
-
-  if (cached) {
-    // Cache HIT — serve from R2
-    const obj = await c.env.MEDIA_BUCKET.get(cached.r2_key);
-    if (obj) {
-      const headers = new Headers();
-      headers.set('Content-Type', cached.content_type);
-      headers.set('Cache-Control', CACHE_CONTROL);
-      headers.set('X-Cache', 'HIT');
-      if (obj.httpEtag) headers.set('ETag', obj.httpEtag);
-
-      // Conditional request support
-      const ifNoneMatch = c.req.header('If-None-Match');
-      if (ifNoneMatch && obj.httpEtag && ifNoneMatch === obj.httpEtag) {
-        return new Response(null, { status: 304, headers });
-      }
-
-      return new Response(obj.body, { status: 200, headers });
-    }
-    // R2 object missing — fall through to re-fetch
-  }
-
-  // 3. Cache MISS — fetch from origin
+  // 2. Fetch from origin with timeout
   let originResponse: Response;
   try {
     const controller = new AbortController();
@@ -194,64 +174,48 @@ app.get('/', async (c) => {
     return c.json({ error: 'Content type not allowed for proxying' }, 403);
   }
 
-  // Check size from Content-Length header (if available)
+  // Additional safety: Block dangerous MIME types even if they passed the prefix check
+  if (contentType && DANGEROUS_MIME_TYPES.includes(contentType.split(';')[0].trim().toLowerCase())) {
+    return c.json({ error: 'Content type not allowed for proxying' }, 403);
+  }
+
+  // 3. Check size from Content-Length header (if available)
   const contentLength = originResponse.headers.get('Content-Length');
   if (contentLength && parseInt(contentLength, 10) > MAX_CACHE_SIZE) {
-    // Too large to cache — just proxy through
+    // Too large to cache with long TTL — serve through with short TTL
     const headers = new Headers();
     headers.set('Content-Type', contentType || 'application/octet-stream');
-    headers.set('Cache-Control', 'public, max-age=3600');
-    headers.set('X-Cache', 'SKIP');
+    headers.set('Cache-Control', CACHE_CONTROL_SKIPPED); // 1 hour edge cache
+    if (contentType === 'image/svg+xml') {
+      headers.set('X-Content-Type-Options', 'nosniff');
+    }
     return new Response(originResponse.body, { status: 200, headers });
   }
 
-  // Read the full body so we can both return it and cache it
+  // 4. Read full body to check actual size
   const bodyBuffer = await originResponse.arrayBuffer();
 
-  // Check actual size
   if (bodyBuffer.byteLength > MAX_CACHE_SIZE) {
+    // Large file — serve with short TTL
     const headers = new Headers();
     headers.set('Content-Type', contentType || 'application/octet-stream');
-    headers.set('Cache-Control', 'public, max-age=3600');
-    headers.set('X-Cache', 'SKIP');
+    headers.set('Cache-Control', CACHE_CONTROL_SKIPPED); // 1 hour edge cache
+    if (contentType === 'image/svg+xml') {
+      headers.set('X-Content-Type-Options', 'nosniff');
+    }
     return new Response(bodyBuffer, { status: 200, headers });
   }
 
+  // 5. Small file — cache in Cloudflare edge with long TTL
   const resolvedContentType = contentType || 'application/octet-stream';
-  const ext = guessExtension(remoteUrl, resolvedContentType);
-
-  // Return response immediately
   const responseHeaders = new Headers();
   responseHeaders.set('Content-Type', resolvedContentType);
-  responseHeaders.set('Cache-Control', CACHE_CONTROL);
-  responseHeaders.set('X-Cache', 'MISS');
+  responseHeaders.set('Cache-Control', CACHE_CONTROL_CACHED); // 30 days edge cache
+  if (resolvedContentType === 'image/svg+xml') {
+    responseHeaders.set('X-Content-Type-Options', 'nosniff');
+  }
 
-  // 4. Asynchronously save to R2 + D1
-  c.executionCtx.waitUntil(
-    (async () => {
-      try {
-        const hash = await sha256(remoteUrl);
-        const r2Key = `proxy/${hash}.${ext}`;
-        const id = crypto.randomUUID();
-
-        // Save to R2
-        await c.env.MEDIA_BUCKET.put(r2Key, bodyBuffer, {
-          httpMetadata: { contentType: resolvedContentType },
-        });
-
-        // Save to D1
-        await c.env.DB.prepare(
-          `INSERT OR IGNORE INTO media_proxy_cache (id, remote_url, r2_key, content_type, size, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-        )
-          .bind(id, remoteUrl, r2Key, resolvedContentType, bodyBuffer.byteLength, new Date().toISOString())
-          .run();
-      } catch (err) {
-        console.error('Failed to cache proxied media:', err);
-      }
-    })(),
-  );
-
+  // Cloudflare CDN will automatically cache this response based on Cache-Control header
   return new Response(bodyBuffer, { status: 200, headers: responseHeaders });
 });
 

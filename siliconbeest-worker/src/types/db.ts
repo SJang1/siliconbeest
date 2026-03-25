@@ -103,6 +103,8 @@ export interface StatusRow {
   poll_id: string | null;
   /** FEP-e232: ID of the status being quoted (quote post) */
   quote_id: string | null;
+  /** JSON array of emoji tag objects from ActivityPub for lazy-load rendering */
+  emoji_tags: string | null;
   created_at: string;
   updated_at: string;
 }

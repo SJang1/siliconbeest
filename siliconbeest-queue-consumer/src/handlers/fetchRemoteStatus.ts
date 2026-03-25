@@ -112,13 +112,19 @@ export async function handleFetchRemoteStatus(
   // Determine visibility from addressing
   const visibility = determineVisibility(objectDoc);
 
+  // Extract emoji tags for lazy-load rendering (no caching, just store tag array)
+  const allTags = objectDoc.tag as unknown[] | undefined;
+  const emojiTags = Array.isArray(allTags)
+    ? allTags.filter(t => (t as Record<string, unknown>)?.type === 'Emoji')
+    : [];
+
   // Insert into statuses table
   await env.DB.prepare(
     `INSERT OR IGNORE INTO statuses (
        id, account_id, uri, url, content, content_warning,
-       visibility, language, in_reply_to_uri, sensitive,
-       is_local, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, datetime('now'))`,
+       visibility, language, in_reply_to_id, sensitive,
+       is_local, emoji_tags, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, datetime('now'))`,
   )
     .bind(
       statusId,
@@ -131,6 +137,7 @@ export async function handleFetchRemoteStatus(
       language,
       inReplyTo,
       sensitive ? 1 : 0,
+      JSON.stringify(emojiTags), // Store emoji tag array for lazy-load
       published,
     )
     .run();
@@ -181,29 +188,9 @@ export async function handleFetchRemoteStatus(
           ).bind(statusId, tagName),
         );
       } else if (tagObj.type === 'Emoji') {
-        // Store remote custom emoji
-        const emojiName = ((tagObj.name as string) || '').replace(/^:|:$/g, '');
-        const iconObj = tagObj.icon as Record<string, unknown> | undefined;
-        const emojiUrl = iconObj?.url as string | undefined;
-        if (!emojiName || !emojiUrl) continue;
-
-        // Use the server domain (from status URI), NOT the CDN/media URL hostname
-        let emojiDomain: string | null = null;
-        try {
-          emojiDomain = new URL(uri).hostname;
-        } catch { /* skip */ }
-
-        if (emojiDomain) {
-          stmts.push(
-            env.DB.prepare(
-              `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
-               VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-               ON CONFLICT(shortcode, domain) DO UPDATE SET
-                 image_key = excluded.image_key,
-                 updated_at = datetime('now')`,
-            ).bind(crypto.randomUUID(), emojiName, emojiDomain, emojiUrl),
-          );
-        }
+        // Note: Emoji NOT stored in database.
+        // Extracted on-demand from status tag array during rendering.
+        // Zero database writes, lazy-load on fetch.
       }
     }
     if (stmts.length > 0) {

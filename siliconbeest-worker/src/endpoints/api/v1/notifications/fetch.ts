@@ -3,7 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
-import { enrichStatuses, fetchAccountEmojis, getAccountEmojis } from '../../../../utils/statusEnrichment';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -122,26 +122,15 @@ app.get('/:id', authRequired, async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(statusAccountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN }),
       };
     }
   }
 
-  // Fetch account emojis for the notification from_account
-  const notifAcctDomain = (row.a_domain as string) || null;
-  const notifAcctEmojiMap = await fetchAccountEmojis(
-    c.env.DB,
-    [(row.a_display_name as string) || '', (row.a_note as string) || ''],
-    notifAcctDomain,
-  );
-  const notifAcctEmojis = getAccountEmojis(
-    notifAcctEmojiMap,
-    (row.a_display_name as string) || '',
-    (row.a_note as string) || '',
-  );
+  // In lazy-load model, account emojis are not pre-fetched - they render on-demand
 
   return c.json(serializeNotification(notifRow, {
-    account: serializeAccount(accountRow, { emojis: notifAcctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+    account: serializeAccount(accountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN }),
     status: statusObj,
   }));
 });

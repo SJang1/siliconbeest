@@ -4,7 +4,7 @@ import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
-import { enrichStatuses, fetchAccountEmojis, getAccountEmojis } from '../../../../utils/statusEnrichment';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -172,16 +172,6 @@ app.get('/', authRequired, async (c) => {
     if (!notifDomainTexts.has(dk)) notifDomainTexts.set(dk, []);
     notifDomainTexts.get(dk)!.push((row.a_display_name as string) || '', (row.a_note as string) || '');
   }
-  const notifEmojiMaps = new Map<string, Map<string, any>>();
-  const notifEmojiPromises: Promise<void>[] = [];
-  for (const [dk, texts] of notifDomainTexts) {
-    notifEmojiPromises.push(
-      fetchAccountEmojis(c.env.DB, texts, dk === '__local__' ? null : dk).then((m) => {
-        if (m.size > 0) notifEmojiMaps.set(dk, m);
-      }),
-    );
-  }
-  await Promise.all(notifEmojiPromises);
 
   const notifications = rows.map((row: any) => {
     const accountRow: AccountRow = {
@@ -203,15 +193,9 @@ app.get('/', authRequired, async (c) => {
 
     const statusObj = row.status_id ? statusMap.get(row.status_id) ?? null : null;
 
-    // Get account emojis for the notification from_account
-    const notifAcctDk = (row.a_domain as string) || '__local__';
-    const notifAcctEmojiMap = notifEmojiMaps.get(notifAcctDk);
-    const notifAcctEmojis = notifAcctEmojiMap
-      ? getAccountEmojis(notifAcctEmojiMap, (row.a_display_name as string) || '', (row.a_note as string) || '')
-      : [];
-
+    // In lazy-load model, account emojis are not pre-fetched - they render from avatars/display names on-demand
     return serializeNotification(notifRow, {
-      account: serializeAccount(accountRow, { emojis: notifAcctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN }),
       status: statusObj,
     });
   });

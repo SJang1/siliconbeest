@@ -200,28 +200,9 @@ export async function handleFetchRemoteAccount(
     )
     .run();
 
-  // Step 3: Store custom emojis from the actor's tag array
-  const tags = actorDoc.tag as unknown[] | undefined;
-  if (Array.isArray(tags)) {
-    for (const tag of tags) {
-      const tagObj = tag as Record<string, unknown>;
-      if (tagObj.type !== 'Emoji') continue;
-      const emojiName = (tagObj.name as string || '').replace(/^:|:$/g, '');
-      const iconObj = tagObj.icon as Record<string, unknown> | undefined;
-      const emojiUrl = iconObj?.url as string | undefined;
-      if (!emojiName || !emojiUrl) continue;
-
-      await env.DB.prepare(
-        `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-         ON CONFLICT(shortcode, domain) DO UPDATE SET
-           image_key = excluded.image_key,
-           updated_at = datetime('now')`,
-      )
-        .bind(crypto.randomUUID(), emojiName, actorDomain, emojiUrl)
-        .run();
-    }
-  }
+  // Note: Emojis are NOT stored in database.
+  // They are extracted on-demand from the actor payload during rendering (lazy-load).
+  // This eliminates database churn and storage bloat for remote emojis.
 
   // Step 4: Cache in KV (best-effort — rate limit may reject)
   try {

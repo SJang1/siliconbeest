@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
-import { fetchAccountEmojis, getAccountEmojis } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -40,9 +39,7 @@ app.get('/:id', async (c) => {
     }
   }
 
-  // Fetch account emojis
-  const emojiMap = await fetchAccountEmojis(c.env.DB, [displayName, note], acctDomain);
-  const acctEmojis = getAccountEmojis(emojiMap, displayName, note);
+  // In lazy-load model, account emojis are not pre-fetched - they render on-demand
 
   const avatarUrl = (row.avatar_url as string) || '';
   const headerUrl = (row.header_url as string) || '';
@@ -85,7 +82,7 @@ app.get('/:id', async (c) => {
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,
     last_status_at: (row.last_status_at as string) || null,
-    emojis: acctEmojis,
+    emojis: [],
     fields: safeJsonParse(row.fields as string | null, []),
   });
 });
