@@ -64,6 +64,33 @@ function loginPage(params: {
     <input id="password" type="password" name="password" required autocomplete="current-password" />
     <button type="submit" class="btn-primary">Sign in</button>
   </form>
+  <div class="divider">or</div>
+  <button id="passkey-btn" class="btn-primary" style="background:#4a4f5e;display:none;" onclick="passkeyLogin()">🔑 Sign in with Passkey</button>
+  <script>
+    if (window.PublicKeyCredential) document.getElementById('passkey-btn').style.display='block';
+    async function b64url(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}
+    function b64urlDec(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer;}
+    async function passkeyLogin(){
+      try{
+        const r=await fetch('/api/v1/auth/webauthn/authenticate/options',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const opts=await r.json();
+        const cred=await navigator.credentials.get({publicKey:{challenge:b64urlDec(opts.challenge),timeout:opts.timeout,rpId:opts.rpId,userVerification:opts.userVerification||'preferred',allowCredentials:(opts.allowCredentials||[]).map(c=>({id:b64urlDec(c.id),type:c.type,transports:c.transports}))}});
+        if(!cred)return;
+        const resp=cred.response;
+        const v=await fetch('/api/v1/auth/webauthn/authenticate/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:cred.id,rawId:await b64url(cred.rawId),type:cred.type,response:{authenticatorData:await b64url(resp.authenticatorData),clientDataJSON:await b64url(resp.clientDataJSON),signature:await b64url(resp.signature),userHandle:resp.userHandle?await b64url(resp.userHandle):null}})});
+        const d=await v.json();
+        if(d.access_token){
+          const form=document.querySelector('form');
+          let pt=form.querySelector('[name=passkey_token]');
+          if(!pt){pt=document.createElement('input');pt.type='hidden';pt.name='passkey_token';form.appendChild(pt);}
+          pt.value=d.access_token;
+          form.querySelector('[name=email]').removeAttribute('required');
+          form.querySelector('[name=password]').removeAttribute('required');
+          form.submit();
+        }else{alert(d.error||'Passkey login failed');}
+      }catch(e){if(e.name!=='NotAllowedError')alert(e.message);}
+    }
+  </script>
 </div>
 </body>
 </html>`;
@@ -242,6 +269,34 @@ app.post('/', async (c) => {
 			}),
 			400,
 		);
+	}
+
+	// ---------------------------------------------------------------------------
+	// Passkey flow: if passkey_token is present, resolve user from access token
+	// ---------------------------------------------------------------------------
+	const passkeyToken = body.passkey_token as string | undefined;
+	if (passkeyToken) {
+		// Look up user from the access token
+		const tokenHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passkeyToken)))).map(b => b.toString(16).padStart(2, '0')).join('');
+		const cacheKey = `token:${tokenHash}`;
+		let tokenPayload = await c.env.CACHE.get(cacheKey, 'json') as { user: { id: string; account_id: string } } | null;
+		if (!tokenPayload) {
+			const tokenRow = await c.env.DB.prepare(
+				`SELECT t.user_id, u.account_id FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id WHERE t.token = ?1 AND t.revoked_at IS NULL LIMIT 1`,
+			).bind(passkeyToken).first<{ user_id: string; account_id: string }>();
+			if (tokenRow) tokenPayload = { user: { id: tokenRow.user_id, account_id: tokenRow.account_id } };
+		}
+		if (tokenPayload) {
+			// Issue authorization code directly
+			const codeValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+			const now = new Date().toISOString();
+			const codeId = crypto.randomUUID();
+			await c.env.DB.prepare(
+				`INSERT INTO oauth_authorization_codes (id, oauth_application_id, user_id, code, redirect_uri, scopes, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+			).bind(codeId, oauthApp.id, tokenPayload.user.id, codeValue, redirectUri, scope, now, new Date(Date.now() + 600000).toISOString()).run();
+			const sep = redirectUri.includes('?') ? '&' : '?';
+			return c.redirect(`${redirectUri}${sep}code=${codeValue}${state ? '&state=' + encodeURIComponent(state) : ''}`);
+		}
 	}
 
 	// ---------------------------------------------------------------------------

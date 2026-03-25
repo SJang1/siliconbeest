@@ -12,7 +12,7 @@ const passkeyLoading = ref(false)
 
 const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
 
-const emit = defineEmits(['submit', 'sso', 'passkey'])
+const emit = defineEmits(['submit', 'passkey'])
 
 async function handleSubmit() {
   if (!email.value || !password.value) return
@@ -99,15 +99,6 @@ function handlePasskeyLogin() {
       class="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
     >
       {{ passkeyLoading ? t('common.loading') : t('webauthn.sign_in_with_passkey') }}
-    </button>
-
-    <!-- SSO -->
-    <button
-      type="button"
-      @click="emit('sso', 'google')"
-      class="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-    >
-      {{ t('auth.sign_in_google') }}
     </button>
 
     <!-- Register link -->

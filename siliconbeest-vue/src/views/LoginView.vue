@@ -41,10 +41,6 @@ async function handlePasskey() {
   }
 }
 
-function handleSso(provider: string) {
-  // Redirect to OAuth SSO flow
-  window.location.href = `/oauth/authorize?provider=${provider}`
-}
 </script>
 
 <template>
@@ -63,7 +59,7 @@ function handleSso(provider: string) {
         <div v-if="auth.loading" class="text-center py-4 text-gray-500">
           {{ t('common.loading') }}
         </div>
-        <LoginForm v-else @submit="handleLogin" @passkey="handlePasskey" @sso="handleSso" />
+        <LoginForm v-else @submit="handleLogin" @passkey="handlePasskey" />
       </div>
     </div>
   </div>
