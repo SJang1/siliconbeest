@@ -66,6 +66,7 @@ export async function sendPushNotification(
       Authorization: authorization,
       TTL: '86400', // 24 hours
       Urgency: 'normal',
+      'User-Agent': 'SiliconBeest/1.0 (WebPush; +https://github.com/SJang1/siliconbeest)',
     },
     body: encrypted.body,
   });

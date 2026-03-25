@@ -33,7 +33,10 @@ export async function handleFetchRemoteStatus(
   let objectDoc: Record<string, unknown>;
   try {
     const response = await fetch(statusUri, {
-      headers: { Accept: AP_ACCEPT },
+      headers: {
+        Accept: AP_ACCEPT,
+        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+      },
     });
 
     if (!response.ok) {
