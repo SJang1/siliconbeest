@@ -150,7 +150,7 @@ app.post('/', authRequired, async (c) => {
 
   await c.env.DB.batch(stmts);
 
-  // Enqueue timeline fanout to followers (skip for DMs — they don't appear in timelines)
+  // Enqueue timeline fanout to followers (skip for DMs — handled after mentions are resolved)
   if (visibility !== 'direct') {
     try {
       await c.env.QUEUE_INTERNAL.send({
@@ -161,110 +161,9 @@ app.post('/', authRequired, async (c) => {
     } catch {
       // Queue failure should not block status creation
     }
-  } else {
-    // For DMs, add to author's + mentioned LOCAL users' home timelines only
-    try {
-      const dmTimelineStmts = [
-        c.env.DB.prepare(
-          'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-        ).bind(statusId, currentUser.account_id, now),
-      ];
-      // Add to each mentioned local user's timeline
-      for (const rm of resolvedMentions) {
-        if (!rm.mentionDomain) {
-          // Local user
-          dmTimelineStmts.push(
-            c.env.DB.prepare(
-              'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-            ).bind(statusId, rm.account_id, now),
-          );
-        }
-      }
-      await c.env.DB.batch(dmTimelineStmts);
-
-      // Send streaming events to DM participants
-      // Fetch full status + account from DB for accurate payload
-      const dmStatusRow = await c.env.DB.prepare(
-        `SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
-                a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
-                a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
-                a.header_static_url AS a_header_static_url, a.locked AS a_locked, a.bot AS a_bot,
-                a.discoverable AS a_discoverable, a.followers_count AS a_followers_count,
-                a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
-                a.last_status_at AS a_last_status_at, a.created_at AS a_created_at,
-                a.emoji_tags AS a_emoji_tags
-         FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
-      ).bind(statusId).first();
-
-      // Fetch media attachments
-      const { results: dmMedia } = await c.env.DB.prepare(
-        'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?1',
-      ).bind(statusId).all();
-      const dmMediaArr = (dmMedia ?? []).map((m: any) => {
-        const fk = m.file_key as string;
-        const url = fk.startsWith('http') ? `https://${domain}/proxy?url=${encodeURIComponent(fk)}` : `https://${domain}/media/${fk}`;
-        return { id: m.id, type: m.type || 'image', url, preview_url: url, remote_url: fk.startsWith('http') ? fk : null, text_url: null, meta: m.width ? { original: { width: m.width, height: m.height } } : null, description: m.description || null, blurhash: m.blurhash || null };
-      });
-
-      const acct = (dmStatusRow as any)?.a_domain ? `${(dmStatusRow as any).a_username}@${(dmStatusRow as any).a_domain}` : (dmStatusRow as any)?.a_username || currentAccount.username;
-      const dmPayload = JSON.stringify({
-        id: statusId, uri: statusUri, created_at: now, content, visibility,
-        sensitive: !!sensitive, spoiler_text: spoilerText, language,
-        url: statusUrl, in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
-        reblogs_count: (dmStatusRow as any)?.reblogs_count || 0,
-        favourites_count: (dmStatusRow as any)?.favourites_count || 0,
-        replies_count: (dmStatusRow as any)?.replies_count || 0,
-        edited_at: (dmStatusRow as any)?.edited_at || null,
-        media_attachments: dmMediaArr,
-        mentions: resolvedMentions.map((rm) => ({ id: rm.account_id, username: rm.acct.split('@')[0], url: rm.actor_uri, acct: rm.acct })),
-        tags: parsed.tags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
-        emojis: [], reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
-        account: {
-          id: currentUser.account_id, username: (dmStatusRow as any)?.a_username || currentAccount.username,
-          acct,
-          display_name: (dmStatusRow as any)?.a_display_name || '',
-          locked: !!((dmStatusRow as any)?.a_locked), bot: !!((dmStatusRow as any)?.a_bot),
-          discoverable: !!((dmStatusRow as any)?.a_discoverable), group: false,
-          created_at: (dmStatusRow as any)?.a_created_at || now,
-          note: (dmStatusRow as any)?.a_note || '',
-          url: (dmStatusRow as any)?.a_url || `https://${domain}/@${currentAccount.username}`,
-          uri: (dmStatusRow as any)?.a_uri || `https://${domain}/users/${currentAccount.username}`,
-          avatar: (dmStatusRow as any)?.a_avatar_url || '', avatar_static: (dmStatusRow as any)?.a_avatar_static_url || (dmStatusRow as any)?.a_avatar_url || '',
-          header: (dmStatusRow as any)?.a_header_url || '', header_static: (dmStatusRow as any)?.a_header_static_url || (dmStatusRow as any)?.a_header_url || '',
-          followers_count: (dmStatusRow as any)?.a_followers_count || 0,
-          following_count: (dmStatusRow as any)?.a_following_count || 0,
-          statuses_count: (dmStatusRow as any)?.a_statuses_count || 0,
-          last_status_at: (dmStatusRow as any)?.a_last_status_at || null,
-          emojis: [], fields: [],
-        },
-      });
-
-      // Send to author
-      const { sendStreamEvent } = await import('../../../services/streaming');
-      const authorUserId = currentUser.id;
-      try {
-        await sendStreamEvent(c.env.STREAMING_DO, authorUserId, {
-          event: 'update', payload: dmPayload, stream: ['user', 'direct'],
-        });
-      } catch { /* ignore streaming failure */ }
-
-      // Send to each mentioned local user
-      for (const rm of resolvedMentions) {
-        if (!rm.mentionDomain) {
-          const mentionedUserRow = await c.env.DB.prepare(
-            'SELECT id FROM users WHERE account_id = ?1 LIMIT 1',
-          ).bind(rm.account_id).first();
-          if (mentionedUserRow) {
-            try {
-              await sendStreamEvent(c.env.STREAMING_DO, mentionedUserRow.id as string, {
-                event: 'update', payload: dmPayload, stream: ['user', 'direct'],
-              });
-            } catch { /* ignore */ }
-          }
-        }
-      }
-    } catch { /* ignore */ }
   }
+
+  // DM timeline + streaming is handled after resolvedMentions below
 
   // Enqueue preview card fetch for the first URL in the status text
   try {
@@ -401,6 +300,87 @@ app.post('/', authRequired, async (c) => {
   // Update DB content if changed
   if (fixedContent !== content) {
     await c.env.DB.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
+  }
+
+  // ============================================================
+  // DM: timeline insert + streaming for author + mentioned LOCAL users
+  // ============================================================
+  if (visibility === 'direct') {
+    try {
+      const dmTimelineStmts = [
+        c.env.DB.prepare(
+          'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+        ).bind(statusId, currentUser.account_id, now),
+      ];
+      for (const rm of resolvedMentions) {
+        if (!rm.mentionDomain) {
+          dmTimelineStmts.push(
+            c.env.DB.prepare(
+              'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+            ).bind(statusId, rm.account_id, now),
+          );
+        }
+      }
+      await c.env.DB.batch(dmTimelineStmts);
+
+      // Streaming: fetch full status from DB for accurate payload
+      const { sendStreamEvent } = await import('../../../../services/streaming');
+      const dmRow = await c.env.DB.prepare(
+        `SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
+                a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
+                a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
+                a.header_static_url AS a_header_static_url, a.locked AS a_locked, a.bot AS a_bot,
+                a.discoverable AS a_discoverable, a.followers_count AS a_followers_count,
+                a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
+                a.last_status_at AS a_last_status_at, a.created_at AS a_created_at
+         FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
+      ).bind(statusId).first();
+
+      if (dmRow) {
+        const { results: dmMedia } = await c.env.DB.prepare(
+          'SELECT id, type, file_key, description, blurhash, width, height FROM media_attachments WHERE status_id = ?1',
+        ).bind(statusId).all();
+        const mediaArr = (dmMedia ?? []).map((m: any) => {
+          const fk = m.file_key as string;
+          const mUrl = fk.startsWith('http') ? `https://${domain}/proxy?url=${encodeURIComponent(fk)}` : `https://${domain}/media/${fk}`;
+          return { id: m.id, type: m.type || 'image', url: mUrl, preview_url: mUrl, remote_url: fk.startsWith('http') ? fk : null, text_url: null, meta: m.width ? { original: { width: m.width, height: m.height } } : null, description: m.description || null, blurhash: m.blurhash || null };
+        });
+        const dmAcct = (dmRow as any).a_domain ? `${(dmRow as any).a_username}@${(dmRow as any).a_domain}` : (dmRow as any).a_username;
+        const dmPayload = JSON.stringify({
+          id: statusId, uri: statusUri, created_at: now, content: fixedContent, visibility,
+          sensitive: !!sensitive, spoiler_text: spoilerText, language, url: statusUrl,
+          in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
+          reblogs_count: (dmRow as any).reblogs_count || 0, favourites_count: (dmRow as any).favourites_count || 0,
+          replies_count: (dmRow as any).replies_count || 0, edited_at: (dmRow as any).edited_at || null,
+          media_attachments: mediaArr, mentions: resolvedMentions.map((rm) => ({ id: rm.account_id, username: rm.acct.split('@')[0], url: rm.actor_uri, acct: rm.acct })),
+          tags: parsed.tags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
+          emojis: [], reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
+          account: {
+            id: currentUser.account_id, username: (dmRow as any).a_username, acct: dmAcct,
+            display_name: (dmRow as any).a_display_name || '', locked: !!((dmRow as any).a_locked),
+            bot: !!((dmRow as any).a_bot), discoverable: !!((dmRow as any).a_discoverable), group: false,
+            created_at: (dmRow as any).a_created_at || now, note: (dmRow as any).a_note || '',
+            url: (dmRow as any).a_url || `https://${domain}/@${currentAccount.username}`,
+            uri: (dmRow as any).a_uri || `https://${domain}/users/${currentAccount.username}`,
+            avatar: (dmRow as any).a_avatar_url || '', avatar_static: (dmRow as any).a_avatar_static_url || (dmRow as any).a_avatar_url || '',
+            header: (dmRow as any).a_header_url || '', header_static: (dmRow as any).a_header_static_url || (dmRow as any).a_header_url || '',
+            followers_count: (dmRow as any).a_followers_count || 0, following_count: (dmRow as any).a_following_count || 0,
+            statuses_count: (dmRow as any).a_statuses_count || 0, last_status_at: (dmRow as any).a_last_status_at || null,
+            emojis: [], fields: [],
+          },
+        });
+
+        // Stream to author
+        try { await sendStreamEvent(c.env.STREAMING_DO, currentUser.id, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {}
+        // Stream to mentioned local users
+        for (const rm of resolvedMentions) {
+          if (!rm.mentionDomain) {
+            const mUser = await c.env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(rm.account_id).first();
+            if (mUser) { try { await sendStreamEvent(c.env.STREAMING_DO, mUser.id as string, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {} }
+          }
+        }
+      }
+    } catch { /* DM timeline/streaming failure should not block */ }
   }
 
   // ============================================================
