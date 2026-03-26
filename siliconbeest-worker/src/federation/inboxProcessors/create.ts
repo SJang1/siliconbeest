@@ -363,10 +363,12 @@ export async function processCreate(
 		}
 	}
 
-	// Fan out to local followers' home timelines
-	await env.QUEUE_INTERNAL.send({
-		type: 'timeline_fanout',
-		statusId,
-		accountId: authorAccountId,
-	});
+	// Fan out to local followers' home timelines (skip DMs)
+	if (visibility !== 'direct') {
+		await env.QUEUE_INTERNAL.send({
+			type: 'timeline_fanout',
+			statusId,
+			accountId: authorAccountId,
+		});
+	}
 }

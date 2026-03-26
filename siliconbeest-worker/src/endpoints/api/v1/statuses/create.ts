@@ -150,15 +150,24 @@ app.post('/', authRequired, async (c) => {
 
   await c.env.DB.batch(stmts);
 
-  // Enqueue timeline fanout to followers + federation delivery
-  try {
-    await c.env.QUEUE_INTERNAL.send({
-      type: 'timeline_fanout',
-      statusId,
-      accountId: currentUser.account_id,
-    });
-  } catch {
-    // Queue failure should not block status creation
+  // Enqueue timeline fanout to followers (skip for DMs — they don't appear in timelines)
+  if (visibility !== 'direct') {
+    try {
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'timeline_fanout',
+        statusId,
+        accountId: currentUser.account_id,
+      });
+    } catch {
+      // Queue failure should not block status creation
+    }
+  } else {
+    // For DMs, only add to author's own home timeline
+    try {
+      await c.env.DB.prepare(
+        'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+      ).bind(statusId, currentUser.account_id, now).run();
+    } catch { /* ignore */ }
   }
 
   // Enqueue preview card fetch for the first URL in the status text

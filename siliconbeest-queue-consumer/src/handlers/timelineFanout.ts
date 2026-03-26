@@ -82,6 +82,15 @@ export async function handleTimelineFanout(
 ): Promise<void> {
   const { statusId, accountId } = msg;
 
+  // Skip DM fanout — DMs should not appear in followers' timelines
+  const statusCheck = await env.DB.prepare(
+    'SELECT visibility FROM statuses WHERE id = ? LIMIT 1',
+  ).bind(statusId).first<{ visibility: string }>();
+  if (statusCheck?.visibility === 'direct') {
+    console.log(`Skipping timeline fanout for DM status ${statusId}`);
+    return;
+  }
+
   // Load all local followers of this account
   // Local accounts have domain IS NULL
   const rows = await env.DB.prepare(
