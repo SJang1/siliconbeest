@@ -146,9 +146,21 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
     streamingClient.value = new StreamingClient(token, 'user:notification', {
       onNotification(notification: Notification) {
-        cacheFromNotifications([notification]);
-        prepend(notification);
-        serverUnreadCount.value++;
+        try {
+          cacheFromNotifications([notification]);
+          // Deduplicate: don't add if already in list
+          if (!items.value.some(n => n.id === notification.id)) {
+            prepend(notification);
+            serverUnreadCount.value++;
+          }
+        } catch (e) {
+          console.error('[notifications streaming] Error processing notification:', e);
+          // Still try to prepend even if caching fails
+          if (!items.value.some(n => n.id === notification.id)) {
+            prepend(notification);
+            serverUnreadCount.value++;
+          }
+        }
       },
       onNotificationsRead(count: number) {
         serverUnreadCount.value = count;

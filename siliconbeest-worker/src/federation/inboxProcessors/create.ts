@@ -385,6 +385,64 @@ export async function processCreate(
 				).bind(statusId, m.account_id as string, now),
 			);
 			await env.DB.batch(stmts);
+
+			// Send streaming event for DM to each mentioned local user
+			try {
+				const dmStatusRow = await env.DB.prepare(
+					`SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
+					        a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
+					        a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
+					        a.header_static_url AS a_header_static_url, a.locked AS a_locked, a.bot AS a_bot,
+					        a.discoverable AS a_discoverable, a.followers_count AS a_followers_count,
+					        a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
+					        a.created_at AS a_created_at, a.emoji_tags AS a_emoji_tags
+					 FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
+				).bind(statusId).first();
+
+				if (dmStatusRow) {
+					const acct = (dmStatusRow as any).a_domain
+						? `${(dmStatusRow as any).a_username}@${(dmStatusRow as any).a_domain}`
+						: (dmStatusRow as any).a_username;
+					const dmPayload = JSON.stringify({
+						id: statusId, uri: (dmStatusRow as any).uri, created_at: (dmStatusRow as any).created_at,
+						content: (dmStatusRow as any).content, visibility: 'direct',
+						sensitive: !!(dmStatusRow as any).sensitive, spoiler_text: (dmStatusRow as any).content_warning || '',
+						language: (dmStatusRow as any).language, url: (dmStatusRow as any).url,
+						in_reply_to_id: (dmStatusRow as any).in_reply_to_id, in_reply_to_account_id: (dmStatusRow as any).in_reply_to_account_id,
+						reblogs_count: 0, favourites_count: 0, replies_count: 0, edited_at: null,
+						media_attachments: [], mentions: [], tags: [], emojis: [],
+						reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
+						account: {
+							id: authorAccountId, username: (dmStatusRow as any).a_username, acct,
+							display_name: (dmStatusRow as any).a_display_name || '',
+							locked: !!((dmStatusRow as any).a_locked), bot: !!((dmStatusRow as any).a_bot),
+							discoverable: !!((dmStatusRow as any).a_discoverable), group: false,
+							created_at: (dmStatusRow as any).a_created_at, note: (dmStatusRow as any).a_note || '',
+							url: (dmStatusRow as any).a_url || '', uri: (dmStatusRow as any).a_uri || '',
+							avatar: (dmStatusRow as any).a_avatar_url || '', avatar_static: (dmStatusRow as any).a_avatar_static_url || (dmStatusRow as any).a_avatar_url || '',
+							header: (dmStatusRow as any).a_header_url || '', header_static: (dmStatusRow as any).a_header_static_url || (dmStatusRow as any).a_header_url || '',
+							followers_count: (dmStatusRow as any).a_followers_count || 0, following_count: (dmStatusRow as any).a_following_count || 0,
+							statuses_count: (dmStatusRow as any).a_statuses_count || 0, last_status_at: null,
+							emojis: [], fields: [],
+						},
+					});
+
+					for (const m of localMentions as any[]) {
+						const userRow = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first();
+						if (userRow) {
+							try {
+								const doId = env.STREAMING_DO.idFromName(userRow.id as string);
+								const stub = env.STREAMING_DO.get(doId);
+								await stub.fetch('https://streaming/event', {
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json' },
+									body: JSON.stringify({ event: 'update', payload: dmPayload, stream: ['user', 'direct'] }),
+								});
+							} catch { /* streaming failure shouldn't block */ }
+						}
+					}
+				}
+			} catch { /* streaming failure shouldn't block inbox processing */ }
 		}
 	}
 }
