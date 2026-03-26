@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+
+type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToRecipient } from '../../../../federation/helpers/send';

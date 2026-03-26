@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
@@ -49,7 +50,7 @@ app.delete('/:id', authRequired, async (c) => {
           id: new URL(`https://${domain}/activities/${generateUlid()}`),
           actor: new URL(actorUri),
           object: new Tombstone({ id: new URL(row.uri as string) }),
-          published: new Date(),
+          published: Temporal.Now.instant(),
         });
         const fed = c.get('federation');
         await sendToFollowers(fed, c.env, account.username as string, del);

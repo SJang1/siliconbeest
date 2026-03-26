@@ -26,6 +26,7 @@ import {
 	Undo,
 	Update,
 } from '@fedify/fedify/vocab';
+import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../utils/ulid';
 import { injectMisskeyReaction } from './misskey-compat';
 
@@ -60,7 +61,7 @@ export async function buildCreateActivity(actor: string, noteJsonLd: Record<stri
 	const create = new Create({
 		id: activityIdUrl(actor),
 		actor: new URL(actor),
-		published: noteJsonLd.published ? new Date(noteJsonLd.published as string) : new Date(),
+		published: noteJsonLd.published ? Temporal.Instant.from(noteJsonLd.published as string) : Temporal.Now.instant(),
 	});
 	const createLd = (await create.toJsonLd()) as Record<string, unknown>;
 	// Replace the Fedify-generated object with our fully-formed note
@@ -148,7 +149,7 @@ export async function buildAnnounceActivity(
 		id: activityIdUrl(actor),
 		actor: new URL(actor),
 		object: new URL(objectUri),
-		published: published ? new Date(published) : new Date(),
+		published: published ? Temporal.Instant.from(published) : Temporal.Now.instant(),
 		tos: to.map((u) => new URL(u)),
 		ccs: cc.map((u) => new URL(u)),
 	});
@@ -163,7 +164,7 @@ export async function buildDeleteActivity(actor: string, objectUri: string): Pro
 		id: activityIdUrl(actor),
 		actor: new URL(actor),
 		object: new Tombstone({ id: new URL(objectUri) }),
-		published: new Date(),
+		published: Temporal.Now.instant(),
 	});
 	return toJsonString(del);
 }
@@ -178,7 +179,7 @@ export async function buildUpdateActivity(
 	const update = new Update({
 		id: activityIdUrl(actor),
 		actor: new URL(actor),
-		published: new Date(),
+		published: Temporal.Now.instant(),
 	});
 	const updateLd = (await update.toJsonLd()) as Record<string, unknown>;
 	updateLd.object = objectJsonLd;

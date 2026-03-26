@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+
+type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { sendToRecipient } from '../../../../federation/helpers/send';
 import { Follow } from '@fedify/fedify/vocab';

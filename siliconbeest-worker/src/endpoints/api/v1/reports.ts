@@ -5,6 +5,7 @@ import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { getFedifyContext } from '../../../federation/helpers/send';
 import { Flag } from '@fedify/fedify/vocab';
+import type { Recipient } from '@fedify/fedify/vocab';
 import { notifyAdminsNewReport } from '../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -37,7 +38,7 @@ app.post('/', authRequired, async (c) => {
 
   // Verify the target account exists
   const targetAccount = await c.env.DB.prepare(
-    'SELECT id, username, domain, uri FROM accounts WHERE id = ?1',
+    'SELECT id, username, domain, uri, inbox_url, shared_inbox_url FROM accounts WHERE id = ?1',
   )
     .bind(body.account_id)
     .first();
@@ -99,9 +100,18 @@ app.post('/', authRequired, async (c) => {
       // Use Fedify context to send from the instance actor
       const fed = c.get('federation');
       const ctx = getFedifyContext(fed, c.env);
+      const inboxUrl = targetAccount.inbox_url as string;
+      if (!inboxUrl) throw new Error('No inbox URL for target account');
+      const recipient: Recipient = {
+        id: new URL(targetUri),
+        inboxId: new URL(inboxUrl),
+        endpoints: targetAccount.shared_inbox_url
+          ? { sharedInbox: new URL(targetAccount.shared_inbox_url as string) }
+          : null,
+      };
       await ctx.sendActivity(
         { identifier: 'instance' },
-        new URL(targetUri),
+        recipient,
         flag,
       );
     } catch (e) {

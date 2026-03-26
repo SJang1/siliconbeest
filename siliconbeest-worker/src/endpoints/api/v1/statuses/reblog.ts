@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
+import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+
+type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToFollowers } from '../../../../federation/helpers/send';
@@ -143,7 +146,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
       id: new URL(reblogUri),
       actor: new URL(actorUri),
       object: new URL(statusUri),
-      published: new Date(),
+      published: Temporal.Now.instant(),
       tos: [new URL('https://www.w3.org/ns/activitystreams#Public')],
       ccs: [new URL(followersUri)],
     });

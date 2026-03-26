@@ -83,7 +83,7 @@ function setupFollowersDispatcher(
         }
 
         const sql = `
-          SELECT f.id AS follow_id, a.uri
+          SELECT f.id AS follow_id, a.uri, a.inbox_url, a.shared_inbox_url
           FROM follows f
           JOIN accounts a ON a.id = f.account_id
           WHERE ${conditions.join(' AND ')}
@@ -95,7 +95,7 @@ function setupFollowersDispatcher(
         const { results } = await db
           .prepare(sql)
           .bind(...binds)
-          .all<{ follow_id: string; uri: string }>();
+          .all<{ follow_id: string; uri: string; inbox_url: string; shared_inbox_url: string | null }>();
 
         const rows = results ?? [];
         const hasNext = rows.length > FOLLOWERS_PAGE_SIZE;
@@ -106,7 +106,13 @@ function setupFollowersDispatcher(
           : null;
 
         return {
-          items: items.map((r) => new URL(r.uri)),
+          items: items.map((r) => ({
+            id: new URL(r.uri),
+            inboxId: new URL(r.inbox_url),
+            endpoints: r.shared_inbox_url
+              ? { sharedInbox: new URL(r.shared_inbox_url) }
+              : null,
+          })),
           nextCursor,
         };
       },

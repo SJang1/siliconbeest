@@ -66,8 +66,8 @@ app.get('/lookup', async (c) => {
           const imageUrl = imageObj?.url instanceof URL ? imageObj.url.href : '';
           const actorUrl = actorObject.url instanceof URL ? actorObject.url.href : `https://${acctDomain}/@${preferredUsername}`;
           const inboxUrl = actorObject.inboxId?.href || '';
-          const endpointsObj = await actorObject.getEndpoints();
-          const sharedInboxUrl = endpointsObj?.sharedInboxId?.href || '';
+          const endpointsObj = actorObject.endpoints;
+          const sharedInboxUrl = endpointsObj?.sharedInbox?.href || '';
           await c.env.DB.prepare(
             `INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url,
              avatar_url, header_url, locked, bot, discoverable, inbox_url, shared_inbox_url,

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
@@ -49,7 +50,7 @@ app.post('/:id/unreblog', authRequired, async (c) => {
           id: new URL(`https://${domain}/activities/${generateUlid()}`),
           actor: new URL(actorUri),
           object: new URL(statusUri),
-          published: new Date(),
+          published: Temporal.Now.instant(),
           tos: [new URL(AS_PUBLIC)],
           ccs: [new URL(followersUri)],
         });

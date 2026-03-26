@@ -13,7 +13,7 @@
  */
 
 import type { Federation, Context } from '@fedify/fedify';
-import type { Activity } from '@fedify/fedify/vocab';
+import type { Activity, Recipient } from '@fedify/fedify/vocab';
 import type { Env } from '../../env';
 import type { FedifyContextData } from '../fedify';
 
@@ -87,9 +87,24 @@ export async function sendToRecipient(
 	activity: Activity,
 ): Promise<void> {
 	const ctx = getFedifyContext(federation, env);
+	// Look up the recipient's inbox from the database
+	const account = await env.DB.prepare(
+		'SELECT inbox_url, shared_inbox_url FROM accounts WHERE uri = ?1 LIMIT 1',
+	).bind(recipientUri).first<{ inbox_url: string; shared_inbox_url: string }>();
+	if (!account?.inbox_url) {
+		console.warn(`sendToRecipient: no inbox found for ${recipientUri}`);
+		return;
+	}
+	const recipient: Recipient = {
+		id: new URL(recipientUri),
+		inboxId: new URL(account.inbox_url),
+		endpoints: account.shared_inbox_url
+			? { sharedInbox: new URL(account.shared_inbox_url) }
+			: null,
+	};
 	await ctx.sendActivity(
 		{ identifier: senderUsername },
-		new URL(recipientUri),
+		recipient,
 		activity,
 	);
 }

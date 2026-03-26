@@ -43,15 +43,16 @@ class CloudflareMessageQueue implements MessageQueue {
   }
 
   enqueue(
-    message: unknown,
-    options?: { delay?: { seconds: number; milliseconds?: number } },
+    message: any,
+    options?: any,
   ): Promise<void> {
     return this.inner.enqueue(message, options);
   }
 
-  listen(
-    _handler: (message: unknown) => Promise<void> | void,
-  ): void {
+  async listen(
+    _handler: (message: any) => Promise<void> | void,
+    _options?: any,
+  ): Promise<void> {
     // No-op: Cloudflare Workers use processQueuedTask() in the queue consumer.
     // WorkersMessageQueue.listen() throws TypeError by design.
   }
@@ -69,7 +70,7 @@ class CloudflareMessageQueue implements MessageQueue {
  */
 export function createFed(env: Env): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
-    kv: new WorkersKvStore(env.FEDIFY_KV),
+    kv: new WorkersKvStore(env.FEDIFY_KV as any),
     queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION),
   });
 }

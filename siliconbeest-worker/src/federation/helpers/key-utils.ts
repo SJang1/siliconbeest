@@ -56,7 +56,7 @@ export async function importRsaKeyPairFromPem(
 	publicKeyPem: string,
 	privateKeyPem: string,
 ): Promise<CryptoKeyPair> {
-	const algorithm: RsaHashedImportParams = {
+	const algorithm = {
 		name: 'RSASSA-PKCS1-v1_5',
 		hash: { name: 'SHA-256' },
 	};
