@@ -35,7 +35,7 @@ export interface FedifyContextData {
  */
 export function createFed(env: Env): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
-    kv: new WorkersKvStore(env.FEDIFY_KV),
+    kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
     queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
   });
 }

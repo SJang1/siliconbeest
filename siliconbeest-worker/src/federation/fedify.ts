@@ -70,7 +70,7 @@ class CloudflareMessageQueue implements MessageQueue {
  */
 export function createFed(env: Env): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
-    kv: new WorkersKvStore(env.FEDIFY_KV as any),
+    kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
     queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION),
   });
 }

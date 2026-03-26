@@ -73,13 +73,13 @@ export default {
         if (isFedifyMessage(body)) {
           const fed = createFed(env);
           setupActorDispatcher(fed);
-          await fed.processQueuedTask(body, { env });
+          await fed.processQueuedTask({ env }, body as unknown as Parameters<typeof fed.processQueuedTask>[1]);
           msg.ack();
           continue;
         }
 
         // ---- Legacy messages (discriminated union on `type`) ----
-        const legacyMsg = body as QueueMessage;
+        const legacyMsg = body as unknown as QueueMessage; // body is checked by isFedifyMessage() above
         switch (legacyMsg.type) {
           case 'deliver_activity':
             await handleDeliverActivity(legacyMsg, env);

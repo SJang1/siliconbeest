@@ -108,7 +108,7 @@ function setupFollowersDispatcher(
         return {
           items: items.map((r) => ({
             id: new URL(r.uri),
-            inboxId: new URL(r.inbox_url),
+            inboxId: r.inbox_url ? new URL(r.inbox_url) : null,
             endpoints: r.shared_inbox_url
               ? { sharedInbox: new URL(r.shared_inbox_url) }
               : null,
