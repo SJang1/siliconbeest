@@ -35,8 +35,8 @@ app.post('/:id/unreblog', authRequired, async (c) => {
     ]);
   }
 
-  // Federation: deliver Undo(Announce) to followers if original is remote
-  if (reblog && row.account_domain) {
+  // Federation: deliver Undo(Announce) to followers
+  if (reblog) {
     try {
       const currentAccount = await c.env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',

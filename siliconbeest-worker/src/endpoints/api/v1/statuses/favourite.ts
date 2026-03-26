@@ -5,7 +5,7 @@ import { authRequired } from '../../../../middleware/auth';
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToRecipient } from '../../../../federation/helpers/send';
+import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
 import { Like } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 
@@ -49,27 +49,30 @@ app.post('/:id/favourite', authRequired, async (c) => {
       } catch (_) { /* don't fail the API response */ }
     }
 
-    // Federation: deliver Like activity if the status author is remote
-    if (row.account_domain) {
-      try {
-        const currentAccount = await c.env.DB.prepare(
-          'SELECT uri, username FROM accounts WHERE id = ?1',
-        ).bind(currentAccountId).first();
-        if (currentAccount) {
-          const actorUri = currentAccount.uri as string;
-          const statusUri = row.uri as string;
+    // Federation: deliver Like activity
+    try {
+      const currentAccount = await c.env.DB.prepare(
+        'SELECT uri, username FROM accounts WHERE id = ?1',
+      ).bind(currentAccountId).first();
+      if (currentAccount) {
+        const actorUri = currentAccount.uri as string;
+        const statusUri = row.uri as string;
+        const like = new Like({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(statusUri),
+        });
+        const fed = c.get('federation');
+        // If author is remote, send directly to their inbox
+        if (row.account_domain) {
           const authorUri = row.account_uri as string;
-          const like = new Like({
-            id: new URL(`https://${domain}/activities/${generateUlid()}`),
-            actor: new URL(actorUri),
-            object: new URL(statusUri),
-          });
-          const fed = c.get('federation');
           await sendToRecipient(fed, c.env, currentAccount.username as string, authorUri, like);
         }
-      } catch (e) {
-        console.error('Federation delivery failed for favourite:', e);
+        // Always fan out to followers
+        await sendToFollowers(fed, c.env, currentAccount.username as string, like);
       }
+    } catch (e) {
+      console.error('Federation delivery failed for favourite:', e);
     }
   }
 

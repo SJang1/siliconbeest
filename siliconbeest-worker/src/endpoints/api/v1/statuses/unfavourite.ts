@@ -3,7 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToRecipient } from '../../../../federation/helpers/send';
+import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
 import { Like, Undo } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 
@@ -32,8 +32,8 @@ app.post('/:id/unfavourite', authRequired, async (c) => {
     ]);
   }
 
-  // Federation: deliver Undo(Like) if status author is remote
-  if (existing && row.account_domain) {
+  // Federation: deliver Undo(Like)
+  if (existing) {
     try {
       const currentAccount = await c.env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
@@ -41,7 +41,6 @@ app.post('/:id/unfavourite', authRequired, async (c) => {
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
         const statusUri = row.uri as string;
-        const authorUri = row.account_uri as string;
         const originalLike = new Like({
           id: new URL(`https://${domain}/activities/${generateUlid()}`),
           actor: new URL(actorUri),
@@ -53,7 +52,13 @@ app.post('/:id/unfavourite', authRequired, async (c) => {
           object: originalLike,
         });
         const fed = c.get('federation');
-        await sendToRecipient(fed, c.env, currentAccount.username as string, authorUri, undo);
+        // If author is remote, send directly to their inbox
+        if (row.account_domain) {
+          const authorUri = row.account_uri as string;
+          await sendToRecipient(fed, c.env, currentAccount.username as string, authorUri, undo);
+        }
+        // Always fan out to followers
+        await sendToFollowers(fed, c.env, currentAccount.username as string, undo);
       }
     } catch (e) {
       console.error('Federation delivery failed for unfavourite:', e);
