@@ -354,7 +354,7 @@ export function useEmojis() {
   const customEmojisByCategory = computed(() => {
     const map = new Map<string, CustomEmoji[]>()
     for (const emoji of customEmojis.value) {
-      const cat = emoji.category ?? 'Custom'
+      const cat = emoji.category ?? '기타'
       if (!map.has(cat)) map.set(cat, [])
       map.get(cat)!.push(emoji)
     }

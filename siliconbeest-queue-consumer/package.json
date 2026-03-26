@@ -12,5 +12,9 @@
 		"@types/node": "^25.5.0",
 		"typescript": "^5.5.2",
 		"wrangler": "^4.76.0"
+	},
+	"dependencies": {
+		"@fedify/cfworkers": "^2.1.0",
+		"@fedify/fedify": "^2.1.0"
 	}
 }

@@ -7,6 +7,7 @@ import { useStatusesStore } from '@/stores/statuses'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountsStore } from '@/stores/accounts'
+import { useNow } from '@/composables/useNow'
 import Avatar from '../common/Avatar.vue'
 import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
@@ -20,6 +21,7 @@ const router = useRouter()
 const statusesStore = useStatusesStore()
 const timelinesStore = useTimelinesStore()
 const authStore = useAuthStore()
+const { now } = useNow()
 
 const props = defineProps<{
   status: Status
@@ -61,8 +63,9 @@ const isOwnStatus = computed(() => {
 
 const relativeTime = computed(() => {
   const date = new Date(displayStatus.value.created_at)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
+  // now.value is a reactive timestamp that updates every 30 seconds,
+  // ensuring this computed re-evaluates periodically
+  const diffMs = now.value - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   if (diffMins < 1) return t('time.just_now')
   if (diffMins < 60) return t('time.minutes_ago', { n: diffMins })

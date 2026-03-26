@@ -23,6 +23,7 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | `R2_BUCKET_NAME` | `{prefix}-media` | R2 bucket name |
 | `KV_CACHE_TITLE` | `{prefix}-CACHE` | KV namespace for cache |
 | `KV_SESSIONS_TITLE` | `{prefix}-SESSIONS` | KV namespace for sessions |
+| `KV_FEDIFY_TITLE` | `{prefix}-FEDIFY_KV` | KV namespace for Fedify federation state |
 | `QUEUE_FEDERATION` | `{prefix}-federation` | Federation queue |
 | `QUEUE_INTERNAL` | `{prefix}-internal` | Internal queue |
 | `QUEUE_EMAIL` | `{prefix}-email` | Email queue (consumed by email-sender) |
@@ -85,7 +86,7 @@ Prompts for:
 - **Sentry DSN** (optional)
 
 What it does:
-1. Creates D1 database, R2 bucket, KV namespaces, Queues
+1. Creates D1 database, R2 bucket, KV namespaces (CACHE, SESSIONS, FEDIFY_KV), Queues
 2. Generates VAPID key pair (ECDSA P-256) and OTP encryption key
 3. Updates all `wrangler.jsonc` files with resource IDs
 4. Sets secrets via `wrangler secret put`

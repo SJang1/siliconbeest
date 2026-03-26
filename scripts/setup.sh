@@ -196,6 +196,13 @@ else
   warn "Could not determine SESSIONS KV ID. You may need to update wrangler.jsonc manually."
 fi
 
+FEDIFY_KV_ID=$(create_kv_namespace "FEDIFY_KV")
+if [[ -n "$FEDIFY_KV_ID" ]]; then
+  success "KV FEDIFY_KV created: $FEDIFY_KV_ID"
+else
+  warn "Could not determine FEDIFY_KV ID. You may need to update wrangler.jsonc manually."
+fi
+
 # --- Queues ---
 create_queue() {
   local QUEUE_NAME="$1"
@@ -269,6 +276,21 @@ fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
 "
   fi
   success "SESSIONS KV ID updated"
+fi
+
+if [[ -n "$FEDIFY_KV_ID" ]]; then
+  info "Updating FEDIFY_KV ID..."
+  for DIR in "$WORKER_DIR" "$CONSUMER_DIR"; do
+    if [[ -f "$DIR/wrangler.jsonc" ]]; then
+      node -e "
+const fs = require('fs');
+let content = fs.readFileSync('$DIR/wrangler.jsonc', 'utf8');
+content = content.replace(/(\"binding\":\s*\"FEDIFY_KV\",[\s\S]*?\"id\":\s*\")[^\"]*(\")/, '\$1$FEDIFY_KV_ID\$2');
+fs.writeFileSync('$DIR/wrangler.jsonc', content);
+"
+    fi
+  done
+  success "FEDIFY_KV ID updated"
 fi
 
 # Update instance vars
@@ -363,6 +385,7 @@ echo -e "  ${BOLD}D1 Database ID:${NC}     $DB_ID"
 echo -e "  ${BOLD}R2 Bucket:${NC}          $BUCKET_NAME"
 echo -e "  ${BOLD}CACHE KV ID:${NC}        ${CACHE_KV_ID:-<check manually>}"
 echo -e "  ${BOLD}SESSIONS KV ID:${NC}     ${SESSIONS_KV_ID:-<check manually>}"
+echo -e "  ${BOLD}FEDIFY_KV ID:${NC}      ${FEDIFY_KV_ID:-<check manually>}"
 echo
 echo -e "  ${BOLD}VAPID Public Key:${NC}   $VAPID_PUBLIC_KEY"
 if [[ -n "$SENTRY_DSN" ]]; then

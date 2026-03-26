@@ -2,6 +2,10 @@
 
 This document describes the federation capabilities and standards supported by SiliconBeest, in accordance with [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fep/67ff/fep-67ff.md).
 
+## Powered by Fedify v2.1.0
+
+SiliconBeest's federation layer is built on [Fedify](https://fedify.dev/) v2.1.0, a TypeScript ActivityPub server framework. Fedify handles the core ActivityPub protocol concerns including HTTP Signature signing/verification, WebFinger resolution, NodeInfo serving, and activity delivery. The [`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers) package provides Cloudflare Workers-specific adapters for KV-based caching and Queue-based message dispatching.
+
 ## Supported Protocols
 
 - [ActivityPub](https://www.w3.org/TR/activitypub/) (Server-to-Server)
@@ -46,21 +50,21 @@ All activities listed above are accepted and processed when received from remote
 
 ## HTTP Signatures
 
-SiliconBeest supports the following HTTP signature methods for authenticating federation requests:
+SiliconBeest supports the following HTTP signature methods for authenticating federation requests. Signing and verification are handled by Fedify's built-in HTTP Signature support.
 
 | Method | Support | Description |
 |--------|---------|-------------|
-| `draft-cavage-http-signatures` | Full (sign + verify) | Legacy HTTP Signatures (draft-cavage-http-signatures-12). Used by most Mastodon-compatible software. RSA-SHA256 signing. |
-| RFC 9421 (HTTP Message Signatures) | Full (sign + verify) | Modern HTTP signature standard. Used as the preferred method with double-knock fallback to draft-cavage. |
+| `draft-cavage-http-signatures` | Full (sign + verify) | Legacy HTTP Signatures (draft-cavage-http-signatures-12). Used by most Mastodon-compatible software. RSA-SHA256 signing. Handled by Fedify. |
+| RFC 9421 (HTTP Message Signatures) | Full (sign + verify) | Modern HTTP signature standard. Used as the preferred method with double-knock fallback to draft-cavage. Handled by Fedify. |
 | Linked Data Signatures | Full (sign + verify) | LD Signatures on activities for relay forwarding and activity preservation. |
-| Object Integrity Proofs (FEP-8b32) | Full (create + verify) | Ed25519-based `DataIntegrityProof` with `ed25519-jcs-2022` cryptosuite. Created on outbound activities and verified on incoming activities when `proof` is present. |
+| Object Integrity Proofs (FEP-8b32) | Full (create + verify) | Ed25519-based `DataIntegrityProof` with `ed25519-jcs-2022` cryptosuite. Created on outbound activities and verified on incoming activities when `proof` is present. Handled by Fedify. |
 
 ### Double-Knock Delivery Strategy
 
-When delivering activities to remote inboxes, SiliconBeest uses a "double-knock" strategy:
+Fedify implements a "double-knock" delivery strategy when sending activities to remote inboxes:
 1. First attempt uses RFC 9421 HTTP Message Signatures (preferred).
 2. If the recipient rejects with a signature error, falls back to draft-cavage HTTP Signatures.
-3. The recipient's preference is cached in KV for 7 days to avoid repeated fallbacks.
+3. The recipient's preference is cached in KV (via `@fedify/cfworkers` KV store) for 7 days to avoid repeated fallbacks.
 
 ### Key Types
 
@@ -116,7 +120,7 @@ Actors expose featured tags at `/users/:username/featured_tags`.
 
 ## WebFinger
 
-SiliconBeest implements [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`.
+SiliconBeest implements [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`. The WebFinger endpoint is handled automatically by Fedify, which routes incoming WebFinger requests and constructs compliant JRD responses.
 
 - Supports `acct:` URI scheme for user lookups
 - Returns `application/jrd+json` responses
@@ -125,7 +129,7 @@ SiliconBeest implements [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7
 
 ## NodeInfo
 
-SiliconBeest implements [NodeInfo 2.1](https://nodeinfo.diaspora.software/protocol) at `/.well-known/nodeinfo` and `/nodeinfo/2.0`.
+SiliconBeest implements [NodeInfo 2.1](https://nodeinfo.diaspora.software/protocol) at `/.well-known/nodeinfo` and `/nodeinfo/2.0`. The NodeInfo endpoints are served by Fedify, which handles the well-known discovery document and the NodeInfo response construction. SiliconBeest provides the dynamic data (user counts, status counts, etc.) via Fedify's NodeInfo dispatcher callbacks.
 
 Exposed metadata includes:
 - Software name and version

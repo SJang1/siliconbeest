@@ -15,10 +15,12 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 - Accounts, statuses, timelines, notifications, conversations, lists, filters, polls, tags, bookmarks, favourites, search
 - Admin API for moderation (accounts, reports, domain blocks, domain allows, IP blocks, email domain blocks, rules, settings, announcements, custom emojis, relays, measures)
 
-### Federation
+### Federation (powered by Fedify)
+- **[Fedify](https://fedify.dev/) v2.1.0** -- TypeScript ActivityPub framework handling the protocol layer (signatures, WebFinger, NodeInfo, delivery)
+- **[`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers)** -- Cloudflare Workers adapter (KV store + Queue message dispatcher)
 - **ActivityPub** server-to-server protocol
-- **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing
-- **RFC 9421 double-knock** -- modern HTTP Message Signatures for delivery
+- **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing, handled by Fedify
+- **RFC 9421 double-knock** -- modern HTTP Message Signatures for delivery, handled by Fedify
 - **Linked Data Signatures** -- signing and verification for relay forwarding
 - **Ed25519 Object Integrity Proofs** (FEP-8b32) -- `ed25519-jcs-2022` cryptosuite
 - **Activity forwarding** with original signature preservation
@@ -87,7 +89,7 @@ SiliconBeest runs as 4 Cloudflare Workers:
      |                        |        |                        |
      |  - Mastodon API v1/v2  |        |  - Tailwind CSS        |
      |  - OAuth 2.0 + 2FA     |        |  - Headless UI         |
-     |  - ActivityPub S2S     |        |  - Pinia stores        |
+     |  - Fedify (ActivityPub)|        |  - Pinia stores        |
      |  - Admin API           |        |  - vue-i18n            |
      |  - WebSocket streaming |        |  - Sentry (optional)   |
      +------------------------+        +------------------------+
@@ -131,6 +133,7 @@ The main worker enqueues email jobs to the `email` queue via its `QUEUE_EMAIL` p
 | Layer         | Technology                                 |
 | ------------- | ------------------------------------------ |
 | API Server    | Hono + Chanfana + Zod on Cloudflare Workers |
+| Federation    | Fedify v2.1.0 + @fedify/cfworkers            |
 | Frontend      | Vue 3 + Vite + Tailwind CSS + Headless UI   |
 | Database      | Cloudflare D1 (SQLite)                      |
 | Object Store  | Cloudflare R2                               |
@@ -191,7 +194,7 @@ It will prompt for:
 | **Sentry DSN** | Error tracking (optional) | `https://...@sentry.io/...` |
 
 The script automatically:
-- Creates D1 database, R2 bucket, KV namespaces, Queues
+- Creates D1 database, R2 bucket, KV namespaces (CACHE, SESSIONS, FEDIFY_KV), Queues
 - Generates VAPID key pair (ECDSA P-256) for Web Push
 - Generates OTP encryption key for 2FA secrets
 - Updates all `wrangler.jsonc` files with resource IDs
@@ -282,7 +285,7 @@ cd siliconbeest-worker && npm test && cd ../siliconbeest-vue && npm test
 
 | Suite | Test Files | Coverage Areas |
 |-------|------------|----------------|
-| Worker | 48 | Auth, OAuth, accounts, statuses, timelines, notifications, search, lists, markers, media, bookmarks, favourites, blocks/mutes, conversations, filters, tags, polls, reports, admin (accounts, roles, domain blocks, rules, announcements), ActivityPub, HTTP signatures, LD signatures, integrity proofs, collection pagination, activity idempotency, featured collections, emoji reactions, custom emojis, quote posts, WebFinger, NodeInfo, content parsing, serializers, sanitization, ULID, instance, discovery, passwords |
+| Worker | 48 | Auth, OAuth, accounts, statuses, timelines, notifications, search, lists, markers, media, bookmarks, favourites, blocks/mutes, conversations, filters, tags, polls, reports, admin (accounts, roles, domain blocks, rules, announcements), ActivityPub, federation (Fedify dispatchers, inbox processing, delivery), collection pagination, activity idempotency, featured collections, emoji reactions, custom emojis, quote posts, WebFinger, NodeInfo, content parsing, serializers, sanitization, ULID, instance, discovery, passwords |
 | Vue | 11 | Stores (auth, ui, statuses, timelines), components (Avatar, LoadingSpinner, StatusActions, FollowButton), API client, i18n, router guards |
 
 ---

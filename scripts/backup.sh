@@ -145,6 +145,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Note on KV Namespaces
+# ---------------------------------------------------------------------------
+header "KV Namespace Notes"
+
+info "FEDIFY_KV stores Fedify federation state (signature caches, etc.)."
+info "CACHE and SESSIONS KV data is ephemeral and does not need backup."
+info "FEDIFY_KV data is also ephemeral (signature caches) and will be"
+info "  repopulated automatically. No KV backup is typically needed."
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 header "Backup Complete"

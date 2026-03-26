@@ -7,6 +7,7 @@ export interface Env {
   DB: D1Database;
   MEDIA_BUCKET: R2Bucket;
   CACHE: KVNamespace;
+  FEDIFY_KV: KVNamespace;
   QUEUE_FEDERATION: Queue;
   QUEUE_INTERNAL: Queue;
   WORKER: Fetcher; // service binding to main worker

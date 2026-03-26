@@ -37,6 +37,7 @@ else
   R2_BUCKET_NAME="${R2_BUCKET_NAME:-${PROJECT_PREFIX}-media}"
   KV_CACHE_TITLE="${KV_CACHE_TITLE:-${PROJECT_PREFIX}-CACHE}"
   KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
+  KV_FEDIFY_TITLE="${KV_FEDIFY_TITLE:-${PROJECT_PREFIX}-FEDIFY_KV}"
   QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
   QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
   QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
@@ -116,6 +117,14 @@ KV_SESSIONS_ID=$(echo "$KV_JSON" | node -e "
 [[ -n "$KV_CACHE_ID" ]] && success "KV CACHE: $KV_CACHE_ID" || warn "KV CACHE not found"
 [[ -n "$KV_SESSIONS_ID" ]] && success "KV SESSIONS: $KV_SESSIONS_ID" || warn "KV SESSIONS not found"
 
+KV_FEDIFY_ID=$(echo "$KV_JSON" | node -e "
+  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+  const ns = d.find(x => x.title === '${KV_FEDIFY_TITLE}' || x.title === '${WORKER_NAME}-${KV_FEDIFY_TITLE}' || x.title.includes('FEDIFY'));
+  if (ns) console.log(ns.id);
+" 2>/dev/null || true)
+
+[[ -n "$KV_FEDIFY_ID" ]] && success "KV FEDIFY: $KV_FEDIFY_ID" || warn "KV FEDIFY not found"
+
 # --- R2 Bucket ---
 info "Looking up R2 bucket: ${R2_BUCKET_NAME}"
 R2_EXISTS=$(npx wrangler r2 bucket list 2>/dev/null | grep -w "$R2_BUCKET_NAME" || true)
@@ -177,6 +186,7 @@ echo "  D1 Database:    ${D1_DATABASE_NAME} → ${D1_ID:-NOT FOUND}"
 echo "  R2 Bucket:      ${R2_BUCKET_NAME}"
 echo "  KV CACHE:       ${KV_CACHE_ID:-NOT FOUND}"
 echo "  KV SESSIONS:    ${KV_SESSIONS_ID:-NOT FOUND}"
+echo "  KV FEDIFY:      ${KV_FEDIFY_ID:-NOT FOUND}"
 echo "  Queue Fed:      ${QUEUE_FEDERATION}"
 echo "  Queue Internal: ${QUEUE_INTERNAL}"
 echo "  Queue Email:    ${QUEUE_EMAIL}"
@@ -257,6 +267,10 @@ cat > "$WORKER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		{
 			"binding": "SESSIONS",
 			"id": "${KV_SESSIONS_ID}"
+		},
+		{
+			"binding": "FEDIFY_KV",
+			"id": "${KV_FEDIFY_ID}"
 		}
 	],
 
@@ -357,6 +371,10 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		{
 			"binding": "CACHE",
 			"id": "${KV_CACHE_ID}"
+		},
+		{
+			"binding": "FEDIFY_KV",
+			"id": "${KV_FEDIFY_ID}"
 		}
 	],
 

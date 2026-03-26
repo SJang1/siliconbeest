@@ -39,6 +39,8 @@ const settings = ref({
   turnstile_enabled: '0',
   turnstile_site_key: '',
   turnstile_secret_key: '',
+  web_push_enabled: '0',
+  vapid_public_key: '',
 })
 
 async function uploadImage(event: Event, field: 'site_favicon_url' | 'site_logo_url') {
@@ -86,7 +88,8 @@ async function handleSave() {
   error.value = ''
   success.value = ''
   try {
-    await updateAdminSettings(auth.token!, { ...settings.value })
+    const { vapid_public_key: _, ...settingsToSave } = settings.value
+    await updateAdminSettings(auth.token!, settingsToSave)
     success.value = t('admin_settings.saved')
   } catch (e: any) {
     error.value = e?.description || e?.error || t('common.error')
@@ -312,6 +315,33 @@ const labelClass = 'block text-sm font-medium mb-1'
           >
             {{ t('turnstile.get_keys') }} &rarr;
           </a>
+        </div>
+      </section>
+
+      <!-- Web Push -->
+      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.web_push') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('admin_settings.web_push_description') }}</p>
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="settings.web_push_enabled === '1'"
+                @change="settings.web_push_enabled = ($event.target as HTMLInputElement).checked ? '1' : '0'"
+                class="sr-only peer"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+            </label>
+            <span class="text-sm font-medium">{{ t('admin_settings.web_push_enabled') }}</span>
+          </div>
+          <div v-if="settings.vapid_public_key">
+            <label :class="labelClass">{{ t('admin_settings.vapid_public_key') }}</label>
+            <input :value="settings.vapid_public_key" :class="inputClass" readonly class="!bg-gray-50 dark:!bg-gray-700/50 !text-gray-500 dark:!text-gray-400 !cursor-default" />
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin_settings.vapid_note') }}
+          </p>
         </div>
       </section>
 

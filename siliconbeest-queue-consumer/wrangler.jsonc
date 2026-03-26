@@ -36,6 +36,10 @@
 		{
 			"binding": "CACHE",
 			"id": "14a4d29db39c4de79adcef9f07d76c4d"
+		},
+		{
+			"binding": "FEDIFY_KV",
+			"id": "cc8fbc2dafae46cfb3346d08520fed36"
 		}
 	],
 
