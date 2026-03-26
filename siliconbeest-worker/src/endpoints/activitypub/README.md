@@ -148,3 +148,42 @@ Fedify는 Hono 미들웨어로 등록되어 있으므로, 모든 요청이 Fedif
 - Tombstone 응답은 [ActivityPub 표준 Section 6.2](https://www.w3.org/TR/activitypub/)에서 정의하는 삭제/정지 시그널이다.
 - 인스턴스 액터는 Mastodon을 포함한 주요 구현체에서 사용하는 사실상의 표준이다.
 - 두 파일 모두 올바른 `Content-Type` (`application/activity+json`)과 `@context`를 포함한다.
+
+---
+
+## `index.ts`의 Activity wrapper 라우트 — `/users/{identifier}/statuses/{id}/activity`
+
+### 역할
+
+`GET /users/{identifier}/statuses/{id}/activity` 경로에서 해당 status가 일반 글인지 부스트(reblog)인지에 따라 **`Create(Note)`** 또는 **`Announce`** Activity를 반환한다. 이 라우트는 `federation/dispatchers/objects.ts`의 `handleActivityRequest()` 함수를 호출하며, content negotiation을 통해 ActivityPub 요청이 아닌 경우 HTML 페이지로 리다이렉트한다.
+
+### Fedify의 `setObjectDispatcher`가 아닌 Hono 라우트인 이유
+
+1. **Fedify의 `setObjectDispatcher`는 하나의 경로 패턴에 하나의 타입만 허용** — 같은 `/users/{identifier}/statuses/{id}/activity` 경로에 `Create`와 `Announce` 두 개를 등록하면 `"Inserted route is the same as other route"` 에러가 발생한다.
+
+2. **부스트(reblog)와 일반 글이 같은 URI 패턴을 공유** — reblog의 URI는 `/users/{username}/statuses/{id}/activity`이고, 일반 글의 Create activity도 같은 패턴이다. 하나의 요청에서 DB 조회 후 `reblog_of_id` 유무로 `Create`/`Announce`를 분기해야 한다.
+
+3. **`Activity` 기반 클래스로 등록하는 것도 불가** — Fedify의 object dispatcher는 구체적인 타입(`Create`, `Announce`)을 요구하며, 부모 클래스 `Activity`로 등록해도 적절한 JSON-LD `@context`가 생성되지 않는다.
+
+### 동작 흐름
+
+```
+요청: GET /users/{username}/statuses/{id}/activity (Accept: application/activity+json)
+  │
+  ├─ Fedify 미들웨어 → 이 경로에 대한 dispatcher가 없으므로 Hono로 fall through
+  │
+  └─ index.ts (Hono 라우트) 실행
+      ├─ handleActivityRequest() 호출
+      ├─ DB에서 status 조회
+      ├─ reblog_of_id 존재 → Announce Activity 반환
+      └─ reblog_of_id 없음 → Create(Note) Activity 반환
+```
+
+### Note 객체 디스패처와의 관계
+
+`/users/{identifier}/statuses/{id}` 경로의 **Note** 객체는 Fedify의 `setObjectDispatcher(Note, ...)` 로 정상 등록되어 있다. Note는 항상 하나의 타입이므로 Fedify의 dispatcher 구조에 문제없이 들어맞는다.
+
+| 경로 | 처리 방식 | 이유 |
+|---|---|---|
+| `/users/{id}/statuses/{id}` | Fedify `setObjectDispatcher(Note)` | 항상 Note 타입 하나만 반환 |
+| `/users/{id}/statuses/{id}/activity` | Hono 라우트 → `handleActivityRequest()` | Create 또는 Announce를 동적으로 분기해야 함 |

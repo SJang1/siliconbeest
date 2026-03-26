@@ -42,6 +42,7 @@ import { createFed, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
 import { setupCollectionDispatchers } from './federation/dispatchers/collections';
+import { setupObjectDispatchers, handleActivityRequest } from './federation/dispatchers/objects';
 import { setupInboxListeners } from './federation/listeners/inbox';
 
 // -- Well-Known / Discovery --
@@ -166,6 +167,7 @@ app.use('*', async (c, next) => {
   setupActorDispatcher(fed);
   setupNodeInfoDispatcher(fed);
   setupCollectionDispatchers(fed);
+  setupObjectDispatchers(fed);
   setupInboxListeners(fed);
 
   // Store federation instance for use in route handlers (sendActivity)
@@ -293,6 +295,16 @@ app.route('/api/v2/filters', filters);
 
 app.route('/users', apActor);
 app.route('/actor', apInstanceActor);
+
+// Activity wrapper for statuses (Create/Announce) — Hono route because
+// Fedify only allows one type per path pattern
+app.get('/users/:identifier/statuses/:id/activity', async (c) => {
+  const accept = c.req.header('Accept') || '';
+  if (!accept.includes('activity+json') && !accept.includes('ld+json')) {
+    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
+  }
+  return handleActivityRequest(c.env, c.req.param('identifier'), c.req.param('id'));
+});
 
 // ---------------------------------------------------------------------------
 // Media serving (R2)

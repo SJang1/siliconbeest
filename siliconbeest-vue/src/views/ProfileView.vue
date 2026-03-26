@@ -29,8 +29,8 @@ const maxId = ref<string>()
 const error = ref<string | null>(null)
 
 const isOwn = computed(() => {
-  return auth.currentUser?.acct === account.value?.acct ||
-    auth.currentUser?.username === account.value?.username
+  if (!auth.currentUser || !account.value) return false
+  return auth.currentUser.id === account.value.id
 })
 
 async function loadProfile(acct: string) {

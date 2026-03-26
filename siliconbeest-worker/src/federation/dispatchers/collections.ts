@@ -24,7 +24,7 @@ import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
 import type { AccountRow, StatusRow } from '../../types/db';
 
-const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 // Page sizes matching existing endpoints
 const FOLLOWERS_PAGE_SIZE = 40;
@@ -559,14 +559,14 @@ function setupFeaturedTagsDispatcher(
 /**
  * Convert an ISO 8601 date string to a Temporal.Instant.
  */
-function toTemporalInstant(isoString: string): Temporal.Instant {
+export function toTemporalInstant(isoString: string): Temporal.Instant {
   return Temporal.Instant.from(isoString);
 }
 
 /**
  * Map internal media type string to Fedify vocabulary class constructor.
  */
-function buildMediaAttachment(
+export function buildMediaAttachment(
   att: {
     url: string;
     mediaType: string;
@@ -595,7 +595,7 @@ function buildMediaAttachment(
 }
 
 /** Result from building a Fedify Note with addressing info. */
-interface FedifyNoteResult {
+export interface FedifyNoteResult {
   note: Note;
   tos: URL[];
   ccs: URL[];
@@ -605,7 +605,7 @@ interface FedifyNoteResult {
  * Build a Fedify Note from a StatusRow, matching the logic in noteSerializer.ts.
  * Returns the Note plus the to/cc URL arrays for the wrapping activity.
  */
-function buildFedifyNote(
+export function buildFedifyNote(
   status: StatusRow,
   account: AccountRow,
   domain: string,
@@ -697,7 +697,7 @@ function buildFedifyNote(
  * Determine to/cc URL arrays based on Mastodon-style visibility.
  * Mirrors resolveAddressing() in noteSerializer.ts.
  */
-function resolveAddressing(
+export function resolveAddressing(
   visibility: string,
   followersUri: string,
 ): { tos: URL[]; ccs: URL[] } {
