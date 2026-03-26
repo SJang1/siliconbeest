@@ -114,6 +114,13 @@ function isCustomEmoji(reaction: EmojiReaction): boolean {
   return reaction.name.startsWith(':') && reaction.name.endsWith(':') && !!reaction.url
 }
 
+// 리모트 서버의 커스텀 이모지인지 확인 (로컬에 없으므로 반응 추가 불가)
+function isRemoteCustomEmoji(reaction: EmojiReaction): boolean {
+  if (!isCustomEmoji(reaction)) return false
+  // 리모트 이모지는 /proxy?url= 경로로 제공됨, 로컬은 /media/ 경로
+  return !!reaction.url && reaction.url.includes('/proxy?url=')
+}
+
 // 커스텀 이모지 shortcode 추출
 function getShortcode(name: string): string {
   return name.replace(/^:|:$/g, '')
@@ -127,16 +134,18 @@ function getShortcode(name: string): string {
       <button
         v-for="reaction in reactions"
         :key="reaction.name"
-        @click="toggleReaction(reaction)"
-        :disabled="loading || !authStore.isAuthenticated"
+        @click="!isRemoteCustomEmoji(reaction) && toggleReaction(reaction)"
+        :disabled="loading || !authStore.isAuthenticated || isRemoteCustomEmoji(reaction)"
         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-all duration-200 select-none"
         :class="[
-          reaction.me
-            ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
-            : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600/50',
-          loading ? 'opacity-60 cursor-wait' : authStore.isAuthenticated ? 'cursor-pointer' : 'cursor-default',
+          isRemoteCustomEmoji(reaction)
+            ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70'
+            : reaction.me
+              ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+              : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600/50',
+          isRemoteCustomEmoji(reaction) ? '' : loading ? 'opacity-60 cursor-wait' : authStore.isAuthenticated ? 'cursor-pointer' : 'cursor-default',
         ]"
-        :title="reaction.name"
+        :title="isRemoteCustomEmoji(reaction) ? `${reaction.name} (다른 서버의 이모지)` : reaction.name"
       >
         <!-- 커스텀 이모지 이미지 -->
         <img

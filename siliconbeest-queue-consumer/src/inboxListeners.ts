@@ -104,7 +104,7 @@ export function setupInboxListeners(
 			const activity = await toAPActivity(follow);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
-			await processFollow(activity, localAccountId, env);
+			await processFollow(activity, localAccountId, env as any);
 			console.log('[inbox] Follow processed successfully');
 		})
 
@@ -115,7 +115,7 @@ export function setupInboxListeners(
 			const activity = await toAPActivity(create);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			console.log('[inbox] Processing Create for localAccountId:', localAccountId, 'activity.object.type:', (activity as any).object?.type);
-			await processCreate(activity, localAccountId, env);
+			await processCreate(activity, localAccountId, env as any);
 			console.log('[inbox] Create processed successfully');
 		})
 
@@ -124,7 +124,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(accept);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processAccept(activity, localAccountId, env);
+			await processAccept(activity, localAccountId, env as any);
 		})
 
 		// ── Reject ──────────────────────────────────────────────
@@ -132,7 +132,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(reject);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processReject(activity, localAccountId, env);
+			await processReject(activity, localAccountId, env as any);
 		})
 
 		// ── Like ────────────────────────────────────────────────
@@ -147,10 +147,10 @@ export function setupInboxListeners(
 				await processEmojiReact(
 					activity as typeof activity & Record<string, unknown>,
 					localAccountId,
-					env,
+					env as any,
 				);
 			} else {
-				await processLike(activity, localAccountId, env);
+				await processLike(activity, localAccountId, env as any);
 			}
 		})
 
@@ -159,7 +159,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(announce);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processAnnounce(activity, localAccountId, env);
+			await processAnnounce(activity, localAccountId, env as any);
 		})
 
 		// ── Delete ──────────────────────────────────────────────
@@ -167,7 +167,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(del);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processDelete(activity, localAccountId, env);
+			await processDelete(activity, localAccountId, env as any);
 		})
 
 		// ── Update (Person or Note) ─────────────────────────────
@@ -175,7 +175,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(update);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processUpdate(activity, localAccountId, env);
+			await processUpdate(activity, localAccountId, env as any);
 		})
 
 		// ── Undo (Follow, Like, Announce, Block) ────────────────
@@ -183,7 +183,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(undo);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processUndo(activity, localAccountId, env);
+			await processUndo(activity, localAccountId, env as any);
 		})
 
 		// ── Block ───────────────────────────────────────────────
@@ -191,7 +191,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(block);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processBlock(activity, localAccountId, env);
+			await processBlock(activity, localAccountId, env as any);
 		})
 
 		// ── Move ────────────────────────────────────────────────
@@ -199,7 +199,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(move);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processMove(activity, localAccountId, env);
+			await processMove(activity, localAccountId, env as any);
 		})
 
 		// ── Flag (Report) ───────────────────────────────────────
@@ -207,7 +207,7 @@ export function setupInboxListeners(
 			const { env } = ctx.data;
 			const activity = await toAPActivity(flag);
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processFlag(activity, localAccountId, env);
+			await processFlag(activity, localAccountId, env as any);
 		})
 
 		// ── EmojiReact (native Fedify type) ─────────────────────
@@ -218,7 +218,7 @@ export function setupInboxListeners(
 			await processEmojiReact(
 				activity as typeof activity & Record<string, unknown>,
 				localAccountId,
-				env,
+				env as any,
 			);
 		})
 
