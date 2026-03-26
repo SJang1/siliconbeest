@@ -12,10 +12,44 @@ function toISO(d: unknown): string {
   try { return new Date(d).toISOString(); } catch { return d as string; }
 }
 
+function parseAccountEmojiTags(
+  emojiTagsJson: string | null | undefined,
+  acctDomain: string | null,
+  instanceDomain: string,
+): Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> {
+  if (!emojiTagsJson || !acctDomain) return [];
+  try {
+    const tags = JSON.parse(emojiTagsJson) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
+    return tags.map((t) => {
+      const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+      const rawUrl = t.url || '';
+      const rawStatic = t.static_url || rawUrl;
+      const proxyIt = (u: string) => {
+        if (!u) return u;
+        try {
+          const parsed = new URL(u);
+          if (parsed.hostname === instanceDomain) return u;
+          return `https://${instanceDomain}/proxy?url=${encodeURIComponent(u)}`;
+        } catch { return u; }
+      };
+      return { shortcode: sc, url: proxyIt(rawUrl), static_url: proxyIt(rawStatic), visible_in_picker: false };
+    });
+  } catch { return []; }
+}
+
 function serializeStatus(row: Record<string, unknown>, domain: string, currentAccountId?: string, accountEmojis?: any[]) {
   const acct = row.account_domain
     ? `${row.account_username}@${row.account_domain}`
     : (row.account_username as string);
+
+  // Derive account emojis from emoji_tags if not explicitly provided
+  const resolvedAccountEmojis = (accountEmojis && accountEmojis.length > 0)
+    ? accountEmojis
+    : parseAccountEmojiTags(
+        row.account_emoji_tags as string | null,
+        row.account_domain as string | null,
+        domain,
+      );
 
   return {
     id: row.id as string,
@@ -61,7 +95,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
       following_count: (row.account_following_count as number) || 0,
       statuses_count: (row.account_statuses_count as number) || 0,
       last_status_at: (row.account_last_status_at as string) || null,
-      emojis: accountEmojis ?? [],
+      emojis: resolvedAccountEmojis,
       roles: [],
       fields: [],
     },
@@ -112,7 +146,7 @@ const STATUS_JOIN_SQL = `
     a.locked AS account_locked, a.bot AS account_bot, a.discoverable AS account_discoverable,
     a.followers_count AS account_followers_count, a.following_count AS account_following_count,
     a.statuses_count AS account_statuses_count, a.last_status_at AS account_last_status_at,
-    a.created_at AS account_created_at
+    a.created_at AS account_created_at, a.emoji_tags AS account_emoji_tags
   FROM statuses s
   JOIN accounts a ON a.id = s.account_id
 `;

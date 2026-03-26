@@ -51,7 +51,8 @@ app.get('/', authRequired, async (c) => {
            a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
            a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
            a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+           a.emoji_tags AS a_emoji_tags
     FROM home_timeline_entries hte
     JOIN statuses s ON s.id = hte.status_id
     JOIN accounts a ON a.id = s.account_id
@@ -89,7 +90,8 @@ app.get('/', authRequired, async (c) => {
               a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
               a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
               a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-              a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+              a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+           a.emoji_tags AS a_emoji_tags
        FROM statuses s JOIN accounts a ON a.id = s.account_id
        WHERE s.id IN (${ph}) AND s.deleted_at IS NULL`,
     ).bind(...uniqueReblogIds).all();
@@ -107,10 +109,11 @@ app.get('/', authRequired, async (c) => {
         last_status_at: rr.a_last_status_at as string | null, created_at: rr.a_created_at as string,
         updated_at: rr.a_created_at as string, suspended_at: rr.a_suspended_at as string | null,
         silenced_at: null, memorial: (rr.a_memorial as number) || 0, moved_to_account_id: rr.a_moved_to_account_id as string | null,
+        emoji_tags: (rr.a_emoji_tags as string) || null,
       };
       const origE = enrichments.get(rr.id as string);
       const origSerialized = serializeStatus(rr as unknown as StatusRow, {
-        account: serializeAccount(origAccountRow, { emojis: origE?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(origAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,
         favourited: origE?.favourited,
@@ -135,10 +138,11 @@ app.get('/', authRequired, async (c) => {
       last_status_at: row.a_last_status_at, created_at: row.a_created_at,
       updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
       silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
+      emoji_tags: row.a_emoji_tags || null,
     };
     const e = enrichments.get(row.id);
     const s = serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,

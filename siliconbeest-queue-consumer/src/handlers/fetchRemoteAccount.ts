@@ -142,6 +142,23 @@ export async function handleFetchRemoteAccount(
   }
   const fieldsJson = JSON.stringify(profileFields);
 
+  // Extract Emoji tags from the actor document
+  const emojiTags: Array<{ shortcode: string; url: string }> = [];
+  const tags = actorDoc.tag as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(tags)) {
+    for (const tag of tags) {
+      if (tag.type === 'Emoji' && tag.name) {
+        const shortcode = String(tag.name).replace(/^:|:$/g, '');
+        const iconObj = tag.icon as Record<string, unknown> | undefined;
+        const emojiUrl = iconObj?.url as string | undefined;
+        if (shortcode && emojiUrl) {
+          emojiTags.push({ shortcode, url: emojiUrl });
+        }
+      }
+    }
+  }
+  const emojiTagsJson = emojiTags.length > 0 ? JSON.stringify(emojiTags) : null;
+
   // Step 2: Upsert into accounts table
   await env.DB.prepare(
     `INSERT INTO accounts (
@@ -149,13 +166,13 @@ export async function handleFetchRemoteAccount(
        avatar_url, header_url, inbox_url, outbox_url,
        shared_inbox_url, followers_url, following_url,
        public_key_pem, public_key_id, actor_type,
-       is_bot, is_group, fields, fetched_at, created_at, updated_at
+       is_bot, is_group, fields, emoji_tags, fetched_at, created_at, updated_at
      ) VALUES (
        ?, ?, ?, ?, ?, ?, ?,
        ?, ?, ?, ?,
        ?, ?, ?,
        ?, ?, ?,
-       ?, ?, ?, datetime('now'), datetime('now'), datetime('now')
+       ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now')
      )
      ON CONFLICT(uri) DO UPDATE SET
        display_name = excluded.display_name,
@@ -174,6 +191,7 @@ export async function handleFetchRemoteAccount(
        is_bot = excluded.is_bot,
        is_group = excluded.is_group,
        fields = excluded.fields,
+       emoji_tags = excluded.emoji_tags,
        fetched_at = datetime('now'),
        updated_at = datetime('now')`,
   )
@@ -198,12 +216,9 @@ export async function handleFetchRemoteAccount(
       isBot ? 1 : 0,
       isGroup ? 1 : 0,
       fieldsJson,
+      emojiTagsJson,
     )
     .run();
-
-  // Note: Emojis are NOT stored in database.
-  // They are extracted on-demand from the actor payload during rendering (lazy-load).
-  // This eliminates database churn and storage bloat for remote emojis.
 
   // Step 4: Cache in KV (best-effort — rate limit may reject)
   try {

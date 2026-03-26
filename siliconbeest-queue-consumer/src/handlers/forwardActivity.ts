@@ -21,7 +21,7 @@ export async function handleForwardActivity(
 		...originalHeaders,
 		// Ensure content-type is set
 		'Content-Type': originalHeaders['content-type'] || 'application/activity+json',
-		'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+		'User-Agent': originalHeaders['user-agent'] || 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 	};
 
 	// Update the Host header for the target

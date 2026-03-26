@@ -119,6 +119,20 @@ export function serializeAccount(
 
   const domain = opts?.instanceDomain;
 
+  // Build account emojis from emoji_tags if not explicitly provided
+  let accountEmojis = opts?.emojis ?? [];
+  if (accountEmojis.length === 0 && row.emoji_tags) {
+    try {
+      const tags = JSON.parse(row.emoji_tags) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
+      accountEmojis = tags.map((t) => ({
+        shortcode: t.shortcode || (t.name || '').replace(/^:|:$/g, ''),
+        url: domain ? proxyUrl(t.url || '', domain) || t.url || '' : t.url || '',
+        static_url: domain ? proxyUrl(t.static_url || t.url || '', domain) || t.static_url || t.url || '' : t.static_url || t.url || '',
+        visible_in_picker: false,
+      }));
+    } catch { /* ignore malformed JSON */ }
+  }
+
   const account: MastodonAccount = {
     id: row.id,
     username: row.username,
@@ -141,7 +155,7 @@ export function serializeAccount(
     followers_count: row.followers_count,
     following_count: row.following_count,
     fields: (opts?.fields ?? parseJsonField((row as any).fields, [])).filter((f: any) => f.name || f.value),
-    emojis: opts?.emojis ?? [],
+    emojis: accountEmojis,
   };
 
   if (opts?.source) {

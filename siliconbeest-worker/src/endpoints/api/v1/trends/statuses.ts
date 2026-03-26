@@ -26,7 +26,8 @@ app.get('/', authOptional, async (c) => {
            a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
            a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
            a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+           a.emoji_tags AS a_emoji_tags
     FROM statuses s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.created_at > datetime('now', '-7 days')
@@ -59,10 +60,11 @@ app.get('/', authOptional, async (c) => {
       last_status_at: row.a_last_status_at, created_at: row.a_created_at,
       updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
       silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
+      emoji_tags: row.a_emoji_tags || null,
     };
     const e = enrichments.get(row.id);
     return serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,

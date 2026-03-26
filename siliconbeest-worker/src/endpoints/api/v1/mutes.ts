@@ -50,8 +50,7 @@ app.get('/', authRequired, async (c) => {
 
   // Restore actual account IDs in the response
   const serialized = (results as any[]).map((row: any) => {
-    // In lazy-load model, account emojis are not pre-fetched - they render on-demand
-    return serializeAccount(row as AccountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN });
+    return serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
   });
   if (pag.minId) serialized.reverse();
 

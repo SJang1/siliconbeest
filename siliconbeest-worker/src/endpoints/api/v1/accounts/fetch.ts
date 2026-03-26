@@ -39,8 +39,6 @@ app.get('/:id', async (c) => {
     }
   }
 
-  // In lazy-load model, account emojis are not pre-fetched - they render on-demand
-
   const avatarUrl = (row.avatar_url as string) || '';
   const headerUrl = (row.header_url as string) || '';
   const defaultAvatar = `https://${domain}/default-avatar.svg`;
@@ -55,6 +53,26 @@ app.get('/:id', async (c) => {
       return `https://${domain}/proxy?url=${encodeURIComponent(url)}`;
     } catch { return url; }
   };
+
+  // Parse account emoji_tags and proxy URLs
+  let emojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+  const emojiTagsRaw = row.emoji_tags as string | null;
+  if (emojiTagsRaw && acctDomain) {
+    try {
+      const tags = JSON.parse(emojiTagsRaw) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
+      emojis = tags.map((t) => {
+        const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+        const rawUrl = t.url || '';
+        const rawStatic = t.static_url || rawUrl;
+        return {
+          shortcode: sc,
+          url: proxyRemote(rawUrl),
+          static_url: proxyRemote(rawStatic),
+          visible_in_picker: false,
+        };
+      });
+    } catch { /* ignore malformed JSON */ }
+  }
 
   const rawAvatar = avatarUrl || defaultAvatar;
   const rawAvatarStatic = (row.avatar_static_url as string) || avatarUrl || defaultAvatar;
@@ -82,7 +100,7 @@ app.get('/:id', async (c) => {
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,
     last_status_at: (row.last_status_at as string) || null,
-    emojis: [],
+    emojis,
     fields: safeJsonParse(row.fields as string | null, []),
   });
 });

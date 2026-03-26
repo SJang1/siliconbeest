@@ -21,7 +21,8 @@ app.get('/:id', authRequired, async (c) => {
            a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
            a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
            a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+           a.emoji_tags AS a_emoji_tags
     FROM notifications n
     JOIN accounts a ON a.id = n.from_account_id
     WHERE n.id = ?1 AND n.account_id = ?2
@@ -43,6 +44,7 @@ app.get('/:id', authRequired, async (c) => {
     last_status_at: row.a_last_status_at, created_at: row.a_created_at,
     updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
     silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
+    emoji_tags: (row.a_emoji_tags as string) || null,
   };
   const notifRow: NotificationRow = {
     id: row.id, account_id: row.account_id, from_account_id: row.from_account_id,
@@ -65,7 +67,7 @@ app.get('/:id', authRequired, async (c) => {
               sa.locked AS sa_locked, sa.bot AS sa_bot, sa.discoverable AS sa_discoverable,
               sa.followers_count AS sa_followers_count, sa.following_count AS sa_following_count,
               sa.statuses_count AS sa_statuses_count, sa.last_status_at AS sa_last_status_at,
-              sa.created_at AS sa_created_at
+              sa.created_at AS sa_created_at, sa.emoji_tags AS sa_emoji_tags
        FROM statuses s
        JOIN accounts sa ON sa.id = s.account_id
        WHERE s.id = ?1 AND s.deleted_at IS NULL`,
@@ -89,6 +91,7 @@ app.get('/:id', authRequired, async (c) => {
         followers_count: (sr.sa_followers_count || 0) as number, following_count: (sr.sa_following_count || 0) as number,
         last_status_at: sr.sa_last_status_at as string | null, created_at: sr.sa_created_at as string,
         updated_at: sr.sa_created_at as string, suspended_at: null, silenced_at: null, memorial: 0, moved_to_account_id: null,
+        emoji_tags: (sr.sa_emoji_tags as string) || null,
       };
 
       statusObj = {
@@ -122,15 +125,13 @@ app.get('/:id', authRequired, async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(statusAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       };
     }
   }
 
-  // In lazy-load model, account emojis are not pre-fetched - they render on-demand
-
   return c.json(serializeNotification(notifRow, {
-    account: serializeAccount(accountRow, { emojis: [], instanceDomain: c.env.INSTANCE_DOMAIN }),
+    account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
     status: statusObj,
   }));
 });

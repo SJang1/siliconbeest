@@ -76,7 +76,8 @@ app.get('/', authRequired, async (c) => {
                 a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
                 a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
                 a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-                a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id
+                a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+                a.emoji_tags AS a_emoji_tags
          FROM statuses s
          JOIN accounts a ON a.id = s.account_id
          WHERE s.id = ?1 AND s.deleted_at IS NULL`,
@@ -111,6 +112,7 @@ app.get('/', authRequired, async (c) => {
           silenced_at: null,
           memorial: statusRow.a_memorial as number,
           moved_to_account_id: statusRow.a_moved_to_account_id as string | null,
+          emoji_tags: (statusRow.a_emoji_tags as string) || null,
         };
         lastStatus = serializeStatus(statusRow as unknown as StatusRow, {
           account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),

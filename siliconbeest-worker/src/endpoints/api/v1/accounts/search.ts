@@ -44,10 +44,33 @@ app.get('/search', authRequired, async (c) => {
 
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
 
-  // Batch-fetch account emojis not needed in lazy-load model
-
   const accounts = (results as Record<string, unknown>[]).map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
+    const acctDomain = (row.domain as string) || null;
+
+    // Parse account emoji_tags and proxy URLs
+    let emojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+    const emojiTagsRaw = row.emoji_tags as string | null;
+    if (emojiTagsRaw && acctDomain) {
+      try {
+        const tags = JSON.parse(emojiTagsRaw) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
+        emojis = tags.map((t) => {
+          const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+          const rawUrl = t.url || '';
+          const rawStatic = t.static_url || rawUrl;
+          const proxyIt = (u: string) => {
+            if (!u) return u;
+            try {
+              const p = new URL(u);
+              if (p.hostname === domain) return u;
+              return `https://${domain}/proxy?url=${encodeURIComponent(u)}`;
+            } catch { return u; }
+          };
+          return { shortcode: sc, url: proxyIt(rawUrl), static_url: proxyIt(rawStatic), visible_in_picker: false };
+        });
+      } catch { /* ignore */ }
+    }
+
     return {
       id: row.id as string,
       username: row.username as string,
@@ -69,7 +92,7 @@ app.get('/search', authRequired, async (c) => {
       following_count: (row.following_count as number) || 0,
       statuses_count: (row.statuses_count as number) || 0,
       last_status_at: (row.last_status_at as string) || null,
-      emojis: [],
+      emojis,
       fields: [],
     };
   });

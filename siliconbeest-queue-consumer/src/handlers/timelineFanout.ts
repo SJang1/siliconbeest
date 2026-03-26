@@ -45,16 +45,35 @@ async function fetchEmojisForStatus(
     .filter(Boolean) as Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>;
 }
 
-/** Fetch account emojis from emoji_tags of the account's display_name/note (stored in statuses or via custom_emojis) */
+/** Fetch account emojis from the accounts.emoji_tags column */
 async function fetchAccountEmojis(
-  _db: D1Database,
-  _displayName: string,
-  _note: string,
-  _domain: string | null,
+  db: D1Database,
+  accountId: string,
+  instanceDomain: string,
 ): Promise<Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>> {
-  // Account emojis are not stored in emoji_tags — they come from the actor document.
-  // For streaming payloads, we return empty and let the frontend handle display name emojis.
-  return [];
+  const row = await db.prepare(
+    'SELECT emoji_tags FROM accounts WHERE id = ?',
+  ).bind(accountId).first();
+  if (!row) return [];
+
+  const tagsJson = row.emoji_tags as string | null;
+  if (!tagsJson) return [];
+
+  let tags: Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }> = [];
+  try { tags = JSON.parse(tagsJson); } catch { return []; }
+
+  return tags.map((t) => {
+    const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+    const url = t.url || '';
+    const staticUrl = t.static_url || url;
+    const proxied = url.startsWith('http')
+      ? `https://${instanceDomain}/proxy?url=${encodeURIComponent(url)}`
+      : url;
+    const proxiedStatic = staticUrl.startsWith('http')
+      ? `https://${instanceDomain}/proxy?url=${encodeURIComponent(staticUrl)}`
+      : staticUrl;
+    return { shortcode: sc, url: proxied, static_url: proxiedStatic, visible_in_picker: false };
+  }).filter((e) => e.shortcode && e.url);
 }
 
 export async function handleTimelineFanout(
@@ -143,12 +162,11 @@ export async function handleTimelineFanout(
         // Fetch custom emojis from emoji_tags JSON column
         const statusEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
 
-        // Account emojis (not available via emoji_tags, return empty)
+        // Account emojis from accounts.emoji_tags
         const accountEmojis = await fetchAccountEmojis(
           env.DB,
-          (statusRow.display_name as string) || '',
-          (statusRow.account_note as string) || '',
-          (statusRow.domain as string) || null,
+          statusRow.account_id as string,
+          env.INSTANCE_DOMAIN,
         );
 
         // Fetch media attachments
@@ -244,7 +262,7 @@ export async function handleTimelineFanout(
           ).bind(statusRow.reblog_of_id).first();
 
           if (origRow) {
-            const origAcctEmojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+            const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id as string, env.INSTANCE_DOMAIN);
             const parsed = JSON.parse(statusPayload);
             parsed.reblog = {
               id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
@@ -318,12 +336,11 @@ export async function handleTimelineFanout(
 
   if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
     const pubEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
-    // Account emojis (empty for streaming)
+    // Account emojis from accounts.emoji_tags
     const pubAccountEmojis = await fetchAccountEmojis(
       env.DB,
-      (publicStatusRow.display_name as string) || '',
-      (publicStatusRow.account_note as string) || '',
-      (publicStatusRow.domain as string) || null,
+      publicStatusRow.account_id as string,
+      env.INSTANCE_DOMAIN,
     );
     // Fetch media for public streaming
     const { results: pubMediaRows } = await env.DB.prepare(
@@ -384,7 +401,7 @@ export async function handleTimelineFanout(
          WHERE s.id = ? AND s.deleted_at IS NULL`,
       ).bind(publicStatusRow.reblog_of_id).first();
       if (origRow) {
-        const origAcctEmojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+        const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id as string, env.INSTANCE_DOMAIN);
         const parsed = JSON.parse(pubPayload);
         parsed.reblog = {
           id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,

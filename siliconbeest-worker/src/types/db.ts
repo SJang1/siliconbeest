@@ -38,6 +38,8 @@ export interface AccountRow {
   moved_to_account_id: string | null;
   also_known_as?: string | null;
   moved_at?: string | null;
+  /** JSON array of emoji tag objects from ActivityPub actor document */
+  emoji_tags?: string | null;
 }
 
 export interface UserRow {

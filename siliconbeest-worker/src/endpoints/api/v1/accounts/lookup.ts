@@ -81,6 +81,29 @@ app.get('/lookup', async (c) => {
   if (!row) throw new AppError(404, 'Record not found');
   const domain = row.domain as string | null;
 
+  // Parse account emoji_tags and proxy URLs
+  let emojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+  const emojiTagsRaw = row.emoji_tags as string | null;
+  if (emojiTagsRaw && domain) {
+    try {
+      const tags = JSON.parse(emojiTagsRaw) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
+      emojis = tags.map((t) => {
+        const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+        const rawUrl = t.url || '';
+        const rawStatic = t.static_url || rawUrl;
+        const proxyIt = (u: string) => {
+          if (!u) return u;
+          try {
+            const p = new URL(u);
+            if (p.hostname === instanceDomain) return u;
+            return `https://${instanceDomain}/proxy?url=${encodeURIComponent(u)}`;
+          } catch { return u; }
+        };
+        return { shortcode: sc, url: proxyIt(rawUrl), static_url: proxyIt(rawStatic), visible_in_picker: false };
+      });
+    } catch { /* ignore */ }
+  }
+
   return c.json({
     id: row.id as string,
     username: row.username as string,
@@ -102,7 +125,7 @@ app.get('/lookup', async (c) => {
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,
     last_status_at: (row.last_status_at as string) || null,
-    emojis: [],
+    emojis,
     fields: safeJsonParse(row.fields as string | null, []),
   });
 });
