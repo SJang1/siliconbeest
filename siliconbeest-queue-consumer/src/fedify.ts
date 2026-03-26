@@ -37,5 +37,9 @@ export function createFed(env: Env): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
     queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
+    userAgent: {
+      software: 'SiliconBeest/1.0',
+      url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
+    },
   });
 }
