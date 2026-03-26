@@ -6,6 +6,7 @@ import type { Status } from '@/types/mastodon'
 import { getStatus, getStatusContext, createStatus } from '@/api/mastodon/statuses'
 import { useAuthStore } from '@/stores/auth'
 import { useStatusesStore } from '@/stores/statuses'
+import { useInstanceStore } from '@/stores/instance'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
 import StatusComposer from '@/components/status/StatusComposer.vue'
@@ -16,6 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const statusesStore = useStatusesStore()
+const instanceStore = useInstanceStore()
 
 const statusId = ref<string | null>(null)
 const ancestorIds = ref<string[]>([])
@@ -69,6 +71,15 @@ async function loadThread() {
     const { data: statusData } = await getStatus(id, auth.token ?? undefined)
     statusesStore.cacheStatus(statusData)
     statusId.value = statusData.id
+
+    // Set dynamic page title
+    const siteName = instanceStore.instance?.title || 'SiliconBeest'
+    const displayName = statusData.account?.display_name || statusData.account?.username || ''
+    const acct = statusData.account?.acct || ''
+    const contentSnippet = (statusData.content || '').replace(/<[^>]*>/g, '').substring(0, 50)
+    document.title = contentSnippet
+      ? `${displayName}: "${contentSnippet}" | ${siteName}`
+      : `${displayName} (@${acct}) | ${siteName}`
 
     const { data: context } = await getStatusContext(id, auth.token ?? undefined)
     // Cache all statuses and store their IDs

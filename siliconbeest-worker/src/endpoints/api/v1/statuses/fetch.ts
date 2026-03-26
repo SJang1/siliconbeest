@@ -164,6 +164,31 @@ app.get('/:id', authOptional, async (c) => {
 
   if (!row) throw new AppError(404, 'Record not found');
 
+  // Visibility access control
+  const visibility = (row as Record<string, unknown>).visibility as string;
+  const statusAccountId = (row as Record<string, unknown>).account_id as string;
+
+  if (visibility === 'direct') {
+    // DM: only visible to the author and mentioned users
+    if (!currentAccountId) throw new AppError(404, 'Record not found');
+    if (currentAccountId !== statusAccountId) {
+      const mention = await c.env.DB.prepare(
+        'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
+      ).bind(statusId, currentAccountId).first();
+      if (!mention) throw new AppError(404, 'Record not found');
+    }
+  } else if (visibility === 'private') {
+    // Followers-only: only visible to the author and their followers
+    if (!currentAccountId) throw new AppError(404, 'Record not found');
+    if (currentAccountId !== statusAccountId) {
+      const follow = await c.env.DB.prepare(
+        'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
+      ).bind(currentAccountId, statusAccountId).first();
+      if (!follow) throw new AppError(404, 'Record not found');
+    }
+  }
+  // 'public' and 'unlisted' are visible to everyone
+
   return c.json(await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE));
 });
 

@@ -12,6 +12,14 @@
 	},
 	"compatibility_flags": ["nodejs_compat"],
 
+	// Service binding to API worker for OG meta fetching
+	"services": [
+		{
+			"binding": "API_WORKER",
+			"service": "siliconbeest-worker"
+		}
+	],
+
 	// Workers Routes (catch-all for custom domain),
 
 	// Workers Routes (catch-all for custom domain)

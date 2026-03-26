@@ -6,6 +6,7 @@ import type { Account, Status, Relationship } from '@/types/mastodon'
 import { lookupAccount, getAccountStatuses, followAccount, unfollowAccount } from '@/api/mastodon/accounts'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountsStore } from '@/stores/accounts'
+import { useInstanceStore } from '@/stores/instance'
 import { parseLinkHeader } from '@/api/client'
 import AppShell from '@/components/layout/AppShell.vue'
 import AccountHeader from '@/components/account/AccountHeader.vue'
@@ -16,6 +17,7 @@ const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
 const accountsStore = useAccountsStore()
+const instanceStore = useInstanceStore()
 
 const account = ref<Account | null>(null)
 const relationship = ref<Relationship | null>(null)
@@ -42,6 +44,11 @@ async function loadProfile(acct: string) {
     const { data: acctData } = await lookupAccount(acct, auth.token ?? undefined)
     account.value = acctData
     accountsStore.cacheAccount(acctData)
+
+    // Set dynamic page title
+    const siteName = instanceStore.instance?.title || 'SiliconBeest'
+    const displayName = acctData.display_name || acctData.username || acct
+    document.title = `${displayName} (@${acctData.acct || acct}) | ${siteName}`
 
     // Load relationship if authenticated and not own profile
     if (auth.token && !isOwn.value) {

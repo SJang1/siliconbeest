@@ -6,6 +6,7 @@ import type { Status } from '@/types/mastodon'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useStatusesStore } from '@/stores/statuses'
 import { useAuthStore } from '@/stores/auth'
+import { useInstanceStore } from '@/stores/instance'
 import AppShell from '@/components/layout/AppShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 
@@ -14,8 +15,17 @@ const route = useRoute()
 const timelinesStore = useTimelinesStore()
 const statusesStore = useStatusesStore()
 const auth = useAuthStore()
+const instanceStore = useInstanceStore()
 
-const tag = computed(() => route.params.tag as string)
+const tag = computed(() => {
+  const value = route.params.tag as string
+  // Set dynamic page title for tag page
+  if (value) {
+    const siteName = instanceStore.instance?.title || 'SiliconBeest'
+    document.title = `#${value} | ${siteName}`
+  }
+  return value
+})
 
 const timeline = computed(() => timelinesStore.getTimeline('tag', tag.value))
 

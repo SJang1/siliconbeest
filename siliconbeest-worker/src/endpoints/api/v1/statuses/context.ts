@@ -13,11 +13,33 @@ app.get('/:id/context', authOptional, async (c) => {
   const statusId = c.req.param('id');
   const domain = c.env.INSTANCE_DOMAIN;
 
-  // Verify status exists
+  // Verify status exists and check visibility
   const status = await c.env.DB.prepare(
-    'SELECT id, in_reply_to_id, conversation_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
+    'SELECT id, in_reply_to_id, conversation_id, visibility, account_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
   ).bind(statusId).first();
   if (!status) throw new AppError(404, 'Record not found');
+
+  const currentAccountId = c.get('currentUser')?.account_id ?? null;
+  const visibility = status.visibility as string;
+  const statusAccountId = status.account_id as string;
+
+  if (visibility === 'direct') {
+    if (!currentAccountId) throw new AppError(404, 'Record not found');
+    if (currentAccountId !== statusAccountId) {
+      const mention = await c.env.DB.prepare(
+        'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
+      ).bind(statusId, currentAccountId).first();
+      if (!mention) throw new AppError(404, 'Record not found');
+    }
+  } else if (visibility === 'private') {
+    if (!currentAccountId) throw new AppError(404, 'Record not found');
+    if (currentAccountId !== statusAccountId) {
+      const follow = await c.env.DB.prepare(
+        'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
+      ).bind(currentAccountId, statusAccountId).first();
+      if (!follow) throw new AppError(404, 'Record not found');
+    }
+  }
 
   // Ancestors: walk up the in_reply_to chain
   const ancestors: Record<string, unknown>[] = [];
@@ -64,8 +86,6 @@ app.get('/:id/context', authOptional, async (c) => {
     }
     depth++;
   }
-
-  const currentAccountId = c.get('currentUser')?.account_id ?? null;
 
   // Collect all status IDs for batch enrichment
   const allRows = [...ancestors, ...(descendantRows as Record<string, unknown>[])];

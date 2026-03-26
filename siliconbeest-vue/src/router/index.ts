@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { requireAuth, requireAdmin, redirectIfAuthenticated } from './guards';
+import { useInstanceStore } from '@/stores/instance';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,6 +21,7 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Home' },
     },
     {
       path: '/explore',
@@ -30,21 +32,25 @@ const router = createRouter({
       path: '/explore/:tab(local|public)',
       name: 'explore-tab',
       component: () => import('@/views/ExploreView.vue'),
+      meta: { titleKey: 'Explore' },
     },
     {
       path: '/about',
       name: 'about',
       component: () => import('@/views/AboutView.vue'),
+      meta: { titleKey: 'About' },
     },
     {
       path: '/about/more',
       name: 'about-more',
       component: () => import('@/views/AboutView.vue'),
+      meta: { titleKey: 'About' },
     },
     {
       path: '/search',
       name: 'search',
       component: () => import('@/views/SearchView.vue'),
+      meta: { titleKey: 'Search' },
     },
     {
       path: '/tags/:tag',
@@ -59,12 +65,14 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
       beforeEnter: redirectIfAuthenticated,
+      meta: { titleKey: 'Login' },
     },
     {
       path: '/register',
       name: 'register',
       component: () => import('@/views/RegisterView.vue'),
       beforeEnter: redirectIfAuthenticated,
+      meta: { titleKey: 'Register' },
     },
     {
       path: '/oauth/authorize',
@@ -93,30 +101,35 @@ const router = createRouter({
       name: 'notifications',
       component: () => import('@/views/NotificationsView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Notifications' },
     },
     {
       path: '/conversations',
       name: 'conversations',
       component: () => import('@/views/ConversationsView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Conversations' },
     },
     {
       path: '/bookmarks',
       name: 'bookmarks',
       component: () => import('@/views/BookmarksView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Bookmarks' },
     },
     {
       path: '/favourites',
       name: 'favourites',
       component: () => import('@/views/FavouritesView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Favourites' },
     },
     {
       path: '/lists',
       name: 'lists',
       component: () => import('@/views/ListsView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Lists' },
     },
     {
       path: '/lists/:id',
@@ -138,6 +151,7 @@ const router = createRouter({
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
       beforeEnter: requireAuth,
+      meta: { titleKey: 'Settings' },
       children: [
         {
           path: '',
@@ -297,6 +311,19 @@ router.onError((error, to) => {
   if (chunkFailedMessage.test(error.message)) {
     window.location.href = to.fullPath;
   }
+});
+
+// Dynamic page titles based on route meta
+router.afterEach((to) => {
+  const instanceStore = useInstanceStore();
+  const siteName = instanceStore.instance?.title || 'SiliconBeest';
+  const titleKey = to.meta.titleKey as string | undefined;
+
+  if (titleKey) {
+    document.title = `${titleKey} | ${siteName}`;
+  }
+  // Profile and status views set their own title after data loads
+  // (see ProfileView.vue and StatusDetailView.vue)
 });
 
 export default router;

@@ -93,8 +93,31 @@ app.get('/:id/statuses', authOptional, async (c) => {
   const excludeReblogs = query.exclude_reblogs === 'true';
   const pinned = query.pinned === 'true';
 
+  const currentAccountId = c.get('currentUser')?.account_id ?? null;
+
   const conditions: string[] = ['s.account_id = ?', 's.deleted_at IS NULL'];
   const params: unknown[] = [accountId];
+
+  // Visibility filtering:
+  // - Own statuses: show all
+  // - Follower: show public + unlisted + private
+  // - Others: show public + unlisted only
+  if (currentAccountId === accountId) {
+    // Own profile: show everything (including DMs authored by self)
+  } else if (currentAccountId) {
+    // Logged in: check if follower
+    const isFollower = await c.env.DB.prepare(
+      'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
+    ).bind(currentAccountId, accountId).first();
+    if (isFollower) {
+      conditions.push("s.visibility IN ('public', 'unlisted', 'private')");
+    } else {
+      conditions.push("s.visibility IN ('public', 'unlisted')");
+    }
+  } else {
+    // Not logged in: public + unlisted only
+    conditions.push("s.visibility IN ('public', 'unlisted')");
+  }
 
   if (pag.whereClause) {
     conditions.push(pag.whereClause);
@@ -132,7 +155,6 @@ app.get('/:id/statuses', authOptional, async (c) => {
   const { results } = await stmt.bind(...params).all();
 
   const statusIds = (results as Record<string, unknown>[]).map((r) => r.id as string);
-  const currentAccountId = c.get('currentUser')?.account_id ?? null;
   const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId, c.env.CACHE);
 
   // Collect reblog_of_ids to fetch original statuses
