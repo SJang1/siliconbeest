@@ -41,6 +41,7 @@ const settings = ref({
   turnstile_secret_key: '',
   web_push_enabled: '0',
   vapid_public_key: '',
+  vapid_private_key: '',
 })
 
 async function uploadImage(event: Event, field: 'site_favicon_url' | 'site_logo_url') {
@@ -88,8 +89,7 @@ async function handleSave() {
   error.value = ''
   success.value = ''
   try {
-    const { vapid_public_key: _, ...settingsToSave } = settings.value
-    await updateAdminSettings(auth.token!, settingsToSave)
+    await updateAdminSettings(auth.token!, settings.value)
     success.value = t('admin_settings.saved')
   } catch (e: any) {
     error.value = e?.description || e?.error || t('common.error')
@@ -335,12 +335,16 @@ const labelClass = 'block text-sm font-medium mb-1'
             </label>
             <span class="text-sm font-medium">{{ t('admin_settings.web_push_enabled') }}</span>
           </div>
-          <div v-if="settings.vapid_public_key">
-            <label :class="labelClass">{{ t('admin_settings.vapid_public_key') }}</label>
-            <input :value="settings.vapid_public_key" :class="inputClass" readonly class="!bg-gray-50 dark:!bg-gray-700/50 !text-gray-500 dark:!text-gray-400 !cursor-default" />
+          <div>
+            <label :class="labelClass">VAPID Public Key</label>
+            <input v-model="settings.vapid_public_key" :class="inputClass" placeholder="Base64url-encoded P-256 public key (65 bytes)" />
+          </div>
+          <div>
+            <label :class="labelClass">VAPID Private Key</label>
+            <input v-model="settings.vapid_private_key" type="password" :class="inputClass" placeholder="Base64url-encoded P-256 private key (32 bytes)" />
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin_settings.vapid_note') }}
+            VAPID 키는 <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">scripts/generate-vapid-keys.sh</code>로 생성하거나, 환경변수로도 설정할 수 있습니다. DB 설정이 환경변수보다 우선합니다.
           </p>
         </div>
       </section>

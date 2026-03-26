@@ -77,6 +77,9 @@ app.post('/', async (c) => {
     throw new AppError(422, 'Validation failed', 'Missing required fields');
   }
 
+  // Normalise email to lowercase for consistent lookups
+  body.email = body.email.trim().toLowerCase();
+
   if (!body.agreement) {
     throw new AppError(422, 'Validation failed', 'Agreement must be accepted');
   }
