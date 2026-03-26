@@ -3,7 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { createDefaultImages } from '../../../../utils/defaultImages';
 import { generateToken } from '../../../../utils/crypto';
-import { sendConfirmation } from '../../../../services/email';
+import { sendConfirmation, notifyAdminsPendingUser } from '../../../../services/email';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -183,6 +183,17 @@ app.post('/', async (c) => {
   try {
     await sendConfirmation(c.env, body.email, confirmToken);
   } catch { /* email queue failure should not block registration */ }
+
+  // Notify admins if approval is required
+  if (regMode === 'approval') {
+    try {
+      await notifyAdminsPendingUser(
+        { ...c.env, DB: c.env.DB },
+        body.username,
+        body.email,
+      );
+    } catch { /* admin notification failure should not block registration */ }
+  }
 
   return c.json({ confirmation_required: true });
 });

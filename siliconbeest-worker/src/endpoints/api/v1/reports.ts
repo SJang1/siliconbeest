@@ -5,6 +5,7 @@ import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { buildFlagActivity } from '../../../federation/activityBuilder';
 import { enqueueDelivery } from '../../../federation/deliveryManager';
+import { notifyAdminsNewReport } from '../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -36,7 +37,7 @@ app.post('/', authRequired, async (c) => {
 
   // Verify the target account exists
   const targetAccount = await c.env.DB.prepare(
-    'SELECT id, domain, uri FROM accounts WHERE id = ?1',
+    'SELECT id, username, domain, uri FROM accounts WHERE id = ?1',
   )
     .bind(body.account_id)
     .first();
@@ -103,6 +104,22 @@ app.post('/', authRequired, async (c) => {
       console.error('Federation delivery failed for report forward:', e);
     }
   }
+
+  // Notify admins about the new report
+  try {
+    const reporterAccount = c.get('currentAccount');
+    const reporterAcct = reporterAccount?.username || 'unknown';
+    const targetAcct = targetAccount.domain
+      ? `${targetAccount.username}@${targetAccount.domain}`
+      : (targetAccount.username as string);
+    await notifyAdminsNewReport(
+      { ...c.env, DB: c.env.DB },
+      reporterAcct,
+      targetAcct,
+      comment,
+      category,
+    );
+  } catch { /* admin notification failure should not block report */ }
 
   return c.json({
     id: reportId,
