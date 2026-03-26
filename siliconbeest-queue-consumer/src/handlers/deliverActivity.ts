@@ -285,8 +285,8 @@ export async function handleDeliverActivity(
     }
   }
 
-  // Fedify handles HTTP Signatures (RFC 9421) and Object Proofs (FEP-8b32)
-  // automatically via the key dispatcher, so no manual LDS is needed.
+  // Linked Data Signatures (LDS) are an older standard and no longer needed.
+  // We rely on Object Integrity Proofs (FEP-8b32) and HTTP Signatures.
 
   const body = JSON.stringify(activityToDeliver);
   const targetDomain = new URL(inboxUrl).hostname;
