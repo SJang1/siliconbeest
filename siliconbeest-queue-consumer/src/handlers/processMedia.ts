@@ -7,6 +7,7 @@
 
 import type { Env } from '../env';
 import type { ProcessMediaMessage } from '../shared/types/queue';
+import { measureAsync, measureSync, PerfTimer } from '../observability/performance';
 
 // Known image MIME types and their magic bytes for dimension extraction
 const IMAGE_TYPES = new Set([
@@ -96,16 +97,22 @@ function extractDimensions(
   data: Uint8Array,
   contentType: string,
 ): { width: number; height: number } | null {
-  switch (contentType) {
-    case 'image/png':
-      return parsePngDimensions(data);
-    case 'image/gif':
-      return parseGifDimensions(data);
-    case 'image/jpeg':
-      return parseJpegDimensions(data);
-    default:
-      return null;
-  }
+  return measureSync(
+    `processMedia.extractDimensions.${contentType.replace('image/', '')}`,
+    () => {
+      switch (contentType) {
+        case 'image/png':
+          return parsePngDimensions(data);
+        case 'image/gif':
+          return parseGifDimensions(data);
+        case 'image/jpeg':
+          return parseJpegDimensions(data);
+        default:
+          return null;
+      }
+    },
+    { contentType, dataSize: data.length }
+  );
 }
 
 export async function handleProcessMedia(
@@ -113,32 +120,45 @@ export async function handleProcessMedia(
   env: Env,
 ): Promise<void> {
   const { mediaAttachmentId, accountId } = msg;
+  const timer = new PerfTimer('processMedia.total', { mediaAttachmentId });
+  timer.start();
 
   // Load the media attachment metadata from D1
-  const attachment = await env.DB.prepare(
-    `SELECT id, file_key, file_content_type, file_size
-     FROM media_attachments
-     WHERE id = ? AND account_id = ?`,
-  )
-    .bind(mediaAttachmentId, accountId)
-    .first<{
-      id: string;
-      file_key: string;
-      file_content_type: string;
-      file_size: number;
-    }>();
+  const attachment = await measureAsync(
+    'processMedia.db.loadAttachment',
+    () => env.DB.prepare(
+      `SELECT id, file_key, file_content_type, file_size
+       FROM media_attachments
+       WHERE id = ? AND account_id = ?`,
+    )
+      .bind(mediaAttachmentId, accountId)
+      .first<{
+        id: string;
+        file_key: string;
+        file_content_type: string;
+        file_size: number;
+      }>(),
+    { mediaAttachmentId }
+  );
 
   if (!attachment) {
     console.warn(`Media attachment ${mediaAttachmentId} not found, dropping message`);
+    timer.stopWithMetadata({ status: 'not_found' });
     return;
   }
 
   const { file_key, file_content_type: content_type } = attachment;
 
   // Read the object from R2
-  const object = await env.MEDIA_BUCKET.get(file_key);
+  const object = await measureAsync(
+    'processMedia.r2.getObject',
+    () => env.MEDIA_BUCKET.get(file_key),
+    { fileKey: file_key, contentType: content_type }
+  );
+  
   if (!object) {
     console.warn(`R2 object not found at ${file_key}, dropping message`);
+    timer.stopWithMetadata({ status: 'object_not_found' });
     return;
   }
 
@@ -148,7 +168,12 @@ export async function handleProcessMedia(
   // For images, extract dimensions from the file header
   if (IMAGE_TYPES.has(content_type)) {
     // Read enough bytes for header parsing (first 64KB should be plenty)
-    const headerBytes = await readBytes(object.body, 65536);
+    const headerBytes = await measureAsync(
+      'processMedia.r2.readBytes',
+      () => readBytes(object.body, 65536),
+      { contentType: content_type }
+    );
+    
     const dimensions = extractDimensions(headerBytes, content_type);
     if (dimensions) {
       width = dimensions.width;
@@ -157,17 +182,27 @@ export async function handleProcessMedia(
   }
 
   // Update the media attachment row with extracted metadata
-  await env.DB.prepare(
-    `UPDATE media_attachments
-     SET width = ?, height = ?, updated_at = datetime('now')
-     WHERE id = ?`,
-  )
-    .bind(width, height, mediaAttachmentId)
-    .run();
+  await measureAsync(
+    'processMedia.db.updateAttachment',
+    () => env.DB.prepare(
+      `UPDATE media_attachments
+       SET width = ?, height = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(width, height, mediaAttachmentId)
+      .run(),
+    { mediaAttachmentId, width, height }
+  );
 
   console.log(
     `Processed media ${mediaAttachmentId}: ${content_type}${width ? ` ${width}x${height}` : ''}`,
   );
+  
+  timer.stopWithMetadata({ 
+    status: 'success', 
+    contentType: content_type,
+    dimensions: width && height ? `${width}x${height}` : null 
+  });
 
   // TODO: Generate thumbnails using Cloudflare Image Transforms (cf.image)
   // This would involve creating resized variants and storing them back in R2.

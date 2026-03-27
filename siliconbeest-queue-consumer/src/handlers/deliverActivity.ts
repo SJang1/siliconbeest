@@ -17,6 +17,7 @@
 import type { Env } from '../env';
 import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
+import { measureAsync, PerfTimer } from '../observability/performance';
 
 // ============================================================
 // PEM / CRYPTO HELPERS
@@ -249,19 +250,27 @@ export async function handleDeliverActivity(
   env: Env,
 ): Promise<void> {
   const { activity, inboxUrl, actorAccountId } = msg;
+  const targetDomain = new URL(inboxUrl).hostname;
+  const timer = new PerfTimer('deliverActivity.total', { inboxUrl, targetDomain });
+  timer.start();
 
   // Load the actor's private key, Ed25519 key, and URI from D1
-  const keyRow = await env.DB.prepare(
-    `SELECT ak.private_key, ak.ed25519_private_key, a.uri
-     FROM actor_keys ak
-     JOIN accounts a ON a.id = ak.account_id
-     WHERE ak.account_id = ?`,
-  )
-    .bind(actorAccountId)
-    .first<{ private_key: string; ed25519_private_key: string | null; uri: string }>();
+  const keyRow = await measureAsync(
+    'deliverActivity.db.loadActorKey',
+    () => env.DB.prepare(
+      `SELECT ak.private_key, ak.ed25519_private_key, a.uri
+       FROM actor_keys ak
+       JOIN accounts a ON a.id = ak.account_id
+       WHERE ak.account_id = ?`,
+    )
+      .bind(actorAccountId)
+      .first<{ private_key: string; ed25519_private_key: string | null; uri: string }>(),
+    { actorAccountId }
+  );
 
   if (!keyRow) {
     console.error(`No private key found for actor ${actorAccountId}, dropping message`);
+    timer.stopWithMetadata({ status: 'no_key' });
     return; // consume the message — can't deliver without a key
   }
 
@@ -275,10 +284,10 @@ export async function handleDeliverActivity(
   if (keyRow.ed25519_private_key) {
     try {
       const ed25519KeyId = `${keyRow.uri}#ed25519-key`;
-      activityToDeliver = await createProof(
-        activityToDeliver,
-        keyRow.ed25519_private_key,
-        ed25519KeyId,
+      activityToDeliver = await measureAsync(
+        'deliverActivity.createIntegrityProof',
+        () => createProof(activityToDeliver, keyRow.ed25519_private_key!, ed25519KeyId),
+        { targetDomain }
       );
     } catch (e) {
       console.warn(`Failed to create integrity proof for activity, delivering without proof:`, e);
@@ -289,7 +298,6 @@ export async function handleDeliverActivity(
   // We rely on Object Integrity Proofs (FEP-8b32) and HTTP Signatures.
 
   const body = JSON.stringify(activityToDeliver);
-  const targetDomain = new URL(inboxUrl).hostname;
 
   // Ensure instance record exists before updating it
   await env.DB.prepare(
@@ -306,30 +314,46 @@ export async function handleDeliverActivity(
 
   if (preference === 'cavage') {
     // Domain is known to prefer draft-cavage — try it first
-    const headers = await signRequestCavage(keyRow.private_key, keyId, inboxUrl, body);
-    response = await fetch(inboxUrl, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
-      },
-      body
-    });
+    const headers = await measureAsync(
+      'deliverActivity.signRequestCavage',
+      () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, body),
+      { targetDomain, signatureType: 'cavage' }
+    );
+    response = await measureAsync(
+      'deliverActivity.fetch',
+      () => fetch(inboxUrl, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+        },
+        body
+      }),
+      { targetDomain, signatureType: 'cavage', attempt: 1 }
+    );
 
     // If cavage fails with 401/403, try RFC 9421 as fallback
     if (response.status === 401 || response.status === 403) {
       console.log(
         `[deliver] draft-cavage rejected by ${targetDomain} (${response.status}), falling back to RFC 9421`,
       );
-      const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
-      response = await fetch(inboxUrl, {
-        method: 'POST',
-        headers: {
-          ...rfc9421Headers,
-          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
-        },
-        body
-      });
+      const rfc9421Headers = await measureAsync(
+        'deliverActivity.signRequestRFC9421',
+        () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body),
+        { targetDomain, signatureType: 'rfc9421', fallback: true }
+      );
+      response = await measureAsync(
+        'deliverActivity.fetch',
+        () => fetch(inboxUrl, {
+          method: 'POST',
+          headers: {
+            ...rfc9421Headers,
+            'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+          },
+          body
+        }),
+        { targetDomain, signatureType: 'rfc9421', attempt: 2, fallback: true }
+      );
 
       if (response.ok || response.status === 202) {
         // RFC 9421 worked — update cached preference
@@ -338,30 +362,46 @@ export async function handleDeliverActivity(
     }
   } else {
     // Try RFC 9421 first (default or known to support it)
-    const rfc9421Headers = await signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body);
-    response = await fetch(inboxUrl, {
-      method: 'POST',
-      headers: {
-        ...rfc9421Headers,
-        'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
-      },
-      body
-    });
+    const rfc9421Headers = await measureAsync(
+      'deliverActivity.signRequestRFC9421',
+      () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body),
+      { targetDomain, signatureType: 'rfc9421' }
+    );
+    response = await measureAsync(
+      'deliverActivity.fetch',
+      () => fetch(inboxUrl, {
+        method: 'POST',
+        headers: {
+          ...rfc9421Headers,
+          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+        },
+        body
+      }),
+      { targetDomain, signatureType: 'rfc9421', attempt: 1 }
+    );
 
     if (response.status === 401 || response.status === 403) {
       // RFC 9421 rejected — fall back to draft-cavage
       console.log(
         `[deliver] RFC 9421 rejected by ${targetDomain} (${response.status}), falling back to draft-cavage`,
       );
-      const cavageHeaders = await signRequestCavage(keyRow.private_key, keyId, inboxUrl, body);
-      response = await fetch(inboxUrl, {
-        method: 'POST',
-        headers: {
-          ...cavageHeaders,
-          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
-        },
-        body
-      });
+      const cavageHeaders = await measureAsync(
+        'deliverActivity.signRequestCavage',
+        () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, body),
+        { targetDomain, signatureType: 'cavage', fallback: true }
+      );
+      response = await measureAsync(
+        'deliverActivity.fetch',
+        () => fetch(inboxUrl, {
+          method: 'POST',
+          headers: {
+            ...cavageHeaders,
+            'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+          },
+          body
+        }),
+        { targetDomain, signatureType: 'cavage', attempt: 2, fallback: true }
+      );
 
       if (response.ok || response.status === 202) {
         // Draft-cavage worked — remember this preference
@@ -383,6 +423,7 @@ export async function handleDeliverActivity(
       .bind(targetDomain)
       .run();
     console.log(`Delivered activity to ${inboxUrl} (${response.status})`);
+    timer.stopWithMetadata({ status: 'success', httpStatus: response.status });
     return;
   }
 
@@ -394,6 +435,7 @@ export async function handleDeliverActivity(
       .bind(targetDomain)
       .run();
 
+    timer.stopWithMetadata({ status: 'server_error', httpStatus: response.status });
     // All 5xx (including SSL errors 525-527) — throw to trigger queue retry
     const text = await response.text().catch(() => '');
     throw new Error(
@@ -407,6 +449,7 @@ export async function handleDeliverActivity(
   )
     .bind(targetDomain)
     .run();
+  timer.stopWithMetadata({ status: 'client_error', httpStatus: response.status });
   const text = await response.text().catch(() => '');
   console.warn(
     `Delivery to ${inboxUrl} rejected with ${response.status}: ${text.slice(0, 200)}`,
