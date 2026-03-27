@@ -11,6 +11,8 @@
 #   - Your wrangler.jsonc files are out of date or have wrong IDs
 #   - You need to verify resource bindings match actual Cloudflare state
 #
+# Architecture: unified worker deployed from siliconbeest-vue/
+#
 # Usage:
 #   ./scripts/sync-config.sh              # Dry run (show what would change)
 #   ./scripts/sync-config.sh --apply      # Apply changes to wrangler.jsonc files
@@ -30,9 +32,9 @@ if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
 else
   echo "[WARN] config.sh not found, using defaults"
   PROJECT_PREFIX="${PROJECT_PREFIX:-siliconbeest}"
-  WORKER_NAME="${WORKER_NAME:-${PROJECT_PREFIX}-worker}"
+  MAIN_WORKER_NAME="${MAIN_WORKER_NAME:-${PROJECT_PREFIX}}"
   CONSUMER_NAME="${CONSUMER_NAME:-${PROJECT_PREFIX}-queue-consumer}"
-  VUE_NAME="${VUE_NAME:-${PROJECT_PREFIX}-vue}"
+  EMAIL_SENDER_NAME="${EMAIL_SENDER_NAME:-${PROJECT_PREFIX}-email-sender}"
   D1_DATABASE_NAME="${D1_DATABASE_NAME:-${PROJECT_PREFIX}-db}"
   R2_BUCKET_NAME="${R2_BUCKET_NAME:-${PROJECT_PREFIX}-media}"
   KV_CACHE_TITLE="${KV_CACHE_TITLE:-${PROJECT_PREFIX}-CACHE}"
@@ -42,12 +44,10 @@ else
   QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
   QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
   QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
-  EMAIL_SENDER_NAME="${EMAIL_SENDER_NAME:-${PROJECT_PREFIX}-email-sender}"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-  WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
+  MAIN_DIR="$PROJECT_ROOT/siliconbeest-vue"
   CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
   EMAIL_DIR="$PROJECT_ROOT/siliconbeest-email-sender"
-  VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
   RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
   BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
   info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
@@ -104,13 +104,13 @@ KV_JSON=$(npx wrangler kv namespace list 2>/dev/null || echo "[]")
 
 KV_CACHE_ID=$(echo "$KV_JSON" | node -e "
   const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_CACHE_TITLE}' || x.title === '${WORKER_NAME}-${KV_CACHE_TITLE}' || x.title.includes('CACHE'));
+  const ns = d.find(x => x.title === '${KV_CACHE_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_CACHE_TITLE}' || x.title.includes('CACHE'));
   if (ns) console.log(ns.id);
 " 2>/dev/null || true)
 
 KV_SESSIONS_ID=$(echo "$KV_JSON" | node -e "
   const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_SESSIONS_TITLE}' || x.title === '${WORKER_NAME}-${KV_SESSIONS_TITLE}' || x.title.includes('SESSIONS'));
+  const ns = d.find(x => x.title === '${KV_SESSIONS_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_SESSIONS_TITLE}' || x.title.includes('SESSIONS'));
   if (ns) console.log(ns.id);
 " 2>/dev/null || true)
 
@@ -119,7 +119,7 @@ KV_SESSIONS_ID=$(echo "$KV_JSON" | node -e "
 
 KV_FEDIFY_ID=$(echo "$KV_JSON" | node -e "
   const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_FEDIFY_TITLE}' || x.title === '${WORKER_NAME}-${KV_FEDIFY_TITLE}' || x.title.includes('FEDIFY'));
+  const ns = d.find(x => x.title === '${KV_FEDIFY_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_FEDIFY_TITLE}' || x.title.includes('FEDIFY'));
   if (ns) console.log(ns.id);
 " 2>/dev/null || true)
 
@@ -136,9 +136,8 @@ fi
 
 # --- Instance Domain (from current wrangler.jsonc if exists) ---
 CURRENT_DOMAIN=""
-if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  # Strip JSONC comments and parse with node
-  CURRENT_DOMAIN=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+  CURRENT_DOMAIN=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
       if (d.vars?.INSTANCE_DOMAIN) console.log(d.vars.INSTANCE_DOMAIN);
@@ -154,8 +153,8 @@ fi
 
 # --- Instance Title ---
 CURRENT_TITLE=""
-if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  CURRENT_TITLE=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+  CURRENT_TITLE=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
       if (d.vars?.INSTANCE_TITLE) console.log(d.vars.INSTANCE_TITLE);
@@ -166,8 +165,8 @@ CURRENT_TITLE="${CURRENT_TITLE:-SiliconBeest}"
 
 # --- Registration Mode ---
 CURRENT_REG=""
-if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  CURRENT_REG=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+  CURRENT_REG=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
       if (d.vars?.REGISTRATION_MODE) console.log(d.vars.REGISTRATION_MODE);
@@ -205,10 +204,9 @@ if ! $APPLY; then
   # Show what would change
   echo ""
   info "Files that would be updated:"
-  echo "  $WORKER_DIR/wrangler.jsonc"
+  echo "  $MAIN_DIR/wrangler.jsonc"
   echo "  $CONSUMER_DIR/wrangler.jsonc"
   echo "  $EMAIL_DIR/wrangler.jsonc"
-  echo "  $VUE_DIR/wrangler.jsonc"
   exit 0
 fi
 
@@ -218,15 +216,19 @@ fi
 
 header "Updating wrangler.jsonc files"
 
-# --- Worker wrangler.jsonc ---
-info "Writing $WORKER_DIR/wrangler.jsonc"
-cat > "$WORKER_DIR/wrangler.jsonc" << WRANGLER_EOF
+# --- Unified worker wrangler.jsonc (siliconbeest-vue/) ---
+info "Writing $MAIN_DIR/wrangler.jsonc"
+cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 {
 	"\$schema": "node_modules/wrangler/config-schema.json",
-	"name": "${WORKER_NAME}",
-	"main": "src/index.ts",
+	"name": "${MAIN_WORKER_NAME}",
+	"main": "server/index.ts",
 	"compatibility_date": "2026-03-17",
 	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": "./dist/client",
+		"not_found_handling": "single-page-application"
+	},
 	"observability": {
 		"enabled": true
 	},
@@ -308,26 +310,16 @@ cat > "$WORKER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		}
 	],
 
-	// Workers Routes (API paths)
+	// Workers Routes (custom domain)
 	"routes": [
-		{ "pattern": "${CURRENT_DOMAIN}/api/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/oauth/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/.well-known/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/users/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/inbox", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/nodeinfo/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/media/*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/actor", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/authorize_interaction*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/auth/confirm*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/healthz", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/thumbnail.png", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/favicon.ico", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" },
-		{ "pattern": "${CURRENT_DOMAIN}/proxy*", "zone_name": "$(echo "$CURRENT_DOMAIN" | sed 's/^[^.]*\.//')" }
+		{
+			"custom_domain": true,
+			"pattern": "${CURRENT_DOMAIN}"
+		}
 	]
 }
 WRANGLER_EOF
-success "Worker config written"
+success "Unified worker config written"
 
 # --- Queue Consumer wrangler.jsonc ---
 info "Writing $CONSUMER_DIR/wrangler.jsonc"
@@ -349,7 +341,7 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		"INSTANCE_DOMAIN": "${CURRENT_DOMAIN}"
 	},
 
-	// D1 Database (same as worker)
+	// D1 Database (same as main worker)
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -407,7 +399,7 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"services": [
 		{
 			"binding": "WORKER",
-			"service": "${WORKER_NAME}"
+			"service": "${MAIN_WORKER_NAME}"
 		}
 	]
 }
@@ -449,28 +441,6 @@ cat > "$EMAIL_DIR/wrangler.jsonc" << WRANGLER_EOF
 WRANGLER_EOF
 success "Email sender config written"
 
-# --- Vue wrangler.jsonc ---
-info "Writing $VUE_DIR/wrangler.jsonc"
-cat > "$VUE_DIR/wrangler.jsonc" << WRANGLER_EOF
-{
-	"\$schema": "node_modules/wrangler/config-schema.json",
-	"name": "${VUE_NAME}",
-	"compatibility_date": "2026-03-17",
-	"assets": {
-		"directory": "dist/client",
-		"binding": "ASSETS",
-		"not_found_handling": "single-page-application"
-	},
-	"routes": [
-		{
-			"pattern": "${CURRENT_DOMAIN}",
-			"custom_domain": true
-		}
-	]
-}
-WRANGLER_EOF
-success "Vue frontend config written"
-
 # ============================================================================
 # Done
 # ============================================================================
@@ -478,13 +448,12 @@ success "Vue frontend config written"
 header "Sync Complete"
 
 echo "  Updated files:"
-echo "    $WORKER_DIR/wrangler.jsonc"
+echo "    $MAIN_DIR/wrangler.jsonc"
 echo "    $CONSUMER_DIR/wrangler.jsonc"
 echo "    $EMAIL_DIR/wrangler.jsonc"
-echo "    $VUE_DIR/wrangler.jsonc"
 echo ""
 echo "  Next steps:"
 echo "    1. Review the generated files"
-echo "    2. Set secrets if needed:  npx wrangler secret put VAPID_PRIVATE_KEY"
+echo "    2. Set secrets if needed:  wrangler secret put OTP_ENCRYPTION_KEY --name $MAIN_WORKER_NAME"
 echo "    3. Apply migrations:       ./scripts/migrate.sh --remote"
 echo "    4. Deploy:                  ./scripts/deploy.sh"

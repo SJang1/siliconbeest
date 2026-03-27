@@ -6,9 +6,9 @@
 # Sends a Delete(Actor) activity to ALL known federated servers,
 # then removes the account from the local database.
 #
-# ⚠️  THIS IS DESTRUCTIVE AND IRREVERSIBLE.
-# ⚠️  Only use for account self-deletion requests or server shutdown.
-# ⚠️  NEVER run this in production without explicit confirmation.
+# THIS IS DESTRUCTIVE AND IRREVERSIBLE.
+# Only use for account self-deletion requests or server shutdown.
+# NEVER run this in production without explicit confirmation.
 #
 # Usage:
 #   ./delete-account.sh <username>              # Dry run (shows what would happen)
@@ -29,7 +29,7 @@ source "$SCRIPT_DIR/config.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/config.env" 2>/dev/null || true
 
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-siliconbeest-db}"
-WORKER_DIR="${SCRIPT_DIR}/../siliconbeest-worker"
+MAIN_DIR="${MAIN_DIR:-${SCRIPT_DIR}/../siliconbeest-vue}"
 
 USERNAME="${1:-}"
 CONFIRM="${2:-}"
@@ -38,7 +38,7 @@ if [[ -z "$USERNAME" ]]; then
   echo "Usage: $0 <username> [--confirm]"
   echo "       $0 --all [--confirm]"
   echo ""
-  echo "⚠️  Without --confirm, this runs in DRY RUN mode (no changes made)."
+  echo "Without --confirm, this runs in DRY RUN mode (no changes made)."
   exit 1
 fi
 
@@ -53,8 +53,8 @@ if $DRY_RUN; then
   echo "════════════════════════════════════════════════════════"
 fi
 
-# Get instance domain
-INSTANCE_DOMAIN=$(cd "$WORKER_DIR" && node -e "
+# Get instance domain from siliconbeest-vue/wrangler.jsonc
+INSTANCE_DOMAIN=$(cd "$MAIN_DIR" && node -e "
   const fs = require('fs');
   const raw = fs.readFileSync('wrangler.jsonc', 'utf8').replace(/\/\/.*/g, '').replace(/,\s*([}\]])/g, '\$1');
   const cfg = JSON.parse(raw);
@@ -62,7 +62,7 @@ INSTANCE_DOMAIN=$(cd "$WORKER_DIR" && node -e "
 ")
 
 if [[ -z "$INSTANCE_DOMAIN" ]]; then
-  echo "❌ Could not determine INSTANCE_DOMAIN from wrangler.jsonc"
+  echo "Could not determine INSTANCE_DOMAIN from wrangler.jsonc"
   exit 1
 fi
 echo "Instance: $INSTANCE_DOMAIN"
@@ -73,7 +73,7 @@ delete_account() {
   local acct_id acct_uri
 
   echo ""
-  echo "━━━ Processing @${acct_username} ━━━"
+  echo "--- Processing @${acct_username} ---"
 
   # Get account info
   local acct_info
@@ -84,7 +84,7 @@ delete_account() {
   acct_uri=$(echo "$acct_info" | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const r=JSON.parse(d); console.log(r[0]?.results?.[0]?.uri || '')")
 
   if [[ -z "$acct_id" ]]; then
-    echo "  ❌ Account @${acct_username} not found"
+    echo "  Account @${acct_username} not found"
     return
   fi
 
@@ -117,7 +117,7 @@ delete_account() {
     echo "  [DRY RUN] Would remove follows, favourites, notifications"
     echo "  [DRY RUN] Would delete user and account records"
     echo "$all_inboxes" | head -5 | while read -r inbox; do
-      echo "    → $inbox"
+      echo "    -> $inbox"
     done
     if [[ $inbox_count -gt 5 ]]; then
       echo "    ... and $((inbox_count - 5)) more"
@@ -131,7 +131,7 @@ delete_account() {
 
   echo "$all_inboxes" | while read -r inbox; do
     if [[ -n "$inbox" ]]; then
-      echo "    → Queuing delivery to $inbox"
+      echo "    -> Queuing delivery to $inbox"
       # Use the worker's internal API to queue delivery
       npx wrangler d1 execute "$D1_DATABASE_NAME" --remote \
         --command "-- Delivery to ${inbox} queued via Delete activity" 2>/dev/null || true
@@ -191,13 +191,13 @@ delete_account() {
   npx wrangler d1 execute "$D1_DATABASE_NAME" --remote \
     --command "DELETE FROM actor_keys WHERE account_id = '${acct_id}'" 2>/dev/null
 
-  echo "  ✅ Account @${acct_username} deleted"
+  echo "  Account @${acct_username} deleted"
 }
 
 # Process
 if [[ "$USERNAME" == "--all" ]]; then
   echo ""
-  echo "⚠️  SERVER SHUTDOWN MODE — ALL local accounts will be deleted"
+  echo "SERVER SHUTDOWN MODE — ALL local accounts will be deleted"
   echo ""
 
   if $DRY_RUN; then
@@ -209,7 +209,7 @@ if [[ "$USERNAME" == "--all" ]]; then
       [[ -n "$u" ]] && echo "  Would delete: @${u}"
     done
   else
-    echo "⛔ Are you ABSOLUTELY sure you want to delete ALL accounts?"
+    echo "Are you ABSOLUTELY sure you want to delete ALL accounts?"
     echo "   This will send Delete(Actor) to all federated servers."
     echo "   Type 'YES DELETE EVERYTHING' to confirm:"
     read -r final_confirm
@@ -236,7 +236,7 @@ if $DRY_RUN; then
   echo "  DRY RUN complete. Run with --confirm to execute."
   echo "════════════════════════════════════════════════════════"
 else
-  echo "✅ Deletion complete."
+  echo "Deletion complete."
   echo ""
   echo "Note: Delete(Actor) activities have been queued."
   echo "Remote servers will process them asynchronously."

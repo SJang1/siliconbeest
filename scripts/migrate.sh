@@ -4,6 +4,7 @@ set -e
 # =============================================================================
 # SiliconBeest — D1 Migration Script
 # Applies pending D1 migrations to local or remote database.
+# Migrations directory: siliconbeest-vue/migrations/
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,7 +56,7 @@ fi
 success "wrangler found"
 
 DB_NAME="$D1_DATABASE_NAME"
-MIGRATIONS_DIR="$WORKER_DIR/migrations"
+MIGRATIONS_DIR="$MAIN_DIR/migrations"
 
 if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   error "Migrations directory not found: $MIGRATIONS_DIR"
@@ -84,9 +85,9 @@ echo
 info "Checking migration status..."
 
 if [[ "$TARGET" == "remote" ]]; then
-  MIGRATION_LIST=$(cd "$WORKER_DIR" && wrangler d1 migrations list "$DB_NAME" --remote 2>&1 || true)
+  MIGRATION_LIST=$(cd "$MAIN_DIR" && wrangler d1 migrations list "$DB_NAME" --remote 2>&1 || true)
 else
-  MIGRATION_LIST=$(cd "$WORKER_DIR" && wrangler d1 migrations list "$DB_NAME" --local 2>&1 || true)
+  MIGRATION_LIST=$(cd "$MAIN_DIR" && wrangler d1 migrations list "$DB_NAME" --local 2>&1 || true)
 fi
 
 echo "$MIGRATION_LIST"
@@ -111,13 +112,13 @@ if [[ "$TARGET" == "remote" ]]; then
   fi
 
   info "Applying migrations..."
-  (cd "$WORKER_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
+  (cd "$MAIN_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
   success "Remote migrations applied successfully"
 else
   header "Applying Migrations to Local D1"
 
   info "Applying migrations..."
-  (cd "$WORKER_DIR" && wrangler d1 migrations apply "$DB_NAME" --local)
+  (cd "$MAIN_DIR" && wrangler d1 migrations apply "$DB_NAME" --local)
   success "Local migrations applied successfully"
 fi
 

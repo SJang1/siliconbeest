@@ -5,6 +5,9 @@ set -e
 # SiliconBeest — VAPID Key Generator
 # Generates ECDSA P-256 key pair for Web Push notifications.
 # Outputs base64url-encoded private (32 bytes) and public (65 bytes) keys.
+#
+# In the unified architecture, VAPID keys are stored in the D1 database
+# (settings table), NOT as wrangler env secrets.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,18 +17,18 @@ source "$SCRIPT_DIR/config.sh"
 # ---------------------------------------------------------------------------
 # Parse arguments
 # ---------------------------------------------------------------------------
-SET_SECRETS=false
+STORE_IN_DB=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --set-secrets) SET_SECRETS=true; shift ;;
+    --store-in-db) STORE_IN_DB=true; shift ;;
     -h|--help)
       echo "Usage: generate-vapid-keys.sh [OPTIONS]"
       echo
       echo "Generates an ECDSA P-256 key pair suitable for VAPID (Web Push)."
       echo
       echo "Options:"
-      echo "  --set-secrets   Also set the keys as wrangler secrets for $WORKER_NAME"
+      echo "  --store-in-db   Store the keys in the D1 settings table"
       echo "  -h, --help      Show this help"
       exit 0
       ;;
@@ -97,30 +100,32 @@ echo
 success "Keys generated successfully"
 
 # ---------------------------------------------------------------------------
-# Optionally set as wrangler secrets
+# Optionally store in D1 database
 # ---------------------------------------------------------------------------
-if [[ "$SET_SECRETS" == true ]]; then
-  header "Setting Wrangler Secrets"
+if [[ "$STORE_IN_DB" == true ]]; then
+  header "Storing VAPID Keys in D1 Database"
 
   if ! command -v wrangler &>/dev/null; then
     error "wrangler CLI not found. Install with: npm i -g wrangler"
     exit 1
   fi
 
-  info "Setting VAPID_PRIVATE_KEY for $WORKER_NAME..."
-  echo "$VAPID_PRIVATE_KEY" | wrangler secret put VAPID_PRIVATE_KEY --name "$WORKER_NAME"
-  success "VAPID_PRIVATE_KEY set"
+  DB_NAME="$D1_DATABASE_NAME"
 
-  info "Setting VAPID_PUBLIC_KEY for $WORKER_NAME..."
-  echo "$VAPID_PUBLIC_KEY" | wrangler secret put VAPID_PUBLIC_KEY --name "$WORKER_NAME"
-  success "VAPID_PUBLIC_KEY set"
+  info "Storing VAPID keys in D1 settings table ($DB_NAME)..."
+  wrangler d1 execute "$DB_NAME" --remote --command \
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY'), ('vapid_public_key', '$VAPID_PUBLIC_KEY');"
+  success "VAPID keys stored in DB"
 
   echo
-  success "Secrets set for $WORKER_NAME"
+  success "Keys stored in D1 settings table"
 fi
 
 echo
-echo -e "${YELLOW}To set these keys as secrets manually:${NC}"
-echo "  echo '$VAPID_PRIVATE_KEY' | wrangler secret put VAPID_PRIVATE_KEY --name $WORKER_NAME"
-echo "  echo '$VAPID_PUBLIC_KEY'  | wrangler secret put VAPID_PUBLIC_KEY  --name $WORKER_NAME"
+echo -e "${YELLOW}To store these keys in the database manually:${NC}"
+echo "  wrangler d1 execute $D1_DATABASE_NAME --remote --command \\"
+echo "    \"INSERT OR REPLACE INTO settings (key, value) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY'), ('vapid_public_key', '$VAPID_PUBLIC_KEY');\""
+echo
+echo -e "${YELLOW}NOTE:${NC} VAPID keys are stored in the D1 database (not env secrets)."
+echo "  Rotating keys invalidates all existing Web Push subscriptions."
 echo

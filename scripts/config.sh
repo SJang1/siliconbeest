@@ -19,10 +19,10 @@ PROJECT_PREFIX="${PROJECT_PREFIX:-siliconbeest}"
 # Cloudflare Worker names (used by wrangler deploy --name)
 # These also determine the *.workers.dev subdomain
 # ---------------------------------------------------------------------------
-WORKER_NAME="${WORKER_NAME:-${PROJECT_PREFIX}-worker}"
+# The unified worker (Vue frontend + API worker in one)
+MAIN_WORKER_NAME="${MAIN_WORKER_NAME:-${PROJECT_PREFIX}}"
 CONSUMER_NAME="${CONSUMER_NAME:-${PROJECT_PREFIX}-queue-consumer}"
 EMAIL_SENDER_NAME="${EMAIL_SENDER_NAME:-${PROJECT_PREFIX}-email-sender}"
-VUE_NAME="${VUE_NAME:-${PROJECT_PREFIX}-vue}"
 
 # ---------------------------------------------------------------------------
 # Cloudflare resource names
@@ -43,10 +43,9 @@ QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$SCRIPT_DIR")}"
-WORKER_DIR="${WORKER_DIR:-$PROJECT_ROOT/siliconbeest-worker}"
+MAIN_DIR="${MAIN_DIR:-$PROJECT_ROOT/siliconbeest-vue}"
 CONSUMER_DIR="${CONSUMER_DIR:-$PROJECT_ROOT/siliconbeest-queue-consumer}"
 EMAIL_DIR="${EMAIL_DIR:-$PROJECT_ROOT/siliconbeest-email-sender}"
-VUE_DIR="${VUE_DIR:-$PROJECT_ROOT/siliconbeest-vue}"
 
 # ---------------------------------------------------------------------------
 # Colors (shared across scripts)

@@ -3,7 +3,9 @@ set -e
 
 # =============================================================================
 # SiliconBeest — Custom Domain Configuration
-# Sets up Workers Routes so a custom domain routes to the correct workers.
+# Sets up Workers Routes so a custom domain routes to the unified worker.
+#
+# Architecture: single unified worker (siliconbeest) handles all routes.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,17 +54,18 @@ header "Updating Instance Domain"
 
 info "Setting INSTANCE_DOMAIN to: $DOMAIN"
 
-# Update worker wrangler.jsonc
-if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
+# Update unified worker wrangler.jsonc
+if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
   node -e "
 const fs = require('fs');
-let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
+let content = fs.readFileSync('$MAIN_DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
-fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
+content = content.replace(/(\"pattern\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
+fs.writeFileSync('$MAIN_DIR/wrangler.jsonc', content);
 "
-  success "Updated $(basename "$WORKER_DIR")/wrangler.jsonc"
+  success "Updated siliconbeest-vue/wrangler.jsonc"
 else
-  error "$(basename "$WORKER_DIR")/wrangler.jsonc not found"
+  error "siliconbeest-vue/wrangler.jsonc not found"
   exit 1
 fi
 
@@ -74,91 +77,19 @@ let content = fs.readFileSync('$CONSUMER_DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
 fs.writeFileSync('$CONSUMER_DIR/wrangler.jsonc', content);
 "
-  success "Updated $(basename "$CONSUMER_DIR")/wrangler.jsonc"
+  success "Updated siliconbeest-queue-consumer/wrangler.jsonc"
 else
-  warn "$(basename "$CONSUMER_DIR")/wrangler.jsonc not found, skipping"
+  warn "siliconbeest-queue-consumer/wrangler.jsonc not found, skipping"
 fi
 
 # ---------------------------------------------------------------------------
-# Determine Cloudflare Zone ID
+# Redeploy worker to pick up config changes
 # ---------------------------------------------------------------------------
-header "Looking Up Zone"
+header "Redeploying Worker"
 
-# Extract the root domain (last two parts) for zone lookup
-ROOT_DOMAIN=$(echo "$DOMAIN" | awk -F. '{print $(NF-1)"."$NF}')
-info "Looking up zone for: $ROOT_DOMAIN"
-
-ZONE_ID=$(wrangler zones list 2>/dev/null | grep -i "$ROOT_DOMAIN" | grep -oE '[0-9a-f]{32}' | head -1 || true)
-
-if [[ -z "$ZONE_ID" ]]; then
-  warn "Could not auto-detect zone ID for $ROOT_DOMAIN."
-  read -rp "Enter your Cloudflare Zone ID manually: " ZONE_ID
-  if [[ -z "$ZONE_ID" ]]; then
-    error "Zone ID is required to configure routes."
-    exit 1
-  fi
-fi
-success "Zone ID: $ZONE_ID"
-
-# ---------------------------------------------------------------------------
-# Create Workers Routes
-# ---------------------------------------------------------------------------
-header "Configuring Workers Routes"
-
-# Routes that should go to the API worker ($WORKER_NAME)
-# Keep in sync with wrangler.jsonc routes
-API_ROUTES=(
-  "${DOMAIN}/api/*"
-  "${DOMAIN}/oauth/*"
-  "${DOMAIN}/.well-known/*"
-  "${DOMAIN}/users/*"
-  "${DOMAIN}/inbox"
-  "${DOMAIN}/nodeinfo/*"
-  "${DOMAIN}/media/*"
-  "${DOMAIN}/actor"
-  "${DOMAIN}/authorize_interaction*"
-  "${DOMAIN}/auth/confirm*"
-  "${DOMAIN}/healthz"
-  "${DOMAIN}/thumbnail.png"
-  "${DOMAIN}/favicon.ico"
-  "${DOMAIN}/proxy*"
-)
-
-# The catch-all route for the frontend ($VUE_NAME)
-FRONTEND_ROUTE="${DOMAIN}/*"
-
-info "Creating API routes ($WORKER_NAME)..."
-for ROUTE in "${API_ROUTES[@]}"; do
-  info "  Route: $ROUTE -> $WORKER_NAME"
-  wrangler routes create "$ROUTE" \
-    --worker "$WORKER_NAME" \
-    --zone "$ZONE_ID" 2>/dev/null || \
-  wrangler routes create "$ROUTE" \
-    --worker "$WORKER_NAME" \
-    --zone-id "$ZONE_ID" 2>/dev/null || \
-  warn "  Could not create route: $ROUTE (may already exist or use 'wrangler routes' manually)"
-done
-success "API routes configured"
-
-info "Creating frontend route ($VUE_NAME)..."
-info "  Route: $FRONTEND_ROUTE -> $VUE_NAME"
-wrangler routes create "$FRONTEND_ROUTE" \
-  --worker "$VUE_NAME" \
-  --zone "$ZONE_ID" 2>/dev/null || \
-wrangler routes create "$FRONTEND_ROUTE" \
-  --worker "$VUE_NAME" \
-  --zone-id "$ZONE_ID" 2>/dev/null || \
-warn "  Could not create frontend route (may already exist or use 'wrangler routes' manually)"
-success "Frontend route configured"
-
-# ---------------------------------------------------------------------------
-# Redeploy workers to pick up config changes
-# ---------------------------------------------------------------------------
-header "Redeploying Workers"
-
-info "Redeploying $WORKER_NAME with updated domain..."
-(cd "$WORKER_DIR" && wrangler deploy)
-success "$WORKER_NAME redeployed"
+info "Redeploying $MAIN_WORKER_NAME with updated domain..."
+(cd "$MAIN_DIR" && npm run build && wrangler deploy)
+success "$MAIN_WORKER_NAME redeployed"
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -168,13 +99,10 @@ header "Domain Configuration Complete"
 echo -e "${GREEN}${BOLD}Custom domain configured for: $DOMAIN${NC}"
 echo
 echo -e "  ${BOLD}Route Mapping:${NC}"
-for ROUTE in "${API_ROUTES[@]}"; do
-  echo -e "    $ROUTE  ->  $WORKER_NAME"
-done
-echo -e "    $FRONTEND_ROUTE             ->  $VUE_NAME"
+echo -e "    $DOMAIN (custom_domain) -> $MAIN_WORKER_NAME (unified worker)"
 echo
 echo -e "${YELLOW}Important:${NC}"
-echo "  - More specific routes (e.g. /api/*) take priority over the catch-all (/*)"
+echo "  - The unified worker handles all routes (API + frontend)"
 echo "  - Make sure your DNS has a proxied (orange cloud) record for $DOMAIN"
 echo "  - If using a subdomain, add a CNAME or A record pointing to Cloudflare"
 echo

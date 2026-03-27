@@ -3,7 +3,8 @@ set -e
 
 # =============================================================================
 # SiliconBeest — Deploy Script
-# Builds and deploys all 4 workers to Cloudflare.
+# Builds and deploys all 3 workers to Cloudflare.
+# The unified worker (Vue + API) deploys from siliconbeest-vue/.
 # Optionally configures custom domain routes.
 # =============================================================================
 
@@ -62,7 +63,7 @@ fi
 success "Authenticated with Cloudflare"
 
 # Check that project directories exist
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
+for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   if [[ ! -d "$DIR" ]]; then
     error "Directory not found: $DIR"
     exit 1
@@ -76,79 +77,30 @@ success "All project directories found"
 if [[ -n "$DOMAIN" ]]; then
   header "Configuring Custom Domain: $DOMAIN"
 
-  # --- Update INSTANCE_DOMAIN in worker wrangler.jsonc ---
+  # --- Update INSTANCE_DOMAIN in wrangler.jsonc ---
   info "Updating INSTANCE_DOMAIN to: $DOMAIN"
-  if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
+  if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
     node -e "
 const fs = require('fs');
-let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
+let content = fs.readFileSync('$MAIN_DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
-fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
+fs.writeFileSync('$MAIN_DIR/wrangler.jsonc', content);
 "
-    success "Updated $(basename "$WORKER_DIR")/wrangler.jsonc INSTANCE_DOMAIN"
+    success "Updated wrangler.jsonc INSTANCE_DOMAIN"
   else
-    error "$(basename "$WORKER_DIR")/wrangler.jsonc not found"
+    error "siliconbeest-vue/wrangler.jsonc not found"
     exit 1
   fi
 
-  # --- Add routes to worker wrangler.jsonc for API paths ---
-  info "Setting API routes in $(basename "$WORKER_DIR")/wrangler.jsonc..."
+  # --- Update custom_domain route pattern ---
+  info "Setting custom domain route in wrangler.jsonc..."
   node -e "
 const fs = require('fs');
-let content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
-
-// Remove existing routes block (including any trailing comma issues)
-content = content.replace(/,?\s*\"routes\"\s*:\s*\[[\s\S]*?\]\s*/g, '');
-
-// Build the routes JSON
-const routes = [
-  { pattern: '$DOMAIN/api/*', custom_domain: true },
-  { pattern: '$DOMAIN/oauth/*', custom_domain: true },
-  { pattern: '$DOMAIN/.well-known/*', custom_domain: true },
-  { pattern: '$DOMAIN/users/*', custom_domain: true },
-  { pattern: '$DOMAIN/inbox', custom_domain: true },
-  { pattern: '$DOMAIN/nodeinfo/*', custom_domain: true },
-  { pattern: '$DOMAIN/actor', custom_domain: true }
-];
-const routesJson = JSON.stringify(routes, null, 2).replace(/^/gm, '\t');
-
-// Insert routes before the closing brace
-const lastBrace = content.lastIndexOf('}');
-const before = content.substring(0, lastBrace).trimEnd();
-// Ensure there's a comma before routes
-const needsComma = !before.endsWith(',');
-const insertion = (needsComma ? ',' : '') + '\n\n\t// Workers Routes (API paths)\n\t\"routes\": ' + routesJson.trim() + '\n';
-content = before + insertion + '}' + '\n';
-
-fs.writeFileSync('$WORKER_DIR/wrangler.jsonc', content);
+let content = fs.readFileSync('$MAIN_DIR/wrangler.jsonc', 'utf8');
+content = content.replace(/(\"pattern\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
+fs.writeFileSync('$MAIN_DIR/wrangler.jsonc', content);
 "
-  success "Added API routes to $(basename "$WORKER_DIR")/wrangler.jsonc"
-
-  # --- Add routes to $(basename "$VUE_DIR")/wrangler.jsonc for catch-all ---
-  info "Setting catch-all route in $(basename "$VUE_DIR")/wrangler.jsonc..."
-  node -e "
-const fs = require('fs');
-let content = fs.readFileSync('$VUE_DIR/wrangler.jsonc', 'utf8');
-
-// Remove existing routes block
-content = content.replace(/,?\s*\"routes\"\s*:\s*\[[\s\S]*?\]\s*/g, '');
-
-// Build the catch-all route
-const routes = [
-  { pattern: '$DOMAIN/*', custom_domain: true }
-];
-const routesJson = JSON.stringify(routes, null, 2).replace(/^/gm, '\t');
-
-// Insert routes before the closing brace
-const lastBrace = content.lastIndexOf('}');
-const before = content.substring(0, lastBrace).trimEnd();
-const needsComma = !before.endsWith(',');
-const insertion = (needsComma ? ',' : '') + '\n\n\t// Workers Routes (catch-all for custom domain)\n\t\"routes\": ' + routesJson.trim() + '\n';
-content = before + insertion + '}' + '\n';
-
-fs.writeFileSync('$VUE_DIR/wrangler.jsonc', content);
-"
-  success "Added catch-all route to $(basename "$VUE_DIR")/wrangler.jsonc"
+  success "Updated custom domain route"
 fi
 
 # ---------------------------------------------------------------------------
@@ -156,7 +108,7 @@ fi
 # ---------------------------------------------------------------------------
 header "Installing Dependencies"
 
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
+for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
@@ -171,15 +123,15 @@ done
 if [[ "$SKIP_MIGRATIONS" == false ]]; then
   header "Applying D1 Migrations"
 
-  # Read D1 database name from wrangler.jsonc (not hardcoded)
-  DB_NAME=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "(config.d1_databases||[])[0]?.database_name")
+  # Read D1 database name from wrangler.jsonc
+  DB_NAME=$(read_wrangler_json "$MAIN_DIR/wrangler.jsonc" "(config.d1_databases||[])[0]?.database_name")
   if [[ -z "$DB_NAME" ]]; then
     warn "Could not read D1 database name from wrangler.jsonc — skipping migrations"
   elif [[ "$DRY_RUN" == true ]]; then
     info "[DRY RUN] Would apply D1 migrations to: $DB_NAME"
   else
     info "Applying pending migrations to remote D1 ($DB_NAME)..."
-    (cd "$WORKER_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
+    (cd "$MAIN_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
     success "Migrations applied"
   fi
 else
@@ -187,16 +139,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Deploy $WORKER_NAME (API)
+# Deploy $MAIN_WORKER_NAME (unified Vue + API worker)
 # ---------------------------------------------------------------------------
-header "Deploying $WORKER_NAME"
+header "Deploying $MAIN_WORKER_NAME"
 
 if [[ "$DRY_RUN" == true ]]; then
-  info "[DRY RUN] Would deploy $WORKER_NAME"
+  info "[DRY RUN] Would build and deploy $MAIN_WORKER_NAME"
 else
-  info "Deploying API worker..."
-  (cd "$WORKER_DIR" && wrangler deploy)
-  success "$WORKER_NAME deployed"
+  info "Building Vue frontend and deploying unified worker..."
+  (cd "$MAIN_DIR" && npm run build && wrangler deploy)
+  success "$MAIN_WORKER_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------
@@ -226,19 +178,6 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Deploy $VUE_NAME (Frontend)
-# ---------------------------------------------------------------------------
-header "Deploying $VUE_NAME"
-
-if [[ "$DRY_RUN" == true ]]; then
-  info "[DRY RUN] Would deploy $VUE_NAME"
-else
-  info "Building and deploying frontend..."
-  (cd "$VUE_DIR" && wrangler deploy)
-  success "$VUE_NAME deployed"
-fi
-
-# ---------------------------------------------------------------------------
 # Print deployment info
 # ---------------------------------------------------------------------------
 header "Deployment Complete"
@@ -246,17 +185,16 @@ header "Deployment Complete"
 echo -e "${GREEN}${BOLD}All workers deployed successfully!${NC}"
 echo
 echo -e "  ${BOLD}Workers deployed:${NC}"
-echo -e "    - $WORKER_NAME       (API + ActivityPub)"
+echo -e "    - $MAIN_WORKER_NAME     (Unified Vue + API + ActivityPub)"
 echo -e "    - $CONSUMER_NAME (Federation queue processor)"
 echo -e "    - $EMAIL_SENDER_NAME (Email queue consumer)"
-echo -e "    - $VUE_NAME          (Frontend SPA)"
 echo
 
 # Extract domain from wrangler.jsonc
 CONFIGURED_DOMAIN=$(node -e "
 const fs = require('fs');
 try {
-  const content = fs.readFileSync('$WORKER_DIR/wrangler.jsonc', 'utf8');
+  const content = fs.readFileSync('$MAIN_DIR/wrangler.jsonc', 'utf8');
   const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
   const config = JSON.parse(cleaned);
   process.stdout.write(config.vars?.INSTANCE_DOMAIN || 'not configured');
@@ -267,27 +205,19 @@ echo -e "  ${BOLD}Instance domain:${NC} $CONFIGURED_DOMAIN"
 echo
 
 if [[ -n "$DOMAIN" ]]; then
-  echo -e "  ${BOLD}Custom domain routes configured:${NC}"
-  echo -e "    - ${DOMAIN}/api/*           -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/oauth/*         -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/.well-known/*   -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/users/*         -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/inbox           -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/nodeinfo/*      -> $WORKER_NAME"
-  echo -e "    - ${DOMAIN}/*               -> $VUE_NAME (catch-all)"
+  echo -e "  ${BOLD}Custom domain configured:${NC} $DOMAIN"
+  echo -e "    All routes handled by unified worker $MAIN_WORKER_NAME"
   echo
   echo -e "${YELLOW}Important:${NC}"
-  echo "  - More specific routes (e.g. /api/*) take priority over the catch-all (/*)"
   echo "  - Make sure your DNS has a proxied (orange cloud) record for $DOMAIN"
   echo "  - If using a subdomain, add a CNAME or A record pointing to Cloudflare"
   echo
   echo -e "${YELLOW}Verify with:${NC}"
   echo "  curl https://$DOMAIN/.well-known/webfinger?resource=acct:admin@$DOMAIN"
 else
-  echo -e "  ${BOLD}Default worker URLs:${NC}"
-  echo -e "    - API:      https://$WORKER_NAME.<your-subdomain>.workers.dev"
+  echo -e "  ${BOLD}Default worker URL:${NC}"
+  echo -e "    - Main:     https://$MAIN_WORKER_NAME.<your-subdomain>.workers.dev"
   echo -e "    - Consumer: https://$CONSUMER_NAME.<your-subdomain>.workers.dev"
-  echo -e "    - Frontend: https://$VUE_NAME.<your-subdomain>.workers.dev"
   echo
   echo -e "${YELLOW}To configure a custom domain, run:${NC}"
   echo -e "  ${BOLD}./scripts/deploy.sh --domain $CONFIGURED_DOMAIN${NC}"

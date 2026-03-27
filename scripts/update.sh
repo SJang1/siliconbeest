@@ -4,7 +4,9 @@ set -e
 # =============================================================================
 # SiliconBeest — Update Script
 # Pulls latest code, installs dependencies, applies migrations, and redeploys
-# all 4 workers. Designed for production update workflow.
+# all 3 workers. Designed for production update workflow.
+#
+# Architecture: unified worker deployed from siliconbeest-vue/
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,7 +54,7 @@ get_d1_name() {
 }
 
 get_domain() {
-  read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN"
+  read_wrangler_json "$MAIN_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN"
 }
 
 # ---------------------------------------------------------------------------
@@ -125,7 +127,7 @@ fi
 # ---------------------------------------------------------------------------
 header "Step 2: Installing Dependencies"
 
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
+for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
@@ -139,9 +141,9 @@ done
 # ---------------------------------------------------------------------------
 header "Step 3: Type Checking"
 
-info "Checking $WORKER_NAME..."
-(cd "$WORKER_DIR" && npx -p typescript tsc --noEmit)
-success "$WORKER_NAME: 0 errors"
+info "Checking $MAIN_WORKER_NAME (Vue + Worker)..."
+(cd "$MAIN_DIR" && npx vue-tsc --noEmit)
+success "$MAIN_WORKER_NAME: 0 errors"
 
 info "Checking $CONSUMER_NAME..."
 (cd "$CONSUMER_DIR" && npx -p typescript tsc --noEmit)
@@ -151,23 +153,15 @@ info "Checking $EMAIL_SENDER_NAME..."
 (cd "$EMAIL_DIR" && npx -p typescript tsc --noEmit)
 success "$EMAIL_SENDER_NAME: 0 errors"
 
-info "Checking $VUE_NAME..."
-(cd "$VUE_DIR" && npx vue-tsc --noEmit)
-success "$VUE_NAME: 0 errors"
-
 # ---------------------------------------------------------------------------
 # Step 4: Run Tests
 # ---------------------------------------------------------------------------
 if [[ "$SKIP_TESTS" == false ]]; then
   header "Step 4: Running Tests"
 
-  info "Running worker tests..."
-  (cd "$WORKER_DIR" && npm test)
-  success "Worker tests passed"
-
-  info "Running Vue tests..."
-  (cd "$VUE_DIR" && npm test)
-  success "Vue tests passed"
+  info "Running tests (worker + Vue)..."
+  (cd "$MAIN_DIR" && npm test)
+  success "All tests passed"
 else
   header "Step 4: Skipping tests (--skip-tests)"
 fi
@@ -177,14 +171,14 @@ fi
 # ---------------------------------------------------------------------------
 header "Step 5: Database Migrations"
 
-DB_NAME=$(get_d1_name "$WORKER_DIR")
+DB_NAME=$(get_d1_name "$MAIN_DIR")
 if [[ -z "$DB_NAME" ]]; then
   warn "Could not read D1 database name from wrangler.jsonc — skipping migrations"
 else
   info "D1 database: $DB_NAME"
 
   # Check for pending migrations
-  MIGRATION_DIR="$WORKER_DIR/migrations"
+  MIGRATION_DIR="$MAIN_DIR/migrations"
   if [[ -d "$MIGRATION_DIR" ]]; then
     MIGRATION_COUNT=$(ls "$MIGRATION_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ')
     info "Found $MIGRATION_COUNT migration file(s)"
@@ -193,7 +187,7 @@ else
       info "[DRY RUN] Would apply migrations to $DB_NAME"
     else
       info "Applying pending migrations..."
-      (cd "$WORKER_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
+      (cd "$MAIN_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
       success "Migrations applied"
     fi
   else
@@ -202,31 +196,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6: Build Frontend
+# Step 6: Deploy
 # ---------------------------------------------------------------------------
-header "Step 6: Building Frontend"
-
-info "Building Vue SPA..."
-(cd "$VUE_DIR" && npx vite build)
-success "Frontend built"
-
-# ---------------------------------------------------------------------------
-# Step 7: Deploy
-# ---------------------------------------------------------------------------
-header "Step 7: Deploying"
+header "Step 6: Deploying"
 
 if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy the following:"
-  echo "  - $WORKER_NAME"
+  echo "  - $MAIN_WORKER_NAME (build + deploy from siliconbeest-vue)"
   echo "  - $CONSUMER_NAME"
   echo "  - $EMAIL_SENDER_NAME"
-  echo "  - $VUE_NAME"
   echo
   info "Run without --dry-run to actually deploy."
 else
-  info "Deploying $WORKER_NAME..."
-  (cd "$WORKER_DIR" && wrangler deploy)
-  success "$WORKER_NAME deployed"
+  info "Building and deploying $MAIN_WORKER_NAME..."
+  (cd "$MAIN_DIR" && npm run build && wrangler deploy)
+  success "$MAIN_WORKER_NAME deployed"
 
   info "Deploying $CONSUMER_NAME..."
   (cd "$CONSUMER_DIR" && wrangler deploy)
@@ -235,10 +219,6 @@ else
   info "Deploying $EMAIL_SENDER_NAME..."
   (cd "$EMAIL_DIR" && wrangler deploy)
   success "$EMAIL_SENDER_NAME deployed"
-
-  info "Deploying $VUE_NAME..."
-  (cd "$VUE_DIR" && wrangler deploy)
-  success "$VUE_NAME deployed"
 fi
 
 # ---------------------------------------------------------------------------

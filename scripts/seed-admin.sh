@@ -5,6 +5,8 @@ set -e
 # SiliconBeest — Seed Admin User
 # Creates the initial admin user in the D1 database.
 # Generates an RSA keypair for ActivityPub federation.
+#
+# Uses siliconbeest-vue/wrangler.jsonc for configuration.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,7 +53,7 @@ fi
 # ---------------------------------------------------------------------------
 # Read INSTANCE_DOMAIN from wrangler.jsonc
 # ---------------------------------------------------------------------------
-INSTANCE_DOMAIN=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN")
+INSTANCE_DOMAIN=$(read_wrangler_json "$MAIN_DIR/wrangler.jsonc" "config.vars?.INSTANCE_DOMAIN")
 
 if [[ -z "$INSTANCE_DOMAIN" ]]; then
   error "Could not read INSTANCE_DOMAIN from wrangler.jsonc"
