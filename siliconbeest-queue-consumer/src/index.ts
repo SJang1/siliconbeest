@@ -9,32 +9,10 @@
  * are detected and routed to federation.processQueuedTask().
  */
 
-import { configure, type LogRecord } from '@logtape/logtape';
 import type { Env } from './env';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
-
-function plainConsoleSink(record: LogRecord): void {
-  const level = record.level.toUpperCase().padEnd(5);
-  const cat = record.category.join('·');
-  const msg = record.message.map(m => typeof m === 'string' ? m : JSON.stringify(m)).join('');
-  const line = `[${level}] ${cat}: ${msg}`;
-  if (record.level === 'error' || record.level === 'fatal') console.error(line);
-  else if (record.level === 'warning') console.warn(line);
-  else console.log(line);
-}
-
-await configure({
-  sinks: { console: plainConsoleSink },
-  loggers: [
-    { category: 'fedify', sinks: ['console'], lowestLevel: 'warning' },
-    { category: ['fedify', 'federation', 'fanout'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'outbox'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'queue'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'inbox'], sinks: ['console'], lowestLevel: 'debug' },
-  ],
-});
 import { WorkersMessageQueue } from '@fedify/cfworkers';
 
 // Consumer-local inbox listeners and collection dispatchers.
@@ -53,6 +31,22 @@ import { handleSendWebPush } from './handlers/sendWebPush';
 import { handleFetchPreviewCard } from './handlers/fetchPreviewCard';
 import { handleForwardActivity } from './handlers/forwardActivity';
 import { handleImportItem } from './handlers/importItem';
+
+// ---------------------------------------------------------------------------
+// Fedify — singleton per isolate (avoids createFederation + setup per message)
+// ---------------------------------------------------------------------------
+let fedInitialized = false;
+
+function ensureFedInitialized(env: Env) {
+  const fed = createFed(env);
+  if (!fedInitialized) {
+    setupActorDispatcher(fed);
+    setupInboxListeners(fed);
+    setupCollectionDispatchers(fed);
+    fedInitialized = true;
+  }
+  return fed;
+}
 
 /** All legacy message type values used by our own queue messages. */
 const LEGACY_MESSAGE_TYPES = new Set([
@@ -100,26 +94,9 @@ export default {
 
         // ---- Fedify queued tasks (from WorkersMessageQueue / sendActivity) ----
         if (isFedifyMessage(body)) {
-          console.log('[queue] Fedify message received:', JSON.stringify(body).slice(0, 200));
           try {
-            const fed = createFed(env);
-            setupActorDispatcher(fed);
-            console.log('[queue] setupInboxListeners type:', typeof setupInboxListeners);
-            try {
-              setupInboxListeners(fed);
-              console.log('[queue] setupInboxListeners: OK');
-            } catch (e) {
-              console.error('[queue] setupInboxListeners FAILED:', e);
-            }
-            try {
-              setupCollectionDispatchers(fed);
-              console.log('[queue] setupCollectionDispatchers: OK');
-            } catch (e) {
-              console.error('[queue] setupCollectionDispatchers FAILED:', e);
-            }
+            const fed = ensureFedInitialized(env);
 
-            // Use WorkersMessageQueue.processMessage() to unwrap __fedify_payload__
-            // and handle ordering key locks before calling processQueuedTask.
             const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
             const result = await wmq.processMessage(body);
             console.log('[queue] processMessage result:', JSON.stringify({

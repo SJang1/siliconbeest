@@ -1,10 +1,10 @@
 /**
  * Fedify Federation Instance Factory
  *
- * Creates a Fedify Federation instance configured for Cloudflare Workers.
- * The instance must be created INSIDE fetch()/queue() handlers, not globally,
- * because Cloudflare Workers bindings (KV, Queues) are only available as
- * method arguments.
+ * Creates a cached Fedify Federation instance for Cloudflare Workers.
+ * The Federation and all dispatchers/listeners are registered ONCE per
+ * isolate, not per request. Only the waitUntil function and context data
+ * (env) change per request.
  *
  * @see https://fedify.dev/
  * @see https://github.com/fedify-dev/fedify
@@ -40,22 +40,18 @@ export interface FedifyContextData {
  */
 class CloudflareMessageQueue implements MessageQueue {
   private inner: WorkersMessageQueue;
-  private waitUntilFn: ((promise: Promise<unknown>) => void) | null;
+  /** Mutable — updated per-request via setWaitUntil() */
+  waitUntilFn: ((promise: Promise<unknown>) => void) | null = null;
 
-  constructor(queue: Queue, waitUntilFn?: (promise: Promise<unknown>) => void) {
+  constructor(queue: Queue) {
     this.inner = new WorkersMessageQueue(queue);
-    this.waitUntilFn = waitUntilFn ?? null;
   }
 
   enqueue(
     message: any,
     options?: any,
   ): Promise<void> {
-    console.log(`[queue-wrapper] enqueue called, type=${message?.type}, keys=${Object.keys(message || {}).join(',')}`);
     const promise = this.inner.enqueue(message, options)
-      .then(() => {
-        console.log(`[queue-wrapper] enqueue succeeded, type=${message?.type}`);
-      })
       .catch((err: unknown) => {
         console.error(`[queue-wrapper] enqueue FAILED, type=${message?.type}:`, err);
         throw err;
@@ -77,24 +73,48 @@ class CloudflareMessageQueue implements MessageQueue {
   }
 }
 
+/** Cached Federation instance (lives for the isolate lifetime) */
+let cachedFed: Federation<FedifyContextData> | null = null;
+/** Cached queue wrapper (for per-request waitUntil updates) */
+let cachedQueue: CloudflareMessageQueue | null = null;
+
 /**
- * Create a Fedify Federation instance for this request.
+ * Get or create a cached Fedify Federation instance.
  *
- * @param env Cloudflare Workers Env bindings
- * @param waitUntilFn Optional ctx.waitUntil() function from the Hono context
- *                     to keep the Worker alive for fire-and-forget enqueues
- * @returns Configured Federation instance
+ * The Federation + dispatchers + listeners are registered ONCE and reused
+ * across all requests within the same Workers isolate. This avoids the
+ * overhead of recreating everything on every request.
+ *
+ * @param env Cloudflare Workers Env bindings (used on first call to create the instance)
+ * @returns Cached Federation instance
  */
 export function createFed(
   env: Env,
-  waitUntilFn?: (promise: Promise<unknown>) => void,
 ): Federation<FedifyContextData> {
-  return createFederation<FedifyContextData>({
+  if (cachedFed) return cachedFed;
+
+  cachedQueue = new CloudflareMessageQueue(env.QUEUE_FEDERATION);
+
+  cachedFed = createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
-    queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION, waitUntilFn),
+    queue: cachedQueue,
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
     },
   });
+
+  return cachedFed;
+}
+
+/**
+ * Update the per-request waitUntil function on the cached queue.
+ *
+ * Must be called at the start of each request so that fire-and-forget
+ * enqueue Promises are kept alive until completion.
+ */
+export function setWaitUntil(fn: (promise: Promise<unknown>) => void): void {
+  if (cachedQueue) {
+    cachedQueue.waitUntilFn = fn;
+  }
 }

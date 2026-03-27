@@ -8,6 +8,13 @@
 		"enabled": true
 	},
 	"workers_dev": false,
+	// Force all @fedify/* imports (including cross-package from siliconbeest-worker)
+	// to resolve from THIS package's node_modules to avoid dual-package bundling.
+	"alias": {
+		"@fedify/fedify": "./node_modules/@fedify/fedify/dist/mod.js",
+		"@fedify/fedify/vocab": "./node_modules/@fedify/fedify/dist/vocab/mod.js",
+		"@fedify/cfworkers": "./node_modules/@fedify/cfworkers/dist/mod.js"
+	},
 	"placement": {
 		"mode": "smart"
 	},

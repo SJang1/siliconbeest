@@ -8,42 +8,28 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { federation } from '@fedify/hono';
-import { configure, type LogRecord } from '@logtape/logtape';
 
 import type { Env, AppVariables } from './env';
-
-// Fedify LogTape — plain text console sink (Workers에서 %c CSS 안 먹힘)
-function plainConsoleSink(record: LogRecord): void {
-  const level = record.level.toUpperCase().padEnd(5);
-  const cat = record.category.join('·');
-  const msg = record.message.map(m => typeof m === 'string' ? m : JSON.stringify(m)).join('');
-  const line = `[${level}] ${cat}: ${msg}`;
-  if (record.level === 'error' || record.level === 'fatal') console.error(line);
-  else if (record.level === 'warning') console.warn(line);
-  else console.log(line);
-}
-
-await configure({
-  sinks: { console: plainConsoleSink },
-  loggers: [
-    { category: 'fedify', sinks: ['console'], lowestLevel: 'warning' },
-    { category: ['fedify', 'federation', 'fanout'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'outbox'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'queue'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'federation', 'inbox'], sinks: ['console'], lowestLevel: 'debug' },
-    { category: ['fedify', 'sig', 'http'], sinks: ['console'], lowestLevel: 'warning' },
-  ],
-});
 import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
-import { createFed, type FedifyContextData } from './federation/fedify';
+import { createFed, setWaitUntil, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
 import { setupCollectionDispatchers } from './federation/dispatchers/collections';
 import { setupObjectDispatchers, handleActivityRequest } from './federation/dispatchers/objects';
 import { setupInboxListeners } from './federation/listeners/inbox';
+
+// ---------------------------------------------------------------------------
+// Fedify Federation — singleton per isolate
+//
+// Dispatchers and listeners are registered ONCE at module load and reused
+// across all requests.  Only waitUntil and context data (env) change
+// per-request.  This avoids the overhead of createFederation() + 5 setup
+// calls on every single HTTP request.
+// ---------------------------------------------------------------------------
+let fedInitialized = false;
 
 // -- Well-Known / Discovery --
 import nodeinfo2_0 from './endpoints/wellknown/nodeinfo2_0';
@@ -156,19 +142,28 @@ const FEDIFY_SKIP_PREFIXES: string[] = [
 app.use('*', async (c, next) => {
   const path = new URL(c.req.url).pathname;
 
-  // Skip Fedify for paths our existing endpoints handle better (Phase 1)
+  // Skip Fedify for paths our existing endpoints handle better
   for (const prefix of FEDIFY_SKIP_PREFIXES) {
     if (path.startsWith(prefix) || path === prefix) {
       return next();
     }
   }
 
-  const fed = createFed(c.env, (p) => c.executionCtx.waitUntil(p));
-  setupActorDispatcher(fed);
-  setupNodeInfoDispatcher(fed);
-  setupCollectionDispatchers(fed);
-  setupObjectDispatchers(fed);
-  setupInboxListeners(fed);
+  // Get or create the cached Federation instance (once per isolate)
+  const fed = createFed(c.env);
+
+  // Register dispatchers/listeners ONCE
+  if (!fedInitialized) {
+    setupActorDispatcher(fed);
+    setupNodeInfoDispatcher(fed);
+    setupCollectionDispatchers(fed);
+    setupObjectDispatchers(fed);
+    setupInboxListeners(fed);
+    fedInitialized = true;
+  }
+
+  // Update per-request waitUntil so fire-and-forget enqueues survive
+  setWaitUntil((p) => c.executionCtx.waitUntil(p));
 
   // Store federation instance for use in route handlers (sendActivity)
   c.set('federation', fed);
