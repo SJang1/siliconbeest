@@ -6,7 +6,7 @@ set -e
 # Creates all Cloudflare resources, sets secrets, applies migrations, and seeds
 # an initial admin user.
 #
-# Architecture: unified worker deployed from siliconbeest-vue/
+# Architecture: unified worker deployed from siliconbeest/
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -395,6 +395,6 @@ echo "  1. Run ${BOLD}./scripts/deploy.sh --domain $INSTANCE_DOMAIN${NC} to depl
 echo "     or ${BOLD}./scripts/deploy.sh${NC} to deploy to workers.dev subdomains"
 echo
 echo -e "${YELLOW}Optional:${NC}"
-echo "  - Enable Sentry: edit ${BOLD}siliconbeest-vue/.env${NC} and set VITE_SENTRY_DSN"
-echo "  - Customize: edit ${BOLD}siliconbeest-vue/wrangler.jsonc${NC} vars section"
+echo "  - Enable Sentry: edit ${BOLD}siliconbeest/.env${NC} and set VITE_SENTRY_DSN"
+echo "  - Customize: edit ${BOLD}siliconbeest/wrangler.jsonc${NC} vars section"
 echo

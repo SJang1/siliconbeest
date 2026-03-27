@@ -6,7 +6,7 @@ set -e
 # Pulls latest code, installs dependencies, applies migrations, and redeploys
 # all 3 workers. Designed for production update workflow.
 #
-# Architecture: unified worker deployed from siliconbeest-vue/
+# Architecture: unified worker deployed from siliconbeest/
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -202,7 +202,7 @@ header "Step 6: Deploying"
 
 if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy the following:"
-  echo "  - $MAIN_WORKER_NAME (build + deploy from siliconbeest-vue)"
+  echo "  - $MAIN_WORKER_NAME (build + deploy from siliconbeest)"
   echo "  - $CONSUMER_NAME"
   echo "  - $EMAIL_SENDER_NAME"
   echo

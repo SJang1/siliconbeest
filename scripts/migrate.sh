@@ -4,7 +4,7 @@ set -e
 # =============================================================================
 # SiliconBeest — D1 Migration Script
 # Applies pending D1 migrations to local or remote database.
-# Migrations directory: siliconbeest-vue/migrations/
+# Migrations directory: siliconbeest/migrations/
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

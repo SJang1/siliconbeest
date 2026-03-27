@@ -11,7 +11,7 @@
 #   - Your wrangler.jsonc files are out of date or have wrong IDs
 #   - You need to verify resource bindings match actual Cloudflare state
 #
-# Architecture: unified worker deployed from siliconbeest-vue/
+# Architecture: unified worker deployed from siliconbeest/
 #
 # Usage:
 #   ./scripts/sync-config.sh              # Dry run (show what would change)
@@ -45,7 +45,7 @@ else
   QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
   QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-  MAIN_DIR="$PROJECT_ROOT/siliconbeest-vue"
+  MAIN_DIR="$PROJECT_ROOT/siliconbeest"
   CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
   EMAIL_DIR="$PROJECT_ROOT/siliconbeest-email-sender"
   RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -216,7 +216,7 @@ fi
 
 header "Updating wrangler.jsonc files"
 
-# --- Unified worker wrangler.jsonc (siliconbeest-vue/) ---
+# --- Unified worker wrangler.jsonc (siliconbeest/) ---
 info "Writing $MAIN_DIR/wrangler.jsonc"
 cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 {

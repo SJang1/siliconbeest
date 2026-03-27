@@ -63,9 +63,9 @@ content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$
 content = content.replace(/(\"pattern\":\s*\")[^\"]*(\")/, '\$1$DOMAIN\$2');
 fs.writeFileSync('$MAIN_DIR/wrangler.jsonc', content);
 "
-  success "Updated siliconbeest-vue/wrangler.jsonc"
+  success "Updated siliconbeest/wrangler.jsonc"
 else
-  error "siliconbeest-vue/wrangler.jsonc not found"
+  error "siliconbeest/wrangler.jsonc not found"
   exit 1
 fi
 

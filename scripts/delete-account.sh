@@ -29,7 +29,7 @@ source "$SCRIPT_DIR/config.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/config.env" 2>/dev/null || true
 
 D1_DATABASE_NAME="${D1_DATABASE_NAME:-siliconbeest-db}"
-MAIN_DIR="${MAIN_DIR:-${SCRIPT_DIR}/../siliconbeest-vue}"
+MAIN_DIR="${MAIN_DIR:-${SCRIPT_DIR}/../siliconbeest}"
 
 USERNAME="${1:-}"
 CONFIRM="${2:-}"
@@ -53,7 +53,7 @@ if $DRY_RUN; then
   echo "════════════════════════════════════════════════════════"
 fi
 
-# Get instance domain from siliconbeest-vue/wrangler.jsonc
+# Get instance domain from siliconbeest/wrangler.jsonc
 INSTANCE_DOMAIN=$(cd "$MAIN_DIR" && node -e "
   const fs = require('fs');
   const raw = fs.readFileSync('wrangler.jsonc', 'utf8').replace(/\/\/.*/g, '').replace(/,\s*([}\]])/g, '\$1');

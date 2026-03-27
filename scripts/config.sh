@@ -43,7 +43,7 @@ QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$SCRIPT_DIR")}"
-MAIN_DIR="${MAIN_DIR:-$PROJECT_ROOT/siliconbeest-vue}"
+MAIN_DIR="${MAIN_DIR:-$PROJECT_ROOT/siliconbeest}"
 CONSUMER_DIR="${CONSUMER_DIR:-$PROJECT_ROOT/siliconbeest-queue-consumer}"
 EMAIL_DIR="${EMAIL_DIR:-$PROJECT_ROOT/siliconbeest-email-sender}"
 

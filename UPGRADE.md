@@ -22,16 +22,16 @@
   siliconbeest-vue/server/     → OG handler만
 
 이후:
-  siliconbeest-vue/server/worker/   → API 서버 (이동됨)
-  siliconbeest-vue/server/index.ts  → 통합 entry point
-  siliconbeest-vue/migrations/      → D1 마이그레이션 (이동됨)
-  siliconbeest-vue/test/worker/     → Worker 테스트 (이동됨)
+  siliconbeest/server/worker/   → API 서버 (이동됨)
+  siliconbeest/server/index.ts  → 통합 entry point
+  siliconbeest/migrations/      → D1 마이그레이션 (이동됨)
+  siliconbeest/test/worker/     → Worker 테스트 (이동됨)
 ```
 
 ### wrangler.jsonc 변경
 - `name`: `"siliconbeest-worker"` → `"siliconbeest"`
 - `routes`: 14개 zone route 패턴 → 1개 `custom_domain`
-- 모든 바인딩(D1, R2, KV, Queues, DO)이 `siliconbeest-vue/wrangler.jsonc`에 통합
+- 모든 바인딩(D1, R2, KV, Queues, DO)이 `siliconbeest/wrangler.jsonc`에 통합
 - `services` 블록 제거 (API_WORKER 불필요)
 
 ## 업그레이드 절차
@@ -44,13 +44,13 @@ git pull origin main
 
 ### 2. 의존성 설치
 ```bash
-cd siliconbeest-vue
+cd siliconbeest
 npm install
 ```
 
 ### 3. Secrets 설정 (새 Worker 이름이므로 필요)
 ```bash
-cd siliconbeest-vue
+cd siliconbeest
 
 # OTP 암호화 키 (2FA용, 현재 미사용이면 더미 값 가능)
 openssl rand -hex 32 | npx wrangler secret put OTP_ENCRYPTION_KEY
@@ -61,7 +61,7 @@ openssl rand -hex 32 | npx wrangler secret put OTP_ENCRYPTION_KEY
 
 ### 4. 빌드 + 배포
 ```bash
-cd siliconbeest-vue
+cd siliconbeest
 npm run build
 npx wrangler deploy
 ```
@@ -92,7 +92,7 @@ npx wrangler deploy
 
 ### 7. 기존 Workers 삭제
 ```bash
-# 기존 Vue Worker 삭제
+# 기존 Vue Worker 삭제 (이전 아키텍처에서 사용)
 npx wrangler delete -n siliconbeest-vue
 
 # 기존 API Worker 삭제 (DO 세션 만료 후, 수 시간 대기)
@@ -110,7 +110,7 @@ npx wrangler delete -n siliconbeest-worker
 
 - **VAPID 키**: 이제 DB settings 테이블에서만 조회됩니다. Admin 설정 페이지에서 VAPID 키가 설정되어 있는지 확인하세요.
 - **OTP_ENCRYPTION_KEY**: 현재 코드에서 사용하지 않지만, 향후 2FA 구현 시 필요합니다.
-- **siliconbeest-worker/ 디렉토리**: 통합 후에도 남아있을 수 있습니다. 배포 확인 후 삭제해도 됩니다.
+- **siliconbeest-worker/ 디렉토리**: 이전 아키텍처의 디렉토리입니다. 통합 후에는 삭제되었습니다.
 - **Queue Consumer**: `WORKER` service binding이 새 Worker 이름(`siliconbeest`)을 가리키도록 반드시 업데이트하세요. 안 하면 Push 알림, 스트리밍이 안 됩니다.
 
 ## 새 환경에서 처음부터 배포 (Zero-State)

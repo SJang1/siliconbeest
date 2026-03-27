@@ -6,7 +6,7 @@ set -e
 # Creates the initial admin user in the D1 database.
 # Generates an RSA keypair for ActivityPub federation.
 #
-# Uses siliconbeest-vue/wrangler.jsonc for configuration.
+# Uses siliconbeest/wrangler.jsonc for configuration.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -10,6 +10,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { generateUlid } from '../../../../utils/ulid';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
+import bcrypt from 'bcryptjs';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -74,7 +75,6 @@ app.post('/', async (c) => {
 
 	if (hash.startsWith('$2a$') || hash.startsWith('$2b$')) {
 		// bcrypt
-		const bcrypt = await import('bcryptjs');
 		passwordValid = await bcrypt.compare(password, hash);
 	} else if (hash.startsWith('pbkdf2:')) {
 		// pbkdf2:saltHex:hashHex format

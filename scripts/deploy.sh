@@ -4,7 +4,7 @@ set -e
 # =============================================================================
 # SiliconBeest — Deploy Script
 # Builds and deploys all 3 workers to Cloudflare.
-# The unified worker (Vue + API) deploys from siliconbeest-vue/.
+# The unified worker (Vue + API) deploys from siliconbeest/.
 # Optionally configures custom domain routes.
 # =============================================================================
 
@@ -88,7 +88,7 @@ fs.writeFileSync('$MAIN_DIR/wrangler.jsonc', content);
 "
     success "Updated wrangler.jsonc INSTANCE_DOMAIN"
   else
-    error "siliconbeest-vue/wrangler.jsonc not found"
+    error "siliconbeest/wrangler.jsonc not found"
     exit 1
   fi
 

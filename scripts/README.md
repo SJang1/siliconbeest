@@ -4,6 +4,14 @@ Setup, deployment, and maintenance scripts for managing a SiliconBeest instance.
 
 All scripts share a central configuration via **`config.sh`** -- no resource names are hardcoded.
 
+## Architecture
+
+SiliconBeest uses a **unified worker** architecture:
+
+- **`siliconbeest`** -- single Cloudflare Worker that serves both the Vue frontend and the API/ActivityPub backend. Deployed from `siliconbeest/`.
+- **`siliconbeest-queue-consumer`** -- separate worker that processes federation and internal queues.
+- **`siliconbeest-email-sender`** -- separate worker that processes the email queue.
+
 ---
 
 ## Configuration
@@ -15,10 +23,9 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROJECT_PREFIX` | `siliconbeest` | Master prefix -- changes all defaults |
-| `WORKER_NAME` | `{prefix}-worker` | API Worker name |
+| `MAIN_WORKER_NAME` | `{prefix}` | Unified worker name (Vue + API) |
 | `CONSUMER_NAME` | `{prefix}-queue-consumer` | Queue Consumer name |
 | `EMAIL_SENDER_NAME` | `{prefix}-email-sender` | Email Sender Worker name |
-| `VUE_NAME` | `{prefix}-vue` | Frontend Worker name |
 | `D1_DATABASE_NAME` | `{prefix}-db` | D1 database name |
 | `R2_BUCKET_NAME` | `{prefix}-media` | R2 bucket name |
 | `KV_CACHE_TITLE` | `{prefix}-CACHE` | KV namespace for cache |
@@ -28,6 +35,14 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | `QUEUE_INTERNAL` | `{prefix}-internal` | Internal queue |
 | `QUEUE_EMAIL` | `{prefix}-email` | Email queue (consumed by email-sender) |
 | `QUEUE_DLQ` | `{prefix}-federation-dlq` | Dead letter queue |
+
+### Directory layout
+
+| Variable | Path | Description |
+|----------|------|-------------|
+| `MAIN_DIR` | `siliconbeest/` | Unified worker + Vue frontend |
+| `CONSUMER_DIR` | `siliconbeest-queue-consumer/` | Queue consumer worker |
+| `EMAIL_DIR` | `siliconbeest-email-sender/` | Email sender worker |
 
 ### Customizing names
 
@@ -59,7 +74,7 @@ export R2_BUCKET_NAME=my-media-bucket
 | [`setup.sh`](#setupsh) | Interactive first-time setup |
 | [`deploy.sh`](#deploysh) | Deploy all workers |
 | [`update.sh`](#updatesh) | Pull, test, migrate, and redeploy |
-| [`configure-domain.sh`](#configure-domainsh) | Set up Workers Routes for a custom domain |
+| [`configure-domain.sh`](#configure-domainsh) | Set up custom domain for the unified worker |
 | [`generate-vapid-keys.sh`](#generate-vapid-keyssh) | Generate VAPID key pair for Web Push |
 | [`seed-admin.sh`](#seed-adminsh) | Create an admin user account |
 | [`migrate.sh`](#migratesh) | Apply D1 database migrations |
@@ -88,17 +103,18 @@ Prompts for:
 What it does:
 1. Creates D1 database, R2 bucket, KV namespaces (CACHE, SESSIONS, FEDIFY_KV), Queues
 2. Generates VAPID key pair (ECDSA P-256) and OTP encryption key
-3. Updates all `wrangler.jsonc` files with resource IDs
-4. Sets secrets via `wrangler secret put`
-5. Applies D1 migrations
-6. Creates admin user
-7. Writes `siliconbeest-vue/.env`
+3. Updates `siliconbeest/wrangler.jsonc` with resource IDs
+4. Sets OTP_ENCRYPTION_KEY secret via `wrangler secret put`
+5. Stores VAPID keys in D1 settings table
+6. Applies D1 migrations
+7. Creates admin user
+8. Writes `siliconbeest/.env`
 
 ---
 
 ## deploy.sh
 
-Build and deploy all 4 workers. Optionally configures custom domain routes.
+Build and deploy all 3 workers. Optionally configures custom domain.
 
 ```bash
 # Deploy with custom domain
@@ -116,15 +132,11 @@ Build and deploy all 4 workers. Optionally configures custom domain routes.
 
 | Flag | Description |
 |------|-------------|
-| `--domain <domain>` | Configure Workers Routes for custom domain |
+| `--domain <domain>` | Configure custom domain for unified worker |
 | `--dry-run` | Show what would be deployed |
 | `--skip-migrations` | Skip D1 migration step |
 
-When `--domain` is used, it automatically:
-- Updates `INSTANCE_DOMAIN` in worker config
-- Injects API routes (`/api/*`, `/oauth/*`, `/.well-known/*`, `/users/*`, `/inbox`, `/nodeinfo/*`) to the API Worker
-- Injects catch-all route (`/*`) to the Vue Frontend
-- Deploys all workers
+The unified worker handles all routes (API + frontend) via a single custom_domain binding.
 
 ---
 
@@ -156,11 +168,11 @@ Production update workflow: pull latest code, validate, migrate, and deploy.
 Steps performed:
 1. `git pull` (shows changelog)
 2. `npm install` for all projects
-3. TypeScript type check (worker + vue)
+3. TypeScript type check (vue-tsc for unified worker, tsc for others)
 4. Run tests
 5. Apply D1 migrations
-6. Build frontend
-7. Deploy all 4 workers
+6. Build Vue frontend and deploy unified worker
+7. Deploy queue consumer and email sender
 
 If any step fails (type errors, test failures, migration errors), the script stops immediately and does not deploy.
 
@@ -168,23 +180,13 @@ If any step fails (type errors, test failures, migration errors), the script sto
 
 ## configure-domain.sh
 
-Configure Cloudflare Workers Routes for a custom domain (standalone, without redeploying).
+Configure custom domain for the unified worker.
 
 ```bash
 ./scripts/configure-domain.sh social.example.com
 ```
 
-Creates these routes:
-
-| Route | Worker |
-|-------|--------|
-| `domain/api/*` | API Worker |
-| `domain/oauth/*` | API Worker |
-| `domain/.well-known/*` | API Worker |
-| `domain/users/*` | API Worker |
-| `domain/inbox` | API Worker |
-| `domain/nodeinfo/*` | API Worker |
-| `domain/*` | Vue Frontend (catch-all) |
+Updates `INSTANCE_DOMAIN` and the custom_domain route pattern in `siliconbeest/wrangler.jsonc`, then rebuilds and redeploys.
 
 ---
 
@@ -196,9 +198,11 @@ Generate ECDSA P-256 key pair for Web Push (VAPID).
 # Print keys to stdout
 ./scripts/generate-vapid-keys.sh
 
-# Generate and set as Cloudflare secrets
-./scripts/generate-vapid-keys.sh --set-secrets
+# Generate and store in D1 database
+./scripts/generate-vapid-keys.sh --store-in-db
 ```
+
+VAPID keys are stored in the D1 `settings` table, not as environment secrets.
 
 ---
 
@@ -218,7 +222,7 @@ Create an admin user account in the D1 database.
 
 ## migrate.sh
 
-Apply pending D1 database migrations.
+Apply pending D1 database migrations. Migrations are located at `siliconbeest/migrations/`.
 
 ```bash
 ./scripts/migrate.sh --local       # Local development
@@ -228,7 +232,7 @@ Apply pending D1 database migrations.
 
 To create a new migration:
 ```bash
-touch siliconbeest-worker/migrations/0003_my_change.sql
+touch siliconbeest/migrations/0003_my_change.sql
 # Write SQL, then:
 ./scripts/migrate.sh --local   # Test locally
 ./scripts/migrate.sh --remote  # Apply to production
@@ -267,8 +271,6 @@ ActivityPub-compliant account deletion. Sends a `Delete(Actor)` activity to ALL 
 ./scripts/delete-account.sh --all --confirm
 ```
 
-Follows the [ActivityPub Delete activity spec](https://www.w3.org/TR/activitypub/#delete-activity-outbound) -- remote servers should remove all cached data for the deleted actor.
-
 ---
 
 ## Cloudflare Bot Protection (CRITICAL)
@@ -299,12 +301,25 @@ Without this rule, federation is completely broken -- no remote server can disco
 
 ---
 
+## Secrets
+
+The unified architecture only requires **one** wrangler secret:
+
+```bash
+# OTP encryption key (for 2FA)
+wrangler secret put OTP_ENCRYPTION_KEY --name siliconbeest
+```
+
+VAPID keys are stored in the D1 `settings` table (not env secrets).
+
+---
+
 ## Maintenance
 
 ### Rotate VAPID keys
 
 ```bash
-./scripts/generate-vapid-keys.sh --set-secrets
+./scripts/generate-vapid-keys.sh --store-in-db
 # NOTE: This invalidates all existing Web Push subscriptions
 ```
 
@@ -316,7 +331,7 @@ Failed federation deliveries go to the DLQ. Inspect via the Cloudflare dashboard
 
 ```bash
 # WARNING: Invalidates all existing 2FA enrollments
-openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name $WORKER_NAME
+openssl rand -hex 32 | wrangler secret put OTP_ENCRYPTION_KEY --name siliconbeest
 ```
 
 ---
@@ -332,10 +347,10 @@ Fetches resource IDs (D1, KV, R2, Queues) from your Cloudflare account and regen
 - Resource IDs changed after recreation
 
 ```bash
-# Dry run — shows what would change, no files modified
+# Dry run -- shows what would change, no files modified
 ./scripts/sync-config.sh
 
-# Apply — regenerates all 3 wrangler.jsonc files
+# Apply -- regenerates all wrangler.jsonc files
 ./scripts/sync-config.sh --apply
 ```
 
@@ -345,6 +360,6 @@ Fetches resource IDs (D1, KV, R2, Queues) from your Cloudflare account and regen
 3. Looks up KV namespace IDs by title
 4. Verifies R2 bucket existence
 5. Reads existing domain/title/registration from current config
-6. Regenerates `siliconbeest-worker/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, `siliconbeest-email-sender/wrangler.jsonc`, and `siliconbeest-vue/wrangler.jsonc`
+6. Regenerates `siliconbeest/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, and `siliconbeest-email-sender/wrangler.jsonc`
 
 **Prerequisites:** `wrangler` CLI authenticated (`npx wrangler login`)
