@@ -30,4 +30,17 @@
   a {
     @apply text-indigo-600 dark:text-indigo-400;
   }
+
+  /* Mastodon-style link formatting: hide https:// prefix in federated HTML content.
+     Tailwind's .invisible uses visibility:hidden which keeps layout space.
+     We need display:none to fully remove the element from flow. */
+  .invisible {
+    display: none !important;
+  }
+
+  .ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

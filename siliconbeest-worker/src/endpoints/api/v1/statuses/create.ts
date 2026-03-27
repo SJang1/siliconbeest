@@ -118,15 +118,36 @@ app.post('/', authRequired, async (c) => {
     conversationApUri = convRow?.ap_uri ?? null;
   }
 
+  // Detect custom emojis in content text (both status text and CW)
+  let emojiTagsJson: string | null = null;
+  const emojiMatches = [...new Set(
+    [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g),
+     ...((spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g))].map(m => m[1])
+  )];
+  if (emojiMatches.length > 0) {
+    const placeholders = emojiMatches.map(() => '?').join(',');
+    const emojiRows = await c.env.DB.prepare(
+      `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
+    ).bind(...emojiMatches, domain).all<{ shortcode: string; domain: string | null; image_key: string }>();
+    if (emojiRows.results.length > 0) {
+      const emojiTags = emojiRows.results.map(e => {
+        const isLocal = !e.domain || e.domain === domain;
+        const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
+        return { shortcode: e.shortcode, url, static_url: url };
+      });
+      emojiTagsJson = JSON.stringify(emojiTags);
+    }
+  }
+
   const stmts = [
     c.env.DB.prepare(
-      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, local, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1, ?16, ?16)`,
+      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, local, emoji_tags, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1, ?16, ?17, ?17)`,
     ).bind(
       statusId, statusUri, statusUrl, currentUser.account_id,
       inReplyToId, inReplyToAccountId,
       statusText, content, spoilerText, visibility, sensitive, language,
-      conversationId, isReply, quoteId, now,
+      conversationId, isReply, quoteId, emojiTagsJson, now,
     ),
     c.env.DB.prepare(
       'UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2',

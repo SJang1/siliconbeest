@@ -168,19 +168,5 @@ const processedSpoiler = computed(() => emojify(enrichMentions(props.spoilerText
   text-decoration: underline;
 }
 
-/* Mastodon-style link formatting (remote status HTML)
-   Override Tailwind's .invisible (visibility:hidden) which keeps layout space */
-:deep(.invisible) {
-  font-size: 0 !important;
-  line-height: 0 !important;
-  display: inline-block !important;
-  width: 0 !important;
-  height: 0 !important;
-  position: absolute !important;
-  visibility: visible !important;
-  overflow: hidden !important;
-}
-:deep(.ellipsis::after) {
-  content: "…";
-}
+/* Mastodon link formatting now handled globally in main.css */
 </style>
