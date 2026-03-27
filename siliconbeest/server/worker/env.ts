@@ -37,6 +37,7 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   OTP_ENCRYPTION_KEY: string;
+
 }
 
 /**

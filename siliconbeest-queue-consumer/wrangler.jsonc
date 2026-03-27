@@ -79,7 +79,7 @@
 	"services": [
 		{
 			"binding": "WORKER",
-			"service": "siliconbeest-worker"
+			"service": "siliconbeest"
 		}
 	]
 }

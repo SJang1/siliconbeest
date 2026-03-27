@@ -30,23 +30,23 @@ import {
 
 import type { FedifyContextData } from './fedify';
 import type { Env } from './env';
-import { adaptJsonLdToAPActivity } from '../../siliconbeest-worker/src/federation/helpers/activity-adapter';
-import { isEmojiReaction } from '../../siliconbeest-worker/src/federation/helpers/misskey-compat';
+import { adaptJsonLdToAPActivity } from '../../siliconbeest/server/worker/federation/helpers/activity-adapter';
+import { isEmojiReaction } from '../../siliconbeest/server/worker/federation/helpers/misskey-compat';
 
 // Import existing processors from the worker (plain functions, no Fedify types)
-import { processFollow } from '../../siliconbeest-worker/src/federation/inboxProcessors/follow';
-import { processCreate } from '../../siliconbeest-worker/src/federation/inboxProcessors/create';
-import { processAccept } from '../../siliconbeest-worker/src/federation/inboxProcessors/accept';
-import { processReject } from '../../siliconbeest-worker/src/federation/inboxProcessors/reject';
-import { processLike } from '../../siliconbeest-worker/src/federation/inboxProcessors/like';
-import { processAnnounce } from '../../siliconbeest-worker/src/federation/inboxProcessors/announce';
-import { processDelete } from '../../siliconbeest-worker/src/federation/inboxProcessors/delete';
-import { processUpdate } from '../../siliconbeest-worker/src/federation/inboxProcessors/update';
-import { processUndo } from '../../siliconbeest-worker/src/federation/inboxProcessors/undo';
-import { processBlock } from '../../siliconbeest-worker/src/federation/inboxProcessors/block';
-import { processMove } from '../../siliconbeest-worker/src/federation/inboxProcessors/move';
-import { processFlag } from '../../siliconbeest-worker/src/federation/inboxProcessors/flag';
-import { processEmojiReact } from '../../siliconbeest-worker/src/federation/inboxProcessors/emojiReact';
+import { processFollow } from '../../siliconbeest/server/worker/federation/inboxProcessors/follow';
+import { processCreate } from '../../siliconbeest/server/worker/federation/inboxProcessors/create';
+import { processAccept } from '../../siliconbeest/server/worker/federation/inboxProcessors/accept';
+import { processReject } from '../../siliconbeest/server/worker/federation/inboxProcessors/reject';
+import { processLike } from '../../siliconbeest/server/worker/federation/inboxProcessors/like';
+import { processAnnounce } from '../../siliconbeest/server/worker/federation/inboxProcessors/announce';
+import { processDelete } from '../../siliconbeest/server/worker/federation/inboxProcessors/delete';
+import { processUpdate } from '../../siliconbeest/server/worker/federation/inboxProcessors/update';
+import { processUndo } from '../../siliconbeest/server/worker/federation/inboxProcessors/undo';
+import { processBlock } from '../../siliconbeest/server/worker/federation/inboxProcessors/block';
+import { processMove } from '../../siliconbeest/server/worker/federation/inboxProcessors/move';
+import { processFlag } from '../../siliconbeest/server/worker/federation/inboxProcessors/flag';
+import { processEmojiReact } from '../../siliconbeest/server/worker/federation/inboxProcessors/emojiReact';
 
 // ============================================================
 // HELPER: Resolve local account ID from inbox recipient
