@@ -27,6 +27,7 @@ import {
 	EmojiReact,
 	type Activity,
 } from '@fedify/vocab';
+import { measureAsync } from './observability/performance';
 
 import type { FedifyContextData } from './fedify';
 import type { Env } from './env';
@@ -99,126 +100,204 @@ export function setupInboxListeners(
 
 		// ── Follow ──────────────────────────────────────────────
 		.on(Follow, async (ctx, follow) => {
-			console.log('[inbox] Follow received from:', follow.actorId?.href);
-			const { env } = ctx.data;
-			const activity = await toAPActivity(follow);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
-			await processFollow(activity, localAccountId, env as any);
-			console.log('[inbox] Follow processed successfully');
+			await measureAsync(
+				'inbox.Follow',
+				async () => {
+					console.log('[inbox] Follow received from:', follow.actorId?.href);
+					const { env } = ctx.data;
+					const activity = await toAPActivity(follow);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
+					await processFollow(activity, localAccountId, env as any);
+					console.log('[inbox] Follow processed successfully');
+				},
+				{ actor: follow.actorId?.href }
+			);
 		})
 
 		// ── Create ──────────────────────────────────────────────
 		.on(Create, async (ctx, create) => {
-			console.log('[inbox] Create received from:', create.actorId?.href);
-			const { env } = ctx.data;
-			const activity = await toAPActivity(create);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			console.log('[inbox] Processing Create for localAccountId:', localAccountId, 'activity.object.type:', (activity as any).object?.type);
-			await processCreate(activity, localAccountId, env as any);
-			console.log('[inbox] Create processed successfully');
+			await measureAsync(
+				'inbox.Create',
+				async () => {
+					console.log('[inbox] Create received from:', create.actorId?.href);
+					const { env } = ctx.data;
+					const activity = await toAPActivity(create);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					console.log('[inbox] Processing Create for localAccountId:', localAccountId, 'activity.object.type:', (activity as any).object?.type);
+					await processCreate(activity, localAccountId, env as any);
+					console.log('[inbox] Create processed successfully');
+				},
+				{ actor: create.actorId?.href }
+			);
 		})
 
 		// ── Accept ──────────────────────────────────────────────
 		.on(Accept, async (ctx, accept) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(accept);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processAccept(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Accept',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(accept);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processAccept(activity, localAccountId, env as any);
+				},
+				{ actor: accept.actorId?.href }
+			);
 		})
 
 		// ── Reject ──────────────────────────────────────────────
 		.on(Reject, async (ctx, reject) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(reject);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processReject(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Reject',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(reject);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processReject(activity, localAccountId, env as any);
+				},
+				{ actor: reject.actorId?.href }
+			);
 		})
 
 		// ── Like ────────────────────────────────────────────────
 		.on(Like, async (ctx, like) => {
-			const { env } = ctx.data;
-			const jsonLd = await like.toJsonLd();
-			const raw = jsonLd as Record<string, unknown>;
-			const activity = adaptJsonLdToAPActivity(raw);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
+			await measureAsync(
+				'inbox.Like',
+				async () => {
+					const { env } = ctx.data;
+					const jsonLd = await like.toJsonLd();
+					const raw = jsonLd as Record<string, unknown>;
+					const activity = adaptJsonLdToAPActivity(raw);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
 
-			if (isEmojiReaction(raw)) {
-				await processEmojiReact(
-					activity as typeof activity & Record<string, unknown>,
-					localAccountId,
-					env as any,
-				);
-			} else {
-				await processLike(activity, localAccountId, env as any);
-			}
+					if (isEmojiReaction(raw)) {
+						await processEmojiReact(
+							activity as typeof activity & Record<string, unknown>,
+							localAccountId,
+							env as any,
+						);
+					} else {
+						await processLike(activity, localAccountId, env as any);
+					}
+				},
+				{ actor: like.actorId?.href, isEmoji: isEmojiReaction(await like.toJsonLd() as Record<string, unknown>) }
+			);
 		})
 
 		// ── Announce (Boost/Reblog) ─────────────────────────────
 		.on(Announce, async (ctx, announce) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(announce);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processAnnounce(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Announce',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(announce);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processAnnounce(activity, localAccountId, env as any);
+				},
+				{ actor: announce.actorId?.href }
+			);
 		})
 
 		// ── Delete ──────────────────────────────────────────────
 		.on(Delete, async (ctx, del) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(del);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processDelete(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Delete',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(del);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processDelete(activity, localAccountId, env as any);
+				},
+				{ actor: del.actorId?.href }
+			);
 		})
 
 		// ── Update (Person or Note) ─────────────────────────────
 		.on(Update, async (ctx, update) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(update);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processUpdate(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Update',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(update);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processUpdate(activity, localAccountId, env as any);
+				},
+				{ actor: update.actorId?.href }
+			);
 		})
 
 		// ── Undo (Follow, Like, Announce, Block) ────────────────
 		.on(Undo, async (ctx, undo) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(undo);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processUndo(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Undo',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(undo);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processUndo(activity, localAccountId, env as any);
+				},
+				{ actor: undo.actorId?.href }
+			);
 		})
 
 		// ── Block ───────────────────────────────────────────────
 		.on(Block, async (ctx, block) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(block);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processBlock(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Block',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(block);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processBlock(activity, localAccountId, env as any);
+				},
+				{ actor: block.actorId?.href }
+			);
 		})
 
 		// ── Move ────────────────────────────────────────────────
 		.on(Move, async (ctx, move) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(move);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processMove(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Move',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(move);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processMove(activity, localAccountId, env as any);
+				},
+				{ actor: move.actorId?.href }
+			);
 		})
 
 		// ── Flag (Report) ───────────────────────────────────────
 		.on(Flag, async (ctx, flag) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(flag);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processFlag(activity, localAccountId, env as any);
+			await measureAsync(
+				'inbox.Flag',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(flag);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processFlag(activity, localAccountId, env as any);
+				},
+				{ actor: flag.actorId?.href }
+			);
 		})
 
 		// ── EmojiReact (native Fedify type) ─────────────────────
 		.on(EmojiReact, async (ctx, emojiReact) => {
-			const { env } = ctx.data;
-			const activity = await toAPActivity(emojiReact);
-			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			await processEmojiReact(
-				activity as typeof activity & Record<string, unknown>,
-				localAccountId,
-				env as any,
+			await measureAsync(
+				'inbox.EmojiReact',
+				async () => {
+					const { env } = ctx.data;
+					const activity = await toAPActivity(emojiReact);
+					const localAccountId = await resolveRecipientAccountId(ctx, env);
+					await processEmojiReact(
+						activity as typeof activity & Record<string, unknown>,
+						localAccountId,
+						env as any,
+					);
+				},
+				{ actor: emojiReact.actorId?.href }
 			);
 		})
 

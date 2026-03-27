@@ -14,6 +14,7 @@ import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
 import { WorkersMessageQueue } from '@fedify/cfworkers';
+import { measureAsync, logPerformance } from './observability/performance';
 
 // Consumer-local inbox listeners and collection dispatchers.
 // These files use Fedify vocab types from the consumer's own node_modules,
@@ -88,7 +89,10 @@ function isFedifyMessage(body: unknown): boolean {
 
 export default {
   async queue(batch: MessageBatch, env: Env): Promise<void> {
+    const batchStart = performance.now();
+    
     for (const msg of batch.messages) {
+      const messageStart = performance.now();
       try {
         const body = msg.body as Record<string, unknown>;
 
@@ -98,7 +102,7 @@ export default {
             const fed = ensureFedInitialized(env);
 
             const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
-            const result = await wmq.processMessage(body);
+            const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body));
             console.log('[queue] processMessage result:', JSON.stringify({
               shouldProcess: result.shouldProcess,
               messageType: (result as any).message?.type,
@@ -107,13 +111,24 @@ export default {
             if (!result.shouldProcess) {
               console.log('[queue] Fedify message deferred (ordering lock)');
               msg.retry();
+              const deferDuration = performance.now() - messageStart;
+              logPerformance('queue.message.deferred', deferDuration, { messageType: 'fedify' });
               continue;
             }
             try {
               console.log('[queue] Calling processQueuedTask with message type:', (result as any).message?.type);
-              await fed.processQueuedTask({ env }, result.message);
+              await measureAsync(
+                'queue.fedify.processQueuedTask',
+                () => fed.processQueuedTask({ env }, result.message),
+                { messageType: (result as any).message?.type }
+              );
               console.log('[queue] Fedify task processed successfully');
               msg.ack();
+              const totalDuration = performance.now() - messageStart;
+              logPerformance('queue.message.processed', totalDuration, { 
+                messageType: 'fedify',
+                taskType: (result as any).message?.type 
+              });
             } catch (taskErr) {
               console.error('[queue] Fedify processQueuedTask error:', taskErr);
               msg.retry();
@@ -129,52 +144,73 @@ export default {
 
         // ---- Legacy messages (discriminated union on `type`) ----
         const legacyMsg = body as unknown as QueueMessage; // body is checked by isFedifyMessage() above
-        switch (legacyMsg.type) {
-          case 'deliver_activity':
-            await handleDeliverActivity(legacyMsg, env);
-            break;
-          case 'deliver_activity_fanout':
-            await handleDeliverActivityFanout(legacyMsg, env);
-            break;
-          case 'timeline_fanout':
-            await handleTimelineFanout(legacyMsg, env);
-            break;
-          case 'create_notification':
-            await handleCreateNotification(legacyMsg, env);
-            break;
-          case 'process_media':
-            await handleProcessMedia(legacyMsg, env);
-            break;
-          case 'fetch_remote_account':
-            await handleFetchRemoteAccount(legacyMsg, env);
-            break;
-          case 'fetch_remote_status':
-            await handleFetchRemoteStatus(legacyMsg, env);
-            break;
-          case 'send_web_push':
-            await handleSendWebPush(legacyMsg, env);
-            break;
-          case 'fetch_preview_card':
-            await handleFetchPreviewCard(legacyMsg, env);
-            break;
-          case 'forward_activity':
-            await handleForwardActivity(legacyMsg, env);
-            break;
-          case 'import_item':
-            await handleImportItem(legacyMsg, env);
-            break;
-          default:
-            console.warn('Unknown message type:', (legacyMsg as any).type);
-        }
+        await measureAsync(
+          `queue.legacy.${legacyMsg.type}`,
+          async () => {
+            switch (legacyMsg.type) {
+              case 'deliver_activity':
+                await handleDeliverActivity(legacyMsg, env);
+                break;
+              case 'deliver_activity_fanout':
+                await handleDeliverActivityFanout(legacyMsg, env);
+                break;
+              case 'timeline_fanout':
+                await handleTimelineFanout(legacyMsg, env);
+                break;
+              case 'create_notification':
+                await handleCreateNotification(legacyMsg, env);
+                break;
+              case 'process_media':
+                await handleProcessMedia(legacyMsg, env);
+                break;
+              case 'fetch_remote_account':
+                await handleFetchRemoteAccount(legacyMsg, env);
+                break;
+              case 'fetch_remote_status':
+                await handleFetchRemoteStatus(legacyMsg, env);
+                break;
+              case 'send_web_push':
+                await handleSendWebPush(legacyMsg, env);
+                break;
+              case 'fetch_preview_card':
+                await handleFetchPreviewCard(legacyMsg, env);
+                break;
+              case 'forward_activity':
+                await handleForwardActivity(legacyMsg, env);
+                break;
+              case 'import_item':
+                await handleImportItem(legacyMsg, env);
+                break;
+              default:
+                console.warn('Unknown message type:', (legacyMsg as any).type);
+            }
+          },
+          { messageType: legacyMsg.type }
+        );
         msg.ack();
+        const totalDuration = performance.now() - messageStart;
+        logPerformance('queue.message.processed', totalDuration, { 
+          messageType: 'legacy',
+          legacyType: legacyMsg.type 
+        });
       } catch (err) {
         const bodyType =
           msg.body && typeof msg.body === 'object' && 'type' in (msg.body as Record<string, unknown>)
             ? (msg.body as Record<string, unknown>).type
             : 'fedify-task';
+        const errorDuration = performance.now() - messageStart;
+        logPerformance('queue.message.error', errorDuration, { 
+          messageType: bodyType,
+          error: err instanceof Error ? err.message : String(err)
+        });
         console.error(`Queue handler error for ${bodyType}:`, err);
         msg.retry();
       }
     }
+    
+    const batchDuration = performance.now() - batchStart;
+    logPerformance('queue.batch.complete', batchDuration, { 
+      messageCount: batch.messages.length 
+    });
   },
 };
