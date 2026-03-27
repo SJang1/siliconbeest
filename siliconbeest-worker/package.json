@@ -11,9 +11,9 @@
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
-		"@fedify/cfworkers": "^2.1.0",
-		"@fedify/fedify": "^2.1.0",
-		"@fedify/hono": "^2.1.0",
+		"@fedify/cfworkers": "^2.1.1",
+		"@fedify/fedify": "^2.1.1",
+		"@fedify/hono": "^2.1.1",
 		"@logtape/logtape": "^2.0.5",
 		"bcryptjs": "^3.0.3",
 		"chanfana": "^2.6.3",
