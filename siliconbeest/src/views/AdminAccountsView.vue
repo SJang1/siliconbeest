@@ -92,6 +92,18 @@ async function handleAction(account: AdminAccount, action: string) {
     } else if (action === 'reject') {
       accounts.value = accounts.value.filter((a) => a.id !== account.id)
       actionMessage.value = t('admin_accounts.rejected')
+    } else if (action === 'unsuspend') {
+      actionMessage.value = t('admin_accounts.unsuspended')
+      await loadAccounts()
+    } else if (action === 'unsilence') {
+      actionMessage.value = t('admin_accounts.unsilenced')
+      await loadAccounts()
+    } else if (action === 'enable') {
+      actionMessage.value = t('admin_accounts.enabled')
+      await loadAccounts()
+    } else if (action === 'unsensitize') {
+      actionMessage.value = t('admin_accounts.unsensitized')
+      await loadAccounts()
     } else {
       await loadAccounts()
     }
@@ -228,7 +240,28 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
                 </template>
                 <template v-else>
                   <button
-                    v-if="!account.silenced"
+                    v-if="account.suspended"
+                    @click="handleAction(account, 'unsuspend')"
+                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+                  >
+                    {{ t('admin_accounts.unsuspend') }}
+                  </button>
+                  <button
+                    v-if="account.silenced"
+                    @click="handleAction(account, 'unsilence')"
+                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+                  >
+                    {{ t('admin_accounts.unsilence') }}
+                  </button>
+                  <button
+                    v-if="account.disabled"
+                    @click="handleAction(account, 'enable')"
+                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+                  >
+                    {{ t('admin_accounts.enable') }}
+                  </button>
+                  <button
+                    v-if="!account.silenced && !account.suspended"
                     @click="handleAction(account, 'silence')"
                     class="px-2 py-1 text-xs rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
                   >

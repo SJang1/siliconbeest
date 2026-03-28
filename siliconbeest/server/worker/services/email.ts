@@ -96,17 +96,60 @@ export async function sendRejection(
 
 /**
  * Send an account warning / moderation notice email.
+ *
+ * Generates a localised subject and body per action type with the
+ * admin's reason text and the instance name.
  */
 export async function sendAccountWarning(
-	env: { QUEUE_EMAIL: Queue<SendEmailMessage> },
+	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_TITLE?: string },
 	email: string,
 	action: string,
 	text: string,
 ): Promise<boolean> {
-	const html = `<h1>Account Notice</h1>
-<p>An action was taken on your account: <strong>${action}</strong></p>
-${text ? `<p>${text}</p>` : ''}`;
-	return sendEmail(env, email, 'Account notice', html);
+	const title = env.INSTANCE_TITLE || 'SiliconBeest';
+
+	const actionLabels: Record<string, { subject: string; heading: string; description: string }> = {
+		warn: {
+			subject: `[${title}] 계정 경고`,
+			heading: '계정 경고',
+			description: '관리자가 회원님의 계정에 경고를 보냈습니다.',
+		},
+		disable: {
+			subject: `[${title}] 계정 동결`,
+			heading: '계정 동결',
+			description: '관리자가 회원님의 계정을 동결했습니다. 로그인이 제한됩니다.',
+		},
+		silence: {
+			subject: `[${title}] 계정 제한`,
+			heading: '계정 제한',
+			description: '관리자가 회원님의 계정을 제한했습니다. 게시물이 팔로워에게만 표시됩니다.',
+		},
+		suspend: {
+			subject: `[${title}] 계정 정지`,
+			heading: '계정 정지',
+			description: '관리자가 회원님의 계정을 정지했습니다. 더 이상 이 계정을 사용할 수 없습니다.',
+		},
+		sensitive: {
+			subject: `[${title}] 미디어 민감 표시`,
+			heading: '미디어 민감 표시',
+			description: '관리자가 회원님의 미디어를 민감한 콘텐츠로 표시했습니다.',
+		},
+		none: {
+			subject: `[${title}] 계정 경고`,
+			heading: '계정 경고',
+			description: '관리자가 회원님의 계정에 경고를 보냈습니다.',
+		},
+	};
+
+	const labels = actionLabels[action] || actionLabels.warn;
+
+	const html = `<h1>${labels.heading}</h1>
+<p>${labels.description}</p>
+${text ? `<h3>사유</h3><p>${text}</p>` : ''}
+<hr />
+<p style="color:#888;font-size:12px;">${title}</p>`;
+
+	return sendEmail(env, email, labels.subject, html);
 }
 
 // ---------------------------------------------------------------------------

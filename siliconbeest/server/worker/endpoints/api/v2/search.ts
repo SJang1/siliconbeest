@@ -89,7 +89,10 @@ app.get('/', authOptional, async (c) => {
           // Fetch remote actor via Fedify lookupObject
           let actorObject: any = null;
           try {
-            actorObject = await ctx.lookupObject(actorUri);
+            // Use a real local account for authenticated fetch (not __instance__ which has mismatched keyId)
+            const localAcct = await c.env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+            const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
+            actorObject = await ctx.lookupObject(actorUri, { documentLoader: docLoader });
           } catch (fetchErr) {
             console.error('[search] lookupObject error:', fetchErr);
           }
@@ -105,13 +108,18 @@ app.get('/', authOptional, async (c) => {
             const imageUrl = imageObj?.url instanceof URL ? imageObj.url.href : '';
             const actorUrl = actorObject.url instanceof URL ? actorObject.url.href : actorObject.id.href;
 
+            const inboxUrl = actorObject.inboxId?.href || '';
+            const endpointsObj = actorObject.endpoints;
+            const sharedInboxUrl = endpointsObj?.sharedInbox?.href || '';
+
             await c.env.DB.prepare(
               `INSERT OR IGNORE INTO accounts
                 (id, username, domain, display_name, note, uri, url,
                  avatar_url, avatar_static_url, header_url, header_static_url,
-                 locked, bot, discoverable, statuses_count, followers_count, following_count,
+                 locked, bot, discoverable, inbox_url, shared_inbox_url,
+                 statuses_count, followers_count, following_count,
                  created_at, updated_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 0, 0, 0, ?15, ?16)`,
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, 0, 0, ?17, ?18)`,
             ).bind(
               id,
               username,
@@ -127,6 +135,8 @@ app.get('/', authOptional, async (c) => {
               actorObject.manuallyApprovesFollowers ? 1 : 0,
               actorObject.constructor.name === 'Service' ? 1 : 0,
               actorObject.discoverable !== false ? 1 : 0,
+              inboxUrl,
+              sharedInboxUrl,
               now,
               now,
             ).run();

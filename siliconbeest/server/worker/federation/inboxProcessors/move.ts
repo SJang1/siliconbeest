@@ -44,7 +44,9 @@ export async function processMove(
 	// Fetch the new account's actor document via Fedify and verify alsoKnownAs
 	const fed = createFed(env);
 	const ctx = getFedifyContext(fed, env);
-	const newActorObj = await ctx.lookupObject(newAccountUri);
+	const localAcct = await env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+	const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
+	const newActorObj = await ctx.lookupObject(newAccountUri, { documentLoader: docLoader });
 	if (!newActorObj || !isActor(newActorObj) || !newActorObj.id) {
 		console.warn(`[move] Could not fetch new account actor document: ${newAccountUri}`);
 		return;

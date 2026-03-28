@@ -58,7 +58,9 @@ app.post('/migration', authRequired, async (c) => {
 	const targetActorUri = selfLink.href;
 
 	// 2. Fetch target actor document via Fedify
-	const targetActor = await ctx.lookupObject(targetActorUri);
+	const localAcct = await c.env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+	const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
+	const targetActor = await ctx.lookupObject(targetActorUri, { documentLoader: docLoader });
 	if (!targetActor || !isActor(targetActor) || !targetActor.id) {
 		return c.json({ error: 'Could not fetch target actor document' }, 422);
 	}

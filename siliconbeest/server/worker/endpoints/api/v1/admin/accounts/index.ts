@@ -8,6 +8,8 @@ import action from './action';
 import approve from './approve';
 import reject from './reject';
 import role from './role';
+import warnings from './warnings';
+import undo from './undo';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -23,6 +25,10 @@ app.route('/', approve);
 app.route('/', reject);
 // POST /:id/role — change role
 app.route('/', role);
+// POST /:id/unsuspend, /:id/unsilence, /:id/enable, /:id/unsensitize — undo moderation
+app.route('/', undo);
+// GET /:id/warnings — warning history
+app.route('/', warnings);
 // GET /:id — single account (last to avoid catching action/approve/reject/role)
 app.route('/', fetch);
 

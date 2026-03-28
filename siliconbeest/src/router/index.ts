@@ -216,6 +216,12 @@ const router = createRouter({
           component: () => import('@/views/AdminReportsView.vue'),
         },
         {
+          path: 'reports/:id',
+          name: 'admin-report-detail',
+          component: () => import('@/views/AdminReportDetailView.vue'),
+          props: true,
+        },
+        {
           path: 'domain-blocks',
           name: 'admin-domain-blocks',
           component: () => import('@/views/AdminDomainBlocksView.vue'),

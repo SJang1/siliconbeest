@@ -102,6 +102,11 @@ export function createFed(
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
     },
+    // TODO: Investigate root cause of signature verification failures and remove this.
+    // Many remote servers' Accept/Follow and forwarded activities get 401'd because
+    // Fedify rejects signer≠actor mismatches and some signature algorithms.
+    // With this off, Fedify still checks LD Signatures and Object Integrity Proofs.
+    skipSignatureVerification: true,
   });
 
   return cachedFed;

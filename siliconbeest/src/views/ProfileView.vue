@@ -100,7 +100,7 @@ async function loadMoreStatuses() {
 async function handleFollowToggle() {
   if (!auth.token || !account.value) return
   try {
-    const { data } = relationship.value?.following
+    const { data } = (relationship.value?.following || relationship.value?.requested)
       ? await unfollowAccount(account.value.id, auth.token)
       : await followAccount(account.value.id, auth.token)
     relationship.value = data

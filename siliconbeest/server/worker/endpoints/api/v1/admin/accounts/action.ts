@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
+import { generateUlid } from '../../../../../utils/ulid';
+import { sendAccountWarning } from '../../../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -14,7 +16,7 @@ const app = new Hono<HonoEnv>();
  *   report_id?: string
  *   warning_preset_id?: string
  *   text?: string
- *   send_email_notification?: boolean
+ *   send_email_notification?: boolean  (default true)
  */
 app.post('/:id/action', async (c) => {
 	const id = c.req.param('id');
@@ -27,7 +29,7 @@ app.post('/:id/action', async (c) => {
 	}>();
 
 	const actionType = body.type;
-	if (!actionType || !['none', 'sensitive', 'disable', 'silence', 'suspend'].includes(actionType)) {
+	if (!actionType || !['none', 'warn', 'sensitive', 'disable', 'silence', 'suspend'].includes(actionType)) {
 		throw new AppError(400, 'Invalid action type');
 	}
 
@@ -35,7 +37,10 @@ app.post('/:id/action', async (c) => {
 	const account = await c.env.DB.prepare('SELECT id, username, domain, uri FROM accounts WHERE id = ?1').bind(id).first();
 	if (!account) throw new AppError(404, 'Record not found');
 
+	const currentUser = c.get('currentUser')!;
 	const now = new Date().toISOString();
+	const sendEmail = body.send_email_notification !== false; // default true
+	const warningText = body.text || '';
 
 	switch (actionType) {
 		case 'sensitive':
@@ -76,9 +81,28 @@ app.post('/:id/action', async (c) => {
 			break;
 	}
 
+	// Create account_warnings record for every action
+	const warningId = generateUlid();
+	await c.env.DB.prepare(
+		'INSERT INTO account_warnings (id, account_id, target_account_id, action, text, report_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
+	)
+		.bind(warningId, currentUser.account_id, id, actionType, warningText, body.report_id || null, now)
+		.run();
+
+	// Send email notification to local users only (domain IS NULL means local)
+	if (sendEmail && !account.domain) {
+		const user = await c.env.DB.prepare('SELECT email FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null }>();
+		if (user?.email) {
+			try {
+				await sendAccountWarning(c.env, user.email, actionType, warningText);
+			} catch {
+				// Email failure should not block the action
+			}
+		}
+	}
+
 	// If a report_id was provided, resolve it
 	if (body.report_id) {
-		const currentUser = c.get('currentUser')!;
 		await c.env.DB.prepare('UPDATE reports SET action_taken_at = ?1, action_taken_by_account_id = ?2 WHERE id = ?3')
 			.bind(now, currentUser.account_id, body.report_id)
 			.run();

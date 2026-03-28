@@ -8,5 +8,5 @@ export function createReport(params: {
   forward?: boolean
   rule_ids?: number[]
 }, token: string) {
-  return apiFetch('/api/v1/reports', { method: 'POST', body: JSON.stringify(params), token })
+  return apiFetch('/v1/reports', { method: 'POST', body: JSON.stringify(params), token })
 }

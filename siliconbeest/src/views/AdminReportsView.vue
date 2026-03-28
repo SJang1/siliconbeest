@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { apiFetch } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -23,6 +24,7 @@ interface AdminReport {
 }
 
 const { t } = useI18n()
+const router = useRouter()
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -56,36 +58,25 @@ async function loadReports() {
   }
 }
 
-async function resolveReport(id: string) {
-  try {
-    await apiFetch(`/v1/admin/reports/${id}/resolve`, {
-      method: 'POST',
-      token: authStore.token ?? undefined,
-    })
-    await loadReports()
-  } catch (e) {
-    error.value = (e as Error).message
-  }
-}
-
-async function assignToSelf(id: string) {
-  try {
-    await apiFetch(`/v1/admin/reports/${id}/assign_to_self`, {
-      method: 'POST',
-      token: authStore.token ?? undefined,
-    })
-    await loadReports()
-  } catch (e) {
-    error.value = (e as Error).message
-  }
-}
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
+}
+
+function categoryBadgeClass(category: string) {
+  switch (category) {
+    case 'spam': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    case 'violation': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    case 'legal': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+  }
+}
+
+function goToReport(id: string) {
+  router.push('/admin/reports/' + id)
 }
 </script>
 
@@ -131,65 +122,45 @@ function formatDate(dateStr: string) {
       <p>{{ t('admin.noReports') }}</p>
     </div>
 
-    <div v-else class="space-y-4">
+    <div v-else class="space-y-2">
       <div
         v-for="report in filteredReports"
         :key="report.id"
-        class="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+        @click="goToReport(report.id)"
       >
-        <div class="flex items-start justify-between mb-3">
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-sm font-medium text-gray-900 dark:text-white">
-                #{{ report.id }}
-              </span>
-              <span
-                class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="
-                  report.action_taken
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                "
-              >
-                {{ report.action_taken ? t('admin.reportStatus.resolved') : t('admin.reportStatus.open') }}
-              </span>
-              <span v-if="report.category" class="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                {{ report.category }}
-              </span>
-            </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.reportedBy') }} <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.account.acct }}</span>
-            </p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.reportTarget') }} <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.target_account.acct }}</span>
-            </p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="text-sm font-medium text-gray-900 dark:text-white shrink-0">
+              #{{ report.id }}
+            </span>
+            <span
+              v-if="report.category"
+              class="px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+              :class="categoryBadgeClass(report.category)"
+            >
+              {{ t('admin.reportDetail.category_' + report.category) }}
+            </span>
+            <span
+              class="px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+              :class="
+                report.action_taken
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+              "
+            >
+              {{ report.action_taken ? t('admin.reportStatus.resolved') : t('admin.reportStatus.open') }}
+            </span>
           </div>
-          <span class="text-xs text-gray-400">{{ formatDate(report.created_at) }}</span>
+          <span class="text-xs text-gray-400 shrink-0 ml-3">{{ formatDate(report.created_at) }}</span>
         </div>
-
-        <p v-if="report.comment" class="text-sm text-gray-700 dark:text-gray-300 mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-          {{ report.comment }}
-        </p>
-
-        <div v-if="report.statuses.length > 0" class="mb-3">
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-            {{ t('admin.reportedStatuses', { count: report.statuses.length }) }}
-          </p>
-        </div>
-
-        <div v-if="!report.action_taken" class="flex gap-2">
-          <button
-            class="px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors"
-            @click="resolveReport(report.id)"
-          >
-            {{ t('admin.resolveReport') }}
-          </button>
-          <button
-            class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            @click="assignToSelf(report.id)"
-          >
-            {{ t('admin.assignToSelf') }}
-          </button>
+        <div class="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <span>
+            {{ t('admin.reportTarget') }}: <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.target_account.acct }}</span>
+          </span>
+          <span>
+            {{ t('admin.reportedBy') }}: <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.account.acct }}</span>
+          </span>
         </div>
       </div>
     </div>

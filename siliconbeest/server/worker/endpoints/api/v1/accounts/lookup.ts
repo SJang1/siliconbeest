@@ -42,10 +42,17 @@ app.get('/lookup', async (c) => {
 
   // If remote account not in DB, try WebFinger + Fedify lookupObject
   if (!row && acctDomain && acctDomain !== instanceDomain) {
+    console.log(`[lookup] Remote account not in DB, resolving ${username}@${acctDomain}`);
     try {
       const fed = c.get('federation');
+      if (!fed) {
+        console.error('[lookup] Federation not available on context');
+        throw new Error('Federation not available');
+      }
       const ctx = getFedifyContext(fed, c.env);
+      console.log(`[lookup] Looking up WebFinger for acct:${username}@${acctDomain}`);
       const wfResult = await ctx.lookupWebFinger(`acct:${username}@${acctDomain}`);
+      console.log(`[lookup] WebFinger result:`, wfResult ? 'found' : 'null');
       const selfLink = wfResult?.links?.find(
         (link) =>
           link.rel === 'self' &&
@@ -53,8 +60,13 @@ app.get('/lookup', async (c) => {
             link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
           link.href,
       );
+      console.log(`[lookup] selfLink:`, selfLink?.href || 'not found');
       if (selfLink?.href) {
-        const actorObject = await ctx.lookupObject(selfLink.href);
+        console.log(`[lookup] Looking up actor object: ${selfLink.href}`);
+        const localAcct = await c.env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+        const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
+        const actorObject = await ctx.lookupObject(selfLink.href, { documentLoader: docLoader });
+        console.log(`[lookup] lookupObject result:`, actorObject ? `${actorObject.constructor.name} id=${actorObject.id}` : 'null');
         if (actorObject && isActor(actorObject) && actorObject.id) {
           // Upsert into accounts
           const id = crypto.randomUUID();

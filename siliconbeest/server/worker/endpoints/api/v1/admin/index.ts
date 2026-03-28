@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 
 import accounts from './accounts/index';
 import reports from './reports/index';
+import statuses from './statuses/index';
 import domainBlocks from './domainBlocks';
 import domainAllows from './domainAllows';
 import emailDomainBlocks from './emailDomainBlocks';
@@ -21,6 +22,7 @@ const admin = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 // Each sub-router applies authRequired + adminRequired internally
 admin.route('/accounts', accounts);
 admin.route('/reports', reports);
+admin.route('/statuses', statuses);
 admin.route('/domain_blocks', domainBlocks);
 admin.route('/domain_allows', domainAllows);
 admin.route('/email_domain_blocks', emailDomainBlocks);
