@@ -262,7 +262,7 @@ async function handleDelete() {
 
     <div class="flex gap-3">
       <!-- Avatar -->
-      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0">
+      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0 w-10 h-10">
         <Avatar :src="displayStatus.account.avatar" :alt="displayStatus.account.display_name" size="md" />
       </router-link>
 

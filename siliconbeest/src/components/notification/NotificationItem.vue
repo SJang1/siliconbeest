@@ -75,7 +75,7 @@ const config = computed(() => {
     <div class="flex-1 min-w-0">
       <!-- Actor -->
       <div class="flex items-center gap-2 mb-1">
-        <router-link :to="`/@${notification.account.acct}`">
+        <router-link :to="`/@${notification.account.acct}`" class="flex-shrink-0 w-8 h-8">
           <Avatar :src="notification.account.avatar" :alt="notification.account.display_name" size="sm" />
         </router-link>
         <p class="text-sm">

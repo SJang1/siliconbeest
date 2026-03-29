@@ -50,7 +50,7 @@ async function handleToggle() {
 
 <template>
   <div class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-    <router-link :to="`/@${account.acct}`" class="flex-shrink-0">
+    <router-link :to="`/@${account.acct}`" class="flex-shrink-0 w-10 h-10">
       <Avatar :src="account.avatar" :alt="account.display_name" size="md" />
     </router-link>
 
