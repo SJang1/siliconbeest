@@ -213,21 +213,60 @@ app.post('/', authRequired, async (c) => {
   // Handle hashtags (from parseContent results)
   // ============================================================
   const hashtags = parsed.tags;
-  for (const tag of hashtags) {
-    const existingTag = await c.env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tag).first();
-    let tagId: string;
-    if (existingTag) {
-      tagId = existingTag.id as string;
-      await c.env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
-    } else {
-      tagId = generateULID();
-      await c.env.DB.prepare(
-        'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
-      ).bind(tagId, tag, tag, now).run();
+  if (hashtags.length > 0) {
+    // Batch SELECT all existing tags
+    const existingTags = await c.env.DB.prepare(
+      `SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`
+    ).bind(...hashtags).all<{ id: string; name: string }>();
+
+    const existingTagMap = new Map(existingTags.results.map(t => [t.name, t.id]));
+    const newTagsToInsert: Array<{ id: string; name: string }> = [];
+    const existingTagIdsToUpdate: string[] = [];
+    const allTagIds: string[] = [];
+
+    for (const tag of hashtags) {
+      let tagId: string;
+      if (existingTagMap.has(tag)) {
+        tagId = existingTagMap.get(tag)!;
+        existingTagIdsToUpdate.push(tagId);
+      } else {
+        tagId = generateULID();
+        newTagsToInsert.push({ id: tagId, name: tag });
+      }
+      allTagIds.push(tagId);
     }
-    await c.env.DB.prepare(
-      'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)',
-    ).bind(statusId, tagId).run();
+
+    // Batch UPDATE all existing tags
+    if (existingTagIdsToUpdate.length > 0) {
+      const placeholders = existingTagIdsToUpdate.map(() => '?').join(',');
+      await c.env.DB.prepare(
+        `UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${placeholders})`
+      ).bind(now, ...existingTagIdsToUpdate).run();
+    }
+
+    // Batch INSERT all new tags at once
+    if (newTagsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES ';
+      newTagsToInsert.forEach((tag, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
+        values.push(tag.id, tag.name, tag.name, now);
+      });
+      await c.env.DB.prepare(query).bind(...values).run();
+    }
+
+    // Batch INSERT all status_tags at once
+    if (allTagIds.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES ';
+      allTagIds.forEach((tagId, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
+        values.push(statusId, tagId);
+      });
+      await c.env.DB.prepare(query).bind(...values).run();
+    }
   }
 
   // ============================================================
@@ -246,14 +285,41 @@ app.post('/', authRequired, async (c) => {
 
   const resolvedMentions: ResolvedMention[] = [];
 
-  for (const mention of parsed.mentions) {
-    let accountRow: Record<string, unknown> | null = null;
+  if (parsed.mentions.length > 0) {
+    // Separate local and remote mentions
+    const localMentions = parsed.mentions.filter(m => !m.domain);
+    const remoteMentions = parsed.mentions.filter(m => m.domain);
 
-    if (mention.domain) {
-      // Federated mention: @user@domain  --  look up by username+domain
-      accountRow = await c.env.DB.prepare(
-        'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
-      ).bind(mention.username, mention.domain).first();
+    // Batch SELECT all local accounts at once
+    const localAccountMap = new Map<string, Record<string, unknown>>();
+    if (localMentions.length > 0) {
+      const localUsernames = localMentions.map(m => m.username);
+      const localAccounts = await c.env.DB.prepare(
+        `SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`
+      ).bind(...localUsernames).all<Record<string, unknown>>();
+      localAccounts.results.forEach(acc => {
+        localAccountMap.set(acc.username as string, acc);
+      });
+    }
+
+    // Batch-query for known remote accounts
+    const remoteAccountMap = new Map<string, Record<string, unknown>>();
+    if (remoteMentions.length > 0) {
+      const conditions = remoteMentions.map(() => `(username = ? AND domain = ?)`).join(' OR ');
+      const values = remoteMentions.flatMap(m => [m.username, m.domain!]);
+      const query = `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE ${conditions}`;
+      const existingRemoteAccounts = await c.env.DB.prepare(query)
+        .bind(...values)
+        .all<Record<string, unknown>>();
+
+      existingRemoteAccounts.results.forEach(acc => {
+        remoteAccountMap.set(`${acc.username}@${acc.domain}`, acc);
+      });
+    }
+
+    // Parallelize WebFinger lookups for new remote accounts
+    const remoteMentionPromises = remoteMentions.map(async (mention) => {
+      let accountRow = remoteAccountMap.get(`${mention.username}@${mention.domain}`) ?? null;
 
       // If not found locally, try WebFinger resolution via Fedify
       if (!accountRow) {
@@ -275,7 +341,7 @@ app.post('/', authRequired, async (c) => {
               const accountId = await resolveRemoteAccount(selfLink.href, c.env);
               if (accountId) {
                 accountRow = await c.env.DB.prepare(
-                  'SELECT id, uri, inbox_url, domain FROM accounts WHERE id = ?1',
+                  'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE id = ?1',
                 ).bind(accountId).first();
               }
             }
@@ -284,40 +350,83 @@ app.post('/', authRequired, async (c) => {
           console.error(`WebFinger resolution failed for ${mention.acct}:`, e);
         }
       }
-    } else {
-      // Local mention: @user
-      accountRow = await c.env.DB.prepare(
-        'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
-      ).bind(mention.username).first();
-    }
 
-    if (!accountRow) continue;
-
-    const mentionedAccountId = accountRow.id as string;
-    const mentionId = generateULID();
-
-    // Insert mention record into DB
-    await c.env.DB.prepare(
-      'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-    ).bind(mentionId, statusId, mentionedAccountId, now).run();
-
-    resolvedMentions.push({
-      account_id: mentionedAccountId,
-      actor_uri: (accountRow.uri as string) || '',
-      profile_url: (accountRow.url as string) || null,
-      acct: mention.acct,
-      inbox_url: (accountRow.inbox_url as string) || null,
-      mentionDomain: (accountRow.domain as string) || null,
+      return { mention, accountRow };
     });
 
-    // Create mention notification (don't notify yourself)
-    if (mentionedAccountId !== currentUser.account_id) {
+    const resolvedRemote = await Promise.all(remoteMentionPromises);
+
+    // Prepare all mentions for batch operations
+    const mentionsToInsert: Array<[string, string, string, string]> = []; // [mentionId, statusId, accountId, now]
+    const notificationsToQueue: Array<{ recipientAccountId: string; mention: string }> = [];
+
+    // Process local mentions
+    for (const mention of localMentions) {
+      const accountRow = localAccountMap.get(mention.username);
+      if (!accountRow) continue;
+
+      const mentionedAccountId = accountRow.id as string;
+      const mentionId = generateULID();
+
+      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
+
+      resolvedMentions.push({
+        account_id: mentionedAccountId,
+        actor_uri: (accountRow.uri as string) || '',
+        profile_url: (accountRow.url as string) || null,
+        acct: mention.acct,
+        inbox_url: (accountRow.inbox_url as string) || null,
+        mentionDomain: (accountRow.domain as string) || null,
+      });
+
+      if (mentionedAccountId !== currentUser.account_id) {
+        notificationsToQueue.push({ recipientAccountId: mentionedAccountId, mention: 'mention' });
+      }
+    }
+
+    // Process remote mentions
+    for (const { mention, accountRow } of resolvedRemote) {
+      if (!accountRow) continue;
+
+      const mentionedAccountId = accountRow.id as string;
+      const mentionId = generateULID();
+
+      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
+
+      resolvedMentions.push({
+        account_id: mentionedAccountId,
+        actor_uri: (accountRow.uri as string) || '',
+        profile_url: (accountRow.url as string) || null,
+        acct: mention.acct,
+        inbox_url: (accountRow.inbox_url as string) || null,
+        mentionDomain: (accountRow.domain as string) || null,
+      });
+
+      if (mentionedAccountId !== currentUser.account_id) {
+        notificationsToQueue.push({ recipientAccountId: mentionedAccountId, mention: 'mention' });
+      }
+    }
+
+    // Batch INSERT all mentions at once
+    if (mentionsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES ';
+      mentionsToInsert.forEach((mention, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
+        values.push(...mention);
+      });
+      await c.env.DB.prepare(query).bind(...values).run();
+    }
+
+    // Batch queue all notifications (fire and forget, don't block)
+    for (const notification of notificationsToQueue) {
       try {
         await c.env.QUEUE_INTERNAL.send({
           type: 'create_notification',
-          recipientAccountId: mentionedAccountId,
+          recipientAccountId: notification.recipientAccountId,
           senderAccountId: currentUser.account_id,
-          notificationType: 'mention',
+          notificationType: notification.mention,
           statusId,
         });
       } catch (_) { /* don't fail */ }
