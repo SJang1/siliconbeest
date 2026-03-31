@@ -39,11 +39,17 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 - **Relay support** (admin-managed subscriptions)
 
 ### Authentication and Security
-- **OAuth 2.0 + PKCE** -- standards-compliant authorization flows
+- **OAuth 2.0 + PKCE** -- standards-compliant authorization flows with scope enforcement
 - **TOTP two-factor authentication** (RFC 6238)
-- **Google OAuth SSO** -- optional single sign-on (extensible)
-- **Cloudflare Zero Trust** -- optional enterprise SSO integration
+- **WebAuthn / Passkeys** -- passwordless authentication
+- **OAuth scope enforcement** -- Mastodon-compatible hierarchical scope checking on all endpoints
+- **Token hashing** -- access tokens stored as SHA-256 hashes, never plaintext
+- **Domain block enforcement** -- blocked domains rejected at federation inbox level
+- **HTML sanitization** -- allowlist-based sanitizer on both local and remote content
+- **CSP headers** -- Content-Security-Policy, X-Content-Type-Options, X-Frame-Options on all responses
+- **Rate limiting** -- KV-backed sliding window on auth, registration, and admin endpoints
 - **Registration control** -- open, approval-required, or closed
+- **Email domain blocks** -- prevent signups from blocked email domains
 
 ### Real-Time and Notifications
 - **WebSocket streaming** -- live timeline updates via Cloudflare Durable Objects
@@ -70,7 +76,7 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 
 ## Architecture
 
-SiliconBeest runs as 4 Cloudflare Workers:
+SiliconBeest runs as 3 Cloudflare Workers:
 
 ```
                         Clients (Mastodon apps, web)
@@ -80,48 +86,40 @@ SiliconBeest runs as 4 Cloudflare Workers:
                      |    Cloudflare CDN / Edge   |
                      +---------------------------+
                                    |
-                  +----------------+----------------+
-                  |                                 |
-                  v                                 v
-     +------------------------+        +------------------------+
-     |   siliconbeest-worker  |        |   siliconbeest-vue     |
-     |   (Hono API server)    |        |   (Vue 3 SPA frontend) |
-     |                        |        |                        |
-     |  - Mastodon API v1/v2  |        |  - Tailwind CSS        |
-     |  - OAuth 2.0 + 2FA     |        |  - Headless UI         |
-     |  - Fedify (ActivityPub)|        |  - Pinia stores        |
-     |  - Admin API           |        |  - vue-i18n            |
-     |  - WebSocket streaming |        |  - Sentry (optional)   |
-     +------------------------+        +------------------------+
-           |     |      |
-           v     v      v
-     +-----+ +----+ +--------+    +----------------------------+
-     |  D1 | | R2 | |   KV   |    | siliconbeest-queue-consumer|
-     | SQL | |blob | |cache/  |    |                            |
-     | DB  | |store| |session |    |  - Federation delivery     |
-     +-----+ +----+ +--------+    |  - Timeline fanout         |
-                                   |  - Notifications           |
-     +------------------+         |  - Media processing        |
-     |   Durable Objects |         |  - Web Push sending        |
-     |   (StreamingDO)   |         +----------------------------+
-     |   WebSocket live  |               |            |
-     +------------------+         +------+     +------+
-                                   | Queue |     | Queue |
-                                   | fed.  |     | int.  |
-                                   +------+     +------+
+                                   v
+              +---------------------------------------+
+              |          siliconbeest (main)           |
+              |   Hono API server + Vue 3 SPA frontend |
+              |                                       |
+              |  - Mastodon API v1/v2                  |
+              |  - OAuth 2.0 + PKCE + WebAuthn        |
+              |  - Fedify (ActivityPub federation)     |
+              |  - Admin API with rate limiting        |
+              |  - WebSocket streaming (Durable Objs)  |
+              |  - Vue 3 SPA (Tailwind, Pinia, i18n)  |
+              +---------------------------------------+
+                    |     |      |       |
+                    v     v      v       v
+              +-----+ +----+ +--------+ +------------------+
+              |  D1 | | R2 | |   KV   | |  Durable Objects |
+              | SQL | |blob | |cache/  | |  (StreamingDO)   |
+              | DB  | |store| |session | |  WebSocket live  |
+              +-----+ +----+ +--------+ +------------------+
 
-                              +-----------------------------+
-                              | siliconbeest-email-sender   |
-                              |                             |
-                              |  - SMTP via worker-mailer   |
-                              |  - Password reset emails    |
-                              |  - Notification emails      |
-                              +-----------------------------+
-                                          |
-                                     +--------+
-                                     | Queue  |
-                                     | email  |
-                                     +--------+
+         +----------------------------+   +-----------------------------+
+         | siliconbeest-queue-consumer|   | siliconbeest-email-sender   |
+         |                            |   |                             |
+         |  - Federation delivery     |   |  - SMTP via worker-mailer   |
+         |  - Timeline fanout         |   |  - Password reset emails    |
+         |  - Notifications           |   |  - Notification emails      |
+         |  - Media processing        |   +-----------------------------+
+         |  - Web Push sending        |               |
+         +----------------------------+          +--------+
+                |            |                   | Queue  |
+          +------+     +------+                 | email  |
+          | Queue |     | Queue |                +--------+
+          | fed.  |     | int.  |
+          +------+     +------+
 ```
 
 The main worker enqueues email jobs to the `email` queue via its `QUEUE_EMAIL` producer binding. The email-sender worker consumes from that queue and sends mail via SMTP using [worker-mailer](https://github.com/nicepkg/worker-mailer).
@@ -166,10 +164,9 @@ git clone https://github.com/SJang1/siliconbeest.git
 cd siliconbeest
 
 # Install dependencies for all sub-projects
-cd siliconbeest-worker && npm install && cd ..
+cd siliconbeest && npm install && cd ..
 cd siliconbeest-queue-consumer && npm install && cd ..
 cd siliconbeest-email-sender && npm install && cd ..
-cd siliconbeest-vue && npm install && cd ..
 ```
 
 ### 2. Interactive Setup
@@ -201,7 +198,7 @@ The script automatically:
 - Sets secrets via `wrangler secret put`
 - Applies D1 database migrations
 - Creates the admin user account
-- Writes `siliconbeest-vue/.env` with VAPID public key and optional Sentry DSN
+- Writes `siliconbeest/.env` with VAPID public key and optional Sentry DSN
 
 ### 3. Deploy
 
@@ -252,20 +249,27 @@ See [scripts/README.md](scripts/README.md) for all update options and flags.
 
 ```
 siliconbeest/
-  siliconbeest-worker/          # API server (Hono on Workers)
+  siliconbeest/                 # Main app — API server (Hono) + Vue 3 SPA frontend
+    server/worker/              #   Hono API server (Mastodon API, OAuth, ActivityPub)
+    server/worker/federation/   #   Fedify inbox/outbox, dispatchers, helpers
+    server/worker/middleware/    #   Auth, rate limiting, CORS, scope enforcement
+    server/worker/endpoints/    #   All API route handlers
+    src/                        #   Vue 3 frontend (components, views, stores, i18n)
+    migrations/                 #   D1 database migrations (22 files)
+    test/worker/                #   API server tests (55 files)
+    test/                       #   Vue frontend tests (11 files)
   siliconbeest-queue-consumer/  # Async job processor (federation + internal queues)
-  siliconbeest-email-sender/    # Email sender (email queue consumer, SMTP via worker-mailer)
-  siliconbeest-vue/             # Web frontend (Vue 3 SPA)
+  siliconbeest-email-sender/    # Email sender (SMTP via worker-mailer)
   scripts/                      # Setup, deploy, and maintenance scripts
+  docs/                         # Architecture docs, security audit, migration guides
   FEDERATION.md                 # Federation capabilities (FEP-67ff)
 ```
 
 See each sub-project README for details:
 
-- [siliconbeest-worker/](siliconbeest-worker/) -- API Worker ([README](siliconbeest-worker/README.md))
+- [siliconbeest/](siliconbeest/) -- Main Application: API Worker + Vue Frontend ([README](siliconbeest/README.md))
 - [siliconbeest-queue-consumer/](siliconbeest-queue-consumer/) -- Queue Consumer ([README](siliconbeest-queue-consumer/README.md))
 - [siliconbeest-email-sender/](siliconbeest-email-sender/) -- Email Sender ([README](siliconbeest-email-sender/README.md))
-- [siliconbeest-vue/](siliconbeest-vue/) -- Vue Frontend ([README](siliconbeest-vue/README.md))
 - [scripts/](scripts/) -- Setup, deploy, update, backup scripts ([README](scripts/README.md))
 
 ---
@@ -273,19 +277,21 @@ See each sub-project README for details:
 ## Testing
 
 ```bash
-# API worker tests (48 test files)
-cd siliconbeest-worker && npm test
+cd siliconbeest
+
+# API worker tests (55 test files, 805 tests)
+npx vitest run --config vitest.worker.config.ts
 
 # Vue frontend tests (11 test files)
-cd siliconbeest-vue && npm test
+npx vitest run
 
-# Run all tests
-cd siliconbeest-worker && npm test && cd ../siliconbeest-vue && npm test
+# Both suites
+npx vitest run --config vitest.worker.config.ts && npx vitest run
 ```
 
 | Suite | Test Files | Coverage Areas |
 |-------|------------|----------------|
-| Worker | 48 | Auth, OAuth, accounts, statuses, timelines, notifications, search, lists, markers, media, bookmarks, favourites, blocks/mutes, conversations, filters, tags, polls, reports, admin (accounts, roles, domain blocks, rules, announcements), ActivityPub, federation (Fedify dispatchers, inbox processing, delivery), collection pagination, activity idempotency, featured collections, emoji reactions, custom emojis, quote posts, WebFinger, NodeInfo, content parsing, serializers, sanitization, ULID, instance, discovery, passwords |
+| Worker | 55 | Auth (suspension, scopes), OAuth (PKCE, approval flow, token hashing), accounts, statuses, timelines, notifications, search, lists, markers, media, bookmarks, favourites, blocks/mutes, conversations, filters, tags, polls, reports, admin (accounts, roles, domain blocks, rules, announcements, relays, custom emojis), ActivityPub, federation (Fedify dispatchers, inbox processing, delivery, domain block enforcement), collection pagination, activity idempotency, featured collections, emoji reactions, custom emojis, quote posts, WebFinger, NodeInfo, content parsing, serializers, sanitization, ULID, instance, discovery, passwords, WebAuthn, proxy (SSRF), email verification, email domain blocks, scope enforcement |
 | Vue | 11 | Stores (auth, ui, statuses, timelines), components (Avatar, LoadingSpinner, StatusActions, FollowButton), API client, i18n, router guards |
 
 ---
@@ -329,7 +335,7 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 | `INSTANCE_TITLE` | Instance display name | `SiliconBeest` |
 | `REGISTRATION_MODE` | `open` / `approval` / `closed` | `open` |
 
-### Frontend Environment (siliconbeest-vue/.env)
+### Frontend Environment (siliconbeest/.env)
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -342,8 +348,8 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 ## Local Development
 
 ```bash
-# Terminal 1 -- API worker (port 8787)
-cd siliconbeest-worker && npx wrangler dev
+# Terminal 1 -- Main app: API worker + Vue frontend (port 8787)
+cd siliconbeest && npx wrangler dev
 
 # Terminal 2 -- Queue consumer
 cd siliconbeest-queue-consumer && npx wrangler dev
@@ -351,14 +357,14 @@ cd siliconbeest-queue-consumer && npx wrangler dev
 # Terminal 3 -- Email sender
 cd siliconbeest-email-sender && npx wrangler dev
 
-# Terminal 4 -- Vue frontend (port 5173)
-cd siliconbeest-vue && npm run dev
+# Terminal 4 -- Vue frontend dev server with HMR (port 5173, optional)
+cd siliconbeest && npm run dev
 ```
 
 For local D1, apply migrations first:
 
 ```bash
-cd siliconbeest-worker && npx wrangler d1 migrations apply siliconbeest-db --local
+cd siliconbeest && npx wrangler d1 migrations apply siliconbeest-db --local
 ```
 
 ---
@@ -385,7 +391,7 @@ Running on Cloudflare Workers Paid plan ($5/month base):
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-change`
 3. Make your changes and add tests
-4. Run tests: `cd siliconbeest-worker && npm test && cd ../siliconbeest-vue && npm test`
+4. Run tests: `cd siliconbeest && npx vitest run --config vitest.worker.config.ts && npx vitest run`
 5. Submit a pull request
 
 All new API endpoints should include Zod validation schemas and integration tests.

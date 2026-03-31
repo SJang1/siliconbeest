@@ -2,6 +2,8 @@
 
 > This document is a chronological record of problems discovered, decisions made, and lessons learned during the development of SiliconBeest.
 > It covers the intensive development period from March 23 to 24, 2026.
+>
+> **Note:** This journal references the old split architecture (`siliconbeest-worker/` + `siliconbeest-vue/`). These have since been merged into `siliconbeest/`.
 
 ---
 

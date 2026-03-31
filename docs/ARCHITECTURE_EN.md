@@ -2,6 +2,8 @@
 
 > Comprehensive technical documentation for the SiliconBeest project.
 > Last updated: 2026-03-25
+>
+> **Note:** This document references the old split architecture (`siliconbeest-worker/` + `siliconbeest-vue/`). These have been merged into a single `siliconbeest/` directory. See [UPGRADE.md](../UPGRADE.md) for migration details. The API server lives in `siliconbeest/server/` and the Vue frontend in `siliconbeest/src/`.
 
 ---
 

@@ -15,7 +15,7 @@ Dedicated email-sending worker for SiliconBeest. This Cloudflare Worker consumes
 
 ## How It Works
 
-1. The main API worker (`siliconbeest-worker`) enqueues a `SendEmailMessage` to its `QUEUE_EMAIL` producer binding whenever email needs to be sent (password reset, admin email, etc.).
+1. The main API worker (`siliconbeest`) enqueues a `SendEmailMessage` to its `QUEUE_EMAIL` producer binding whenever email needs to be sent (password reset, admin email, etc.).
 2. This worker picks up the message from the `siliconbeest-email` queue.
 3. SMTP configuration is resolved with the following priority:
    - **Environment variables** (`SMTP_HOST`, `SMTP_PORT`, etc.) -- checked first

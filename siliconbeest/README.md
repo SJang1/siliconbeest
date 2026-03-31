@@ -1,6 +1,41 @@
-# SiliconBeest Vue Frontend
+# SiliconBeest — Main Application
 
-The web frontend for SiliconBeest. A single-page application built with Vue 3, deployed to Cloudflare Workers via the Cloudflare Vite plugin.
+The main SiliconBeest application containing both the API server (Hono on Cloudflare Workers) and the Vue 3 SPA frontend. Deployed as a single Cloudflare Worker with static assets served via the Cloudflare Vite plugin.
+
+---
+
+## Structure
+
+```
+siliconbeest/
+  server/
+    index.ts                    # Unified entry point (routes API vs SPA)
+    worker/
+      index.ts                  # Hono app with all route mounts
+      env.ts                    # Cloudflare bindings and types
+      middleware/               # Auth, CORS, rate limiting, scope enforcement
+      endpoints/                # All API route handlers
+        api/v1/                 # Mastodon API v1 endpoints
+        api/v2/                 # Mastodon API v2 endpoints
+        oauth/                  # OAuth authorize, token, revoke
+        activitypub/            # Actor, instance actor
+      federation/               # Fedify integration
+        listeners/inbox.ts      # 13 inbox activity processors
+        dispatchers/            # Actor, collection, object serializers
+        helpers/                # Domain blocks, activity delivery, signatures
+      services/                 # Business logic (auth, status, notification)
+      repositories/             # Data access layer
+      utils/                    # Crypto, sanitize, content parsing, TOTP
+  src/                          # Vue 3 SPA frontend
+    views/                      # 38 route views
+    components/                 # Reusable UI components
+    stores/                     # Pinia state management
+    api/                        # API client modules
+    i18n/                       # Internationalization (12 locales)
+  migrations/                   # D1 database migrations (22 files)
+  test/worker/                  # API server tests (55 files, 805 tests)
+  test/                         # Vue frontend tests (11 files)
+```
 
 ---
 
@@ -8,6 +43,8 @@ The web frontend for SiliconBeest. A single-page application built with Vue 3, d
 
 | Technology                  | Purpose                            |
 | --------------------------- | ---------------------------------- |
+| Hono                        | API server framework               |
+| Fedify v2.1.0               | ActivityPub federation              |
 | Vue 3                       | Reactive UI framework              |
 | Vue Router 5                | Client-side routing with auth guards |
 | Vite 7                      | Build tool and dev server          |
@@ -291,17 +328,20 @@ npm run cf-typegen
 
 ## Testing
 
-The project uses [Vitest](https://vitest.dev/) with [happy-dom](https://github.com/nicedoc/happy-dom) and [@vue/test-utils](https://test-utils.vuejs.org/) for unit and component testing.
+Two test suites: API server tests (Cloudflare Workers test runtime) and Vue frontend tests (happy-dom).
 
 ```bash
-# Run all tests
-npm test
+# API server tests (55 files, 805 tests)
+npx vitest run --config vitest.worker.config.ts
 
-# Watch mode
-npm run test:watch
+# Vue frontend tests (11 files)
+npx vitest run
+
+# Both
+npx vitest run --config vitest.worker.config.ts && npx vitest run
 ```
 
-### Test Files (11 files)
+### Vue Frontend Test Files (11 files)
 
 | Test File | Coverage |
 |-----------|----------|

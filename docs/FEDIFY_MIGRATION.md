@@ -1,5 +1,7 @@
 # SiliconBeest Fedify 마이그레이션 문서
 
+> **참고:** 이 문서는 이전 분리 아키텍처(`siliconbeest-worker/`)를 기준으로 작성되었습니다. 현재는 `siliconbeest/server/worker/`에 해당합니다.
+
 ## 1. 개요
 
 ### 배경

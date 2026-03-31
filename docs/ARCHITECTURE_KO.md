@@ -2,6 +2,8 @@
 
 > SiliconBeest 프로젝트의 종합적인 기술 문서입니다.
 > 최종 업데이트: 2026-03-25
+>
+> **참고:** 이 문서는 이전 분리 아키텍처(`siliconbeest-worker/` + `siliconbeest-vue/`)를 기준으로 작성되었습니다. 현재는 `siliconbeest/` 단일 디렉토리로 통합되었습니다. 마이그레이션 방법은 [UPGRADE.md](../UPGRADE.md)를 참조하세요. API 서버는 `siliconbeest/server/`에, Vue 프론트엔드는 `siliconbeest/src/`에 있습니다.
 
 ---
 
