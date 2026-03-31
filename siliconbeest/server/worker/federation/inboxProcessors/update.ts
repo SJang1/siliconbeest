@@ -9,6 +9,7 @@
 
 import type { Env } from '../../env';
 import type { APActivity, APObject, APActor } from '../../types/activitypub';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 export async function processUpdate(
 	activity: APActivity,
@@ -57,7 +58,7 @@ export async function processUpdate(
 		}
 		if (actor.summary !== undefined) {
 			updates.push(`note = ?${bindIdx++}`);
-			bindings.push(actor.summary ?? '');
+			bindings.push(sanitizeHtml(actor.summary ?? ''));
 		}
 		if (actor.icon?.url) {
 			updates.push(`avatar_url = ?${bindIdx++}`);
@@ -124,14 +125,16 @@ export async function processUpdate(
 			return;
 		}
 
-		// Update the status content
+		// Update the status content (sanitize remote HTML)
+		const sanitizedContent = sanitizeHtml(obj.content ?? '');
+		const sanitizedCw = sanitizeHtml(obj.summary ?? '');
 		await env.DB.prepare(
 			`UPDATE statuses SET content = ?1, content_warning = ?2, sensitive = ?3,
 			 edited_at = ?4, updated_at = ?5 WHERE id = ?6`,
 		)
 			.bind(
-				obj.content ?? '',
-				obj.summary ?? '',
+				sanitizedContent,
+				sanitizedCw,
 				obj.sensitive ? 1 : 0,
 				now,
 				now,

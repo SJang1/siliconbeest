@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
+import { requireScope } from '../../../middleware/scopeCheck';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { getFedifyContext } from '../../../federation/helpers/send';
@@ -15,7 +16,7 @@ const VALID_CATEGORIES = ['spam', 'violation', 'legal', 'other'];
 const app = new Hono<HonoEnv>();
 
 // POST /api/v1/reports — create a report
-app.post('/', authRequired, async (c) => {
+app.post('/', authRequired, requireScope('write:reports'), async (c) => {
   const currentUser = c.get('currentUser')!;
 
   let body: {

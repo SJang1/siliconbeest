@@ -9,6 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity, APObject, APTag, APNote } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
+import { sanitizeHtml } from '../../utils/sanitize';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 /**
@@ -120,10 +121,12 @@ export async function processCreate(
 	}
 
 	// Resolve content: prefer standard content, fall back to Misskey _misskey_content
-	const noteContent = note.content ?? (apNote._misskey_content ? apNote._misskey_content : '');
+	const rawContent = note.content ?? (apNote._misskey_content ? apNote._misskey_content : '');
+	const noteContent = sanitizeHtml(rawContent);
 
 	// Resolve content warning: prefer standard summary, fall back to Misskey _misskey_summary
-	const contentWarning = note.summary ?? (apNote._misskey_summary ? apNote._misskey_summary : '');
+	const rawCw = note.summary ?? (apNote._misskey_summary ? apNote._misskey_summary : '');
+	const contentWarning = sanitizeHtml(rawCw);
 
 	// FEP-e232: Resolve quote post URI
 	const quoteUri = apNote.quoteUri || apNote._misskey_quote || null;

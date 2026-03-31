@@ -62,11 +62,12 @@ import m0017 from '../../migrations/0017_email_verification_passkeys.sql?raw';
 import m0018 from '../../migrations/0018_media_proxy_cache.sql?raw';
 import m0020 from '../../migrations/0020_emoji_payload_jit.sql?raw';
 import m0021 from '../../migrations/0021_accounts_emoji_tags.sql?raw';
+import m0022 from '../../migrations/0022_hash_oauth_tokens.sql?raw';
 
 const MIGRATIONS: string[] = [
   m0001, m0002, m0003, m0004, m0005, m0006, m0007, m0008,
   m0009a, m0009b, m0010, m0011, m0012, m0013, m0014, m0015,
-  m0016, m0017, m0018, m0020, m0021,
+  m0016, m0017, m0018, m0020, m0021, m0022,
 ];
 
 /**
@@ -97,12 +98,21 @@ export async function applyMigration() {
   }
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 export async function createTestUser(username: string, opts?: { email?: string; role?: string }) {
   const id = crypto.randomUUID();
   const email = opts?.email || username + '@test.local';
   const role = opts?.role || 'user';
   const now = new Date().toISOString();
   const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+  const tokenHash = await sha256Hex(token);
   const uri = 'https://test.siliconbeest.local/users/' + username;
   const appId = crypto.randomUUID();
   const clientId = crypto.randomUUID().replace(/-/g, '');
@@ -116,7 +126,7 @@ export async function createTestUser(username: string, opts?: { email?: string; 
     env.DB.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(id, id, email, 'dummy_hash', role, now, now, now),
     env.DB.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, keys.publicPem, keys.privatePem, uri + '#main-key', now),
     env.DB.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Test App', 'urn:ietf:wg:oauth:2.0:oob', clientId, clientSecret, 'read write follow push', now, now),
-    env.DB.prepare("INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, appId, id, 'read write follow push', now),
+    env.DB.prepare("INSERT INTO oauth_access_tokens (id, token, token_hash, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, tokenHash, appId, id, 'read write follow push', now),
   ]);
 
   return { accountId: id, userId: id, token };

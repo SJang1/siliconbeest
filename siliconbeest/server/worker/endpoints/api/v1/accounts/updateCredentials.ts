@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -12,7 +13,7 @@ function parseFields(raw: string | null): Array<{ name: string; value: string; v
 
 const app = new Hono<HonoEnv>();
 
-app.patch('/update_credentials', authRequired, async (c) => {
+app.patch('/update_credentials', authRequired, requireScope('write:accounts'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const domain = c.env.INSTANCE_DOMAIN;
 

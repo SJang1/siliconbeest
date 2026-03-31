@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
 import { serializeFilter } from '../../../../utils/mastodonSerializer';
@@ -45,7 +46,7 @@ async function fetchFilterWithKeywords(db: D1Database, filterId: string) {
 // GET /api/v2/filters — list all filters
 // ---------------------------------------------------------------------------
 
-app.get('/', authRequired, async (c) => {
+app.get('/', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
 
   const { results: filters } = await c.env.DB.prepare(
@@ -67,7 +68,7 @@ app.get('/', authRequired, async (c) => {
 // POST /api/v2/filters — create filter
 // ---------------------------------------------------------------------------
 
-app.post('/', authRequired, async (c) => {
+app.post('/', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
 
   let body: {
@@ -139,7 +140,7 @@ app.post('/', authRequired, async (c) => {
 // GET /api/v2/filters/:id — single filter
 // ---------------------------------------------------------------------------
 
-app.get('/:id', authRequired, async (c) => {
+app.get('/:id', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
 
@@ -161,7 +162,7 @@ app.get('/:id', authRequired, async (c) => {
 // PUT /api/v2/filters/:id — update
 // ---------------------------------------------------------------------------
 
-app.put('/:id', authRequired, async (c) => {
+app.put('/:id', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
 
@@ -245,7 +246,7 @@ app.put('/:id', authRequired, async (c) => {
 // DELETE /api/v2/filters/:id — delete (CASCADE on keywords)
 // ---------------------------------------------------------------------------
 
-app.delete('/:id', authRequired, async (c) => {
+app.delete('/:id', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
 
@@ -272,7 +273,7 @@ app.delete('/:id', authRequired, async (c) => {
 // POST /api/v2/filters/:id/keywords — add keyword
 // ---------------------------------------------------------------------------
 
-app.post('/:id/keywords', authRequired, async (c) => {
+app.post('/:id/keywords', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
 
@@ -317,7 +318,7 @@ app.post('/:id/keywords', authRequired, async (c) => {
 // GET /api/v2/filters/:id/keywords — list keywords
 // ---------------------------------------------------------------------------
 
-app.get('/:id/keywords', authRequired, async (c) => {
+app.get('/:id/keywords', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
 
@@ -350,7 +351,7 @@ app.get('/:id/keywords', authRequired, async (c) => {
 // DELETE /api/v2/filters/:id/keywords/:keyword_id — remove keyword
 // ---------------------------------------------------------------------------
 
-app.delete('/:id/keywords/:keyword_id', authRequired, async (c) => {
+app.delete('/:id/keywords/:keyword_id', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
   const keywordId = c.req.param('keyword_id');

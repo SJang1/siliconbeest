@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
+import { requireScope } from '../../../middleware/scopeCheck';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
@@ -14,7 +15,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 const app = new Hono<HonoEnv>();
 
 // GET /api/v1/follow_requests — list pending follow requests
-app.get('/', authRequired, async (c) => {
+app.get('/', authRequired, requireScope('read:follows'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const domain = c.env.INSTANCE_DOMAIN;
 
@@ -62,7 +63,7 @@ app.get('/', authRequired, async (c) => {
 });
 
 // POST /api/v1/follow_requests/:id/authorize — accept follow request
-app.post('/:id/authorize', authRequired, async (c) => {
+app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const domain = c.env.INSTANCE_DOMAIN;
   const requestAccountId = c.req.param('id');
@@ -154,7 +155,7 @@ app.post('/:id/authorize', authRequired, async (c) => {
 });
 
 // POST /api/v1/follow_requests/:id/reject — reject follow request
-app.post('/:id/reject', authRequired, async (c) => {
+app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const requestAccountId = c.req.param('id');
 

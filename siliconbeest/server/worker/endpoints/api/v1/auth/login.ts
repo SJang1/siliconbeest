@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { generateUlid } from '../../../../utils/ulid';
+import { sha256 } from '../../../../utils/crypto';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 import bcrypt from 'bcryptjs';
 
@@ -127,15 +128,16 @@ app.post('/', async (c) => {
 		app_record = { id: appId, client_id: clientId };
 	}
 
-	// Generate access token
+	// Generate access token — store SHA-256 hash, not plaintext
 	const tokenValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+	const tokenHash = await sha256(tokenValue);
 	const tokenId = generateUlid();
 	const now = new Date().toISOString();
 
 	await c.env.DB.prepare(
-		`INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at)
+		`INSERT INTO oauth_access_tokens (id, token_hash, application_id, user_id, scopes, created_at)
 		 VALUES (?1, ?2, ?3, ?4, 'read write follow push', ?5)`,
-	).bind(tokenId, tokenValue, app_record.id, user.id, now).run();
+	).bind(tokenId, tokenHash, app_record.id, user.id, now).run();
 
 	// Update sign-in tracking
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';

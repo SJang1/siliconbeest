@@ -169,7 +169,38 @@ function escapeAttr(str: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// GET /oauth/authorize — render login form
+// Helper: resolve bearer token to user ID
+// ---------------------------------------------------------------------------
+
+async function resolveBearer(c: any): Promise<string | null> {
+	const authHeader = c.req.header('Authorization') ?? '';
+	const parts = authHeader.split(' ');
+	if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+	const token = parts[1];
+
+	const hash = Array.from(
+		new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))),
+	).map((b: number) => b.toString(16).padStart(2, '0')).join('');
+	const cacheKey = `token:${hash}`;
+
+	// KV cache
+	const cached = await c.env.CACHE.get(cacheKey, 'json');
+	if (cached) return (cached as any).user?.id ?? null;
+
+	// D1 fallback (token_hash first, then legacy plaintext)
+	let row = await c.env.DB.prepare(
+		'SELECT t.user_id FROM oauth_access_tokens t WHERE t.token_hash = ?1 AND t.revoked_at IS NULL LIMIT 1',
+	).bind(hash).first();
+	if (!row) {
+		row = await c.env.DB.prepare(
+			'SELECT t.user_id FROM oauth_access_tokens t WHERE t.token = ?1 AND t.revoked_at IS NULL LIMIT 1',
+		).bind(token).first();
+	}
+	return row ? (row.user_id as string) : null;
+}
+
+// ---------------------------------------------------------------------------
+// GET /oauth/authorize — app authorization page
 // ---------------------------------------------------------------------------
 
 app.get('/', async (c) => {
@@ -180,7 +211,7 @@ app.get('/', async (c) => {
 	const responseType = c.req.query('response_type') ?? 'code';
 	const errorMsg = c.req.query('error') ?? undefined;
 
-	// If session_token is present, show TOTP page
+	// If session_token is present, show TOTP page (server-side fallback)
 	const sessionToken = c.req.query('session_token');
 	if (sessionToken) {
 		return c.html(
@@ -197,51 +228,69 @@ app.get('/', async (c) => {
 		);
 	}
 
-	// Some apps pass email/password as query params on GET — handle direct login
-	const email = c.req.query('email');
-	const password = c.req.query('password');
-	if (email && password && clientId) {
+	// ── SPA path: if Accept includes JSON, return app info for the Vue frontend ──
+	const accept = c.req.header('Accept') ?? '';
+	if (accept.includes('application/json')) {
 		// Validate app
 		const oauthApp = await c.env.DB.prepare(
-			'SELECT id FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
+			'SELECT id, name, website, scopes, redirect_uri FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 		).bind(clientId).first();
 
-		if (oauthApp) {
-			const user = await c.env.DB.prepare(
-				'SELECT id, encrypted_password, otp_enabled FROM users WHERE email = ?1 LIMIT 1',
-			).bind(email.toLowerCase()).first();
-
-			if (user) {
-				const valid = await verifyPassword(password, user.encrypted_password as string);
-				if (valid && !user.otp_enabled) {
-					return await issueAuthorizationCode(c, {
-						userId: user.id as string,
-						applicationId: oauthApp.id as string,
-						redirectUri,
-						scope,
-						state,
-					});
-				}
-			}
+		if (!oauthApp) {
+			return c.json({ error: 'Unknown application' }, 400);
 		}
-		// Fall through to login page on failure
+
+		// Check if user is authenticated via bearer token
+		const userId = await resolveBearer(c);
+
+		return c.json({
+			app: {
+				name: oauthApp.name as string,
+				website: (oauthApp.website as string) || null,
+				scopes: (oauthApp.scopes as string) || 'read',
+			},
+			requested_scope: scope,
+			redirect_uri: redirectUri,
+			client_id: clientId,
+			authenticated: !!userId,
+		});
 	}
 
-	// Fetch turnstile settings for the login page
-	const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
-
-	return c.html(
-		loginPage({
-			clientId,
-			redirectUri,
+	// ── SPA redirect: non-logged-in users go to the Vue login page ──
+	// Check for bearer token (from SPA) — if present, let the Vue app handle it
+	const userId = await resolveBearer(c);
+	if (!userId) {
+		// Build the OAuth authorize URL to redirect back to after login
+		const oauthParams = new URLSearchParams({
+			client_id: clientId,
+			redirect_uri: redirectUri,
 			scope,
-			state,
-			responseType,
-			error: errorMsg,
-			instanceTitle: c.env.INSTANCE_TITLE,
-			turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
-		}),
-	);
+			response_type: responseType,
+			...(state ? { state } : {}),
+		});
+		const authorizeUrl = `/oauth/authorize?${oauthParams.toString()}`;
+		return c.redirect(`/login?redirect=${encodeURIComponent(authorizeUrl)}`);
+	}
+
+	// User is authenticated — validate the app and auto-approve (or show server-side page)
+	const oauthApp = await c.env.DB.prepare(
+		'SELECT id FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
+	).bind(clientId).first();
+
+	if (!oauthApp) {
+		return c.redirect(`/login?error=${encodeURIComponent('Unknown application')}`);
+	}
+
+	// For server-side HTML requests from authenticated users, issue code directly
+	// (This handles the case where a Mastodon client redirects here and the user
+	// has already logged in via the SPA — they get auto-approved)
+	return await issueAuthorizationCode(c, {
+		userId,
+		applicationId: oauthApp.id as string,
+		redirectUri,
+		scope,
+		state,
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -249,13 +298,28 @@ app.get('/', async (c) => {
 // ---------------------------------------------------------------------------
 
 app.post('/', async (c) => {
-	const body = await c.req.parseBody();
+	const contentType = c.req.header('Content-Type') ?? '';
+	const isJson = contentType.includes('application/json');
 
-	const clientId = (body.client_id as string) ?? '';
-	const redirectUri = (body.redirect_uri as string) ?? '';
-	const scope = (body.scope as string) ?? 'read';
-	const state = (body.state as string) ?? '';
-	const responseType = (body.response_type as string) ?? 'code';
+	// Parse body based on content type
+	let clientId: string, redirectUri: string, scope: string, state: string, responseType: string;
+	let body: Record<string, any> = {};
+
+	if (isJson) {
+		body = await c.req.json();
+		clientId = (body.client_id as string) ?? '';
+		redirectUri = (body.redirect_uri as string) ?? '';
+		scope = (body.scope as string) ?? 'read';
+		state = (body.state as string) ?? '';
+		responseType = (body.response_type as string) ?? 'code';
+	} else {
+		body = await c.req.parseBody() as Record<string, any>;
+		clientId = (body.client_id as string) ?? '';
+		redirectUri = (body.redirect_uri as string) ?? '';
+		scope = (body.scope as string) ?? 'read';
+		state = (body.state as string) ?? '';
+		responseType = (body.response_type as string) ?? 'code';
+	}
 
 	// Validate the OAuth application exists
 	const oauthApp = await c.env.DB.prepare(
@@ -265,6 +329,7 @@ app.post('/', async (c) => {
 		.first();
 
 	if (!oauthApp) {
+		if (isJson) return c.json({ error: 'Unknown application' }, 400);
 		return c.html(
 			loginPage({
 				clientId,
@@ -277,6 +342,46 @@ app.post('/', async (c) => {
 			}),
 			400,
 		);
+	}
+
+	// ---------------------------------------------------------------------------
+	// Bearer token approval (from SPA / Vue frontend)
+	// ---------------------------------------------------------------------------
+	const userId = await resolveBearer(c);
+	if (userId) {
+		// User is authenticated — handle approve/deny
+		const decision = body.decision as string | undefined;
+		if (decision === 'deny') {
+			const sep = redirectUri.includes('?') ? '&' : '?';
+			const denyUrl = `${redirectUri}${sep}error=access_denied&error_description=The+resource+owner+denied+the+request${state ? '&state=' + encodeURIComponent(state) : ''}`;
+			if (isJson) return c.json({ redirect_uri: denyUrl });
+			return c.redirect(denyUrl);
+		}
+
+		// Approve: issue authorization code
+		if (isJson) {
+			// For JSON requests, return the redirect URL instead of redirecting
+			const code = generateToken(64);
+			const id = generateUlid();
+			const now = new Date().toISOString();
+			await c.env.DB.prepare(
+				`INSERT INTO oauth_authorization_codes (id, application_id, user_id, code, redirect_uri, scopes, expires_at, created_at)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+			).bind(id, oauthApp.id, userId, code, redirectUri, scope, new Date(Date.now() + 10 * 60 * 1000).toISOString(), now).run();
+
+			const url = new URL(redirectUri);
+			url.searchParams.set('code', code);
+			if (state) url.searchParams.set('state', state);
+			return c.json({ redirect_uri: url.toString() });
+		}
+
+		return await issueAuthorizationCode(c, {
+			userId,
+			applicationId: oauthApp.id as string,
+			redirectUri,
+			scope,
+			state,
+		});
 	}
 
 	// ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
@@ -12,7 +13,7 @@ import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
-app.post('/:id/reblog', authRequired, async (c) => {
+app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentUser = c.get('currentUser')!;
   const currentAccount = c.get('currentAccount')!;

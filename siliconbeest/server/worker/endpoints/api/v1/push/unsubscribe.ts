@@ -7,10 +7,11 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
-app.delete('/', authRequired, async (c) => {
+app.delete('/', authRequired, requireScope('push'), async (c) => {
   const authHeader = c.req.header('Authorization')!;
   const accessToken = authHeader.slice(7);
 

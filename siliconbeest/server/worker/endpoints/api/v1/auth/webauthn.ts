@@ -12,6 +12,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { generateUlid } from '../../../../utils/ulid';
+import { sha256 } from '../../../../utils/crypto';
 import { generateSecureRandom } from '../../../../utils/crypto';
 import { decodeCBOR } from '../../../../utils/cbor';
 import {
@@ -467,12 +468,13 @@ app.post('/authenticate/verify', async (c) => {
 	}
 
 	const tokenValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+	const tokenHash = await sha256(tokenValue);
 	const tokenId = generateUlid();
 
 	await c.env.DB.prepare(
-		`INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at)
+		`INSERT INTO oauth_access_tokens (id, token_hash, application_id, user_id, scopes, created_at)
 		 VALUES (?1, ?2, ?3, ?4, 'read write follow push', ?5)`,
-	).bind(tokenId, tokenValue, appRecord.id, user.id, now).run();
+	).bind(tokenId, tokenHash, appRecord.id, user.id, now).run();
 
 	// 14. Update sign-in tracking
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';

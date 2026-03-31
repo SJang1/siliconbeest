@@ -14,6 +14,7 @@ import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
+import { createRateLimit, RATE_LIMIT_ADMIN } from './middleware/rateLimit';
 import { createFed, setWaitUntil, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
@@ -120,6 +121,18 @@ app.use('*', requestIdMiddleware);
 app.use('*', corsMiddleware);
 app.use('*', contentNegotiation);
 app.use('*', logger());
+
+// Security headers
+app.use('*', async (c, next) => {
+  await next();
+  // Strict CSP for API endpoints
+  if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/oauth/')) {
+    c.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  }
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+});
 
 // ---------------------------------------------------------------------------
 // Fedify Federation Middleware
@@ -270,6 +283,7 @@ app.route('/api/v1/auth/webauthn', authWebauthn);
 app.route('/api/v1/auth/resend_confirmation', resendConfirmation);
 app.route('/auth/confirm', emailConfirmPage);
 app.route('/api/v1/accounts', changePassword);
+app.use('/api/v1/admin/*', createRateLimit(RATE_LIMIT_ADMIN));
 app.route('/api/v1/admin', admin);
 app.route('/api/v1/export', csvExport);
 app.route('/api/v1/import', csvImport);

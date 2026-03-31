@@ -11,6 +11,8 @@
 
 import type { Env } from '../env';
 import { generateUlid } from '../utils/ulid';
+import { isDomainBlocked } from './helpers/domainBlock';
+import { sanitizeHtml } from '../utils/sanitize';
 
 export async function resolveRemoteAccount(
 	actorUri: string,
@@ -42,6 +44,13 @@ export async function resolveRemoteAccount(
 		// leave default
 	}
 
+	// Check domain blocks before fetching
+	const blockResult = await isDomainBlocked(env.DB, env.CACHE ?? null, domain);
+	if (blockResult.blocked) {
+		console.log(`[resolveRemoteAccount] Refusing to resolve account from suspended domain: ${domain}`);
+		return null;
+	}
+
 	try {
 		const res = await fetch(actorUri, {
 			headers: { Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"' },
@@ -50,7 +59,7 @@ export async function resolveRemoteAccount(
 			const actor = await res.json() as Record<string, unknown>;
 			username = (actor.preferredUsername as string) || username;
 			displayName = (actor.name as string) || '';
-			summary = (actor.summary as string) || '';
+			summary = sanitizeHtml((actor.summary as string) || '');
 			actorUrl = (actor.url as string) || actorUri;
 			inboxUrl = (actor.inbox as string) || null;
 			const endpoints = actor.endpoints as Record<string, unknown> | undefined;

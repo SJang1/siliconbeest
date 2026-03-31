@@ -145,18 +145,19 @@ export class OAuthService {
 			.bind(new Date().toISOString(), authCode.id)
 			.run();
 
-		// Generate access token
+		// Generate access token — store SHA-256 hash, not plaintext
 		const token = generateToken(64);
+		const tokenHash = await sha256(token);
 		const tokenId = generateUlid();
 		const now = new Date();
 
 		await this.db
 			.prepare(
 				`INSERT INTO oauth_access_tokens
-				(id, token, refresh_token, application_id, user_id, scopes, expires_at, revoked_at, created_at)
+				(id, token_hash, refresh_token, application_id, user_id, scopes, expires_at, revoked_at, created_at)
 				VALUES (?, ?, NULL, ?, ?, ?, NULL, NULL, ?)`,
 			)
-			.bind(tokenId, token, app.id, authCode.user_id, authCode.scopes, now.toISOString())
+			.bind(tokenId, tokenHash, app.id, authCode.user_id, authCode.scopes, now.toISOString())
 			.run();
 
 		return {

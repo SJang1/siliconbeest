@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
@@ -11,7 +12,7 @@ import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
-app.post('/:id/favourite', authRequired, async (c) => {
+app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = c.env.INSTANCE_DOMAIN;

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -12,7 +13,7 @@ function safeJsonParse<T>(val: string | null, fallback: T): T {
 
 const app = new Hono<HonoEnv>();
 
-app.get('/verify_credentials', authRequired, async (c) => {
+app.get('/verify_credentials', authRequired, requireScope('read:accounts'), async (c) => {
   const user = c.get('currentUser')!;
   const domain = c.env.INSTANCE_DOMAIN;
 

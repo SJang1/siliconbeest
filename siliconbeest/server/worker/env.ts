@@ -55,6 +55,8 @@ export interface AppVariables {
     username: string;
     domain: string | null;
   } | null;
+  /** OAuth token scopes (space-separated), e.g. "read write follow push". */
+  tokenScopes: string | null;
   requestId: string;
   /** True when the client accepts ActivityPub content types. */
   isActivityPub: boolean;

@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
-app.post('/:id/unmute', authRequired, async (c) => {
+app.post('/:id/unmute', authRequired, requireScope('write:mutes'), async (c) => {
   const targetId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
 

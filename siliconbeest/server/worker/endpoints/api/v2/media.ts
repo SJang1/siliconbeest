@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
+import { requireScope } from '../../../middleware/scopeCheck';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { serializeMediaAttachment } from '../../../utils/mastodonSerializer';
@@ -29,7 +30,7 @@ function mediaTypeFromMime(mime: string): string {
 const app = new Hono<HonoEnv>();
 
 // POST /api/v2/media — async media upload
-app.post('/', authRequired, async (c) => {
+app.post('/', authRequired, requireScope('write:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const domain = c.env.INSTANCE_DOMAIN;
 
@@ -105,7 +106,7 @@ app.post('/', authRequired, async (c) => {
 });
 
 // GET /api/v1/media/:id — check upload status
-app.get('/:id', authRequired, async (c) => {
+app.get('/:id', authRequired, requireScope('read:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const domain = c.env.INSTANCE_DOMAIN;
   const mediaId = c.req.param('id');
@@ -142,7 +143,7 @@ app.get('/:id', authRequired, async (c) => {
 });
 
 // PUT /api/v1/media/:id — update description/focus
-app.put('/:id', authRequired, async (c) => {
+app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const domain = c.env.INSTANCE_DOMAIN;
   const mediaId = c.req.param('id');

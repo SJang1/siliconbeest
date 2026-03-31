@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
 import { serializeList, serializeAccount } from '../../../../utils/mastodonSerializer';
@@ -14,7 +15,7 @@ const app = new Hono<HonoEnv>();
 // GET /api/v1/lists — list all lists
 // ---------------------------------------------------------------------------
 
-app.get('/', authRequired, async (c) => {
+app.get('/', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
 
   const { results } = await c.env.DB.prepare(
@@ -32,7 +33,7 @@ app.get('/', authRequired, async (c) => {
 // POST /api/v1/lists — create list
 // ---------------------------------------------------------------------------
 
-app.post('/', authRequired, async (c) => {
+app.post('/', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
 
   let body: { title?: string; replies_policy?: string; exclusive?: boolean };
@@ -70,7 +71,7 @@ app.post('/', authRequired, async (c) => {
 // GET /api/v1/lists/:id — get single list
 // ---------------------------------------------------------------------------
 
-app.get('/:id', authRequired, async (c) => {
+app.get('/:id', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
@@ -91,7 +92,7 @@ app.get('/:id', authRequired, async (c) => {
 // PUT /api/v1/lists/:id — update
 // ---------------------------------------------------------------------------
 
-app.put('/:id', authRequired, async (c) => {
+app.put('/:id', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
@@ -135,7 +136,7 @@ app.put('/:id', authRequired, async (c) => {
 // DELETE /api/v1/lists/:id — delete
 // ---------------------------------------------------------------------------
 
-app.delete('/:id', authRequired, async (c) => {
+app.delete('/:id', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
@@ -161,7 +162,7 @@ app.delete('/:id', authRequired, async (c) => {
 // GET /api/v1/lists/:id/accounts — list members
 // ---------------------------------------------------------------------------
 
-app.get('/:id/accounts', authRequired, async (c) => {
+app.get('/:id/accounts', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
@@ -193,7 +194,7 @@ app.get('/:id/accounts', authRequired, async (c) => {
 // POST /api/v1/lists/:id/accounts — add members
 // ---------------------------------------------------------------------------
 
-app.post('/:id/accounts', authRequired, async (c) => {
+app.post('/:id/accounts', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
@@ -237,7 +238,7 @@ app.post('/:id/accounts', authRequired, async (c) => {
 // DELETE /api/v1/lists/:id/accounts — remove members
 // ---------------------------------------------------------------------------
 
-app.delete('/:id/accounts', authRequired, async (c) => {
+app.delete('/:id/accounts', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 

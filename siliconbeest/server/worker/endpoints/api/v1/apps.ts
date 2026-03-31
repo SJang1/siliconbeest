@@ -71,17 +71,37 @@ app.get('/verify_credentials', async (c) => {
 	}
 	const token = parts[1];
 
-	// Look up the token and associated application
-	const row = await c.env.DB.prepare(
+	// Look up the token (try hash first, then plaintext for legacy)
+	const data = new TextEncoder().encode(token);
+	const hashBuf = await crypto.subtle.digest('SHA-256', data);
+	const tokenHash = Array.from(new Uint8Array(hashBuf))
+		.map((b) => b.toString(16).padStart(2, '0'))
+		.join('');
+
+	let row = await c.env.DB.prepare(
 		`SELECT a.name, a.website, a.scopes
 		 FROM oauth_access_tokens t
 		 JOIN oauth_applications a ON a.id = t.application_id
-		 WHERE t.token = ?1
+		 WHERE t.token_hash = ?1
 		   AND t.revoked_at IS NULL
 		 LIMIT 1`,
 	)
-		.bind(token)
+		.bind(tokenHash)
 		.first();
+
+	if (!row) {
+		// Fallback for legacy plaintext tokens
+		row = await c.env.DB.prepare(
+			`SELECT a.name, a.website, a.scopes
+			 FROM oauth_access_tokens t
+			 JOIN oauth_applications a ON a.id = t.application_id
+			 WHERE t.token = ?1
+			   AND t.revoked_at IS NULL
+			 LIMIT 1`,
+		)
+			.bind(token)
+			.first();
+	}
 
 	if (!row) {
 		return c.json({ error: 'The access token is invalid' }, 401);

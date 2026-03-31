@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { parseContent, type ParsedMention } from '../../../../utils/contentParser';
 import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
@@ -32,7 +33,7 @@ function generateULID(): string {
 
 const app = new Hono<HonoEnv>();
 
-app.post('/', authRequired, async (c) => {
+app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const currentAccount = c.get('currentAccount')!;
   const domain = c.env.INSTANCE_DOMAIN;

@@ -21,6 +21,7 @@ async function sha256(input: string): Promise<string> {
 interface TokenPayload {
   user: { id: string; account_id: string; email: string; role: string };
   account: { id: string; username: string; domain: string | null };
+  scopes: string;
 }
 
 const CACHE_TTL_SECONDS = 300; // 5 minutes
@@ -52,10 +53,28 @@ async function resolveToken(
 
   // 1. KV cache lookup
   const cached = await cache.get(cacheKey, 'json');
-  if (cached) return cached as TokenPayload;
+  if (cached) {
+    // Even on cache hit, verify the account is not suspended/disabled.
+    // Prevents stale-cache abuse for up to CACHE_TTL_SECONDS.
+    const payload = cached as TokenPayload;
+    const check = await db
+      .prepare(
+        `SELECT u.disabled, a.suspended_at
+         FROM users u JOIN accounts a ON a.id = u.account_id
+         WHERE u.id = ?1 LIMIT 1`,
+      )
+      .bind(payload.user.id)
+      .first();
+    if (!check || check.disabled || check.suspended_at) {
+      await cache.delete(cacheKey);
+      return null;
+    }
+    return payload;
+  }
 
-  // 2. D1 fallback
-  const row = await db
+  // 2. D1 fallback — includes disabled/suspended checks
+  // Try token_hash first (new hashed storage), fall back to plaintext token (legacy)
+  let row = await db
     .prepare(
       `SELECT
          u.id   AS user_id,
@@ -63,16 +82,44 @@ async function resolveToken(
          u.role,
          a.id       AS account_id,
          a.username,
-         a.domain
+         a.domain,
+         t.scopes
        FROM oauth_access_tokens t
        JOIN users    u ON u.id = t.user_id
        JOIN accounts a ON a.id = u.account_id
-       WHERE t.token = ?1
+       WHERE t.token_hash = ?1
          AND (t.revoked_at IS NULL)
+         AND u.disabled = 0
+         AND a.suspended_at IS NULL
        LIMIT 1`,
     )
-    .bind(token)
+    .bind(hash)
     .first();
+
+  // Fallback for tokens issued before hashing migration
+  if (!row) {
+    row = await db
+      .prepare(
+        `SELECT
+           u.id   AS user_id,
+           u.email,
+           u.role,
+           a.id       AS account_id,
+           a.username,
+           a.domain,
+           t.scopes
+         FROM oauth_access_tokens t
+         JOIN users    u ON u.id = t.user_id
+         JOIN accounts a ON a.id = u.account_id
+         WHERE t.token = ?1
+           AND (t.revoked_at IS NULL)
+           AND u.disabled = 0
+           AND a.suspended_at IS NULL
+         LIMIT 1`,
+      )
+      .bind(token)
+      .first();
+  }
 
   if (!row) return null;
 
@@ -88,6 +135,7 @@ async function resolveToken(
       username: row.username as string,
       domain: (row.domain as string) ?? null,
     },
+    scopes: (row.scopes as string) || 'read',
   };
 
   // 3. Populate cache
@@ -109,6 +157,7 @@ async function resolveToken(
 export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('currentUser', null);
   c.set('currentAccount', null);
+  c.set('tokenScopes', null);
 
   const token = extractBearerToken(c.req.header('Authorization'));
   if (token) {
@@ -116,6 +165,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
     if (payload) {
       c.set('currentUser', payload.user);
       c.set('currentAccount', payload.account);
+      c.set('tokenScopes', payload.scopes);
     }
   }
 
@@ -128,6 +178,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
 export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('currentUser', null);
   c.set('currentAccount', null);
+  c.set('tokenScopes', null);
 
   const token = extractBearerToken(c.req.header('Authorization'));
   if (!token) {
@@ -147,6 +198,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
 
   c.set('currentUser', payload.user);
   c.set('currentAccount', payload.account);
+  c.set('tokenScopes', payload.scopes);
 
   await next();
 });

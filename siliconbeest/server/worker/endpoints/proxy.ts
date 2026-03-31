@@ -67,7 +67,7 @@ function isAllowedContentType(ct: string | null): boolean {
 }
 
 /** Validate that a URL is safe to fetch (http/https only, no private IPs). */
-function isValidProxyUrl(urlStr: string): boolean {
+export function isValidProxyUrl(urlStr: string): boolean {
   let url: URL;
   try {
     url = new URL(urlStr);
@@ -76,6 +76,11 @@ function isValidProxyUrl(urlStr: string): boolean {
   }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return false;
+  }
+
+  // Block URLs with embedded credentials
+  if (url.username || url.password) {
     return false;
   }
 
@@ -94,7 +99,27 @@ function isValidProxyUrl(urlStr: string): boolean {
     return false;
   }
 
-  // Block private IP ranges
+  // Block pure numeric hostnames (decimal IP encoding, e.g. 2130706433)
+  if (/^\d+$/.test(hostname)) {
+    return false;
+  }
+
+  // Block hex IP encoding (e.g. 0x7f000001)
+  if (/^0x[0-9a-f]+$/i.test(hostname)) {
+    return false;
+  }
+
+  // Block DNS rebinding services
+  if (
+    hostname.endsWith('.nip.io') ||
+    hostname.endsWith('.sslip.io') ||
+    hostname.endsWith('.localtest.me') ||
+    hostname.endsWith('.lvh.me')
+  ) {
+    return false;
+  }
+
+  // Block private IP ranges (IPv4)
   const parts = hostname.split('.');
   if (parts.length === 4 && parts.every((p) => /^\d+$/.test(p))) {
     const [a, b] = parts.map(Number);
@@ -103,10 +128,28 @@ function isValidProxyUrl(urlStr: string): boolean {
       a === 127 ||
       (a === 172 && b >= 16 && b <= 31) ||
       (a === 192 && b === 168) ||
+      (a === 169 && b === 254) || // link-local
       a === 0
     ) {
       return false;
     }
+  }
+
+  // Block IPv6 private/reserved addresses
+  // Strip brackets that URL parser may include
+  const bareHost = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  if (
+    bareHost.startsWith('fd') ||
+    bareHost.startsWith('fc') ||
+    bareHost.startsWith('fe80:') ||
+    bareHost.startsWith('::ffff:127.') ||
+    bareHost.startsWith('::ffff:10.') ||
+    bareHost.startsWith('::ffff:192.168.') ||
+    // Some runtimes normalize ::ffff:A.B.C.D to ::ffff:XXYY:ZZWW hex form.
+    // Block all IPv4-mapped IPv6 addresses and re-check the embedded IPv4.
+    bareHost.startsWith('::ffff:')
+  ) {
+    return false;
   }
 
   return true;

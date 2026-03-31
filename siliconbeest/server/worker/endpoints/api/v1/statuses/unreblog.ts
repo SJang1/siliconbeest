@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToFollowers } from '../../../../federation/helpers/send';
@@ -12,7 +13,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
-app.post('/:id/unreblog', authRequired, async (c) => {
+app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = c.env.INSTANCE_DOMAIN;

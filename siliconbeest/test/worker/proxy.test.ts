@@ -2,6 +2,7 @@ import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration } from './helpers';
 import { serializeAccount } from '../../server/worker/utils/mastodonSerializer';
+import { isValidProxyUrl } from '../../server/worker/endpoints/proxy';
 import type { AccountRow } from '../../server/worker/types/db';
 
 // ---------------------------------------------------------------------------
@@ -327,5 +328,106 @@ describe('serializeAccount proxy behavior', () => {
     const account = serializeAccount(row, { instanceDomain: undefined });
     expect(account.avatar).toBe('https://remote.social/media/avatars/remote.png');
     expect(account.header).toBe('https://remote.social/media/headers/remote.png');
+  });
+});
+
+// ===========================================================================
+// isValidProxyUrl SSRF Protection Tests (unit tests)
+// ===========================================================================
+
+describe('isValidProxyUrl SSRF protections', () => {
+  // Valid URLs should pass
+  it('allows valid public http/https URLs', () => {
+    expect(isValidProxyUrl('https://example.com/image.png')).toBe(true);
+    expect(isValidProxyUrl('http://cdn.remote.social/media/avatar.jpg')).toBe(true);
+  });
+
+  // --- Embedded credentials ---
+  it('blocks URLs with embedded credentials', () => {
+    expect(isValidProxyUrl('http://user:pass@evil.com/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://user@evil.com/image.png')).toBe(false);
+  });
+
+  // --- Decimal IP encoding ---
+  it('blocks decimal IP encoding (e.g. 2130706433 = 127.0.0.1)', () => {
+    expect(isValidProxyUrl('http://2130706433/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://167772161/image.png')).toBe(false); // 10.0.0.1
+  });
+
+  // --- Hex IP encoding ---
+  it('blocks hex IP encoding (e.g. 0x7f000001 = 127.0.0.1)', () => {
+    expect(isValidProxyUrl('http://0x7f000001/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://0x0a000001/image.png')).toBe(false); // 10.0.0.1
+  });
+
+  // --- Octal IP encoding (browsers/URL parsers typically normalize these) ---
+  it('blocks octal-style IPs that resolve to private ranges', () => {
+    // URL parser may normalize 0177.0.0.1 to 127.0.0.1
+    // If it doesn't parse, it should still be blocked or rejected
+    const result = isValidProxyUrl('http://0177.0.0.1/image.png');
+    expect(result).toBe(false);
+  });
+
+  // --- DNS rebinding services ---
+  it('blocks DNS rebinding services (.nip.io)', () => {
+    expect(isValidProxyUrl('http://127.0.0.1.nip.io/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://10.0.0.1.nip.io/image.png')).toBe(false);
+  });
+
+  it('blocks DNS rebinding services (.sslip.io)', () => {
+    expect(isValidProxyUrl('http://192.168.1.1.sslip.io/image.png')).toBe(false);
+  });
+
+  it('blocks DNS rebinding services (.localtest.me)', () => {
+    expect(isValidProxyUrl('http://foo.localtest.me/image.png')).toBe(false);
+  });
+
+  it('blocks DNS rebinding services (.lvh.me)', () => {
+    expect(isValidProxyUrl('http://foo.lvh.me/image.png')).toBe(false);
+  });
+
+  // --- Link-local addresses ---
+  it('blocks link-local addresses (169.254.x.x)', () => {
+    expect(isValidProxyUrl('http://169.254.169.254/latest/meta-data/')).toBe(false);
+    expect(isValidProxyUrl('http://169.254.0.1/image.png')).toBe(false);
+  });
+
+  // --- IPv6 private addresses ---
+  it('blocks IPv6 unique local addresses (fd00::, fc00::)', () => {
+    expect(isValidProxyUrl('http://[fd00::1]/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://[fc00::1]/image.png')).toBe(false);
+  });
+
+  it('blocks IPv6 link-local addresses (fe80::)', () => {
+    expect(isValidProxyUrl('http://[fe80::1]/image.png')).toBe(false);
+  });
+
+  it('blocks IPv4-mapped IPv6 addresses (::ffff:127.0.0.1)', () => {
+    // Most URL parsers normalize ::ffff:127.0.0.1 to 127.0.0.1,
+    // which is caught by the existing IPv4 private range check.
+    // Either way, the URL must be blocked.
+    expect(isValidProxyUrl('http://[::ffff:127.0.0.1]/image.png')).toBe(false);
+  });
+
+  it('blocks IPv4-mapped IPv6 private addresses (::ffff:10.x, ::ffff:192.168.x)', () => {
+    // URL parsers may normalize these to plain IPv4, caught by IPv4 checks.
+    expect(isValidProxyUrl('http://[::ffff:10.0.0.1]/image.png')).toBe(false);
+    expect(isValidProxyUrl('http://[::ffff:192.168.1.1]/image.png')).toBe(false);
+  });
+
+  // --- Existing protections still work ---
+  it('still blocks localhost and basic private IPs', () => {
+    expect(isValidProxyUrl('http://localhost/x')).toBe(false);
+    expect(isValidProxyUrl('http://127.0.0.1/x')).toBe(false);
+    expect(isValidProxyUrl('http://10.0.0.1/x')).toBe(false);
+    expect(isValidProxyUrl('http://172.16.0.1/x')).toBe(false);
+    expect(isValidProxyUrl('http://192.168.1.1/x')).toBe(false);
+    expect(isValidProxyUrl('http://0.0.0.0/x')).toBe(false);
+    expect(isValidProxyUrl('http://::1/x')).toBe(false);
+  });
+
+  it('still blocks non-http protocols', () => {
+    expect(isValidProxyUrl('ftp://example.com/x')).toBe(false);
+    expect(isValidProxyUrl('file:///etc/passwd')).toBe(false);
   });
 });

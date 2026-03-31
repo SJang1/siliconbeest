@@ -1,8 +1,10 @@
 import { generateUlid } from '../utils/ulid';
+import { sha256 } from '../utils/crypto';
 
 export interface OAuthAccessToken {
 	id: string;
 	token: string;
+	token_hash: string | null;
 	refresh_token: string | null;
 	application_id: string;
 	user_id: string | null;
@@ -25,10 +27,18 @@ export class OAuthTokenRepository {
 	constructor(private db: D1Database) {}
 
 	async findByToken(token: string): Promise<OAuthAccessToken | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM oauth_access_tokens WHERE token = ? AND revoked_at IS NULL')
-			.bind(token)
+		const hash = await sha256(token);
+		// Try hash first, fall back to plaintext for legacy tokens
+		let result = await this.db
+			.prepare('SELECT * FROM oauth_access_tokens WHERE token_hash = ? AND revoked_at IS NULL')
+			.bind(hash)
 			.first<OAuthAccessToken>();
+		if (!result) {
+			result = await this.db
+				.prepare('SELECT * FROM oauth_access_tokens WHERE token = ? AND revoked_at IS NULL')
+				.bind(token)
+				.first<OAuthAccessToken>();
+		}
 		return result ?? null;
 	}
 
@@ -43,9 +53,11 @@ export class OAuthTokenRepository {
 	async create(input: CreateOAuthTokenInput): Promise<OAuthAccessToken> {
 		const now = new Date().toISOString();
 		const id = generateUlid();
+		const tokenHash = await sha256(input.token);
 		const token: OAuthAccessToken = {
 			id,
 			token: input.token,
+			token_hash: tokenHash,
 			refresh_token: input.refresh_token ?? null,
 			application_id: input.application_id,
 			user_id: input.user_id ?? null,
@@ -58,12 +70,12 @@ export class OAuthTokenRepository {
 		await this.db
 			.prepare(
 				`INSERT INTO oauth_access_tokens (
-					id, token, refresh_token, application_id, user_id,
+					id, token_hash, refresh_token, application_id, user_id,
 					scopes, expires_at, revoked_at, created_at
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
-				token.id, token.token, token.refresh_token,
+				token.id, token.token_hash, token.refresh_token,
 				token.application_id, token.user_id,
 				token.scopes, token.expires_at, token.revoked_at,
 				token.created_at

@@ -78,6 +78,9 @@ app.post('/', async (c) => {
 		)
 		.run();
 
+	// Invalidate domain block cache
+	await c.env.CACHE.delete(`domblk:${body.domain.toLowerCase()}`);
+
 	const row = await c.env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	return c.json(formatDomainBlock(row!), 200);
 });
@@ -124,6 +127,9 @@ app.put('/:id', async (c) => {
 		)
 		.run();
 
+	// Invalidate domain block cache
+	await c.env.CACHE.delete(`domblk:${(existing.domain as string).toLowerCase()}`);
+
 	const row = await c.env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	return c.json(formatDomainBlock(row!));
 });
@@ -137,6 +143,8 @@ app.delete('/:id', async (c) => {
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	await c.env.DB.prepare('DELETE FROM domain_blocks WHERE id = ?1').bind(id).run();
+	// Invalidate domain block cache
+	await c.env.CACHE.delete(`domblk:${(existing.domain as string).toLowerCase()}`);
 	return c.json({}, 200);
 });
 

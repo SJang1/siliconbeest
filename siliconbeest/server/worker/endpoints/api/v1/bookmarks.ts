@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
+import { requireScope } from '../../../middleware/scopeCheck';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../utils/statusEnrichment';
@@ -8,7 +9,7 @@ import type { AccountRow, StatusRow } from '../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
-app.get('/', authRequired, async (c) => {
+app.get('/', authRequired, requireScope('read:bookmarks'), async (c) => {
   const account = c.get('currentAccount')!;
 
   const pag = parsePaginationParams({

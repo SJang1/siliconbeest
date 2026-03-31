@@ -9,20 +9,31 @@ app.post('/', async (c) => {
 	const token = body.token as string | undefined;
 
 	if (token) {
-		// Mark the token as revoked
-		const now = new Date().toISOString();
-		await c.env.DB.prepare(
-			`UPDATE oauth_access_tokens SET revoked_at = ?1 WHERE token = ?2 AND revoked_at IS NULL`,
-		)
-			.bind(now, token)
-			.run();
-
-		// Invalidate the KV cache for this token
+		// Compute SHA-256 hash for lookup
 		const data = new TextEncoder().encode(token);
-		const hash = await crypto.subtle.digest('SHA-256', data);
-		const hex = Array.from(new Uint8Array(hash))
+		const hashBuf = await crypto.subtle.digest('SHA-256', data);
+		const hex = Array.from(new Uint8Array(hashBuf))
 			.map((b) => b.toString(16).padStart(2, '0'))
 			.join('');
+
+		// Mark the token as revoked (try hash first, then plaintext for legacy)
+		const now = new Date().toISOString();
+		const result = await c.env.DB.prepare(
+			`UPDATE oauth_access_tokens SET revoked_at = ?1 WHERE token_hash = ?2 AND revoked_at IS NULL`,
+		)
+			.bind(now, hex)
+			.run();
+
+		if (!result.meta.changes) {
+			// Fallback for legacy plaintext tokens
+			await c.env.DB.prepare(
+				`UPDATE oauth_access_tokens SET revoked_at = ?1 WHERE token = ?2 AND revoked_at IS NULL`,
+			)
+				.bind(now, token)
+				.run();
+		}
+
+		// Invalidate the KV cache for this token
 		await c.env.CACHE.delete(`token:${hex}`);
 	}
 

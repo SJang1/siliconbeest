@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
-import { generateToken } from '../../utils/crypto';
+import { generateToken, sha256 } from '../../utils/crypto';
 import { generateUlid } from '../../utils/ulid';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -146,20 +146,21 @@ app.post('/', async (c) => {
 			.bind(authCode.id)
 			.run();
 
-		// Issue access token
+		// Issue access token — store SHA-256 hash, not plaintext
 		const accessToken = generateToken(64);
+		const tokenHash = await sha256(accessToken);
 		const tokenId = generateUlid();
 		const now = new Date().toISOString();
 
 		await c.env.DB.prepare(
-			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token, scopes, created_at)
+			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token_hash, scopes, created_at)
 			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 		)
 			.bind(
 				tokenId,
 				oauthApp.id,
 				authCode.user_id,
-				accessToken,
+				tokenHash,
 				authCode.scopes ?? scope,
 				now,
 			)
@@ -194,14 +195,15 @@ app.post('/', async (c) => {
 		}
 
 		const accessToken = generateToken(64);
+		const ccTokenHash = await sha256(accessToken);
 		const tokenId = generateUlid();
 		const now = new Date().toISOString();
 
 		await c.env.DB.prepare(
-			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token, scopes, created_at)
+			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token_hash, scopes, created_at)
 			 VALUES (?1, ?2, NULL, ?3, ?4, ?5)`,
 		)
-			.bind(tokenId, oauthApp.id, accessToken, scope, now)
+			.bind(tokenId, oauthApp.id, ccTokenHash, scope, now)
 			.run();
 
 		return c.json({

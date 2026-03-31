@@ -80,6 +80,17 @@ app.post('/', async (c) => {
   // Normalise email to lowercase for consistent lookups
   body.email = body.email.trim().toLowerCase();
 
+  // Check email domain against email_domain_blocks table
+  const emailDomain = body.email.split('@')[1];
+  if (emailDomain) {
+    const blockedDomain = await c.env.DB.prepare(
+      'SELECT 1 FROM email_domain_blocks WHERE domain = ?1 LIMIT 1',
+    ).bind(emailDomain.toLowerCase()).first();
+    if (blockedDomain) {
+      throw new AppError(422, 'Validation failed', 'Email domain is not allowed for registration');
+    }
+  }
+
   if (!body.agreement) {
     throw new AppError(422, 'Validation failed', 'Agreement must be accepted');
   }

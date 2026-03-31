@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
@@ -11,7 +12,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
-app.post('/:id/unfavourite', authRequired, async (c) => {
+app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = c.env.INSTANCE_DOMAIN;

@@ -34,6 +34,7 @@ import type { Env } from '../../env';
 import type { FedifyContextData } from '../fedify';
 import { adaptJsonLdToAPActivity } from '../helpers/activity-adapter';
 import { isEmojiReaction } from '../helpers/misskey-compat';
+import { isDomainBlocked, extractDomain } from '../helpers/domainBlock';
 
 // Import existing processors
 import { processFollow } from '../inboxProcessors/follow';
@@ -97,6 +98,29 @@ async function resolveRecipientAccountId(
 }
 
 // ============================================================
+// HELPER: Check if the actor's domain is blocked
+// ============================================================
+
+/**
+ * Check if the activity's actor domain is suspended.
+ * Returns true if the activity should be silently dropped.
+ */
+async function isActorDomainSuspended(
+	actorId: URL | null,
+	env: Env,
+): Promise<boolean> {
+	if (!actorId) return false;
+	const domain = extractDomain(actorId.href);
+	if (!domain) return false;
+	const result = await isDomainBlocked(env.DB, env.CACHE, domain);
+	if (result.blocked) {
+		console.log(`[inbox] Dropping activity from suspended domain: ${domain}`);
+		return true;
+	}
+	return false;
+}
+
+// ============================================================
 // HELPER: Convert a Fedify activity to APActivity
 // ============================================================
 
@@ -130,14 +154,16 @@ export function setupInboxListeners(
 		.on(Follow, async (ctx, follow) => {
 			console.log('[inbox] Follow received from:', follow.actorId?.href);
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(follow.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
 				console.warn('[inbox] Dropping Follow activity: Recipient not found');
 				return;
 			}
-			
+
 			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
 			const activity = await toAPActivity(follow);
 			console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
@@ -149,7 +175,9 @@ export function setupInboxListeners(
 		.on(Create, async (ctx, create) => {
 			console.log('[inbox] Create received from:', create.actorId?.href);
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(create.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -167,7 +195,9 @@ export function setupInboxListeners(
 		// ── Accept ──────────────────────────────────────────────
 		.on(Accept, async (ctx, accept) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(accept.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -183,7 +213,9 @@ export function setupInboxListeners(
 		// ── Reject ──────────────────────────────────────────────
 		.on(Reject, async (ctx, reject) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(reject.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -202,7 +234,9 @@ export function setupInboxListeners(
 		// converting to JSON-LD/APActivity format.
 		.on(Like, async (ctx, like) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(like.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -230,7 +264,9 @@ export function setupInboxListeners(
 		// ── Announce (Boost/Reblog) ─────────────────────────────
 		.on(Announce, async (ctx, announce) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(announce.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -246,7 +282,9 @@ export function setupInboxListeners(
 		// ── Delete ──────────────────────────────────────────────
 		.on(Delete, async (ctx, del) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(del.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -262,7 +300,9 @@ export function setupInboxListeners(
 		// ── Update (Person or Note) ─────────────────────────────
 		.on(Update, async (ctx, update) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(update.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -278,7 +318,9 @@ export function setupInboxListeners(
 		// ── Undo (Follow, Like, Announce, Block) ────────────────
 		.on(Undo, async (ctx, undo) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(undo.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -294,7 +336,9 @@ export function setupInboxListeners(
 		// ── Block ───────────────────────────────────────────────
 		.on(Block, async (ctx, block) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(block.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -310,7 +354,9 @@ export function setupInboxListeners(
 		// ── Move ────────────────────────────────────────────────
 		.on(Move, async (ctx, move) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(move.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -326,7 +372,19 @@ export function setupInboxListeners(
 		// ── Flag (Report) ───────────────────────────────────────
 		.on(Flag, async (ctx, flag) => {
 			const { env } = ctx.data;
-			
+
+			// For reports, also check rejectReports
+			if (flag.actorId) {
+				const domain = extractDomain(flag.actorId.href);
+				if (domain) {
+					const block = await isDomainBlocked(env.DB, env.CACHE, domain);
+					if (block.blocked || block.rejectReports) {
+						console.log(`[inbox] Dropping Flag from blocked/reject-reports domain: ${domain}`);
+						return;
+					}
+				}
+			}
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {
@@ -342,7 +400,9 @@ export function setupInboxListeners(
 		// ── EmojiReact (native Fedify type) ─────────────────────
 		.on(EmojiReact, async (ctx, emojiReact) => {
 			const { env } = ctx.data;
-			
+
+			if (await isActorDomainSuspended(emojiReact.actorId, env)) return;
+
 			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 			if (localAccountId === null) {

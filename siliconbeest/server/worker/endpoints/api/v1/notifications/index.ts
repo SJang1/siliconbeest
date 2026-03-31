@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import list from './list';
 import fetch from './fetch';
 import clear from './clear';
@@ -9,7 +10,7 @@ import dismiss from './dismiss';
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 // GET /unread_count — number of unread notifications
-app.get('/unread_count', authRequired, async (c) => {
+app.get('/unread_count', authRequired, requireScope('read:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
   const row = await c.env.DB.prepare(
     'SELECT COUNT(*) as cnt FROM notifications WHERE account_id = ?1 AND read = 0',
@@ -18,7 +19,7 @@ app.get('/unread_count', authRequired, async (c) => {
 });
 
 // POST /read — mark specific notifications as read
-app.post('/read', authRequired, async (c) => {
+app.post('/read', authRequired, requireScope('write:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
   const body = await c.req.json<{ id?: string; max_id?: string }>();
 

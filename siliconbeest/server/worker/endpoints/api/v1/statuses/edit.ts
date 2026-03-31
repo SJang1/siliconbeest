@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { sendToFollowers } from '../../../../federation/helpers/send';
 import {
@@ -61,7 +62,7 @@ function generateULID(): string {
 
 const app = new Hono<HonoEnv>();
 
-app.put('/:id', authRequired, async (c) => {
+app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentUser = c.get('currentUser')!;
   const currentAccountId = currentUser.account_id;

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { sendToFollowers } from '../../../../federation/helpers/send';
 import { Delete as APDelete, Tombstone } from '@fedify/fedify/vocab';
@@ -11,7 +12,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
-app.delete('/:id', authRequired, async (c) => {
+app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = c.env.INSTANCE_DOMAIN;

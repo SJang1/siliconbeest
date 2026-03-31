@@ -37,9 +37,23 @@ const WORKER_PREFIXES = [
   '/internal/',
 ];
 
-function isWorkerPath(pathname: string): boolean {
+function isWorkerPath(pathname: string, request: Request): boolean {
   for (const prefix of WORKER_PREFIXES) {
     if (pathname === prefix || pathname.startsWith(prefix)) {
+      // Let GET /oauth/authorize fall through to the SPA for browser requests
+      // so the Vue app can render the approval page. JSON requests and POSTs
+      // still go to the worker.
+      if (pathname.startsWith('/oauth/authorize')) {
+        const method = request.method;
+        const accept = request.headers.get('Accept') ?? '';
+        if (method === 'GET' && !accept.includes('application/json') && !accept.includes('activity+json')) {
+          // Check for bearer token — if present, this is a SPA fetch, route to worker
+          const auth = request.headers.get('Authorization');
+          if (!auth) {
+            return false; // Let SPA handle it
+          }
+        }
+      }
       return true;
     }
   }
@@ -52,7 +66,7 @@ export default {
     const pathname = url.pathname;
 
     // 1. Worker paths → Hono app (API, federation, media, etc.)
-    if (isWorkerPath(pathname)) {
+    if (isWorkerPath(pathname, request)) {
       return app.fetch(request, env, ctx);
     }
 
