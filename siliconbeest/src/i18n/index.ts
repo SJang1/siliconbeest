@@ -65,11 +65,15 @@ export const i18n = createI18n({
 });
 
 export async function loadLocale(locale: string) {
+  // English is already bundled via static import — skip dynamic load
+  if (locale === 'en') {
+    (i18n.global.locale as any).value = locale;
+    return;
+  }
   if (!(i18n.global.availableLocales as string[]).includes(locale)) {
-    const messages = await import(`./locales/${locale}.json`);
+    const messages = await import(/* @vite-ignore */ `./locales/${locale}.json`);
     i18n.global.setLocaleMessage(locale, messages.default);
   }
-  // Always switch to the requested locale
   (i18n.global.locale as any).value = locale;
 }
 
