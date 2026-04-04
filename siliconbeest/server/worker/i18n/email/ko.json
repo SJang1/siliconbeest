@@ -1,0 +1,61 @@
+{
+  "confirmation_subject": "이메일 인증 - {title}",
+  "confirmation_heading": "이메일 인증 - {title}",
+  "confirmation_body": "아래 링크를 클릭하여 이메일 주소를 인증해 주세요:",
+  "confirmation_expiry": "이 링크는 24시간 후에 만료됩니다.",
+
+  "password_reset_subject": "비밀번호 재설정",
+  "password_reset_heading": "비밀번호 재설정",
+  "password_reset_body": "아래 링크를 클릭하여 비밀번호를 재설정해 주세요:",
+  "password_reset_expiry": "이 링크는 1시간 후에 만료됩니다.",
+
+  "welcome_subject": "{title}에 오신 것을 환영합니다!",
+  "welcome_heading": "{title}에 오신 것을 환영합니다!",
+  "welcome_body": "회원님의 계정이 승인되었습니다.",
+
+  "rejection_subject": "가입 심사 결과",
+  "rejection_heading": "가입 심사 결과",
+  "rejection_body": "{title} 가입 신청이 현재 승인되지 않았습니다.",
+
+  "reason_label": "사유",
+
+  "warning_warn_subject": "계정 경고",
+  "warning_warn_heading": "계정 경고",
+  "warning_warn_description": "관리자가 회원님의 계정에 경고를 보냈습니다.",
+
+  "warning_disable_subject": "계정 동결",
+  "warning_disable_heading": "계정 동결",
+  "warning_disable_description": "관리자가 회원님의 계정을 동결했습니다. 로그인이 제한됩니다.",
+
+  "warning_silence_subject": "계정 제한",
+  "warning_silence_heading": "계정 제한",
+  "warning_silence_description": "관리자가 회원님의 계정을 제한했습니다. 게시물이 팔로워에게만 표시됩니다.",
+
+  "warning_suspend_subject": "계정 정지",
+  "warning_suspend_heading": "계정 정지",
+  "warning_suspend_description": "관리자가 회원님의 계정을 정지했습니다. 더 이상 이 계정을 사용할 수 없습니다.",
+
+  "warning_sensitive_subject": "미디어 민감 표시",
+  "warning_sensitive_heading": "미디어 민감 표시",
+  "warning_sensitive_description": "관리자가 회원님의 미디어를 민감한 콘텐츠로 표시했습니다.",
+
+  "warning_none_subject": "계정 경고",
+  "warning_none_heading": "계정 경고",
+  "warning_none_description": "관리자가 회원님의 계정에 경고를 보냈습니다.",
+
+  "warning_unsuspend_subject": "계정 정지 해제",
+  "warning_unsuspend_heading": "계정 정지 해제",
+  "warning_unsuspend_description": "회원님의 계정 정지가 해제되었습니다. 다시 계정을 사용하실 수 있습니다.",
+
+  "warning_unsilence_subject": "계정 제한 해제",
+  "warning_unsilence_heading": "계정 제한 해제",
+  "warning_unsilence_description": "회원님의 계정 제한이 해제되었습니다. 게시물이 다시 모든 사람에게 표시됩니다.",
+
+  "warning_enable_subject": "계정 재활성화",
+  "warning_enable_heading": "계정 재활성화",
+  "warning_enable_description": "회원님의 계정이 재활성화되었습니다. 다시 로그인하실 수 있습니다.",
+
+  "warning_unsensitize_subject": "미디어 민감 표시 해제",
+  "warning_unsensitize_heading": "미디어 민감 표시 해제",
+  "warning_unsensitize_description": "회원님의 미디어에 대한 민감 콘텐츠 표시가 해제되었습니다."
+}

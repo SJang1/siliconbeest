@@ -1,0 +1,61 @@
+{
+  "confirmation_subject": "驗證您的電子郵件 - {title}",
+  "confirmation_heading": "驗證您的電子郵件 - {title}",
+  "confirmation_body": "請點擊以下連結驗證您的電子郵件地址：",
+  "confirmation_expiry": "此連結將在24小時後失效。",
+
+  "password_reset_subject": "重設密碼",
+  "password_reset_heading": "重設密碼",
+  "password_reset_body": "請點擊以下連結重設您的密碼：",
+  "password_reset_expiry": "此連結將在1小時後失效。",
+
+  "welcome_subject": "歡迎加入 {title}！",
+  "welcome_heading": "歡迎加入 {title}！",
+  "welcome_body": "您的帳號已通過審核。",
+
+  "rejection_subject": "註冊審核結果",
+  "rejection_heading": "註冊審核結果",
+  "rejection_body": "您在 {title} 的註冊申請目前未獲通過。",
+
+  "reason_label": "原因",
+
+  "warning_warn_subject": "帳號警告",
+  "warning_warn_heading": "帳號警告",
+  "warning_warn_description": "管理員向您的帳號發送了一則警告。",
+
+  "warning_disable_subject": "帳號已凍結",
+  "warning_disable_heading": "帳號已凍結",
+  "warning_disable_description": "管理員已凍結您的帳號，登入將受到限制。",
+
+  "warning_silence_subject": "帳號已限制",
+  "warning_silence_heading": "帳號已限制",
+  "warning_silence_description": "管理員已限制您的帳號，您的貼文僅對追蹤者可見。",
+
+  "warning_suspend_subject": "帳號已停權",
+  "warning_suspend_heading": "帳號已停權",
+  "warning_suspend_description": "管理員已停權您的帳號，您將無法再使用此帳號。",
+
+  "warning_sensitive_subject": "媒體已標記為敏感內容",
+  "warning_sensitive_heading": "媒體已標記為敏感內容",
+  "warning_sensitive_description": "管理員已將您的媒體標記為敏感內容。",
+
+  "warning_none_subject": "帳號警告",
+  "warning_none_heading": "帳號警告",
+  "warning_none_description": "管理員向您的帳號發送了一則警告。",
+
+  "warning_unsuspend_subject": "帳號已恢復",
+  "warning_unsuspend_heading": "帳號已恢復",
+  "warning_unsuspend_description": "您的帳號停權已被解除，您可以重新使用帳號。",
+
+  "warning_unsilence_subject": "帳號限制已解除",
+  "warning_unsilence_heading": "帳號限制已解除",
+  "warning_unsilence_description": "您的帳號限制已被解除，貼文將重新對所有人可見。",
+
+  "warning_enable_subject": "帳號已重新啟用",
+  "warning_enable_heading": "帳號已重新啟用",
+  "warning_enable_description": "您的帳號已重新啟用，您可以重新登入。",
+
+  "warning_unsensitize_subject": "敏感媒體標記已移除",
+  "warning_unsensitize_heading": "敏感媒體標記已移除",
+  "warning_unsensitize_description": "您的媒體的敏感內容標記已被移除。"
+}

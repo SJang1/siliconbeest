@@ -1,0 +1,61 @@
+{
+  "confirmation_subject": "验证您的邮箱 - {title}",
+  "confirmation_heading": "验证您的邮箱 - {title}",
+  "confirmation_body": "请点击以下链接验证您的邮箱地址：",
+  "confirmation_expiry": "此链接将在24小时后过期。",
+
+  "password_reset_subject": "重置密码",
+  "password_reset_heading": "重置密码",
+  "password_reset_body": "请点击以下链接重置您的密码：",
+  "password_reset_expiry": "此链接将在1小时后过期。",
+
+  "welcome_subject": "欢迎加入 {title}！",
+  "welcome_heading": "欢迎加入 {title}！",
+  "welcome_body": "您的账号已被批准。",
+
+  "rejection_subject": "注册审核结果",
+  "rejection_heading": "注册审核结果",
+  "rejection_body": "您在 {title} 的注册申请暂未通过审核。",
+
+  "reason_label": "原因",
+
+  "warning_warn_subject": "账号警告",
+  "warning_warn_heading": "账号警告",
+  "warning_warn_description": "管理员向您的账号发送了一条警告。",
+
+  "warning_disable_subject": "账号已冻结",
+  "warning_disable_heading": "账号已冻结",
+  "warning_disable_description": "管理员已冻结您的账号，登录将受到限制。",
+
+  "warning_silence_subject": "账号已限制",
+  "warning_silence_heading": "账号已限制",
+  "warning_silence_description": "管理员已限制您的账号，您的帖子仅对关注者可见。",
+
+  "warning_suspend_subject": "账号已停用",
+  "warning_suspend_heading": "账号已停用",
+  "warning_suspend_description": "管理员已停用您的账号，您将无法再使用此账号。",
+
+  "warning_sensitive_subject": "媒体已标记为敏感内容",
+  "warning_sensitive_heading": "媒体已标记为敏感内容",
+  "warning_sensitive_description": "管理员已将您的媒体标记为敏感内容。",
+
+  "warning_none_subject": "账号警告",
+  "warning_none_heading": "账号警告",
+  "warning_none_description": "管理员向您的账号发送了一条警告。",
+
+  "warning_unsuspend_subject": "账号已恢复",
+  "warning_unsuspend_heading": "账号已恢复",
+  "warning_unsuspend_description": "您的账号封禁已被解除，您可以重新使用账号。",
+
+  "warning_unsilence_subject": "账号限制已解除",
+  "warning_unsilence_heading": "账号限制已解除",
+  "warning_unsilence_description": "您的账号限制已被解除，帖子将重新对所有人可见。",
+
+  "warning_enable_subject": "账号已重新激活",
+  "warning_enable_heading": "账号已重新激活",
+  "warning_enable_description": "您的账号已重新激活，您可以重新登录。",
+
+  "warning_unsensitize_subject": "敏感媒体标记已移除",
+  "warning_unsensitize_heading": "敏感媒体标记已移除",
+  "warning_unsensitize_description": "您的媒体的敏感内容标记已被移除。"
+}

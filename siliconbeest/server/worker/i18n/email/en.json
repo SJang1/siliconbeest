@@ -1,0 +1,61 @@
+{
+  "confirmation_subject": "Confirm your email - {title}",
+  "confirmation_heading": "Confirm your email - {title}",
+  "confirmation_body": "Click the link below to confirm your email address:",
+  "confirmation_expiry": "This link expires in 24 hours.",
+
+  "password_reset_subject": "Reset your password",
+  "password_reset_heading": "Password Reset",
+  "password_reset_body": "Click the link below to reset your password:",
+  "password_reset_expiry": "This link expires in 1 hour.",
+
+  "welcome_subject": "Welcome to {title}!",
+  "welcome_heading": "Welcome to {title}!",
+  "welcome_body": "Your account has been approved.",
+
+  "rejection_subject": "Registration update",
+  "rejection_heading": "Registration Update",
+  "rejection_body": "Your registration at {title} was not approved at this time.",
+
+  "reason_label": "Reason",
+
+  "warning_warn_subject": "Account Warning",
+  "warning_warn_heading": "Account Warning",
+  "warning_warn_description": "An administrator has sent a warning to your account.",
+
+  "warning_disable_subject": "Account Frozen",
+  "warning_disable_heading": "Account Frozen",
+  "warning_disable_description": "An administrator has frozen your account. Login is restricted.",
+
+  "warning_silence_subject": "Account Limited",
+  "warning_silence_heading": "Account Limited",
+  "warning_silence_description": "An administrator has limited your account. Your posts will only be visible to your followers.",
+
+  "warning_suspend_subject": "Account Suspended",
+  "warning_suspend_heading": "Account Suspended",
+  "warning_suspend_description": "An administrator has suspended your account. You can no longer use this account.",
+
+  "warning_sensitive_subject": "Media Marked Sensitive",
+  "warning_sensitive_heading": "Media Marked Sensitive",
+  "warning_sensitive_description": "An administrator has marked your media as sensitive content.",
+
+  "warning_none_subject": "Account Warning",
+  "warning_none_heading": "Account Warning",
+  "warning_none_description": "An administrator has sent a warning to your account.",
+
+  "warning_unsuspend_subject": "Account Reinstated",
+  "warning_unsuspend_heading": "Account Reinstated",
+  "warning_unsuspend_description": "Your account suspension has been lifted. You can use your account again.",
+
+  "warning_unsilence_subject": "Account Restriction Lifted",
+  "warning_unsilence_heading": "Account Restriction Lifted",
+  "warning_unsilence_description": "The limitation on your account has been removed. Your posts are now visible to everyone again.",
+
+  "warning_enable_subject": "Account Reactivated",
+  "warning_enable_heading": "Account Reactivated",
+  "warning_enable_description": "Your account has been reactivated. You can log in again.",
+
+  "warning_unsensitize_subject": "Sensitive Media Flag Removed",
+  "warning_unsensitize_heading": "Sensitive Media Flag Removed",
+  "warning_unsensitize_description": "The sensitive content flag on your media has been removed."
+}

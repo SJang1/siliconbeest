@@ -1,0 +1,61 @@
+{
+  "confirmation_subject": "メール認証 - {title}",
+  "confirmation_heading": "メール認証 - {title}",
+  "confirmation_body": "以下のリンクをクリックして、メールアドレスを認証してください：",
+  "confirmation_expiry": "このリンクは24時間後に期限切れになります。",
+
+  "password_reset_subject": "パスワードリセット",
+  "password_reset_heading": "パスワードリセット",
+  "password_reset_body": "以下のリンクをクリックして、パスワードをリセットしてください：",
+  "password_reset_expiry": "このリンクは1時間後に期限切れになります。",
+
+  "welcome_subject": "{title}へようこそ！",
+  "welcome_heading": "{title}へようこそ！",
+  "welcome_body": "アカウントが承認されました。",
+
+  "rejection_subject": "登録審査結果",
+  "rejection_heading": "登録審査結果",
+  "rejection_body": "{title}への登録は現在承認されませんでした。",
+
+  "reason_label": "理由",
+
+  "warning_warn_subject": "アカウント警告",
+  "warning_warn_heading": "アカウント警告",
+  "warning_warn_description": "管理者からアカウントに警告が送信されました。",
+
+  "warning_disable_subject": "アカウント凍結",
+  "warning_disable_heading": "アカウント凍結",
+  "warning_disable_description": "管理者によりアカウントが凍結されました。ログインが制限されます。",
+
+  "warning_silence_subject": "アカウント制限",
+  "warning_silence_heading": "アカウント制限",
+  "warning_silence_description": "管理者によりアカウントが制限されました。投稿はフォロワーにのみ表示されます。",
+
+  "warning_suspend_subject": "アカウント停止",
+  "warning_suspend_heading": "アカウント停止",
+  "warning_suspend_description": "管理者によりアカウントが停止されました。このアカウントは使用できなくなりました。",
+
+  "warning_sensitive_subject": "メディアのセンシティブ指定",
+  "warning_sensitive_heading": "メディアのセンシティブ指定",
+  "warning_sensitive_description": "管理者によりメディアがセンシティブなコンテンツとして指定されました。",
+
+  "warning_none_subject": "アカウント警告",
+  "warning_none_heading": "アカウント警告",
+  "warning_none_description": "管理者からアカウントに警告が送信されました。",
+
+  "warning_unsuspend_subject": "アカウント停止解除",
+  "warning_unsuspend_heading": "アカウント停止解除",
+  "warning_unsuspend_description": "アカウントの停止が解除されました。再びアカウントをご利用いただけます。",
+
+  "warning_unsilence_subject": "アカウント制限解除",
+  "warning_unsilence_heading": "アカウント制限解除",
+  "warning_unsilence_description": "アカウントの制限が解除されました。投稿が再び全員に表示されます。",
+
+  "warning_enable_subject": "アカウント再有効化",
+  "warning_enable_heading": "アカウント再有効化",
+  "warning_enable_description": "アカウントが再有効化されました。再びログインできます。",
+
+  "warning_unsensitize_subject": "メディアのセンシティブ指定解除",
+  "warning_unsensitize_heading": "メディアのセンシティブ指定解除",
+  "warning_unsensitize_description": "メディアのセンシティブコンテンツ指定が解除されました。"
+}
