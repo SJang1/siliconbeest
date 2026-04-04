@@ -319,7 +319,7 @@
     "push_reblog": "转发",
     "push_poll": "投票",
     "push_status": "新帖文",
-    "ios_pwa_notice": "在 iOS 上，推送通知仅在将应用添加到主屏幕（PWA）后通过 Safari 使用时有效。请检查"设置 > Safari > 高级 > 推送 API"是否已启用。",
+    "ios_pwa_notice": "在 iOS 上，推送通知仅在将应用添加到主屏幕（PWA）后通过 Safari 使用时有效。请检查「设置 > Safari > 高级 > 推送 API」是否已启用。",
     "notif_filter_title": "通知过滤",
     "notif_filter_description": "选择要显示的通知类型。"
   },
