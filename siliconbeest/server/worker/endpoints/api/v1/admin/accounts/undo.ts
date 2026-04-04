@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../../utils/ulid';
+import { sendAccountWarning } from '../../../../../services/email';
+import { sanitizeLocale } from '../../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -28,6 +30,14 @@ app.post('/:id/unsuspend', async (c) => {
 		.bind(warningId, currentUser.account_id, id, 'unsuspend', '', now)
 		.run();
 
+	// Send notification email
+	const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
+	if (user?.email) {
+		try {
+			await sendAccountWarning(c.env, user.email, 'unsuspend', '', sanitizeLocale(user.locale));
+		} catch { /* best-effort */ }
+	}
+
 	return c.json({}, 200);
 });
 
@@ -51,6 +61,13 @@ app.post('/:id/unsilence', async (c) => {
 	)
 		.bind(warningId, currentUser.account_id, id, 'unsilence', '', now)
 		.run();
+
+	const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
+	if (user?.email) {
+		try {
+			await sendAccountWarning(c.env, user.email, 'unsilence', '', sanitizeLocale(user.locale));
+		} catch { /* best-effort */ }
+	}
 
 	return c.json({}, 200);
 });
@@ -76,6 +93,13 @@ app.post('/:id/enable', async (c) => {
 		.bind(warningId, currentUser.account_id, id, 'enable', '', now)
 		.run();
 
+	const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
+	if (user?.email) {
+		try {
+			await sendAccountWarning(c.env, user.email, 'enable', '', sanitizeLocale(user.locale));
+		} catch { /* best-effort */ }
+	}
+
 	return c.json({}, 200);
 });
 
@@ -99,6 +123,13 @@ app.post('/:id/unsensitize', async (c) => {
 	)
 		.bind(warningId, currentUser.account_id, id, 'unsensitize', '', now)
 		.run();
+
+	const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
+	if (user?.email) {
+		try {
+			await sendAccountWarning(c.env, user.email, 'unsensitize', '', sanitizeLocale(user.locale));
+		} catch { /* best-effort */ }
+	}
 
 	return c.json({}, 200);
 });
