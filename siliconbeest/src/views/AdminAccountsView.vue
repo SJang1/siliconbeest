@@ -143,6 +143,15 @@ async function handleAction(account: AdminAccount, action: string) {
     } else if (action === 'unsensitize') {
       actionMessage.value = t('admin_accounts.unsensitized')
       await loadAccounts()
+    } else if (action === 'silence') {
+      actionMessage.value = t('admin_accounts.silenced')
+      await loadAccounts()
+    } else if (action === 'suspend') {
+      actionMessage.value = t('admin_accounts.suspended')
+      await loadAccounts()
+    } else if (action === 'disable') {
+      actionMessage.value = t('admin_accounts.disabled')
+      await loadAccounts()
     } else {
       await loadAccounts()
     }

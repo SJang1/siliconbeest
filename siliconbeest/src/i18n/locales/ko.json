@@ -659,7 +659,10 @@
     "email_to": "받는 사람",
     "email_subject": "제목",
     "email_body": "내용",
-    "search_placeholder": "사용자명 또는 이메일로 검색..."
+    "search_placeholder": "사용자명 또는 이메일로 검색...",
+    "silenced": "계정이 제한되었습니다.",
+    "suspended": "계정이 정지되었습니다.",
+    "disabled": "계정이 비활성화되었습니다."
   },
   "lists": {
     "create": "만들기",
