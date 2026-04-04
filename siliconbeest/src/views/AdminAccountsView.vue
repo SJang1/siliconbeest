@@ -21,6 +21,7 @@ interface AdminAccount {
   silenced: boolean
   suspended: boolean
   confirmed: boolean
+  invite_request: string | null
 }
 
 const accounts = ref<AdminAccount[]>([])
@@ -200,9 +201,15 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
             :key="account.id"
             class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30"
           >
-            <td class="px-4 py-3 font-medium">
-              {{ account.username }}
-              <span v-if="account.domain" class="text-gray-400">@{{ account.domain }}</span>
+            <td class="px-4 py-3">
+              <div class="font-medium">
+                {{ account.username }}
+                <span v-if="account.domain" class="text-gray-400">@{{ account.domain }}</span>
+              </div>
+              <div v-if="!account.approved && account.invite_request" class="mt-1 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1">
+                <span class="font-medium text-gray-600 dark:text-gray-300">{{ t('auth.signup_reason') }}</span>
+                {{ account.invite_request }}
+              </div>
             </td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ account.email || '-' }}</td>
             <td class="px-4 py-3">
