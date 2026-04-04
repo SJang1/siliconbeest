@@ -105,7 +105,7 @@ const colorClasses: Record<string, string> = {
         <div class="flex justify-between">
           <dt class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.registrations') }}</dt>
           <dd class="text-sm font-medium text-gray-900 dark:text-white">
-            {{ instanceStore.instance.registrations.enabled ? t('admin.registrationMode.open') : t('admin.registrationMode.closed') }}
+            {{ !instanceStore.instance.registrations.enabled ? t('admin.registrationMode.closed') : instanceStore.instance.registrations.approval_required ? t('admin.registrationMode.approval') : t('admin.registrationMode.open') }}
           </dd>
         </div>
       </dl>
