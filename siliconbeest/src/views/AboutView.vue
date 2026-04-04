@@ -71,7 +71,7 @@ onMounted(async () => {
                 <span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold">
                   {{ index + 1 }}
                 </span>
-                <span>{{ rule.text }}</span>
+                <span class="whitespace-pre-line">{{ rule.text }}</span>
               </li>
             </ol>
           </div>

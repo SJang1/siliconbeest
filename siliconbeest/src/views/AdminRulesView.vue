@@ -168,7 +168,7 @@ async function deleteRule(id: string) {
         <span class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-bold">
           {{ index + 1 }}
         </span>
-        <p class="flex-1 text-sm text-gray-900 dark:text-white">{{ rule.text }}</p>
+        <p class="flex-1 text-sm text-gray-900 dark:text-white whitespace-pre-line">{{ rule.text }}</p>
         <div class="flex gap-1">
           <button class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" @click="openEdit(rule)">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

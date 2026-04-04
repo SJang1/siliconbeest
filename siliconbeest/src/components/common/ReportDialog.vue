@@ -126,7 +126,7 @@ async function submit() {
               @change="toggleRule(rule.id)"
               class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
             />
-            <span class="text-sm text-gray-800 dark:text-gray-200">{{ rule.text }}</span>
+            <span class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ rule.text }}</span>
           </label>
         </div>
       </fieldset>
