@@ -578,7 +578,7 @@
     "feature_federated": "連合",
     "feature_federated_desc": "Mastodon、Misskey、その他数千のサーバーのユーザーとつながりましょう。",
     "feature_privacy": "プライバシーとセキュリティ",
-    "feature_privacy_desc": "あなたのデータはこのサーバーに保管されます。トラッキングも広告もアルゴリズムもありません。",
+    "feature_privacy_desc": "トラッキングも広告もアルゴリズムもありません。公開投稿は他のサーバーに連合されます。",
     "feature_community": "コミュニティ",
     "feature_community_desc": "会話に参加し、アイデアを共有し、意味のあるつながりを築きましょう。",
     "users": "{count}人のアクティブユーザー",

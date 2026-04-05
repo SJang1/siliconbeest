@@ -578,7 +578,7 @@
     "feature_federated": "联邦互通",
     "feature_federated_desc": "与 Mastodon、Misskey 以及数千个其他服务器上的用户互联互通。",
     "feature_privacy": "隐私与安全",
-    "feature_privacy_desc": "您的数据保留在本服务器。没有追踪，没有广告，没有算法。",
+    "feature_privacy_desc": "没有追踪，没有广告，没有算法。公开帖子会联合到其他服务器。",
     "feature_community": "社区",
     "feature_community_desc": "参与对话，分享想法，建立有意义的联系。",
     "users": "{count} 位活跃用户",

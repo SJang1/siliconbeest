@@ -578,7 +578,7 @@
     "feature_federated": "Federated",
     "feature_federated_desc": "Connect with users across Mastodon, Misskey, and thousands of other servers.",
     "feature_privacy": "Private & Secure",
-    "feature_privacy_desc": "Your data stays on this server. No tracking, no ads, no algorithms.",
+    "feature_privacy_desc": "No tracking, no ads, no algorithms. Public posts are federated to other servers.",
     "feature_community": "Community",
     "feature_community_desc": "Join conversations, share ideas, and build meaningful connections.",
     "users": "{count} active users",

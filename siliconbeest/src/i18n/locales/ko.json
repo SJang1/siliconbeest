@@ -578,7 +578,7 @@
     "feature_federated": "연합",
     "feature_federated_desc": "Mastodon, Misskey 등 수천 개의 서버 사용자와 소통하세요.",
     "feature_privacy": "프라이버시",
-    "feature_privacy_desc": "데이터는 이 서버에만 저장됩니다. 추적, 광고, 알고리즘 없음.",
+    "feature_privacy_desc": "추적, 광고, 알고리즘 없음. 공개 게시물은 다른 서버로 연합됩니다.",
     "feature_community": "커뮤니티",
     "feature_community_desc": "대화에 참여하고, 아이디어를 공유하고, 의미 있는 연결을 만드세요.",
     "users": "활성 사용자 {count}명",

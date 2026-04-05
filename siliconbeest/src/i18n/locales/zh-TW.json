@@ -578,7 +578,7 @@
     "feature_federated": "聯邦式",
     "feature_federated_desc": "與 Mastodon、Misskey 及數千個其他伺服器上的使用者互聯互通。",
     "feature_privacy": "隱私與安全",
-    "feature_privacy_desc": "您的資料留在此伺服器上。無追蹤、無廣告、無演算法。",
+    "feature_privacy_desc": "無追蹤、無廣告、無演算法。公開貼文會聯合到其他伺服器。",
     "feature_community": "社群",
     "feature_community_desc": "參與對話、分享想法，建立有意義的連結。",
     "users": "{count} 位活躍使用者",
