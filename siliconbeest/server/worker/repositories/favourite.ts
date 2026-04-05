@@ -97,6 +97,29 @@ export class FavouriteRepository {
 			.run();
 	}
 
+	/**
+	 * Find a favourite by its ActivityPub URI.
+	 * Used by Undo(Like) processing.
+	 */
+	async findByUri(uri: string): Promise<Favourite | null> {
+		const result = await this.db
+			.prepare('SELECT * FROM favourites WHERE uri = ?')
+			.bind(uri)
+			.first<Favourite>();
+		return result ?? null;
+	}
+
+	/**
+	 * Delete a favourite by account and status IDs.
+	 * Used by Undo(Like) processing when URI lookup fails.
+	 */
+	async deleteByAccountAndStatus(accountId: string, statusId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
+			.bind(accountId, statusId)
+			.run();
+	}
+
 	async countByStatus(statusId: string): Promise<number> {
 		const result = await this.db
 			.prepare('SELECT COUNT(*) as count FROM favourites WHERE status_id = ?')

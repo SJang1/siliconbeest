@@ -237,6 +237,65 @@ export class StatusRepository {
 			.run();
 	}
 
+	/**
+	 * Increment a count field atomically. Used by federation inbox processors
+	 * (like, announce, create) to update counts without race conditions.
+	 */
+	async incrementCount(id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> {
+		await this.db
+			.prepare(`UPDATE statuses SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
+			.bind(new Date().toISOString(), id)
+			.run();
+	}
+
+	/**
+	 * Decrement a count field atomically, flooring at 0.
+	 */
+	async decrementCount(id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> {
+		await this.db
+			.prepare(`UPDATE statuses SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
+			.bind(new Date().toISOString(), id)
+			.run();
+	}
+
+	/**
+	 * Soft-delete all statuses by account (used when deleting remote actors).
+	 */
+	async softDeleteByAccount(accountId: string): Promise<void> {
+		const now = new Date().toISOString();
+		await this.db
+			.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL')
+			.bind(now, now, accountId)
+			.run();
+	}
+
+	/**
+	 * Find a status by URI including deleted statuses (for processing Delete activities).
+	 */
+	async findByUriIncludeDeleted(uri: string): Promise<Status | null> {
+		const result = await this.db
+			.prepare('SELECT * FROM statuses WHERE uri = ?')
+			.bind(uri)
+			.first<Status>();
+		return result ?? null;
+	}
+
+	/**
+	 * Find a status with its parent info (for reply threading).
+	 */
+	async findWithParent(id: string): Promise<(Status & { parent_account_id?: string }) | null> {
+		const result = await this.db
+			.prepare(
+				`SELECT s.*, ps.account_id as parent_account_id
+				 FROM statuses s
+				 LEFT JOIN statuses ps ON ps.id = s.in_reply_to_id
+				 WHERE s.id = ? AND s.deleted_at IS NULL`
+			)
+			.bind(id)
+			.first<Status & { parent_account_id?: string }>();
+		return result ?? null;
+	}
+
 	async findContext(statusId: string): Promise<{ ancestors: Status[]; descendants: Status[] }> {
 		// Find ancestors by walking up in_reply_to_id chain
 		const ancestors: Status[] = [];

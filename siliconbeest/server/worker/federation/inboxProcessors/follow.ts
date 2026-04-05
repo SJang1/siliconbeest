@@ -11,6 +11,7 @@ import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { buildAcceptActivity } from '../helpers/build-activity';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
+import { AccountRepository } from '../../repositories/account';
 
 export async function processFollow(
 	activity: APActivity,
@@ -25,14 +26,10 @@ export async function processFollow(
 		return;
 	}
 
-	// Resolve the local target account
-	const targetAccount = await env.DB.prepare(
-		`SELECT id, manually_approves_followers, uri FROM accounts
-		 WHERE uri = ?1 AND domain IS NULL LIMIT 1`,
-	)
-		.bind(targetUri)
-		.first<{ id: string; manually_approves_followers: number; uri: string }>();
+	const accountRepo = new AccountRepository(env.DB);
 
+	// Resolve the local target account
+	const targetAccount = await accountRepo.findLocalByUri(targetUri);
 	if (!targetAccount) {
 		console.warn(`[follow] Target account not found locally: ${targetUri}`);
 		return;
@@ -85,14 +82,8 @@ export async function processFollow(
 		}
 
 		// Update follower/following counts
-		await env.DB.batch([
-			env.DB.prepare(
-				`UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1`,
-			).bind(targetAccount.id),
-			env.DB.prepare(
-				`UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1`,
-			).bind(followerAccountId),
-		]);
+		await accountRepo.incrementCount(targetAccount.id, 'followers_count');
+		await accountRepo.incrementCount(followerAccountId, 'following_count');
 
 		// Notify target about the new follower
 		await env.QUEUE_INTERNAL.send({
@@ -106,14 +97,11 @@ export async function processFollow(
 		const acceptJson = await buildAcceptActivity(targetAccount.uri, activity as unknown as Record<string, unknown>, activity.actor);
 
 		// Look up the remote actor's inbox to deliver the Accept
-		const remoteActor = await env.DB.prepare(
-			`SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1 LIMIT 1`,
-		)
-			.bind(followerAccountId)
-			.first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
-
+		const remoteActor = await accountRepo.findById(followerAccountId);
 		if (remoteActor) {
-			const followerInbox = remoteActor.inbox_url || remoteActor.shared_inbox_url || `https://${remoteActor.domain}/inbox`;
+			const followerInbox = remoteActor.inbox_url
+				|| remoteActor.shared_inbox_url
+				|| `https://${remoteActor.domain}/inbox`;
 
 			await env.QUEUE_FEDERATION.send({
 				type: 'deliver_activity',

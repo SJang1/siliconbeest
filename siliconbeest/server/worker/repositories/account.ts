@@ -12,6 +12,8 @@ export interface Account {
 	avatar_static_url: string;
 	header_url: string;
 	header_static_url: string;
+	inbox_url: string | null;
+	shared_inbox_url: string | null;
 	locked: number;
 	bot: number;
 	discoverable: number;
@@ -94,6 +96,8 @@ export class AccountRepository {
 			avatar_static_url: input.avatar_static_url ?? '',
 			header_url: input.header_url ?? '',
 			header_static_url: input.header_static_url ?? '',
+			inbox_url: input.inbox_url ?? null,
+			shared_inbox_url: input.shared_inbox_url ?? null,
 			locked: input.locked ?? 0,
 			bot: input.bot ?? 0,
 			discoverable: input.discoverable ?? 1,
@@ -115,17 +119,19 @@ export class AccountRepository {
 				`INSERT INTO accounts (
 					id, username, domain, display_name, note, uri, url,
 					avatar_url, avatar_static_url, header_url, header_static_url,
+					inbox_url, shared_inbox_url,
 					locked, bot, discoverable, manually_approves_followers,
 					statuses_count, followers_count, following_count,
 					last_status_at, created_at, updated_at,
 					suspended_at, silenced_at, memorial, moved_to_account_id
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				account.id, account.username, account.domain,
 				account.display_name, account.note, account.uri, account.url,
 				account.avatar_url, account.avatar_static_url,
 				account.header_url, account.header_static_url,
+				account.inbox_url, account.shared_inbox_url,
 				account.locked, account.bot, account.discoverable,
 				account.manually_approves_followers,
 				account.statuses_count, account.followers_count, account.following_count,
@@ -206,6 +212,49 @@ export class AccountRepository {
 			.bind(likeQuery, likeQuery, limit, offset)
 			.all<Account>();
 		return results;
+	}
+
+	/**
+	 * Find a local account by its URI (domain IS NULL).
+	 * Used by federation processors to verify the target is a local user.
+	 */
+	async findLocalByUri(uri: string): Promise<Account | null> {
+		const result = await this.db
+			.prepare('SELECT * FROM accounts WHERE uri = ? AND domain IS NULL')
+			.bind(uri)
+			.first<Account>();
+		return result ?? null;
+	}
+
+	/**
+	 * Check if an account ID belongs to a local user.
+	 */
+	async isLocal(id: string): Promise<boolean> {
+		const result = await this.db
+			.prepare('SELECT id FROM accounts WHERE id = ? AND domain IS NULL')
+			.bind(id)
+			.first();
+		return result !== null;
+	}
+
+	/**
+	 * Increment a count field atomically. Used by federation inbox processors.
+	 */
+	async incrementCount(id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> {
+		await this.db
+			.prepare(`UPDATE accounts SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
+			.bind(new Date().toISOString(), id)
+			.run();
+	}
+
+	/**
+	 * Decrement a count field atomically, flooring at 0.
+	 */
+	async decrementCount(id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> {
+		await this.db
+			.prepare(`UPDATE accounts SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
+			.bind(new Date().toISOString(), id)
+			.run();
 	}
 
 	async findLocalAccounts(limit: number = 20, offset: number = 0): Promise<Account[]> {

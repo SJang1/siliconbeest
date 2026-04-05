@@ -9,6 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
+import { AccountRepository } from '../../repositories/account';
 
 export async function processBlock(
 	activity: APActivity,
@@ -23,25 +24,17 @@ export async function processBlock(
 		return;
 	}
 
-	// Resolve the actor (blocker)
-	const actorAccount = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(activity.actor)
-		.first<{ id: string }>();
+	const accountRepo = new AccountRepository(env.DB);
 
+	// Resolve the actor (blocker)
+	const actorAccount = await accountRepo.findByUri(activity.actor);
 	if (!actorAccount) {
 		console.warn(`[block] Actor not found: ${activity.actor}`);
 		return;
 	}
 
 	// Resolve the target (blocked user)
-	const targetAccount = await env.DB.prepare(
-		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,
-	)
-		.bind(targetUri)
-		.first<{ id: string }>();
-
+	const targetAccount = await accountRepo.findByUri(targetUri);
 	if (!targetAccount) {
 		console.warn(`[block] Target not found: ${targetUri}`);
 		return;
@@ -71,14 +64,8 @@ export async function processBlock(
 		.run();
 
 	if ((forwardFollow.meta?.changes ?? 0) > 0) {
-		await env.DB.batch([
-			env.DB.prepare(
-				`UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1`,
-			).bind(actorAccount.id),
-			env.DB.prepare(
-				`UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1`,
-			).bind(targetAccount.id),
-		]);
+		await accountRepo.decrementCount(actorAccount.id, 'following_count');
+		await accountRepo.decrementCount(targetAccount.id, 'followers_count');
 	}
 
 	// Remove follow from target -> blocker
@@ -89,14 +76,8 @@ export async function processBlock(
 		.run();
 
 	if ((reverseFollow.meta?.changes ?? 0) > 0) {
-		await env.DB.batch([
-			env.DB.prepare(
-				`UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1`,
-			).bind(targetAccount.id),
-			env.DB.prepare(
-				`UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1`,
-			).bind(actorAccount.id),
-		]);
+		await accountRepo.decrementCount(targetAccount.id, 'following_count');
+		await accountRepo.decrementCount(actorAccount.id, 'followers_count');
 	}
 
 	// Also remove pending follow_requests in both directions

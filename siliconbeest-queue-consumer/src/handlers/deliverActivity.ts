@@ -19,202 +19,8 @@ import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
 
-// ============================================================
-// PEM / CRYPTO HELPERS
-// ============================================================
-
-/**
- * Strip PEM headers/footers and base64-decode the key material.
- */
-function parsePemKey(pem: string): ArrayBuffer {
-  const lines = pem
-    .replace(/-----BEGIN [A-Z ]+-----/, '')
-    .replace(/-----END [A-Z ]+-----/, '')
-    .replace(/\r?\n/g, '')
-    .trim();
-  const binaryString = atob(lines);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-/**
- * Import a PKCS8-encoded PEM private key for RSASSA-PKCS1-v1_5 SHA-256 signing.
- */
-async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const keyData = parsePemKey(pem);
-  return crypto.subtle.importKey(
-    'pkcs8',
-    keyData,
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      hash: { name: 'SHA-256' },
-    },
-    false,
-    ['sign'],
-  );
-}
-
-/**
- * Helper to encode bytes to base64.
- */
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-}
-
-/**
- * Compute SHA-256 digest in the `SHA-256=base64(...)` format (draft-cavage Digest header).
- */
-async function computeDigest(body: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(body);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashBytes = new Uint8Array(hashBuffer);
-  let binary = '';
-  for (const byte of hashBytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return `SHA-256=${btoa(binary)}`;
-}
-
-/**
- * Compute Content-Digest per RFC 9530.
- * Format: `sha-256=:BASE64:` (structured field byte sequence)
- */
-async function computeContentDigest(body: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(body);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashBytes = new Uint8Array(hashBuffer);
-  let binary = '';
-  for (const byte of hashBytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return `sha-256=:${btoa(binary)}:`;
-}
-
-// ============================================================
-// DRAFT-CAVAGE SIGNING
-// ============================================================
-
-/**
- * Sign an outgoing HTTP request using draft-cavage-http-signatures.
- */
-async function signRequestCavage(
-  privateKeyPem: string,
-  keyId: string,
-  url: string,
-  body: string,
-): Promise<Record<string, string>> {
-  const parsedUrl = new URL(url);
-  const date = new Date().toUTCString();
-  const host = parsedUrl.host;
-  const requestTarget = `post ${parsedUrl.pathname}${parsedUrl.search}`;
-
-  const digest = await computeDigest(body);
-
-  const signedHeaderNames = ['(request-target)', 'host', 'date', 'digest', 'content-type'];
-  const signingParts = [
-    `(request-target): ${requestTarget}`,
-    `host: ${host}`,
-    `date: ${date}`,
-    `digest: ${digest}`,
-    `content-type: application/activity+json`,
-  ];
-  const signingString = signingParts.join('\n');
-
-  // Sign with RSA
-  const privateKey = await importPrivateKey(privateKeyPem);
-  const encoder = new TextEncoder();
-  const signatureBuffer = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    privateKey,
-    encoder.encode(signingString),
-  );
-  const signatureBase64 = bytesToBase64(new Uint8Array(signatureBuffer));
-
-  const signatureHeader =
-    `keyId="${keyId}",algorithm="rsa-sha256",headers="${signedHeaderNames.join(' ')}",signature="${signatureBase64}"`;
-
-  return {
-    Host: host,
-    Date: date,
-    Digest: digest,
-    'Content-Type': 'application/activity+json',
-    Signature: signatureHeader,
-  };
-}
-
-// ============================================================
-// RFC 9421 SIGNING
-// ============================================================
-
-/**
- * Sign an outgoing HTTP request using RFC 9421 HTTP Message Signatures.
- *
- * Uses derived components (@method, @target-uri, @authority) and
- * Content-Digest / Content-Type headers. Produces `Signature-Input`
- * and `Signature` headers in structured field format.
- */
-async function signRequestRFC9421(
-  privateKeyPem: string,
-  keyId: string,
-  url: string,
-  body: string,
-): Promise<Record<string, string>> {
-  const parsedUrl = new URL(url);
-  const date = new Date().toUTCString();
-  const created = Math.floor(Date.now() / 1000);
-
-  const contentDigest = await computeContentDigest(body);
-
-  // Components to sign
-  const components = ['@method', '@target-uri', '@authority', 'content-digest', 'content-type'];
-  const componentValues: Record<string, string> = {
-    '@method': 'POST',
-    '@target-uri': url,
-    '@authority': parsedUrl.host,
-    'content-digest': contentDigest,
-    'content-type': 'application/activity+json',
-  };
-
-  // Build the signature-params value
-  const componentList = components.map((c) => `"${c}"`).join(' ');
-  const signatureParamsValue = `(${componentList});created=${created};keyid="${keyId}";alg="rsa-v1_5-sha256"`;
-
-  // Build the signature base
-  const lines: string[] = [];
-  for (const component of components) {
-    lines.push(`"${component}": ${componentValues[component]}`);
-  }
-  lines.push(`"@signature-params": ${signatureParamsValue}`);
-  const signatureBase = lines.join('\n');
-
-  // Sign with RSA
-  const privateKey = await importPrivateKey(privateKeyPem);
-  const encoder = new TextEncoder();
-  const signatureBuffer = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    privateKey,
-    encoder.encode(signatureBase),
-  );
-  const signatureBase64 = bytesToBase64(new Uint8Array(signatureBuffer));
-
-  return {
-    Host: parsedUrl.host,
-    Date: date,
-    'Content-Digest': contentDigest,
-    'Content-Type': 'application/activity+json',
-    'Signature-Input': `sig1=${signatureParamsValue}`,
-    Signature: `sig1=:${signatureBase64}:`,
-  };
-}
+// Crypto and signing utilities from shared package (consolidates previously duplicated code)
+import { signRequestCavage, signRequestRFC9421 } from '../../../packages/shared/crypto';
 
 // ============================================================
 // SIGNATURE PREFERENCE CACHE
@@ -316,7 +122,7 @@ export async function handleDeliverActivity(
     // Domain is known to prefer draft-cavage — try it first
     const headers = await measureAsync(
       'deliverActivity.signRequestCavage',
-      () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, body),
+      () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, 'POST', body),
       { targetDomain, signatureType: 'cavage' }
     );
     response = await measureAsync(
@@ -339,7 +145,7 @@ export async function handleDeliverActivity(
       );
       const rfc9421Headers = await measureAsync(
         'deliverActivity.signRequestRFC9421',
-        () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body),
+        () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, 'POST', body),
         { targetDomain, signatureType: 'rfc9421', fallback: true }
       );
       response = await measureAsync(
@@ -364,7 +170,7 @@ export async function handleDeliverActivity(
     // Try RFC 9421 first (default or known to support it)
     const rfc9421Headers = await measureAsync(
       'deliverActivity.signRequestRFC9421',
-      () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, body),
+      () => signRequestRFC9421(keyRow.private_key, keyId, inboxUrl, 'POST', body),
       { targetDomain, signatureType: 'rfc9421' }
     );
     response = await measureAsync(
@@ -387,7 +193,7 @@ export async function handleDeliverActivity(
       );
       const cavageHeaders = await measureAsync(
         'deliverActivity.signRequestCavage',
-        () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, body),
+        () => signRequestCavage(keyRow.private_key, keyId, inboxUrl, 'POST', body),
         { targetDomain, signatureType: 'cavage', fallback: true }
       );
       response = await measureAsync(

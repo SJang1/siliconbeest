@@ -26,7 +26,7 @@ import type { Federation } from '@fedify/fedify';
 import type { Link as WebFingerLink } from '@fedify/webfinger';
 import type { FedifyContextData } from '../fedify';
 import type { AccountRow, ActorKeyRow, CustomEmojiRow } from '../../types/db';
-import { parsePemToBuffer as parsePemKey } from '../helpers/key-utils';
+import { parsePemToBuffer as parsePemKey } from '../../../../../packages/shared/crypto/keys';
 import { encodeEd25519PublicKeyMultibase, base64UrlToBytes, generateEd25519KeyPair } from '../../utils/crypto';
 
 /** Profile metadata field as stored in accounts.fields JSON column. */
