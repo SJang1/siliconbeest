@@ -1,7 +1,7 @@
 import { generateUlid } from '../utils/ulid';
 import { parseContent, type ParsedContent } from '../utils/contentParser';
 import { AppError } from '../middleware/errorHandler';
-import type { StatusRow, PollRow } from '../types/db';
+import type { StatusRow, PollRow, AccountRow } from '../types/db';
 import { serializePoll } from '../utils/mastodonSerializer';
 
 // ----------------------------------------------------------------
@@ -680,5 +680,273 @@ export async function createStatus(
     sensitive,
     spoilerText,
     language,
+  };
+}
+
+// ----------------------------------------------------------------
+// editStatus
+// ----------------------------------------------------------------
+
+export interface EditStatusData {
+  text?: string;
+  sensitive?: boolean;
+  spoilerText?: string;
+  language?: string;
+  mediaIds?: string[];
+}
+
+export interface EditStatusResult {
+  status: StatusRow;
+  content: string;
+  hashtags: string[];
+  localMentions: LocalMention[];
+  mediaAttachments: Record<string, unknown>[];
+}
+
+export async function editStatus(
+  db: D1Database,
+  domain: string,
+  statusId: string,
+  accountId: string,
+  data: EditStatusData,
+): Promise<EditStatusResult> {
+  // Fetch existing status
+  const row = await db
+    .prepare('SELECT * FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+    .bind(statusId)
+    .first();
+
+  if (!row) throw new AppError(404, 'Record not found');
+  if (row.account_id !== accountId) throw new AppError(403, 'This action is not allowed');
+
+  const now = new Date().toISOString();
+  const statusText = data.text !== undefined ? data.text.trim() : (row.text as string);
+  const sensitive = data.sensitive !== undefined ? (data.sensitive ? 1 : 0) : (row.sensitive as number);
+  const spoilerText = data.spoilerText !== undefined ? data.spoilerText : (row.content_warning as string) || '';
+  const language = data.language !== undefined ? data.language : (row.language as string) || 'en';
+  const mediaIds = data.mediaIds || [];
+
+  const parsed = parseContent(statusText, domain);
+  const content = parsed.html;
+
+  // Save current state as an edit history snapshot before applying changes
+  const { results: currentMedia } = await db
+    .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
+    .bind(statusId)
+    .all();
+  const mediaSnapshot = (currentMedia ?? []).map((m: any) => ({
+    id: m.id,
+    type: m.type || 'image',
+    url: `https://${domain}/media/${m.file_key}`,
+    preview_url: m.thumbnail_key
+      ? `https://${domain}/media/${m.thumbnail_key}`
+      : `https://${domain}/media/${m.file_key}`,
+    description: m.description || null,
+    blurhash: m.blurhash || null,
+  }));
+
+  await db
+    .prepare(
+      `INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    )
+    .bind(
+      generateUlid(),
+      statusId,
+      (row.content as string) || '',
+      (row.content_warning as string) || '',
+      row.sensitive as number,
+      JSON.stringify(mediaSnapshot),
+      (row.edited_at as string) || (row.created_at as string),
+    )
+    .run();
+
+  // -- Custom emoji detection --
+  let emojiTagsJson: string | null = null;
+  const emojiMatches = [
+    ...new Set(
+      [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g), ...(spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g)].map(
+        (m) => m[1],
+      ),
+    ),
+  ];
+  if (emojiMatches.length > 0) {
+    const placeholders = emojiMatches.map(() => '?').join(',');
+    const emojiRows = await db
+      .prepare(
+        `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
+      )
+      .bind(...emojiMatches, domain)
+      .all<{ shortcode: string; domain: string | null; image_key: string }>();
+    if (emojiRows.results.length > 0) {
+      emojiTagsJson = JSON.stringify(
+        emojiRows.results.map((e) => {
+          const isLocal = !e.domain || e.domain === domain;
+          const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
+          return { shortcode: e.shortcode, url, static_url: url };
+        }),
+      );
+    }
+  }
+
+  // Main update batch: status fields + media attachments
+  const stmts: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE statuses SET text = ?1, content = ?2, content_warning = ?3, sensitive = ?4, language = ?5, emoji_tags = ?6, edited_at = ?7, updated_at = ?7 WHERE id = ?8`,
+      )
+      .bind(statusText, content, spoilerText, sensitive, language, emojiTagsJson, now, statusId),
+  ];
+
+  for (const mediaId of mediaIds) {
+    stmts.push(
+      db
+        .prepare('UPDATE media_attachments SET status_id = ?1 WHERE id = ?2 AND account_id = ?3')
+        .bind(statusId, mediaId, accountId),
+    );
+  }
+
+  await db.batch(stmts);
+
+  // -- Hashtag batch upsert (same pattern as createStatus) --
+  const hashtags = parsed.tags;
+  await db.prepare('DELETE FROM status_tags WHERE status_id = ?1').bind(statusId).run();
+
+  if (hashtags.length > 0) {
+    const existingTags = await db
+      .prepare(`SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`)
+      .bind(...hashtags)
+      .all<{ id: string; name: string }>();
+
+    const existingTagMap = new Map(existingTags.results.map((t) => [t.name, t.id]));
+    const newTagsToInsert: Array<{ id: string; name: string }> = [];
+    const existingTagIdsToUpdate: string[] = [];
+    const allTagIds: string[] = [];
+
+    for (const tag of hashtags) {
+      let tagId: string;
+      if (existingTagMap.has(tag)) {
+        tagId = existingTagMap.get(tag)!;
+        existingTagIdsToUpdate.push(tagId);
+      } else {
+        tagId = generateUlid();
+        newTagsToInsert.push({ id: tagId, name: tag });
+      }
+      allTagIds.push(tagId);
+    }
+
+    if (existingTagIdsToUpdate.length > 0) {
+      const ph = existingTagIdsToUpdate.map(() => '?').join(',');
+      await db
+        .prepare(`UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${ph})`)
+        .bind(now, ...existingTagIdsToUpdate)
+        .run();
+    }
+
+    if (newTagsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES ';
+      newTagsToInsert.forEach((tag, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
+        values.push(tag.id, tag.name, tag.name, now);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+
+    if (allTagIds.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES ';
+      allTagIds.forEach((tagId, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
+        values.push(statusId, tagId);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  // -- Mention re-processing (batch pattern from createStatus) --
+  await db.prepare('DELETE FROM mentions WHERE status_id = ?1').bind(statusId).run();
+
+  const localMentions: LocalMention[] = [];
+  const localParsedMentions = parsed.mentions.filter((m) => !m.domain);
+
+  if (localParsedMentions.length > 0) {
+    const localUsernames = localParsedMentions.map((m) => m.username);
+    const localAccounts = await db
+      .prepare(
+        `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE username IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`,
+      )
+      .bind(...localUsernames)
+      .all<Record<string, unknown>>();
+
+    const localAccountMap = new Map<string, Record<string, unknown>>();
+    localAccounts.results.forEach((acc) => {
+      localAccountMap.set(acc.username as string, acc);
+    });
+
+    const mentionsToInsert: Array<[string, string, string, string]> = [];
+
+    for (const mention of localParsedMentions) {
+      const accountRow = localAccountMap.get(mention.username);
+      if (!accountRow) continue;
+
+      const mentionedAccountId = accountRow.id as string;
+      const mentionId = generateUlid();
+      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
+
+      localMentions.push({
+        account_id: mentionedAccountId,
+        actor_uri: (accountRow.uri as string) || '',
+        profile_url: (accountRow.url as string) || null,
+        acct: mention.acct,
+        inbox_url: (accountRow.inbox_url as string) || null,
+      });
+    }
+
+    if (mentionsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES ';
+      mentionsToInsert.forEach((mention, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
+        values.push(...mention);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  // Fetch updated status and media for response
+  const updatedStatus = (await db
+    .prepare('SELECT * FROM statuses WHERE id = ?1')
+    .bind(statusId)
+    .first()) as StatusRow;
+
+  const { results: mediaResults } = await db
+    .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
+    .bind(statusId)
+    .all();
+
+  const mediaAttachments = (mediaResults ?? []).map((m: any) => ({
+    id: m.id as string,
+    type: (m.type as string) || 'image',
+    url: `https://${domain}/media/${m.file_key}`,
+    preview_url: m.thumbnail_key
+      ? `https://${domain}/media/${m.thumbnail_key}`
+      : `https://${domain}/media/${m.file_key}`,
+    remote_url: (m.remote_url as string) || null,
+    text_url: null,
+    meta: null,
+    description: (m.description as string) || null,
+    blurhash: (m.blurhash as string) || null,
+  }));
+
+  return {
+    status: updatedStatus,
+    content,
+    hashtags,
+    localMentions,
+    mediaAttachments,
   };
 }
