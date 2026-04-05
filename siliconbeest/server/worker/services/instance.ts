@@ -1,175 +1,132 @@
-import type { RuleRow, SettingRow } from '../types/db';
-import { MASTODON_SERVICE_VERSION } from '../version';
+/**
+ * Instance Service
+ *
+ * Provides DB access for instance metadata: settings, rules, stats, and peers.
+ * Used by /api/v1/instance, /api/v2/instance, /api/v1/instance/rules,
+ * /api/v1/instance/peers, and admin settings endpoints.
+ */
+
+import type { RuleRow } from '../types/db';
+
+// ----------------------------------------------------------------
+// Settings
+// ----------------------------------------------------------------
 
 /**
- * Instance service: instance metadata for /api/v2/instance,
- * rules, and key-value settings management.
+ * Batch-fetch multiple settings by key.
+ * Returns a record mapping each found key to its value.
  */
-export class InstanceService {
-	constructor(
-		private db: D1Database,
-		private kv: KVNamespace,
-		private domain: string,
-		private title: string,
-	) {}
+export async function getSettings(
+	db: D1Database,
+	keys: string[],
+): Promise<Record<string, string>> {
+	if (keys.length === 0) return {};
+	const placeholders = keys.map(() => '?').join(', ');
+	const { results } = await db
+		.prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
+		.bind(...keys)
+		.all();
 
-	// ----------------------------------------------------------------
-	// Get instance info (Mastodon /api/v2/instance format)
-	// ----------------------------------------------------------------
-	async getInstanceInfo(): Promise<Record<string, unknown>> {
-		// Fetch settings
-		const description = (await this.getSetting('site_description')) || '';
-		const shortDescription = (await this.getSetting('site_short_description')) || '';
-		const email = (await this.getSetting('site_contact_email')) || '';
-		const registrations = (await this.getSetting('registrations_mode')) || 'open';
-		const maxChars = parseInt((await this.getSetting('max_toot_chars')) || '500', 10);
-		const maxMediaAttachments = parseInt((await this.getSetting('max_media_attachments')) || '4', 10);
+	const map: Record<string, string> = {};
+	for (const row of results ?? []) {
+		map[row.key as string] = row.value as string;
+	}
+	return map;
+}
 
-		// Get stats with KV caching
-		const stats = await this.getStats();
-		const rules = await this.getRules();
+/**
+ * Get a single setting value by key. Returns null if not found.
+ */
+export async function getSetting(db: D1Database, key: string): Promise<string | null> {
+	const row = await db
+		.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1')
+		.bind(key)
+		.first<{ value: string }>();
+	return row?.value ?? null;
+}
 
-		return {
-			domain: this.domain,
-			title: this.title,
-			version: MASTODON_SERVICE_VERSION,
-			source_url: 'https://github.com/SJang1/siliconbeest',
-			description,
-			usage: {
-				users: {
-					active_month: stats.activeUsers,
-				},
-			},
-			thumbnail: {
-				url: `https://${this.domain}/images/thumbnail.png`,
-				blurhash: null,
-				versions: {},
-			},
-			languages: ['en'],
-			configuration: {
-				urls: {
-					streaming: `wss://${this.domain}/api/v1/streaming`,
-					status: null,
-				},
-				accounts: {
-					max_featured_tags: 10,
-					max_pinned_statuses: 5,
-				},
-				statuses: {
-					max_characters: maxChars,
-					max_media_attachments: maxMediaAttachments,
-					characters_reserved_per_url: 23,
-				},
-				media_attachments: {
-					supported_mime_types: [
-						'image/jpeg',
-						'image/png',
-						'image/gif',
-						'image/webp',
-						'video/mp4',
-						'video/webm',
-						'audio/mpeg',
-						'audio/ogg',
-						'audio/wav',
-					],
-					image_size_limit: 16777216, // 16 MB
-					image_matrix_limit: 33177600,
-					video_size_limit: 103809024, // 99 MB
-					video_frame_rate_limit: 120,
-					video_matrix_limit: 8294400,
-				},
-				polls: {
-					max_options: 4,
-					max_characters_per_option: 50,
-					min_expiration: 300,
-					max_expiration: 2629746,
-				},
-				translation: {
-					enabled: false,
-				},
-			},
-			registrations: {
-				enabled: registrations !== 'closed',
-				approval_required: registrations === 'approval',
-				message: null,
-				url: null,
-			},
-			contact: {
-				email,
-				account: null,
-			},
-			rules: rules.map((rule) => ({
-				id: rule.id,
-				text: rule.text,
-				hint: '',
-			})),
-		};
+/**
+ * Upsert a setting (insert or update on conflict).
+ */
+export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
+	const now = new Date().toISOString();
+	await db
+		.prepare(
+			`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		)
+		.bind(key, value, now)
+		.run();
+}
+
+// ----------------------------------------------------------------
+// Rules
+// ----------------------------------------------------------------
+
+/**
+ * Fetch all instance rules, ordered by priority.
+ */
+export async function getRules(db: D1Database): Promise<RuleRow[]> {
+	const { results } = await db
+		.prepare('SELECT * FROM rules ORDER BY priority ASC, created_at ASC')
+		.all();
+	return (results ?? []) as unknown as RuleRow[];
+}
+
+// ----------------------------------------------------------------
+// Stats
+// ----------------------------------------------------------------
+
+export interface InstanceStats {
+	userCount: number;
+	statusCount: number;
+	domainCount: number;
+}
+
+/**
+ * Compute instance stats (user count, status count, known domain count).
+ * Optionally caches in KV for 1 hour.
+ */
+export async function getStats(
+	db: D1Database,
+	kv?: KVNamespace,
+): Promise<InstanceStats> {
+	const cacheKey = 'instance:stats';
+
+	if (kv) {
+		const cached = await kv.get(cacheKey, 'json');
+		if (cached) return cached as InstanceStats;
 	}
 
-	// ----------------------------------------------------------------
-	// Get instance rules
-	// ----------------------------------------------------------------
-	async getRules(): Promise<RuleRow[]> {
-		const result = await this.db.prepare('SELECT * FROM rules ORDER BY priority ASC').all();
-		return (result.results || []) as unknown as RuleRow[];
+	const [usersResult, statusesResult, domainsResult] = await Promise.all([
+		db.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first<{ cnt: number }>(),
+		db.prepare('SELECT COUNT(*) AS cnt FROM statuses WHERE local = 1 AND deleted_at IS NULL').first<{ cnt: number }>(),
+		db.prepare('SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL').first<{ cnt: number }>(),
+	]);
+
+	const stats: InstanceStats = {
+		userCount: usersResult?.cnt ?? 0,
+		statusCount: statusesResult?.cnt ?? 0,
+		domainCount: domainsResult?.cnt ?? 0,
+	};
+
+	if (kv) {
+		await kv.put(cacheKey, JSON.stringify(stats), { expirationTtl: 3600 });
 	}
 
-	// ----------------------------------------------------------------
-	// Get setting
-	// ----------------------------------------------------------------
-	async getSetting(key: string): Promise<string | null> {
-		const row = (await this.db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').bind(key).first()) as SettingRow | null;
-		return row?.value || null;
-	}
+	return stats;
+}
 
-	// ----------------------------------------------------------------
-	// Set setting
-	// ----------------------------------------------------------------
-	async setSetting(key: string, value: string): Promise<void> {
-		const now = new Date().toISOString();
-		await this.db
-			.prepare(
-				`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
-				ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-			)
-			.bind(key, value, now)
-			.run();
-	}
+// ----------------------------------------------------------------
+// Peers
+// ----------------------------------------------------------------
 
-	// ----------------------------------------------------------------
-	// Get stats (cached in KV for 1 hour)
-	// ----------------------------------------------------------------
-	private async getStats(): Promise<{ userCount: number; statusCount: number; domainCount: number; activeUsers: number }> {
-		const cacheKey = 'instance:stats';
-		const cached = await this.kv.get(cacheKey, 'json');
-		if (cached) {
-			return cached as { userCount: number; statusCount: number; domainCount: number; activeUsers: number };
-		}
-
-		const [usersResult, statusesResult, domainsResult, activeResult] = await Promise.all([
-			this.db.prepare('SELECT COUNT(*) AS count FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first(),
-			this.db.prepare('SELECT COUNT(*) AS count FROM statuses WHERE local = 1 AND deleted_at IS NULL').first(),
-			this.db.prepare('SELECT COUNT(DISTINCT domain) AS count FROM accounts WHERE domain IS NOT NULL').first(),
-			this.db
-				.prepare(
-					`SELECT COUNT(DISTINCT u.id) AS count FROM users u
-					JOIN accounts a ON a.id = u.account_id
-					WHERE u.current_sign_in_at > datetime('now', '-30 days')
-					AND a.suspended_at IS NULL`,
-				)
-				.first(),
-		]);
-
-		const stats = {
-			userCount: (usersResult?.count as number) || 0,
-			statusCount: (statusesResult?.count as number) || 0,
-			domainCount: (domainsResult?.count as number) || 0,
-			activeUsers: (activeResult?.count as number) || 0,
-		};
-
-		// Cache for 1 hour
-		await this.kv.put(cacheKey, JSON.stringify(stats), { expirationTtl: 3600 });
-
-		return stats;
-	}
+/**
+ * List all known peer domains, ordered alphabetically.
+ */
+export async function getPeers(db: D1Database): Promise<string[]> {
+	const { results } = await db
+		.prepare('SELECT domain FROM instances ORDER BY domain ASC')
+		.all();
+	return (results ?? []).map((r) => r.domain as string);
 }

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { getTurnstileSettings } from '../../../utils/turnstile';
 import { MASTODON_V2_VERSION } from '../../../version';
+import { getSettings, getRules, getStats } from '../../../services/instance';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -9,13 +10,11 @@ app.get('/', async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
 
   // Read settings from DB first, fall back to env vars
-  const dbSettings: Record<string, string> = {};
-  const { results: settingsRows } = await c.env.DB.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'registration_message', 'site_contact_email', 'site_contact_username', 'site_landing_markdown', 'terms_of_service', 'privacy_policy')"
-  ).all();
-  for (const row of settingsRows ?? []) {
-    dbSettings[row.key as string] = row.value as string;
-  }
+  const dbSettings = await getSettings(c.env.DB, [
+    'site_title', 'site_description', 'registration_mode', 'registration_message',
+    'site_contact_email', 'site_contact_username', 'site_landing_markdown',
+    'terms_of_service', 'privacy_policy',
+  ]);
 
   // Turnstile settings (cached in KV)
   const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
@@ -23,25 +22,13 @@ app.get('/', async (c) => {
   const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
   const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
 
-  // Usage stats
-  const userCount = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL`,
-  ).first<{ cnt: number }>();
+  // Usage stats + rules (parallel)
+  const [stats, ruleRows] = await Promise.all([
+    getStats(c.env.DB),
+    getRules(c.env.DB),
+  ]);
 
-  const statusCount = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS cnt FROM statuses WHERE local = 1 AND deleted_at IS NULL`,
-  ).first<{ cnt: number }>();
-
-  const domainCount = await c.env.DB.prepare(
-    `SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`,
-  ).first<{ cnt: number }>();
-
-  // Rules
-  const { results: ruleRows } = await c.env.DB.prepare(
-    `SELECT id, text FROM rules ORDER BY priority ASC`,
-  ).all();
-
-  const rules = (ruleRows ?? []).map((r: any) => ({
+  const rules = ruleRows.map((r) => ({
     id: r.id,
     text: r.text,
   }));
@@ -54,7 +41,7 @@ app.get('/', async (c) => {
     description: dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`,
     usage: {
       users: {
-        active_month: userCount?.cnt ?? 0,
+        active_month: stats.userCount,
       },
     },
     thumbnail: {
