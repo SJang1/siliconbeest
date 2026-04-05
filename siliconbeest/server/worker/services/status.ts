@@ -1,7 +1,7 @@
 import { generateUlid } from '../utils/ulid';
 import { parseContent, type ParsedContent } from '../utils/contentParser';
 import { AppError } from '../middleware/errorHandler';
-import type { StatusRow, PollRow, AccountRow } from '../types/db';
+import type { StatusRow, PollRow, AccountRow, CustomEmojiRow } from '../types/db';
 import { serializePoll } from '../utils/mastodonSerializer';
 
 // ----------------------------------------------------------------
