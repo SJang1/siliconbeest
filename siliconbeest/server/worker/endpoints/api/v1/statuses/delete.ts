@@ -3,10 +3,10 @@ import { Temporal } from '@js-temporal/polyfill';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
-import { AppError } from '../../../../middleware/errorHandler';
 import { sendToFollowers } from '../../../../federation/helpers/send';
 import { Delete as APDelete, Tombstone } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
+import { deleteStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -17,27 +17,7 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = c.env.INSTANCE_DOMAIN;
 
-  const row = await c.env.DB.prepare(
-    'SELECT * FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
-  ).bind(statusId).first();
-
-  if (!row) throw new AppError(404, 'Record not found');
-  if (row.account_id !== currentAccountId) throw new AppError(403, 'This action is not allowed');
-
-  const now = new Date().toISOString();
-
-  const stmts = [
-    c.env.DB.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, statusId),
-    c.env.DB.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(currentAccountId),
-  ];
-
-  if (row.in_reply_to_id) {
-    stmts.push(
-      c.env.DB.prepare('UPDATE statuses SET replies_count = MAX(0, replies_count - 1) WHERE id = ?1').bind(row.in_reply_to_id as string),
-    );
-  }
-
-  await c.env.DB.batch(stmts);
+  const { status: row } = await deleteStatus(c.env.DB, statusId, currentAccountId);
 
   // Federation: deliver Delete(Note) to followers if status is local
   if (row.local === 1) {

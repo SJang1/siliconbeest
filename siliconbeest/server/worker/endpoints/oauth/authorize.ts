@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 import { verifyPassword } from '../../utils/crypto';
 import { generateToken } from '../../utils/crypto';
-import { generateUlid } from '../../utils/ulid';
+import { createAuthorizationCode } from '../../services/oauth';
 import { verifyTurnstile, getTurnstileSettings } from '../../utils/turnstile';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -228,7 +228,7 @@ app.get('/', async (c) => {
 		);
 	}
 
-	// ── SPA path: if Accept includes JSON, return app info for the Vue frontend ──
+	// -- SPA path: if Accept includes JSON, return app info for the Vue frontend --
 	const accept = c.req.header('Accept') ?? '';
 	if (accept.includes('application/json')) {
 		// Validate app
@@ -256,11 +256,9 @@ app.get('/', async (c) => {
 		});
 	}
 
-	// ── SPA redirect: non-logged-in users go to the Vue login page ──
-	// Check for bearer token (from SPA) — if present, let the Vue app handle it
+	// -- SPA redirect: non-logged-in users go to the Vue login page --
 	const userId = await resolveBearer(c);
 	if (!userId) {
-		// Build the OAuth authorize URL to redirect back to after login
 		const oauthParams = new URLSearchParams({
 			client_id: clientId,
 			redirect_uri: redirectUri,
@@ -272,7 +270,7 @@ app.get('/', async (c) => {
 		return c.redirect(`/login?redirect=${encodeURIComponent(authorizeUrl)}`);
 	}
 
-	// User is authenticated — validate the app and auto-approve (or show server-side page)
+	// User is authenticated — validate the app and auto-approve
 	const oauthApp = await c.env.DB.prepare(
 		'SELECT id FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 	).bind(clientId).first();
@@ -282,8 +280,6 @@ app.get('/', async (c) => {
 	}
 
 	// For server-side HTML requests from authenticated users, issue code directly
-	// (This handles the case where a Mastodon client redirects here and the user
-	// has already logged in via the SPA — they get auto-approved)
 	return await issueAuthorizationCode(c, {
 		userId,
 		applicationId: oauthApp.id as string,
@@ -358,17 +354,11 @@ app.post('/', async (c) => {
 			return c.redirect(denyUrl);
 		}
 
-		// Approve: issue authorization code
+		// Approve: issue authorization code via service
 		if (isJson) {
-			// For JSON requests, return the redirect URL instead of redirecting
-			const code = generateToken(64);
-			const id = generateUlid();
-			const now = new Date().toISOString();
-			await c.env.DB.prepare(
-				`INSERT INTO oauth_authorization_codes (id, application_id, user_id, code, redirect_uri, scopes, expires_at, created_at)
-				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
-			).bind(id, oauthApp.id, userId, code, redirectUri, scope, new Date(Date.now() + 10 * 60 * 1000).toISOString(), now).run();
-
+			const code = await createAuthorizationCode(
+				c.env.DB, oauthApp.id as string, userId, redirectUri, scope,
+			);
 			const url = new URL(redirectUri);
 			url.searchParams.set('code', code);
 			if (state) url.searchParams.set('state', state);
@@ -395,18 +385,15 @@ app.post('/', async (c) => {
 		let tokenPayload = await c.env.CACHE.get(cacheKey, 'json') as { user: { id: string; account_id: string } } | null;
 		if (!tokenPayload) {
 			const tokenRow = await c.env.DB.prepare(
-				`SELECT t.user_id, u.account_id FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id WHERE t.token = ?1 AND t.revoked_at IS NULL LIMIT 1`,
-			).bind(passkeyToken).first<{ user_id: string; account_id: string }>();
+				`SELECT t.user_id, u.account_id FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?1 AND t.revoked_at IS NULL LIMIT 1`,
+			).bind(tokenHash).first<{ user_id: string; account_id: string }>();
 			if (tokenRow) tokenPayload = { user: { id: tokenRow.user_id, account_id: tokenRow.account_id } };
 		}
 		if (tokenPayload) {
-			// Issue authorization code directly
-			const codeValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-			const now = new Date().toISOString();
-			const codeId = crypto.randomUUID();
-			await c.env.DB.prepare(
-				`INSERT INTO oauth_authorization_codes (id, application_id, user_id, code, redirect_uri, scopes, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
-			).bind(codeId, oauthApp.id, tokenPayload.user.id, codeValue, redirectUri, scope, now, new Date(Date.now() + 600000).toISOString()).run();
+			// Issue authorization code via service
+			const codeValue = await createAuthorizationCode(
+				c.env.DB, oauthApp.id as string, tokenPayload.user.id, redirectUri, scope,
+			);
 			const sep = redirectUri.includes('?') ? '&' : '?';
 			return c.redirect(`${redirectUri}${sep}code=${codeValue}${state ? '&state=' + encodeURIComponent(state) : ''}`);
 		}
@@ -660,26 +647,13 @@ async function issueAuthorizationCode(
 		state: string;
 	},
 ) {
-	const code = generateToken(64);
-	const id = generateUlid();
-	const now = new Date().toISOString();
-
-	// Store authorization code in D1 (expires in 10 minutes)
-	await c.env.DB.prepare(
-		`INSERT INTO oauth_authorization_codes (id, application_id, user_id, code, redirect_uri, scopes, expires_at, created_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
-	)
-		.bind(
-			id,
-			opts.applicationId,
-			opts.userId,
-			code,
-			opts.redirectUri,
-			opts.scope,
-			new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-			now,
-		)
-		.run();
+	const code = await createAuthorizationCode(
+		c.env.DB,
+		opts.applicationId,
+		opts.userId,
+		opts.redirectUri,
+		opts.scope,
+	);
 
 	// Build redirect URL
 	const url = new URL(opts.redirectUri);
