@@ -21,7 +21,6 @@ const notificationTypes = ref([
   { key: 'favourite', enabled: true },
   { key: 'reblog', enabled: true },
   { key: 'mention', enabled: true },
-  { key: 'poll', enabled: true },
 ])
 
 // Web Push state
@@ -45,7 +44,6 @@ const pushAlertTypes = [
   { key: 'follow', label: 'settings.push_follow' },
   { key: 'favourite', label: 'settings.push_favourite' },
   { key: 'reblog', label: 'settings.push_reblog' },
-  { key: 'poll', label: 'settings.push_poll' },
   { key: 'status', label: 'settings.push_status' },
 ]
 
