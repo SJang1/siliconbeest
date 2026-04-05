@@ -1,3 +1,5 @@
+/* oxlint-disable fp/no-loop-statements, no-explicit-any */
+
 type D1Database = import('../env').Env['DB'];
 import { enrichStatuses } from './statusEnrichment';
 
@@ -41,7 +43,7 @@ export async function resolveReblogs(
   const enrichments = await enrichStatuses(db, domain, unique, currentAccountId);
   const map = new Map<string, any>();
 
-  for (const r of (results ?? []) as Record<string, unknown>[]) {
+  for (const r of (results ?? [])) {
     const s = serializeStatusFn(r, domain);
     const e = enrichments.get(r.id as string);
     if (e) {

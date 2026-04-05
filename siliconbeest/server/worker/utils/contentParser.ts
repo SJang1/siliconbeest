@@ -3,17 +3,17 @@
  * Converts plain text with @mentions, #hashtags, and URLs into HTML.
  */
 
-export interface ParsedMention {
+export type ParsedMention = {
 	username: string;
 	domain: string | null;
 	acct: string;
-}
+};
 
-export interface ParsedContent {
+export type ParsedContent = {
 	html: string;
 	mentions: ParsedMention[];
 	tags: string[];
-}
+};
 
 /**
  * Parse status text into HTML with linked mentions, hashtags, and URLs.
@@ -73,14 +73,10 @@ function processUrls(text: string): string {
 
 	return text.replace(urlRegex, (url) => {
 		// Clean trailing punctuation that's likely not part of the URL
-		let cleanUrl = url;
 		const trailingPunctuation = /[.,;:!?)]+$/;
-		const trailingMatch = cleanUrl.match(trailingPunctuation);
-		let trailing = '';
-		if (trailingMatch) {
-			trailing = trailingMatch[0];
-			cleanUrl = cleanUrl.slice(0, -trailing.length);
-		}
+		const trailingMatch = url.match(trailingPunctuation);
+		const trailing = trailingMatch ? trailingMatch[0] : '';
+		const cleanUrl = trailing ? url.slice(0, -trailing.length) : url;
 
 		return `<a href="${cleanUrl}" rel="noopener noreferrer" target="_blank">${cleanUrl}</a>${trailing}`;
 	});

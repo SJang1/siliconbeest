@@ -3,16 +3,18 @@
  * Used by all timeline endpoints to avoid N+1 queries.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, no-param-reassign */
+
 import type { MediaAttachment as MastodonMediaAttachment, PreviewCard, Poll as MastodonPoll } from '../types/mastodon';
 import { serializeMediaAttachment, serializePoll } from './mastodonSerializer';
 import type { MediaAttachmentRow, PollRow } from '../types/db';
 
-export interface MentionInfo {
+export type MentionInfo = {
   id: string;
   username: string;
   acct: string;
   url: string;
-}
+};
 
 /**
  * Helper to proxy remote emoji URLs through the /proxy endpoint.
@@ -31,14 +33,14 @@ function proxyEmojiUrl(url: string, instanceDomain: string): string {
   }
 }
 
-export interface EmojiInfo {
+export type EmojiInfo = {
   shortcode: string;
   url: string;
   static_url: string;
   visible_in_picker: boolean;
-}
+};
 
-export interface StatusEnrichment {
+export type StatusEnrichment = {
   mediaAttachments: MastodonMediaAttachment[];
   favourited: boolean | null;
   reblogged: boolean | null;
@@ -49,7 +51,7 @@ export interface StatusEnrichment {
   poll: MastodonPoll | null;
   emojis: EmojiInfo[];
   accountEmojis: EmojiInfo[];
-}
+};
 
 const EMPTY: StatusEnrichment = {
   mediaAttachments: [],
@@ -324,7 +326,7 @@ export async function enrichStatuses(
   const statusEmojiMap = new Map<string, EmojiInfo[]>();
 
   // Collect all unique emoji URLs across all statuses for batch verification
-  const allEmojiCandidates: Array<{ statusId: string; shortcode: string; url: string }> = [];
+  const _allEmojiCandidates: Array<{ statusId: string; shortcode: string; url: string }> = [];
 
   for (const row of emojiTagsQuery.results ?? []) {
     const statusId = row.id as string;

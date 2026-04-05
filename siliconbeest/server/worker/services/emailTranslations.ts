@@ -41,13 +41,13 @@ function t(locale: string, key: string, vars?: Record<string, string>): string {
 
 // ---- Public API (backwards-compatible with email.ts callers) ----
 
-export interface AccountWarningStrings {
+export type AccountWarningStrings = {
 	subject: string;
 	heading: string;
 	description: string;
-}
+};
 
-export interface EmailStrings {
+export type EmailStrings = {
 	confirmation: {
 		subject: (title: string) => string;
 		heading: (title: string) => string;
@@ -85,14 +85,16 @@ const WARNING_ACTIONS = [
  * need no changes.
  */
 function buildEmailStrings(locale: string): EmailStrings {
-	const warningMap: Record<string, AccountWarningStrings> = {};
-	for (const action of WARNING_ACTIONS) {
-		warningMap[action] = {
-			subject: t(locale, `warning_${action}_subject`),
-			heading: t(locale, `warning_${action}_heading`),
-			description: t(locale, `warning_${action}_description`),
-		};
-	}
+	const warningMap: Record<string, AccountWarningStrings> = Object.fromEntries(
+		WARNING_ACTIONS.map((action) => [
+			action,
+			{
+				subject: t(locale, `warning_${action}_subject`),
+				heading: t(locale, `warning_${action}_heading`),
+				description: t(locale, `warning_${action}_description`),
+			},
+		]),
+	);
 
 	return {
 		confirmation: {
@@ -129,12 +131,13 @@ const cache = new Map<string, EmailStrings>();
  * Get email translations for a given locale. Falls back to English
  * if the locale is not available.
  */
-export function getEmailTranslations(locale: string | unknown): EmailStrings {
+export function getEmailTranslations(locale: unknown): EmailStrings {
 	const key = typeof locale === 'string' && locale in locales ? locale : 'en';
-	let cached = cache.get(key);
-	if (!cached) {
-		cached = buildEmailStrings(key);
-		cache.set(key, cached);
+	const cached = cache.get(key);
+	if (cached) {
+		return cached;
 	}
-	return cached;
+	const built = buildEmailStrings(key);
+	cache.set(key, built);
+	return built;
 }

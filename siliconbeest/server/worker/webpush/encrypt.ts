@@ -11,6 +11,8 @@
  *   - RFC 8291 §4: Encryption
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, fp/no-promise-reject, no-explicit-any */
+
 import { base64urlDecode } from './vapid';
 
 // ============================================================

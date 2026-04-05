@@ -3,6 +3,8 @@
  * Implements RFC 6238 using Web Crypto API (compatible with Cloudflare Workers).
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, no-param-reassign */
+
 const TOTP_PERIOD = 30; // seconds
 const TOTP_DIGITS = 6;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -99,12 +101,12 @@ async function generateHOTP(secret: Uint8Array, counter: bigint): Promise<string
 	const hmac = await hmacSha1(secret, counterBytes);
 
 	// Dynamic truncation (RFC 4226 Section 5.4)
-	const offset = hmac[hmac.length - 1]! & 0x0f;
+	const offset = hmac[hmac.length - 1] & 0x0f;
 	const binary =
-		((hmac[offset]! & 0x7f) << 24) |
-		((hmac[offset + 1]! & 0xff) << 16) |
-		((hmac[offset + 2]! & 0xff) << 8) |
-		(hmac[offset + 3]! & 0xff);
+		((hmac[offset] & 0x7f) << 24) |
+		((hmac[offset + 1] & 0xff) << 16) |
+		((hmac[offset + 2] & 0xff) << 8) |
+		(hmac[offset + 3] & 0xff);
 
 	const otp = binary % Math.pow(10, TOTP_DIGITS);
 	return otp.toString().padStart(TOTP_DIGITS, '0');
@@ -162,7 +164,7 @@ export function generateBackupCodes(count: number = 10): string[] {
 		crypto.getRandomValues(bytes);
 		let code = '';
 		for (let j = 0; j < 8; j++) {
-			code += chars[bytes[j]! % chars.length];
+			code += chars[bytes[j] % chars.length];
 		}
 		codes.push(code);
 	}

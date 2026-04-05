@@ -1,3 +1,5 @@
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements */
+
 import bcrypt from 'bcryptjs';
 import { base64UrlToBytes } from '../../../../packages/shared/crypto/keys';
 export { base64UrlToBytes, importEd25519PublicKey, importEd25519PrivateKey } from '../../../../packages/shared/crypto/keys';

@@ -1,6 +1,6 @@
 import { generateUlid } from '../utils/ulid';
 
-export interface Account {
+export type Account = {
 	id: string;
 	username: string;
 	domain: string | null;
@@ -28,7 +28,7 @@ export interface Account {
 	silenced_at: string | null;
 	memorial: number;
 	moved_to_account_id: string | null;
-}
+};
 
 export type CreateAccountInput = Pick<Account, 'username' | 'uri'> &
 	Partial<Omit<Account, 'id' | 'created_at' | 'updated_at'>>;
@@ -37,233 +37,207 @@ export type UpdateAccountInput = Partial<
 	Omit<Account, 'id' | 'created_at' | 'updated_at'>
 >;
 
-export class AccountRepository {
-	constructor(private db: D1Database) {}
+export const findById = async (db: D1Database, id: string): Promise<Account | null> => {
+	const result = await db
+		.prepare('SELECT * FROM accounts WHERE id = ?')
+		.bind(id)
+		.first<Account>();
+	return result ?? null;
+};
 
-	async findById(id: string): Promise<Account | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM accounts WHERE id = ?')
-			.bind(id)
+export const findByUri = async (db: D1Database, uri: string): Promise<Account | null> => {
+	const result = await db
+		.prepare('SELECT * FROM accounts WHERE uri = ?')
+		.bind(uri)
+		.first<Account>();
+	return result ?? null;
+};
+
+export const findByUsername = async (db: D1Database, username: string, domain?: string | null): Promise<Account | null> => {
+	if (domain === undefined || domain === null) {
+		const result = await db
+			.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL')
+			.bind(username)
 			.first<Account>();
 		return result ?? null;
 	}
+	const result = await db
+		.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ?')
+		.bind(username, domain)
+		.first<Account>();
+	return result ?? null;
+};
 
-	async findByUri(uri: string): Promise<Account | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM accounts WHERE uri = ?')
-			.bind(uri)
-			.first<Account>();
-		return result ?? null;
-	}
+export const findByIds = async (db: D1Database, ids: string[]): Promise<Account[]> => {
+	if (ids.length === 0) return [];
+	const placeholders = ids.map(() => '?').join(', ');
+	const { results } = await db
+		.prepare(`SELECT * FROM accounts WHERE id IN (${placeholders})`)
+		.bind(...ids)
+		.all<Account>();
+	return results;
+};
 
-	async findByUsername(username: string, domain?: string | null): Promise<Account | null> {
-		if (domain === undefined || domain === null) {
-			const result = await this.db
-				.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL')
-				.bind(username)
-				.first<Account>();
-			return result ?? null;
-		}
-		const result = await this.db
-			.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ?')
-			.bind(username, domain)
-			.first<Account>();
-		return result ?? null;
-	}
+export const create = async (db: D1Database, input: CreateAccountInput): Promise<Account> => {
+	const now = new Date().toISOString();
+	const id = generateUlid();
+	const account: Account = {
+		id,
+		username: input.username,
+		domain: input.domain ?? null,
+		display_name: input.display_name ?? '',
+		note: input.note ?? '',
+		uri: input.uri,
+		url: input.url ?? null,
+		avatar_url: input.avatar_url ?? '',
+		avatar_static_url: input.avatar_static_url ?? '',
+		header_url: input.header_url ?? '',
+		header_static_url: input.header_static_url ?? '',
+		inbox_url: input.inbox_url ?? null,
+		shared_inbox_url: input.shared_inbox_url ?? null,
+		locked: input.locked ?? 0,
+		bot: input.bot ?? 0,
+		discoverable: input.discoverable ?? 1,
+		manually_approves_followers: input.manually_approves_followers ?? 0,
+		statuses_count: input.statuses_count ?? 0,
+		followers_count: input.followers_count ?? 0,
+		following_count: input.following_count ?? 0,
+		last_status_at: input.last_status_at ?? null,
+		created_at: now,
+		updated_at: now,
+		suspended_at: input.suspended_at ?? null,
+		silenced_at: input.silenced_at ?? null,
+		memorial: input.memorial ?? 0,
+		moved_to_account_id: input.moved_to_account_id ?? null,
+	};
 
-	async findByIds(ids: string[]): Promise<Account[]> {
-		if (ids.length === 0) return [];
-		const placeholders = ids.map(() => '?').join(', ');
-		const { results } = await this.db
-			.prepare(`SELECT * FROM accounts WHERE id IN (${placeholders})`)
-			.bind(...ids)
-			.all<Account>();
-		return results;
-	}
+	await db
+		.prepare(
+			`INSERT INTO accounts (
+				id, username, domain, display_name, note, uri, url,
+				avatar_url, avatar_static_url, header_url, header_static_url,
+				inbox_url, shared_inbox_url,
+				locked, bot, discoverable, manually_approves_followers,
+				statuses_count, followers_count, following_count,
+				last_status_at, created_at, updated_at,
+				suspended_at, silenced_at, memorial, moved_to_account_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		)
+		.bind(
+			account.id, account.username, account.domain,
+			account.display_name, account.note, account.uri, account.url,
+			account.avatar_url, account.avatar_static_url,
+			account.header_url, account.header_static_url,
+			account.inbox_url, account.shared_inbox_url,
+			account.locked, account.bot, account.discoverable,
+			account.manually_approves_followers,
+			account.statuses_count, account.followers_count, account.following_count,
+			account.last_status_at, account.created_at, account.updated_at,
+			account.suspended_at, account.silenced_at, account.memorial,
+			account.moved_to_account_id
+		)
+		.run();
 
-	async create(input: CreateAccountInput): Promise<Account> {
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		const account: Account = {
-			id,
-			username: input.username,
-			domain: input.domain ?? null,
-			display_name: input.display_name ?? '',
-			note: input.note ?? '',
-			uri: input.uri,
-			url: input.url ?? null,
-			avatar_url: input.avatar_url ?? '',
-			avatar_static_url: input.avatar_static_url ?? '',
-			header_url: input.header_url ?? '',
-			header_static_url: input.header_static_url ?? '',
-			inbox_url: input.inbox_url ?? null,
-			shared_inbox_url: input.shared_inbox_url ?? null,
-			locked: input.locked ?? 0,
-			bot: input.bot ?? 0,
-			discoverable: input.discoverable ?? 1,
-			manually_approves_followers: input.manually_approves_followers ?? 0,
-			statuses_count: input.statuses_count ?? 0,
-			followers_count: input.followers_count ?? 0,
-			following_count: input.following_count ?? 0,
-			last_status_at: input.last_status_at ?? null,
-			created_at: now,
-			updated_at: now,
-			suspended_at: input.suspended_at ?? null,
-			silenced_at: input.silenced_at ?? null,
-			memorial: input.memorial ?? 0,
-			moved_to_account_id: input.moved_to_account_id ?? null,
-		};
+	return account;
+};
 
-		await this.db
-			.prepare(
-				`INSERT INTO accounts (
-					id, username, domain, display_name, note, uri, url,
-					avatar_url, avatar_static_url, header_url, header_static_url,
-					inbox_url, shared_inbox_url,
-					locked, bot, discoverable, manually_approves_followers,
-					statuses_count, followers_count, following_count,
-					last_status_at, created_at, updated_at,
-					suspended_at, silenced_at, memorial, moved_to_account_id
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				account.id, account.username, account.domain,
-				account.display_name, account.note, account.uri, account.url,
-				account.avatar_url, account.avatar_static_url,
-				account.header_url, account.header_static_url,
-				account.inbox_url, account.shared_inbox_url,
-				account.locked, account.bot, account.discoverable,
-				account.manually_approves_followers,
-				account.statuses_count, account.followers_count, account.following_count,
-				account.last_status_at, account.created_at, account.updated_at,
-				account.suspended_at, account.silenced_at, account.memorial,
-				account.moved_to_account_id
-			)
-			.run();
+export const update = async (db: D1Database, id: string, input: UpdateAccountInput): Promise<Account | null> => {
+	const now = new Date().toISOString();
+	const entries = Object.entries(input);
+	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
+	const values = [...entries.map(([, value]) => value), now, id];
 
-		return account;
-	}
+	await db
+		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
+		.bind(...values)
+		.run();
 
-	async update(id: string, input: UpdateAccountInput): Promise<Account | null> {
-		const now = new Date().toISOString();
-		const fields: string[] = [];
-		const values: unknown[] = [];
+	return findById(db, id);
+};
 
-		for (const [key, value] of Object.entries(input)) {
-			fields.push(`${key} = ?`);
-			values.push(value);
-		}
+export const updateCounts = async (
+	db: D1Database,
+	id: string,
+	counts: { statuses_count?: number; followers_count?: number; following_count?: number }
+): Promise<void> => {
+	const entries = Object.entries(counts).filter(([, v]) => v !== undefined);
 
-		fields.push('updated_at = ?');
-		values.push(now);
-		values.push(id);
+	if (entries.length === 0) return;
 
-		await this.db
-			.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
+	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
+	const values = [...entries.map(([, value]) => value), new Date().toISOString(), id];
 
-		return this.findById(id);
-	}
+	await db
+		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
+		.bind(...values)
+		.run();
+};
 
-	async updateCounts(
-		id: string,
-		counts: { statuses_count?: number; followers_count?: number; following_count?: number }
-	): Promise<void> {
-		const fields: string[] = [];
-		const values: unknown[] = [];
+export const search = async (db: D1Database, query: string, limit: number = 20, offset: number = 0): Promise<Account[]> => {
+	const likeQuery = `%${query}%`;
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM accounts
+			 WHERE (username LIKE ? OR display_name LIKE ?)
+			 ORDER BY
+				 CASE WHEN domain IS NULL THEN 0 ELSE 1 END,
+				 followers_count DESC
+			 LIMIT ? OFFSET ?`
+		)
+		.bind(likeQuery, likeQuery, limit, offset)
+		.all<Account>();
+	return results;
+};
 
-		if (counts.statuses_count !== undefined) {
-			fields.push('statuses_count = ?');
-			values.push(counts.statuses_count);
-		}
-		if (counts.followers_count !== undefined) {
-			fields.push('followers_count = ?');
-			values.push(counts.followers_count);
-		}
-		if (counts.following_count !== undefined) {
-			fields.push('following_count = ?');
-			values.push(counts.following_count);
-		}
+/**
+ * Find a local account by its URI (domain IS NULL).
+ * Used by federation processors to verify the target is a local user.
+ */
+export const findLocalByUri = async (db: D1Database, uri: string): Promise<Account | null> => {
+	const result = await db
+		.prepare('SELECT * FROM accounts WHERE uri = ? AND domain IS NULL')
+		.bind(uri)
+		.first<Account>();
+	return result ?? null;
+};
 
-		if (fields.length === 0) return;
+/**
+ * Check if an account ID belongs to a local user.
+ */
+export const isLocal = async (db: D1Database, id: string): Promise<boolean> => {
+	const result = await db
+		.prepare('SELECT id FROM accounts WHERE id = ? AND domain IS NULL')
+		.bind(id)
+		.first();
+	return result !== null;
+};
 
-		fields.push('updated_at = ?');
-		values.push(new Date().toISOString());
-		values.push(id);
+/**
+ * Increment a count field atomically. Used by federation inbox processors.
+ */
+export const incrementCount = async (db: D1Database, id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
+	await db
+		.prepare(`UPDATE accounts SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
+		.bind(new Date().toISOString(), id)
+		.run();
+};
 
-		await this.db
-			.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
-	}
+/**
+ * Decrement a count field atomically, flooring at 0.
+ */
+export const decrementCount = async (db: D1Database, id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
+	await db
+		.prepare(`UPDATE accounts SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
+		.bind(new Date().toISOString(), id)
+		.run();
+};
 
-	async search(query: string, limit: number = 20, offset: number = 0): Promise<Account[]> {
-		const likeQuery = `%${query}%`;
-		const { results } = await this.db
-			.prepare(
-				`SELECT * FROM accounts
-				 WHERE (username LIKE ? OR display_name LIKE ?)
-				 ORDER BY
-					 CASE WHEN domain IS NULL THEN 0 ELSE 1 END,
-					 followers_count DESC
-				 LIMIT ? OFFSET ?`
-			)
-			.bind(likeQuery, likeQuery, limit, offset)
-			.all<Account>();
-		return results;
-	}
-
-	/**
-	 * Find a local account by its URI (domain IS NULL).
-	 * Used by federation processors to verify the target is a local user.
-	 */
-	async findLocalByUri(uri: string): Promise<Account | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM accounts WHERE uri = ? AND domain IS NULL')
-			.bind(uri)
-			.first<Account>();
-		return result ?? null;
-	}
-
-	/**
-	 * Check if an account ID belongs to a local user.
-	 */
-	async isLocal(id: string): Promise<boolean> {
-		const result = await this.db
-			.prepare('SELECT id FROM accounts WHERE id = ? AND domain IS NULL')
-			.bind(id)
-			.first();
-		return result !== null;
-	}
-
-	/**
-	 * Increment a count field atomically. Used by federation inbox processors.
-	 */
-	async incrementCount(id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> {
-		await this.db
-			.prepare(`UPDATE accounts SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
-			.bind(new Date().toISOString(), id)
-			.run();
-	}
-
-	/**
-	 * Decrement a count field atomically, flooring at 0.
-	 */
-	async decrementCount(id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> {
-		await this.db
-			.prepare(`UPDATE accounts SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
-			.bind(new Date().toISOString(), id)
-			.run();
-	}
-
-	async findLocalAccounts(limit: number = 20, offset: number = 0): Promise<Account[]> {
-		const { results } = await this.db
-			.prepare(
-				'SELECT * FROM accounts WHERE domain IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?'
-			)
-			.bind(limit, offset)
-			.all<Account>();
-		return results;
-	}
-}
+export const findLocalAccounts = async (db: D1Database, limit: number = 20, offset: number = 0): Promise<Account[]> => {
+	const { results } = await db
+		.prepare(
+			'SELECT * FROM accounts WHERE domain IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?'
+		)
+		.bind(limit, offset)
+		.all<Account>();
+	return results;
+};

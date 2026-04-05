@@ -10,540 +10,540 @@
 // CORE TABLES
 // ============================================================
 
-export interface AccountRow {
-  id: string;
-  username: string;
-  domain: string | null;
-  display_name: string;
-  note: string;
-  uri: string;
-  url: string | null;
-  avatar_url: string;
-  avatar_static_url: string;
-  header_url: string;
-  header_static_url: string;
-  locked: number;
-  bot: number;
-  discoverable: number | null;
-  manually_approves_followers: number;
-  statuses_count: number;
-  followers_count: number;
-  following_count: number;
-  last_status_at: string | null;
-  created_at: string;
-  updated_at: string;
-  suspended_at: string | null;
-  silenced_at: string | null;
-  memorial: number;
-  moved_to_account_id: string | null;
-  also_known_as?: string | null;
-  moved_at?: string | null;
+export type AccountRow = {
+  readonly id: string;
+  readonly username: string;
+  readonly domain: string | null;
+  readonly display_name: string;
+  readonly note: string;
+  readonly uri: string;
+  readonly url: string | null;
+  readonly avatar_url: string;
+  readonly avatar_static_url: string;
+  readonly header_url: string;
+  readonly header_static_url: string;
+  readonly locked: number;
+  readonly bot: number;
+  readonly discoverable: number | null;
+  readonly manually_approves_followers: number;
+  readonly statuses_count: number;
+  readonly followers_count: number;
+  readonly following_count: number;
+  readonly last_status_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly suspended_at: string | null;
+  readonly silenced_at: string | null;
+  readonly memorial: number;
+  readonly moved_to_account_id: string | null;
+  readonly also_known_as?: string | null;
+  readonly moved_at?: string | null;
   /** JSON array of emoji tag objects from ActivityPub actor document */
-  emoji_tags?: string | null;
-  fetched_at?: string | null;
-  fields?: string | null;
-}
+  readonly emoji_tags?: string | null;
+  readonly fetched_at?: string | null;
+  readonly fields?: string | null;
+};
 
-export interface UserRow {
-  id: string;
-  account_id: string;
-  email: string;
-  encrypted_password: string;
-  locale: string;
-  confirmed_at: string | null;
-  confirmation_token: string | null;
-  reset_password_token: string | null;
-  reset_password_sent_at: string | null;
-  otp_secret: string | null;
-  otp_enabled: number;
-  otp_backup_codes: string | null;
-  role: string;
-  approved: number;
-  disabled: number;
-  sign_in_count: number;
-  current_sign_in_at: string | null;
-  last_sign_in_at: string | null;
-  current_sign_in_ip: string | null;
-  last_sign_in_ip: string | null;
-  chosen_languages: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type UserRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly email: string;
+  readonly encrypted_password: string;
+  readonly locale: string;
+  readonly confirmed_at: string | null;
+  readonly confirmation_token: string | null;
+  readonly reset_password_token: string | null;
+  readonly reset_password_sent_at: string | null;
+  readonly otp_secret: string | null;
+  readonly otp_enabled: number;
+  readonly otp_backup_codes: string | null;
+  readonly role: string;
+  readonly approved: number;
+  readonly disabled: number;
+  readonly sign_in_count: number;
+  readonly current_sign_in_at: string | null;
+  readonly last_sign_in_at: string | null;
+  readonly current_sign_in_ip: string | null;
+  readonly last_sign_in_ip: string | null;
+  readonly chosen_languages: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface ActorKeyRow {
-  id: string;
-  account_id: string;
-  public_key: string;
-  private_key: string;
-  key_id: string;
-  ed25519_public_key: string | null;
-  ed25519_private_key: string | null;
-  created_at: string;
-}
+export type ActorKeyRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly public_key: string;
+  readonly private_key: string;
+  readonly key_id: string;
+  readonly ed25519_public_key: string | null;
+  readonly ed25519_private_key: string | null;
+  readonly created_at: string;
+};
 
-export interface StatusRow {
-  id: string;
-  uri: string;
-  url: string | null;
-  account_id: string;
-  in_reply_to_id: string | null;
-  in_reply_to_account_id: string | null;
-  reblog_of_id: string | null;
-  text: string;
-  content: string;
-  content_warning: string;
-  visibility: string;
-  sensitive: number;
-  language: string;
-  conversation_id: string | null;
-  reply: number;
-  replies_count: number;
-  reblogs_count: number;
-  favourites_count: number;
-  local: number;
-  federated_at: string | null;
-  edited_at: string | null;
-  deleted_at: string | null;
-  poll_id: string | null;
+export type StatusRow = {
+  readonly id: string;
+  readonly uri: string;
+  readonly url: string | null;
+  readonly account_id: string;
+  readonly in_reply_to_id: string | null;
+  readonly in_reply_to_account_id: string | null;
+  readonly reblog_of_id: string | null;
+  readonly text: string;
+  readonly content: string;
+  readonly content_warning: string;
+  readonly visibility: string;
+  readonly sensitive: number;
+  readonly language: string;
+  readonly conversation_id: string | null;
+  readonly reply: number;
+  readonly replies_count: number;
+  readonly reblogs_count: number;
+  readonly favourites_count: number;
+  readonly local: number;
+  readonly federated_at: string | null;
+  readonly edited_at: string | null;
+  readonly deleted_at: string | null;
+  readonly poll_id: string | null;
   /** FEP-e232: ID of the status being quoted (quote post) */
-  quote_id: string | null;
+  readonly quote_id: string | null;
   /** JSON array of emoji tag objects from ActivityPub for lazy-load rendering */
-  emoji_tags: string | null;
-  created_at: string;
-  updated_at: string;
-}
+  readonly emoji_tags: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface MediaAttachmentRow {
-  id: string;
-  status_id: string | null;
-  account_id: string;
-  file_key: string;
-  file_content_type: string;
-  file_size: number;
-  thumbnail_key: string | null;
-  remote_url: string | null;
-  description: string;
-  blurhash: string | null;
-  width: number | null;
-  height: number | null;
-  type: string;
-  created_at: string;
-  updated_at: string;
-}
+export type MediaAttachmentRow = {
+  readonly id: string;
+  readonly status_id: string | null;
+  readonly account_id: string;
+  readonly file_key: string;
+  readonly file_content_type: string;
+  readonly file_size: number;
+  readonly thumbnail_key: string | null;
+  readonly remote_url: string | null;
+  readonly description: string;
+  readonly blurhash: string | null;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly type: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface PollRow {
-  id: string;
-  status_id: string;
-  expires_at: string | null;
-  multiple: number;
-  votes_count: number;
-  voters_count: number;
-  options: string;
-  created_at: string;
-}
+export type PollRow = {
+  readonly id: string;
+  readonly status_id: string;
+  readonly expires_at: string | null;
+  readonly multiple: number;
+  readonly votes_count: number;
+  readonly voters_count: number;
+  readonly options: string;
+  readonly created_at: string;
+};
 
-export interface PollVoteRow {
-  id: string;
-  poll_id: string;
-  account_id: string;
-  choice: number;
-  created_at: string;
-}
+export type PollVoteRow = {
+  readonly id: string;
+  readonly poll_id: string;
+  readonly account_id: string;
+  readonly choice: number;
+  readonly created_at: string;
+};
 
 // ============================================================
 // RELATIONSHIP TABLES
 // ============================================================
 
-export interface FollowRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  uri: string | null;
-  show_reblogs: number;
-  notify: number;
-  languages: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type FollowRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly uri: string | null;
+  readonly show_reblogs: number;
+  readonly notify: number;
+  readonly languages: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface FollowRequestRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  uri: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type FollowRequestRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly uri: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface FavouriteRow {
-  id: string;
-  account_id: string;
-  status_id: string;
-  uri: string | null;
-  created_at: string;
-}
+export type FavouriteRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly status_id: string;
+  readonly uri: string | null;
+  readonly created_at: string;
+};
 
-export interface BlockRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  uri: string | null;
-  created_at: string;
-}
+export type BlockRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly uri: string | null;
+  readonly created_at: string;
+};
 
-export interface MuteRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  hide_notifications: number;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type MuteRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly hide_notifications: number;
+  readonly expires_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface BookmarkRow {
-  id: string;
-  account_id: string;
-  status_id: string;
-  created_at: string;
-}
+export type BookmarkRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly status_id: string;
+  readonly created_at: string;
+};
 
 // ============================================================
 // NOTIFICATIONS & MENTIONS
 // ============================================================
 
-export interface NotificationRow {
-  id: string;
-  account_id: string;
-  from_account_id: string;
-  type: string;
-  status_id: string | null;
-  emoji: string | null;
-  read: number;
-  created_at: string;
-}
+export type NotificationRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly from_account_id: string;
+  readonly type: string;
+  readonly status_id: string | null;
+  readonly emoji: string | null;
+  readonly read: number;
+  readonly created_at: string;
+};
 
-export interface MentionRow {
-  id: string;
-  status_id: string;
-  account_id: string;
-  silent: number;
-  created_at: string;
-}
+export type MentionRow = {
+  readonly id: string;
+  readonly status_id: string;
+  readonly account_id: string;
+  readonly silent: number;
+  readonly created_at: string;
+};
 
 // ============================================================
 // TAGS (HASHTAGS)
 // ============================================================
 
-export interface TagRow {
-  id: string;
-  name: string;
-  display_name: string | null;
-  usable: number;
-  trendable: number;
-  listable: number;
-  last_status_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type TagRow = {
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string | null;
+  readonly usable: number;
+  readonly trendable: number;
+  readonly listable: number;
+  readonly last_status_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface StatusTagRow {
-  status_id: string;
-  tag_id: string;
-}
+export type StatusTagRow = {
+  readonly status_id: string;
+  readonly tag_id: string;
+};
 
-export interface TagFollowRow {
-  id: string;
-  account_id: string;
-  tag_id: string;
-  created_at: string;
-}
+export type TagFollowRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly tag_id: string;
+  readonly created_at: string;
+};
 
 // ============================================================
 // OAUTH
 // ============================================================
 
-export interface OAuthApplicationRow {
-  id: string;
-  name: string;
-  website: string | null;
-  redirect_uri: string;
-  client_id: string;
-  client_secret: string;
-  scopes: string;
-  created_at: string;
-  updated_at: string;
-}
+export type OAuthApplicationRow = {
+  readonly id: string;
+  readonly name: string;
+  readonly website: string | null;
+  readonly redirect_uri: string;
+  readonly client_id: string;
+  readonly client_secret: string;
+  readonly scopes: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface OAuthAccessTokenRow {
-  id: string;
-  token: string;
-  token_hash: string | null;
-  refresh_token: string | null;
-  application_id: string;
-  user_id: string | null;
-  scopes: string;
-  expires_at: string | null;
-  revoked_at: string | null;
-  created_at: string;
-}
+export type OAuthAccessTokenRow = {
+  readonly id: string;
+  readonly token: string;
+  readonly token_hash: string | null;
+  readonly refresh_token: string | null;
+  readonly application_id: string;
+  readonly user_id: string | null;
+  readonly scopes: string;
+  readonly expires_at: string | null;
+  readonly revoked_at: string | null;
+  readonly created_at: string;
+};
 
-export interface OAuthAuthorizationCodeRow {
-  id: string;
-  code: string;
-  application_id: string;
-  user_id: string;
-  redirect_uri: string;
-  scopes: string;
-  code_challenge: string | null;
-  code_challenge_method: string | null;
-  expires_at: string;
-  used_at: string | null;
-  created_at: string;
-}
+export type OAuthAuthorizationCodeRow = {
+  readonly id: string;
+  readonly code: string;
+  readonly application_id: string;
+  readonly user_id: string;
+  readonly redirect_uri: string;
+  readonly scopes: string;
+  readonly code_challenge: string | null;
+  readonly code_challenge_method: string | null;
+  readonly expires_at: string;
+  readonly used_at: string | null;
+  readonly created_at: string;
+};
 
 // ============================================================
 // LISTS
 // ============================================================
 
-export interface ListRow {
-  id: string;
-  account_id: string;
-  title: string;
-  replies_policy: string;
-  exclusive: number;
-  created_at: string;
-  updated_at: string;
-}
+export type ListRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly title: string;
+  readonly replies_policy: string;
+  readonly exclusive: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface ListAccountRow {
-  list_id: string;
-  account_id: string;
-  follow_id: string | null;
-}
+export type ListAccountRow = {
+  readonly list_id: string;
+  readonly account_id: string;
+  readonly follow_id: string | null;
+};
 
 // ============================================================
 // FEDERATION / INSTANCE MANAGEMENT
 // ============================================================
 
-export interface InstanceRow {
-  id: string;
-  domain: string;
-  software_name: string | null;
-  software_version: string | null;
-  title: string | null;
-  description: string | null;
-  inbox_url: string | null;
-  public_key: string | null;
-  last_successful_at: string | null;
-  last_failed_at: string | null;
-  failure_count: number;
-  created_at: string;
-  updated_at: string;
-}
+export type InstanceRow = {
+  readonly id: string;
+  readonly domain: string;
+  readonly software_name: string | null;
+  readonly software_version: string | null;
+  readonly title: string | null;
+  readonly description: string | null;
+  readonly inbox_url: string | null;
+  readonly public_key: string | null;
+  readonly last_successful_at: string | null;
+  readonly last_failed_at: string | null;
+  readonly failure_count: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface DomainBlockRow {
-  id: string;
-  domain: string;
-  severity: string;
-  reject_media: number;
-  reject_reports: number;
-  private_comment: string | null;
-  public_comment: string | null;
-  obfuscate: number;
-  created_at: string;
-  updated_at: string;
-}
+export type DomainBlockRow = {
+  readonly id: string;
+  readonly domain: string;
+  readonly severity: string;
+  readonly reject_media: number;
+  readonly reject_reports: number;
+  readonly private_comment: string | null;
+  readonly public_comment: string | null;
+  readonly obfuscate: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface DomainAllowRow {
-  id: string;
-  domain: string;
-  created_at: string;
-  updated_at: string;
-}
+export type DomainAllowRow = {
+  readonly id: string;
+  readonly domain: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
 // ============================================================
 // WEB PUSH SUBSCRIPTIONS
 // ============================================================
 
-export interface WebPushSubscriptionRow {
-  id: string;
-  user_id: string;
-  access_token_id: string;
-  endpoint: string;
-  key_p256dh: string;
-  key_auth: string;
-  alert_mention: number;
-  alert_follow: number;
-  alert_favourite: number;
-  alert_reblog: number;
-  alert_poll: number;
-  alert_status: number;
-  alert_update: number;
-  alert_follow_request: number;
-  alert_admin_sign_up: number;
-  alert_admin_report: number;
-  policy: string;
-  created_at: string;
-  updated_at: string;
-}
+export type WebPushSubscriptionRow = {
+  readonly id: string;
+  readonly user_id: string;
+  readonly access_token_id: string;
+  readonly endpoint: string;
+  readonly key_p256dh: string;
+  readonly key_auth: string;
+  readonly alert_mention: number;
+  readonly alert_follow: number;
+  readonly alert_favourite: number;
+  readonly alert_reblog: number;
+  readonly alert_poll: number;
+  readonly alert_status: number;
+  readonly alert_update: number;
+  readonly alert_follow_request: number;
+  readonly alert_admin_sign_up: number;
+  readonly alert_admin_report: number;
+  readonly policy: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
 // ============================================================
 // REPORTS & MODERATION
 // ============================================================
 
-export interface ReportRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  status_ids: string | null;
-  comment: string;
-  category: string;
-  action_taken: number;
-  action_taken_at: string | null;
-  action_taken_by_account_id: string | null;
-  forwarded: number;
-  created_at: string;
-  updated_at: string;
-}
+export type ReportRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly status_ids: string | null;
+  readonly comment: string;
+  readonly category: string;
+  readonly action_taken: number;
+  readonly action_taken_at: string | null;
+  readonly action_taken_by_account_id: string | null;
+  readonly forwarded: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface AccountWarningRow {
-  id: string;
-  account_id: string;
-  target_account_id: string;
-  action: string;
-  text: string;
-  report_id: string | null;
-  created_at: string;
-}
+export type AccountWarningRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly target_account_id: string;
+  readonly action: string;
+  readonly text: string;
+  readonly report_id: string | null;
+  readonly created_at: string;
+};
 
-export interface IpBlockRow {
-  id: string;
-  ip: string;
-  severity: string;
-  comment: string;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type IpBlockRow = {
+  readonly id: string;
+  readonly ip: string;
+  readonly severity: string;
+  readonly comment: string;
+  readonly expires_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface EmailDomainBlockRow {
-  id: string;
-  domain: string;
-  created_at: string;
-  updated_at: string;
-}
+export type EmailDomainBlockRow = {
+  readonly id: string;
+  readonly domain: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
 // ============================================================
 // TIMELINE & USER PREFERENCES
 // ============================================================
 
-export interface HomeTimelineEntryRow {
-  id: string;
-  account_id: string;
-  status_id: string;
-  created_at: string;
-}
+export type HomeTimelineEntryRow = {
+  readonly id: string;
+  readonly account_id: string;
+  readonly status_id: string;
+  readonly created_at: string;
+};
 
-export interface MarkerRow {
-  id: string;
-  user_id: string;
-  timeline: string;
-  last_read_id: string;
-  version: number;
-  updated_at: string;
-}
+export type MarkerRow = {
+  readonly id: string;
+  readonly user_id: string;
+  readonly timeline: string;
+  readonly last_read_id: string;
+  readonly version: number;
+  readonly updated_at: string;
+};
 
-export interface UserPreferenceRow {
-  id: string;
-  user_id: string;
-  key: string;
-  value: string;
-}
+export type UserPreferenceRow = {
+  readonly id: string;
+  readonly user_id: string;
+  readonly key: string;
+  readonly value: string;
+};
 
-export interface FilterRow {
-  id: string;
-  user_id: string;
-  title: string;
-  context: string;
-  action: string;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type FilterRow = {
+  readonly id: string;
+  readonly user_id: string;
+  readonly title: string;
+  readonly context: string;
+  readonly action: string;
+  readonly expires_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface FilterKeywordRow {
-  id: string;
-  filter_id: string;
-  keyword: string;
-  whole_word: number;
-  created_at: string;
-  updated_at: string;
-}
+export type FilterKeywordRow = {
+  readonly id: string;
+  readonly filter_id: string;
+  readonly keyword: string;
+  readonly whole_word: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface FilterStatusRow {
-  id: string;
-  filter_id: string;
-  status_id: string;
-  created_at: string;
-}
+export type FilterStatusRow = {
+  readonly id: string;
+  readonly filter_id: string;
+  readonly status_id: string;
+  readonly created_at: string;
+};
 
 // ============================================================
 // INSTANCE SETTINGS & CONTENT
 // ============================================================
 
-export interface SettingRow {
-  key: string;
-  value: string;
-  updated_at: string;
-}
+export type SettingRow = {
+  readonly key: string;
+  readonly value: string;
+  readonly updated_at: string;
+};
 
-export interface CustomEmojiRow {
-  id: string;
-  shortcode: string;
-  domain: string | null;
-  image_key: string;
-  visible_in_picker: number;
-  category: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type CustomEmojiRow = {
+  readonly id: string;
+  readonly shortcode: string;
+  readonly domain: string | null;
+  readonly image_key: string;
+  readonly visible_in_picker: number;
+  readonly category: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface AnnouncementRow {
-  id: string;
-  text: string;
-  published: number;
-  starts_at: string | null;
-  ends_at: string | null;
-  all_day: number;
-  created_at: string;
-  updated_at: string;
-}
+export type AnnouncementRow = {
+  readonly id: string;
+  readonly text: string;
+  readonly published: number;
+  readonly starts_at: string | null;
+  readonly ends_at: string | null;
+  readonly all_day: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface RuleRow {
-  id: string;
-  text: string;
-  priority: number;
-  created_at: string;
-  updated_at: string;
-}
+export type RuleRow = {
+  readonly id: string;
+  readonly text: string;
+  readonly priority: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
 // ============================================================
 // CONVERSATIONS (DIRECT MESSAGES)
 // ============================================================
 
-export interface ConversationRow {
-  id: string;
-  created_at: string;
-  updated_at: string;
-}
+export type ConversationRow = {
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
 
-export interface ConversationAccountRow {
-  conversation_id: string;
-  account_id: string;
-  last_status_id: string | null;
-  unread: number;
-}
+export type ConversationAccountRow = {
+  readonly conversation_id: string;
+  readonly account_id: string;
+  readonly last_status_id: string | null;
+  readonly unread: number;
+};
 
 // ============================================================
 // JOIN ROW TYPES (SELECT s.*, a.* with aliased account columns)
@@ -553,33 +553,33 @@ export interface ConversationAccountRow {
  * Result of `SELECT s.*, a.username AS a_username, a.domain AS a_domain, ...`
  * Used by DM streaming, inbox processors, and other status+account JOINs.
  */
-export interface StatusWithJoinedAccountRow extends StatusRow {
-  a_username: string;
-  a_domain: string | null;
-  a_display_name: string;
-  a_note: string;
-  a_uri: string;
-  a_url: string | null;
-  a_avatar_url: string | null;
-  a_avatar_static_url: string | null;
-  a_header_url: string | null;
-  a_header_static_url: string | null;
-  a_locked: number;
-  a_bot: number;
-  a_discoverable: number | null;
-  a_followers_count: number;
-  a_following_count: number;
-  a_statuses_count: number;
-  a_created_at: string;
-  a_last_status_at?: string | null;
-  a_emoji_tags?: string | null;
-}
+export type StatusWithJoinedAccountRow = StatusRow & {
+  readonly a_username: string;
+  readonly a_domain: string | null;
+  readonly a_display_name: string;
+  readonly a_note: string;
+  readonly a_uri: string;
+  readonly a_url: string | null;
+  readonly a_avatar_url: string | null;
+  readonly a_avatar_static_url: string | null;
+  readonly a_header_url: string | null;
+  readonly a_header_static_url: string | null;
+  readonly a_locked: number;
+  readonly a_bot: number;
+  readonly a_discoverable: number | null;
+  readonly a_followers_count: number;
+  readonly a_following_count: number;
+  readonly a_statuses_count: number;
+  readonly a_created_at: string;
+  readonly a_last_status_at?: string | null;
+  readonly a_emoji_tags?: string | null;
+};
 
 /** Result of `SELECT content, spoiler_text, sensitive, created_at, ... FROM status_edits` */
-export interface StatusEditRow {
-  content: string;
-  spoiler_text: string;
-  sensitive: number;
-  created_at: string;
-  media_attachments_json: string | null;
-}
+export type StatusEditRow = {
+  readonly content: string;
+  readonly spoiler_text: string;
+  readonly sensitive: number;
+  readonly created_at: string;
+  readonly media_attachments_json: string | null;
+};

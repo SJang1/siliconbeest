@@ -7,7 +7,7 @@
 
 import { extractDomain } from '../../../../packages/shared/domain-blocks';
 
-export interface OgData {
+export type OgData = {
   url: string;
   title: string;
   description: string;
@@ -15,7 +15,7 @@ export interface OgData {
   type: string;
   provider_name: string;
   provider_url: string;
-}
+};
 
 /**
  * Extract content from an OG or meta tag using regex.
@@ -29,11 +29,10 @@ function extractMeta(html: string, property: string): string | null {
     new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${property}["']`, 'i'),
   ];
 
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match?.[1]) return decodeHtmlEntities(match[1]);
-  }
-  return null;
+  const result = patterns
+    .map((pattern) => html.match(pattern))
+    .find((m) => m?.[1]);
+  return result?.[1] ? decodeHtmlEntities(result[1]) : null;
 }
 
 /** Extract the <title> tag content as a fallback. */
@@ -62,6 +61,7 @@ function decodeHtmlEntities(text: string): string {
  * - Returns null on any failure
  */
 export async function fetchOgMetadata(url: string): Promise<OgData | null> {
+  // oxlint-disable-next-line fp/no-try-statements
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -88,12 +88,16 @@ export async function fetchOgMetadata(url: string): Promise<OgData | null> {
     const reader = response.body?.getReader();
     if (!reader) return null;
 
+    // oxlint-disable-next-line fp/no-let
     let html = '';
     const decoder = new TextDecoder();
     const MAX_BYTES = 50 * 1024;
+    // oxlint-disable-next-line fp/no-let
     let totalBytes = 0;
 
+    // oxlint-disable-next-line fp/no-loop-statements
     while (totalBytes < MAX_BYTES) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { done, value } = await reader.read();
       if (done) break;
       totalBytes += value.byteLength;
@@ -133,10 +137,12 @@ export async function fetchOgMetadata(url: string): Promise<OgData | null> {
   } catch (e) {
     // Transient errors (network, timeout) → rethrow for queue retry
     if (e instanceof DOMException && e.name === 'AbortError') {
+      // oxlint-disable-next-line fp/no-throw-statements, fp/no-promise-reject
       throw new Error(`OG fetch timeout for ${url}`);
     }
     if (e instanceof TypeError) {
       // fetch() network errors are TypeError
+      // oxlint-disable-next-line fp/no-throw-statements, fp/no-promise-reject
       throw new Error(`OG fetch network error for ${url}: ${e.message}`);
     }
     // Non-transient (parse errors etc.) → log and give up

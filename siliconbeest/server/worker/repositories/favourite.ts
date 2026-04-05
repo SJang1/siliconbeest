@@ -1,130 +1,150 @@
 import { generateUlid } from '../utils/ulid';
 
-export interface Favourite {
+export type Favourite = {
 	id: string;
 	account_id: string;
 	status_id: string;
 	uri: string | null;
 	created_at: string;
-}
+};
 
-export interface CreateFavouriteInput {
+export type CreateFavouriteInput = {
 	account_id: string;
 	status_id: string;
 	uri?: string | null;
-}
+};
 
-export class FavouriteRepository {
-	constructor(private db: D1Database) {}
+export const findByAccountAndStatus = async (
+	db: D1Database,
+	accountId: string,
+	statusId: string,
+): Promise<Favourite | null> => {
+	const result = await db
+		.prepare('SELECT * FROM favourites WHERE account_id = ? AND status_id = ?')
+		.bind(accountId, statusId)
+		.first<Favourite>();
+	return result ?? null;
+};
 
-	async findByAccountAndStatus(accountId: string, statusId: string): Promise<Favourite | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM favourites WHERE account_id = ? AND status_id = ?')
-			.bind(accountId, statusId)
-			.first<Favourite>();
-		return result ?? null;
-	}
+export const findByAccount = async (
+	db: D1Database,
+	accountId: string,
+	limit: number = 20,
+	maxId?: string,
+): Promise<Favourite[]> => {
+	const clauses = [
+		{ sql: 'account_id = ?', param: accountId },
+		...(maxId ? [{ sql: 'id < ?', param: maxId }] : []),
+	];
+	const where = clauses.map(c => c.sql).join(' AND ');
+	const params = [...clauses.map(c => c.param), limit];
 
-	async findByAccount(accountId: string, limit: number = 20, maxId?: string): Promise<Favourite[]> {
-		const conditions: string[] = ['account_id = ?'];
-		const values: unknown[] = [accountId];
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM favourites
+			 WHERE ${where}
+			 ORDER BY id DESC LIMIT ?`
+		)
+		.bind(...params)
+		.all<Favourite>();
+	return results;
+};
 
-		if (maxId) {
-			conditions.push('id < ?');
-			values.push(maxId);
-		}
+export const findByStatus = async (
+	db: D1Database,
+	statusId: string,
+	limit: number = 20,
+	maxId?: string,
+): Promise<Favourite[]> => {
+	const clauses = [
+		{ sql: 'status_id = ?', param: statusId },
+		...(maxId ? [{ sql: 'id < ?', param: maxId }] : []),
+	];
+	const where = clauses.map(c => c.sql).join(' AND ');
+	const params = [...clauses.map(c => c.param), limit];
 
-		values.push(limit);
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM favourites
+			 WHERE ${where}
+			 ORDER BY id DESC LIMIT ?`
+		)
+		.bind(...params)
+		.all<Favourite>();
+	return results;
+};
 
-		const { results } = await this.db
-			.prepare(
-				`SELECT * FROM favourites
-				 WHERE ${conditions.join(' AND ')}
-				 ORDER BY id DESC LIMIT ?`
-			)
-			.bind(...values)
-			.all<Favourite>();
-		return results;
-	}
+export const create = async (
+	db: D1Database,
+	input: CreateFavouriteInput,
+): Promise<Favourite> => {
+	const now = new Date().toISOString();
+	const id = generateUlid();
+	const favourite: Favourite = {
+		id,
+		account_id: input.account_id,
+		status_id: input.status_id,
+		uri: input.uri ?? null,
+		created_at: now,
+	};
 
-	async findByStatus(statusId: string, limit: number = 20, maxId?: string): Promise<Favourite[]> {
-		const conditions: string[] = ['status_id = ?'];
-		const values: unknown[] = [statusId];
+	await db
+		.prepare(
+			'INSERT INTO favourites (id, account_id, status_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
+		)
+		.bind(favourite.id, favourite.account_id, favourite.status_id, favourite.uri, favourite.created_at)
+		.run();
 
-		if (maxId) {
-			conditions.push('id < ?');
-			values.push(maxId);
-		}
+	return favourite;
+};
 
-		values.push(limit);
+export const deleteById = async (
+	db: D1Database,
+	id: string,
+): Promise<void> => {
+	await db
+		.prepare('DELETE FROM favourites WHERE id = ?')
+		.bind(id)
+		.run();
+};
 
-		const { results } = await this.db
-			.prepare(
-				`SELECT * FROM favourites
-				 WHERE ${conditions.join(' AND ')}
-				 ORDER BY id DESC LIMIT ?`
-			)
-			.bind(...values)
-			.all<Favourite>();
-		return results;
-	}
+/**
+ * Find a favourite by its ActivityPub URI.
+ * Used by Undo(Like) processing.
+ */
+export const findByUri = async (
+	db: D1Database,
+	uri: string,
+): Promise<Favourite | null> => {
+	const result = await db
+		.prepare('SELECT * FROM favourites WHERE uri = ?')
+		.bind(uri)
+		.first<Favourite>();
+	return result ?? null;
+};
 
-	async create(input: CreateFavouriteInput): Promise<Favourite> {
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		const favourite: Favourite = {
-			id,
-			account_id: input.account_id,
-			status_id: input.status_id,
-			uri: input.uri ?? null,
-			created_at: now,
-		};
+/**
+ * Delete a favourite by account and status IDs.
+ * Used by Undo(Like) processing when URI lookup fails.
+ */
+export const deleteByAccountAndStatus = async (
+	db: D1Database,
+	accountId: string,
+	statusId: string,
+): Promise<void> => {
+	await db
+		.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
+		.bind(accountId, statusId)
+		.run();
+};
 
-		await this.db
-			.prepare(
-				'INSERT INTO favourites (id, account_id, status_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
-			)
-			.bind(favourite.id, favourite.account_id, favourite.status_id, favourite.uri, favourite.created_at)
-			.run();
-
-		return favourite;
-	}
-
-	async delete(id: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM favourites WHERE id = ?')
-			.bind(id)
-			.run();
-	}
-
-	/**
-	 * Find a favourite by its ActivityPub URI.
-	 * Used by Undo(Like) processing.
-	 */
-	async findByUri(uri: string): Promise<Favourite | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM favourites WHERE uri = ?')
-			.bind(uri)
-			.first<Favourite>();
-		return result ?? null;
-	}
-
-	/**
-	 * Delete a favourite by account and status IDs.
-	 * Used by Undo(Like) processing when URI lookup fails.
-	 */
-	async deleteByAccountAndStatus(accountId: string, statusId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
-			.bind(accountId, statusId)
-			.run();
-	}
-
-	async countByStatus(statusId: string): Promise<number> {
-		const result = await this.db
-			.prepare('SELECT COUNT(*) as count FROM favourites WHERE status_id = ?')
-			.bind(statusId)
-			.first<{ count: number }>();
-		return result?.count ?? 0;
-	}
-}
+export const countByStatus = async (
+	db: D1Database,
+	statusId: string,
+): Promise<number> => {
+	const result = await db
+		.prepare('SELECT COUNT(*) as count FROM favourites WHERE status_id = ?')
+		.bind(statusId)
+		.first<{ count: number }>();
+	return result?.count ?? 0;
+};

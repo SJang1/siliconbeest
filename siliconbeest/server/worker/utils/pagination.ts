@@ -2,12 +2,12 @@
  * Mastodon-compatible cursor-based pagination utilities.
  */
 
-export interface PaginationParams {
+export type PaginationParams = {
 	maxId?: string;
 	sinceId?: string;
 	minId?: string;
 	limit: number;
-}
+};
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 40;

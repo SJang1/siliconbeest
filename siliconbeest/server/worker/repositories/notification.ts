@@ -1,6 +1,6 @@
 import { generateUlid } from '../utils/ulid';
 
-export interface Notification {
+export type Notification = {
 	id: string;
 	account_id: string;
 	from_account_id: string;
@@ -8,113 +8,102 @@ export interface Notification {
 	status_id: string | null;
 	read: number;
 	created_at: string;
-}
+};
 
-export interface CreateNotificationInput {
+export type CreateNotificationInput = {
 	account_id: string;
 	from_account_id: string;
 	type: string;
 	status_id?: string | null;
-}
+};
 
-export interface NotificationQueryOptions {
+export type NotificationQueryOptions = {
 	limit?: number;
 	maxId?: string;
 	types?: string[];
 	excludeTypes?: string[];
-}
+};
 
-export class NotificationRepository {
-	constructor(private db: D1Database) {}
+export const findByAccount = async (db: D1Database, accountId: string, opts: NotificationQueryOptions = {}): Promise<Notification[]> => {
+	const limit = opts.limit ?? 20;
+	const clauses = [
+		{ sql: 'account_id = ?', params: [accountId] },
+		...(opts.maxId ? [{ sql: 'id < ?', params: [opts.maxId] }] : []),
+		...(opts.types && opts.types.length > 0
+			? [{ sql: `type IN (${opts.types.map(() => '?').join(', ')})`, params: [...opts.types] }]
+			: []),
+		...(opts.excludeTypes && opts.excludeTypes.length > 0
+			? [{ sql: `type NOT IN (${opts.excludeTypes.map(() => '?').join(', ')})`, params: [...opts.excludeTypes] }]
+			: []),
+	];
+	const where = clauses.map(c => c.sql).join(' AND ');
+	const params = [...clauses.flatMap(c => c.params), limit];
 
-	async findByAccount(accountId: string, opts: NotificationQueryOptions = {}): Promise<Notification[]> {
-		const limit = opts.limit ?? 20;
-		const conditions: string[] = ['account_id = ?'];
-		const values: unknown[] = [accountId];
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM notifications
+			 WHERE ${where}
+			 ORDER BY id DESC LIMIT ?`
+		)
+		.bind(...params)
+		.all<Notification>();
+	return results;
+};
 
-		if (opts.maxId) {
-			conditions.push('id < ?');
-			values.push(opts.maxId);
-		}
-		if (opts.types && opts.types.length > 0) {
-			const placeholders = opts.types.map(() => '?').join(', ');
-			conditions.push(`type IN (${placeholders})`);
-			values.push(...opts.types);
-		}
-		if (opts.excludeTypes && opts.excludeTypes.length > 0) {
-			const placeholders = opts.excludeTypes.map(() => '?').join(', ');
-			conditions.push(`type NOT IN (${placeholders})`);
-			values.push(...opts.excludeTypes);
-		}
+export const findById = async (db: D1Database, id: string): Promise<Notification | null> => {
+	const result = await db
+		.prepare('SELECT * FROM notifications WHERE id = ?')
+		.bind(id)
+		.first<Notification>();
+	return result ?? null;
+};
 
-		values.push(limit);
+export const create = async (db: D1Database, input: CreateNotificationInput): Promise<Notification> => {
+	const now = new Date().toISOString();
+	const id = generateUlid();
+	const notification: Notification = {
+		id,
+		account_id: input.account_id,
+		from_account_id: input.from_account_id,
+		type: input.type,
+		status_id: input.status_id ?? null,
+		read: 0,
+		created_at: now,
+	};
 
-		const { results } = await this.db
-			.prepare(
-				`SELECT * FROM notifications
-				 WHERE ${conditions.join(' AND ')}
-				 ORDER BY id DESC LIMIT ?`
-			)
-			.bind(...values)
-			.all<Notification>();
-		return results;
-	}
+	await db
+		.prepare(
+			`INSERT INTO notifications (id, account_id, from_account_id, type, status_id, read, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`
+		)
+		.bind(
+			notification.id, notification.account_id, notification.from_account_id,
+			notification.type, notification.status_id, notification.read,
+			notification.created_at
+		)
+		.run();
 
-	async findById(id: string): Promise<Notification | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM notifications WHERE id = ?')
-			.bind(id)
-			.first<Notification>();
-		return result ?? null;
-	}
+	return notification;
+};
 
-	async create(input: CreateNotificationInput): Promise<Notification> {
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		const notification: Notification = {
-			id,
-			account_id: input.account_id,
-			from_account_id: input.from_account_id,
-			type: input.type,
-			status_id: input.status_id ?? null,
-			read: 0,
-			created_at: now,
-		};
+export const dismiss = async (db: D1Database, id: string, accountId: string): Promise<void> => {
+	await db
+		.prepare('DELETE FROM notifications WHERE id = ? AND account_id = ?')
+		.bind(id, accountId)
+		.run();
+};
 
-		await this.db
-			.prepare(
-				`INSERT INTO notifications (id, account_id, from_account_id, type, status_id, read, created_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				notification.id, notification.account_id, notification.from_account_id,
-				notification.type, notification.status_id, notification.read,
-				notification.created_at
-			)
-			.run();
+export const clearAll = async (db: D1Database, accountId: string): Promise<void> => {
+	await db
+		.prepare('DELETE FROM notifications WHERE account_id = ?')
+		.bind(accountId)
+		.run();
+};
 
-		return notification;
-	}
-
-	async dismiss(id: string, accountId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM notifications WHERE id = ? AND account_id = ?')
-			.bind(id, accountId)
-			.run();
-	}
-
-	async clearAll(accountId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM notifications WHERE account_id = ?')
-			.bind(accountId)
-			.run();
-	}
-
-	async countUnread(accountId: string): Promise<number> {
-		const result = await this.db
-			.prepare('SELECT COUNT(*) as count FROM notifications WHERE account_id = ? AND read = 0')
-			.bind(accountId)
-			.first<{ count: number }>();
-		return result?.count ?? 0;
-	}
-}
+export const countUnread = async (db: D1Database, accountId: string): Promise<number> => {
+	const result = await db
+		.prepare('SELECT COUNT(*) as count FROM notifications WHERE account_id = ? AND read = 0')
+		.bind(accountId)
+		.first<{ count: number }>();
+	return result?.count ?? 0;
+};

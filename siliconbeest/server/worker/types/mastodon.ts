@@ -46,20 +46,20 @@ export type Field = AccountField;
 /** @deprecated Use CustomEmoji instead */
 export type Emoji = CustomEmoji;
 
-export interface Source {
+export type Source = {
   privacy: string;
   sensitive: boolean;
   language: string;
   note: string;
   fields: Field[];
   follow_requests_count: number;
-}
+};
 
 // ============================================================
 // ACCOUNT
 // ============================================================
 
-export interface Account {
+export type Account = {
   id: string;
   username: string;
   acct: string;
@@ -88,26 +88,26 @@ export interface Account {
   limited?: boolean;
   noindex?: boolean;
   role?: AccountRole;
-}
+};
 
-export interface AccountRole {
+export type AccountRole = {
   id: string;
   name: string;
   color: string;
   permissions: number;
   highlighted: boolean;
-}
+};
 
-export interface CredentialAccount extends Account {
+export type CredentialAccount = Account & {
   source: Source;
   role: AccountRole;
-}
+};
 
 // ============================================================
 // STATUS
 // ============================================================
 
-export interface Status {
+export type Status = {
   id: string;
   uri: string;
   url: string | null;
@@ -141,16 +141,16 @@ export interface Status {
   emojis: Emoji[];
   tags: Tag[];
   mentions: StatusMention[];
-}
+};
 
-export interface StatusMention {
+export type StatusMention = {
   id: string;
   username: string;
   acct: string;
   url: string;
-}
+};
 
-export interface PreviewCard {
+export type PreviewCard = {
   url: string;
   title: string;
   description: string;
@@ -165,13 +165,13 @@ export interface PreviewCard {
   image: string | null;
   embed_url: string;
   blurhash: string | null;
-}
+};
 
 // ============================================================
 // MEDIA ATTACHMENT
 // ============================================================
 
-export interface MediaAttachmentMeta {
+export type MediaAttachmentMeta = {
   original?: {
     width: number;
     height: number;
@@ -188,9 +188,9 @@ export interface MediaAttachmentMeta {
     x: number;
     y: number;
   };
-}
+};
 
-export interface MediaAttachment {
+export type MediaAttachment = {
   id: string;
   type: 'image' | 'video' | 'gifv' | 'audio' | 'unknown';
   url: string;
@@ -200,13 +200,13 @@ export interface MediaAttachment {
   description: string | null;
   blurhash: string | null;
   meta: MediaAttachmentMeta | null;
-}
+};
 
 // ============================================================
 // POLL
 // ============================================================
 
-export interface Poll {
+export type Poll = {
   id: string;
   expires_at: string | null;
   expired: boolean;
@@ -217,61 +217,57 @@ export interface Poll {
   voted: boolean | null;
   own_votes: number[] | null;
   emojis: Emoji[];
-}
+};
 
 // ============================================================
 // NOTIFICATION
 // ============================================================
 
-export interface Notification {
+export type Notification = {
   id: string;
   type: NotificationType;
   created_at: string;
   account: Account;
   status?: Status | null;
   report?: Report | null;
-}
+};
 
 // ============================================================
 // OAUTH / APPLICATION
 // ============================================================
 
-export interface Application {
+export type Application = {
   name: string;
   website: string | null;
   client_id?: string;
   client_secret?: string;
   vapid_key?: string;
-}
+};
 
 // ============================================================
 // CONTEXT
 // ============================================================
 
-export interface Context {
+export type Context = {
   ancestors: Status[];
   descendants: Status[];
-}
-
-// ============================================================
-// RELATIONSHIP
-// ============================================================
+};
 
 // ============================================================
 // INSTANCE
 // ============================================================
 
-export interface InstanceStats {
+export type InstanceStats = {
   user_count: number;
   status_count: number;
   domain_count: number;
-}
+};
 
-export interface InstanceUrls {
+export type InstanceUrls = {
   streaming_api: string;
-}
+};
 
-export interface InstanceConfiguration {
+export type InstanceConfiguration = {
   statuses: {
     max_characters: number;
     max_media_attachments: number;
@@ -291,9 +287,9 @@ export interface InstanceConfiguration {
     min_expiration: number;
     max_expiration: number;
   };
-}
+};
 
-export interface Instance {
+export type Instance = {
   domain: string;
   title: string;
   description: string;
@@ -310,13 +306,13 @@ export interface Instance {
   contact_account: Account | null;
   rules: Rule[];
   configuration: InstanceConfiguration;
-}
+};
 
 // ============================================================
 // WEB PUSH
 // ============================================================
 
-export interface WebPushAlerts {
+export type WebPushAlerts = {
   mention: boolean;
   follow: boolean;
   favourite: boolean;
@@ -327,21 +323,21 @@ export interface WebPushAlerts {
   'admin.sign_up': boolean;
   'admin.report': boolean;
   follow_request: boolean;
-}
+};
 
-export interface WebPushSubscription {
+export type WebPushSubscription = {
   id: string;
   endpoint: string;
   alerts: WebPushAlerts;
   server_key: string;
   policy: string;
-}
+};
 
 // ============================================================
 // FILTER
 // ============================================================
 
-export interface Filter {
+export type Filter = {
   id: string;
   title: string;
   context: FilterContext[];
@@ -349,56 +345,56 @@ export interface Filter {
   keywords: FilterKeyword[];
   statuses: FilterStatus[];
   expires_at: string | null;
-}
+};
 
-export interface FilterResult {
+export type FilterResult = {
   filter: Filter;
   keyword_matches: string[] | null;
   status_matches: string[] | null;
-}
+};
 
 // ============================================================
 // MARKER
 // ============================================================
 
-export interface MarkerEntry {
+export type MarkerEntry = {
   last_read_id: string;
   version: number;
   updated_at: string;
-}
+};
 
-export interface Markers {
+export type Markers = {
   home?: MarkerEntry;
   notifications?: MarkerEntry;
-}
+};
 
 // ============================================================
 // LIST
 // ============================================================
 
-export interface Tag {
+export type Tag = {
   name: string;
   url: string;
   history?: TagHistory[];
   following?: boolean;
-}
+};
 
 // ============================================================
 // CONVERSATION
 // ============================================================
 
-export interface Conversation {
+export type Conversation = {
   id: string;
   accounts: Account[];
   last_status: Status | null;
   unread: boolean;
-}
+};
 
 // ============================================================
 // REPORT
 // ============================================================
 
-export interface Report {
+export type Report = {
   id: string;
   action_taken: boolean;
   action_taken_at: string | null;
@@ -409,22 +405,22 @@ export interface Report {
   rule_ids: string[] | null;
   target_account: Account;
   created_at: string;
-}
+};
 
 // ============================================================
 // RULE
 // ============================================================
 
-export interface Rule {
+export type Rule = {
   id: string;
   text: string;
-}
+};
 
 // ============================================================
 // ANNOUNCEMENT
 // ============================================================
 
-export interface Announcement {
+export type Announcement = {
   id: string;
   text: string;
   published: boolean;
@@ -438,33 +434,33 @@ export interface Announcement {
   mentions: StatusMention[];
   created_at: string;
   updated_at: string;
-}
+};
 
-export interface AnnouncementReaction {
+export type AnnouncementReaction = {
   name: string;
   count: number;
   me: boolean;
   url?: string;
   static_url?: string;
-}
+};
 
 // ============================================================
 // ERROR
 // ============================================================
 
-export interface MastodonError {
+export type MastodonError = {
   error: string;
   error_description?: string;
-}
+};
 
 // ============================================================
 // PREFERENCES
 // ============================================================
 
-export interface Preferences {
+export type Preferences = {
   'posting:default:visibility': string;
   'posting:default:sensitive': boolean;
   'posting:default:language': string | null;
   'reading:expand:media': string;
   'reading:expand:spoilers': boolean;
-}
+};

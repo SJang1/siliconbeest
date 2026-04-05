@@ -8,22 +8,22 @@
 import { encryptPushPayload } from './encrypt';
 import { generateVapidAuth } from './vapid';
 
-export interface PushSubscription {
+export type PushSubscription = {
   endpoint: string;
   keys: {
     p256dh: string;
     auth: string;
   };
-}
+};
 
-export interface PushResult {
+export type PushResult = {
   /** Whether the push service accepted the message (2xx status) */
   success: boolean;
   /** HTTP status code from the push service */
   status: number;
   /** Whether the subscription is expired/invalid (410 Gone or 404 Not Found) */
   gone: boolean;
-}
+};
 
 /**
  * Send a Web Push notification.

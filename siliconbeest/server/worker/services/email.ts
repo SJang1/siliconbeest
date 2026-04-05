@@ -27,6 +27,7 @@ export async function sendEmail(
 	html: string,
 	text?: string,
 ): Promise<boolean> {
+	// oxlint-disable-next-line fp/no-try-statements
 	try {
 		await env.QUEUE_EMAIL.send({
 			type: 'send_email',
@@ -37,8 +38,8 @@ export async function sendEmail(
 		});
 		console.log(`[email] Enqueued email to ${to}: ${subject}`);
 		return true;
-	} catch (err) {
-		console.error('[email] Failed to enqueue email:', err);
+	} catch (_err) {
+		console.error('[email] Failed to enqueue email:', _err);
 		return false;
 	}
 }
@@ -182,13 +183,14 @@ export async function notifyAdminsPendingUser(
 </ul>
 <p><a href="${escapeHtml(adminUrl)}">Review pending accounts &rarr;</a></p>`;
 
-	for (const adminEmail of adminEmails) {
+	await Promise.all(adminEmails.map(async (adminEmail) => {
+		// oxlint-disable-next-line fp/no-try-statements
 		try {
 			await sendEmail(env, adminEmail, subject, html);
 		} catch {
 			// Don't fail registration if admin notification fails
 		}
-	}
+	}));
 }
 
 /**
@@ -218,11 +220,12 @@ export async function notifyAdminsNewReport(
 </ul>
 <p><a href="${escapeHtml(adminUrl)}">Review reports &rarr;</a></p>`;
 
-	for (const adminEmail of adminEmails) {
+	await Promise.all(adminEmails.map(async (adminEmail) => {
+		// oxlint-disable-next-line fp/no-try-statements
 		try {
 			await sendEmail(env, adminEmail, subject, html);
 		} catch {
 			// Don't fail report submission if admin notification fails
 		}
-	}
+	}));
 }

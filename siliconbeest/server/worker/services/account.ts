@@ -173,7 +173,7 @@ export async function getRelationship(db: D1Database, accountId: string, targetI
 		domain_blocking: domainBlocking,
 		endorsed,
 		note: noteComment,
-		languages: follow?.languages ? JSON.parse(follow.languages) : null,
+		languages: (() => { try { return follow?.languages ? JSON.parse(follow.languages) : null; } catch { return null; } })(),
 	};
 }
 

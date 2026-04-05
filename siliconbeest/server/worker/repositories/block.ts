@@ -1,85 +1,97 @@
 import { generateUlid } from '../utils/ulid';
 
-export interface Block {
+export type Block = {
 	id: string;
 	account_id: string;
 	target_account_id: string;
 	uri: string | null;
 	created_at: string;
-}
+};
 
-export interface CreateBlockInput {
+export type CreateBlockInput = {
 	account_id: string;
 	target_account_id: string;
 	uri?: string | null;
-}
+};
 
-export class BlockRepository {
-	constructor(private db: D1Database) {}
+export const findByAccountAndTarget = async (
+	db: D1Database,
+	accountId: string,
+	targetAccountId: string,
+): Promise<Block | null> => {
+	const result = await db
+		.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ?')
+		.bind(accountId, targetAccountId)
+		.first<Block>();
+	return result ?? null;
+};
 
-	async findByAccountAndTarget(accountId: string, targetAccountId: string): Promise<Block | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ?')
-			.bind(accountId, targetAccountId)
-			.first<Block>();
-		return result ?? null;
-	}
+export const findByAccount = async (
+	db: D1Database,
+	accountId: string,
+	limit: number = 40,
+	maxId?: string,
+): Promise<Block[]> => {
+	const clauses = [
+		{ sql: 'account_id = ?', param: accountId },
+		...(maxId ? [{ sql: 'id < ?', param: maxId }] : []),
+	];
+	const where = clauses.map(c => c.sql).join(' AND ');
+	const params = [...clauses.map(c => c.param), limit];
 
-	async findByAccount(accountId: string, limit: number = 40, maxId?: string): Promise<Block[]> {
-		const conditions: string[] = ['account_id = ?'];
-		const values: unknown[] = [accountId];
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM blocks
+			 WHERE ${where}
+			 ORDER BY id DESC LIMIT ?`
+		)
+		.bind(...params)
+		.all<Block>();
+	return results;
+};
 
-		if (maxId) {
-			conditions.push('id < ?');
-			values.push(maxId);
-		}
+export const create = async (
+	db: D1Database,
+	input: CreateBlockInput,
+): Promise<Block> => {
+	const now = new Date().toISOString();
+	const id = generateUlid();
+	const block: Block = {
+		id,
+		account_id: input.account_id,
+		target_account_id: input.target_account_id,
+		uri: input.uri ?? null,
+		created_at: now,
+	};
 
-		values.push(limit);
+	await db
+		.prepare(
+			'INSERT INTO blocks (id, account_id, target_account_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
+		)
+		.bind(block.id, block.account_id, block.target_account_id, block.uri, block.created_at)
+		.run();
 
-		const { results } = await this.db
-			.prepare(
-				`SELECT * FROM blocks
-				 WHERE ${conditions.join(' AND ')}
-				 ORDER BY id DESC LIMIT ?`
-			)
-			.bind(...values)
-			.all<Block>();
-		return results;
-	}
+	return block;
+};
 
-	async create(input: CreateBlockInput): Promise<Block> {
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		const block: Block = {
-			id,
-			account_id: input.account_id,
-			target_account_id: input.target_account_id,
-			uri: input.uri ?? null,
-			created_at: now,
-		};
+export const deleteById = async (
+	db: D1Database,
+	id: string,
+): Promise<void> => {
+	await db
+		.prepare('DELETE FROM blocks WHERE id = ?')
+		.bind(id)
+		.run();
+};
 
-		await this.db
-			.prepare(
-				'INSERT INTO blocks (id, account_id, target_account_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
-			)
-			.bind(block.id, block.account_id, block.target_account_id, block.uri, block.created_at)
-			.run();
-
-		return block;
-	}
-
-	async delete(id: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM blocks WHERE id = ?')
-			.bind(id)
-			.run();
-	}
-
-	async isBlocked(accountId: string, targetId: string): Promise<boolean> {
-		const result = await this.db
-			.prepare('SELECT 1 FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(accountId, targetId)
-			.first();
-		return result !== null;
-	}
-}
+export const isBlocked = async (
+	db: D1Database,
+	accountId: string,
+	targetId: string,
+): Promise<boolean> => {
+	const result = await db
+		.prepare('SELECT 1 FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
+		.bind(accountId, targetId)
+		.first();
+	return result !== null;
+};

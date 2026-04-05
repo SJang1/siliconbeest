@@ -4,6 +4,8 @@
  * Header: gradient banner.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, no-param-reassign */
+
 // Deterministic color from username
 function hashColor(str: string): string {
   let hash = 0;

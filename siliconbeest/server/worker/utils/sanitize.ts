@@ -3,6 +3,8 @@
  * Uses regex-based approach to strip disallowed tags, attributes, and dangerous content.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements */
+
 const ALLOWED_TAGS = new Set([
 	'p',
 	'br',
@@ -93,7 +95,7 @@ function sanitizeAttributes(tag: string, attrsString: string): string {
 	let attrMatch;
 
 	while ((attrMatch = attrRegex.exec(attrsString)) !== null) {
-		const attrName = attrMatch[1]!.toLowerCase();
+		const attrName = attrMatch[1].toLowerCase();
 		const attrValue = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? '';
 
 		// Skip event handler attributes (onclick, onload, etc.)

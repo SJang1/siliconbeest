@@ -1,3 +1,4 @@
+/* oxlint-disable fp/no-classes, fp/no-class-inheritance, fp/no-this-expressions */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Env, AppVariables } from '../env';

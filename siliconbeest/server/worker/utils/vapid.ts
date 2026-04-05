@@ -2,7 +2,9 @@
  * VAPID key resolution from D1 settings table.
  */
 
-interface VapidKeys {
+/* oxlint-disable fp/no-loop-statements */
+
+type VapidKeys = {
 	publicKey: string;
 	privateKey: string;
 }

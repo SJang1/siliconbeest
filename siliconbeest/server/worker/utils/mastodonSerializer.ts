@@ -5,6 +5,8 @@
  * See: https://docs.joinmastodon.org/entities/
  */
 
+/* oxlint-disable fp/no-let, fp/no-try-statements */
+
 import type {
   Account as MastodonAccount,
   Status as MastodonStatus,
@@ -239,7 +241,7 @@ export function serializeMediaAttachment(
   domain?: string,
 ): MastodonMediaAttachment {
   const meta: MediaAttachmentMeta | null =
-    row.width != null && row.height != null
+    row.width !== null && row.height !== null
       ? {
           original: {
             width: row.width,

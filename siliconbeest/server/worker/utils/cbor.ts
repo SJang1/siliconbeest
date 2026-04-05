@@ -4,6 +4,8 @@
  * No external dependencies.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, no-param-reassign, no-explicit-any */
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -21,7 +23,7 @@ export function decodeCBOR(data: Uint8Array): any {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-interface DecodeResult {
+type DecodeResult = {
 	value: any;
 	offset: number; // byte position *after* this item
 }
@@ -31,7 +33,7 @@ function decodeItem(data: Uint8Array, offset: number): DecodeResult {
 		throw new Error('CBOR: unexpected end of data');
 	}
 
-	const initialByte = data[offset]!;
+	const initialByte = data[offset];
 	const majorType = initialByte >> 5;
 	const additionalInfo = initialByte & 0x1f;
 
@@ -43,7 +45,7 @@ function decodeItem(data: Uint8Array, offset: number): DecodeResult {
 	if (additionalInfo < 24) {
 		argResult = { value: additionalInfo, offset };
 	} else if (additionalInfo === 24) {
-		argResult = { value: data[offset]!, offset: offset + 1 };
+		argResult = { value: data[offset], offset: offset + 1 };
 	} else if (additionalInfo === 25) {
 		argResult = { value: readUint16(data, offset), offset: offset + 2 };
 	} else if (additionalInfo === 26) {
@@ -182,15 +184,15 @@ function decodeItem(data: Uint8Array, offset: number): DecodeResult {
 // ---------------------------------------------------------------------------
 
 function readUint16(data: Uint8Array, offset: number): number {
-	return (data[offset]! << 8) | data[offset + 1]!;
+	return (data[offset] << 8) | data[offset + 1];
 }
 
 function readUint32(data: Uint8Array, offset: number): number {
 	return (
-		((data[offset]! << 24) >>> 0) +
-		(data[offset + 1]! << 16) +
-		(data[offset + 2]! << 8) +
-		data[offset + 3]!
+		((data[offset] << 24) >>> 0) +
+		(data[offset + 1] << 16) +
+		(data[offset + 2] << 8) +
+		data[offset + 3]
 	);
 }
 

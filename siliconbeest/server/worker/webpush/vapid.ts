@@ -6,6 +6,8 @@
  * push message senders to push services.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, fp/no-promise-reject */
+
 // ============================================================
 // BASE64URL HELPERS
 // ============================================================

@@ -7,7 +7,7 @@ type MiddlewareEnv = { Bindings: Env; Variables: AppVariables };
 // Configuration
 // ---------------------------------------------------------------------------
 
-export interface RateLimitOptions {
+export type RateLimitOptions = {
   /** Maximum number of requests allowed within the window. */
   maxRequests: number;
   /** Window size in milliseconds. */
@@ -17,7 +17,7 @@ export interface RateLimitOptions {
    * Defaults to the request pathname.
    */
   keyPrefix?: string;
-}
+};
 
 // Convenient presets ---
 export const RATE_LIMIT_GENERAL: RateLimitOptions = {

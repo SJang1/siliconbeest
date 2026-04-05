@@ -1,6 +1,6 @@
 import { generateUlid } from '../utils/ulid';
 
-export interface MediaAttachment {
+export type MediaAttachment = {
 	id: string;
 	status_id: string | null;
 	account_id: string;
@@ -16,9 +16,9 @@ export interface MediaAttachment {
 	type: string;
 	created_at: string;
 	updated_at: string;
-}
+};
 
-export interface CreateMediaInput {
+export type CreateMediaInput = {
 	account_id: string;
 	file_key: string;
 	file_content_type: string;
@@ -30,115 +30,105 @@ export interface CreateMediaInput {
 	width?: number | null;
 	height?: number | null;
 	type?: string;
-}
+};
 
-export class MediaRepository {
-	constructor(private db: D1Database) {}
+export const findById = async (db: D1Database, id: string): Promise<MediaAttachment | null> => {
+	const result = await db
+		.prepare('SELECT * FROM media_attachments WHERE id = ?')
+		.bind(id)
+		.first<MediaAttachment>();
+	return result ?? null;
+};
 
-	async findById(id: string): Promise<MediaAttachment | null> {
-		const result = await this.db
-			.prepare('SELECT * FROM media_attachments WHERE id = ?')
-			.bind(id)
-			.first<MediaAttachment>();
-		return result ?? null;
-	}
+export const findByStatusId = async (db: D1Database, statusId: string): Promise<MediaAttachment[]> => {
+	const { results } = await db
+		.prepare('SELECT * FROM media_attachments WHERE status_id = ? ORDER BY created_at ASC')
+		.bind(statusId)
+		.all<MediaAttachment>();
+	return results;
+};
 
-	async findByStatusId(statusId: string): Promise<MediaAttachment[]> {
-		const { results } = await this.db
-			.prepare('SELECT * FROM media_attachments WHERE status_id = ? ORDER BY created_at ASC')
-			.bind(statusId)
-			.all<MediaAttachment>();
-		return results;
-	}
+export const findUnattached = async (db: D1Database, accountId: string): Promise<MediaAttachment[]> => {
+	const { results } = await db
+		.prepare(
+			'SELECT * FROM media_attachments WHERE account_id = ? AND status_id IS NULL ORDER BY created_at DESC'
+		)
+		.bind(accountId)
+		.all<MediaAttachment>();
+	return results;
+};
 
-	async findUnattached(accountId: string): Promise<MediaAttachment[]> {
-		const { results } = await this.db
-			.prepare(
-				'SELECT * FROM media_attachments WHERE account_id = ? AND status_id IS NULL ORDER BY created_at DESC'
-			)
-			.bind(accountId)
-			.all<MediaAttachment>();
-		return results;
-	}
+export const create = async (db: D1Database, input: CreateMediaInput): Promise<MediaAttachment> => {
+	const now = new Date().toISOString();
+	const id = generateUlid();
+	const media: MediaAttachment = {
+		id,
+		status_id: null,
+		account_id: input.account_id,
+		file_key: input.file_key,
+		file_content_type: input.file_content_type,
+		file_size: input.file_size ?? 0,
+		thumbnail_key: input.thumbnail_key ?? null,
+		remote_url: input.remote_url ?? null,
+		description: input.description ?? '',
+		blurhash: input.blurhash ?? null,
+		width: input.width ?? null,
+		height: input.height ?? null,
+		type: input.type ?? 'image',
+		created_at: now,
+		updated_at: now,
+	};
 
-	async create(input: CreateMediaInput): Promise<MediaAttachment> {
-		const now = new Date().toISOString();
-		const id = generateUlid();
-		const media: MediaAttachment = {
-			id,
-			status_id: null,
-			account_id: input.account_id,
-			file_key: input.file_key,
-			file_content_type: input.file_content_type,
-			file_size: input.file_size ?? 0,
-			thumbnail_key: input.thumbnail_key ?? null,
-			remote_url: input.remote_url ?? null,
-			description: input.description ?? '',
-			blurhash: input.blurhash ?? null,
-			width: input.width ?? null,
-			height: input.height ?? null,
-			type: input.type ?? 'image',
-			created_at: now,
-			updated_at: now,
-		};
+	await db
+		.prepare(
+			`INSERT INTO media_attachments (
+				id, status_id, account_id, file_key, file_content_type, file_size,
+				thumbnail_key, remote_url, description, blurhash,
+				width, height, type, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		)
+		.bind(
+			media.id, media.status_id, media.account_id,
+			media.file_key, media.file_content_type, media.file_size,
+			media.thumbnail_key, media.remote_url, media.description,
+			media.blurhash, media.width, media.height, media.type,
+			media.created_at, media.updated_at
+		)
+		.run();
 
-		await this.db
-			.prepare(
-				`INSERT INTO media_attachments (
-					id, status_id, account_id, file_key, file_content_type, file_size,
-					thumbnail_key, remote_url, description, blurhash,
-					width, height, type, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				media.id, media.status_id, media.account_id,
-				media.file_key, media.file_content_type, media.file_size,
-				media.thumbnail_key, media.remote_url, media.description,
-				media.blurhash, media.width, media.height, media.type,
-				media.created_at, media.updated_at
-			)
-			.run();
+	return media;
+};
 
-		return media;
-	}
+export const update = async (
+	db: D1Database,
+	id: string,
+	input: Partial<Pick<MediaAttachment, 'description' | 'blurhash' | 'width' | 'height' | 'thumbnail_key'>>
+): Promise<MediaAttachment | null> => {
+	const now = new Date().toISOString();
+	const entries = Object.entries(input);
 
-	async update(
-		id: string,
-		input: Partial<Pick<MediaAttachment, 'description' | 'blurhash' | 'width' | 'height' | 'thumbnail_key'>>
-	): Promise<MediaAttachment | null> {
-		const now = new Date().toISOString();
-		const fields: string[] = [];
-		const values: unknown[] = [];
+	if (entries.length === 0) return findById(db, id);
 
-		for (const [key, value] of Object.entries(input)) {
-			fields.push(`${key} = ?`);
-			values.push(value);
-		}
+	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
+	const values = [...entries.map(([, value]) => value), now, id];
 
-		if (fields.length === 0) return this.findById(id);
+	await db
+		.prepare(`UPDATE media_attachments SET ${fields.join(', ')} WHERE id = ?`)
+		.bind(...values)
+		.run();
 
-		fields.push('updated_at = ?');
-		values.push(now);
-		values.push(id);
+	return findById(db, id);
+};
 
-		await this.db
-			.prepare(`UPDATE media_attachments SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
+export const attachToStatus = async (db: D1Database, ids: string[], statusId: string): Promise<void> => {
+	if (ids.length === 0) return;
+	const now = new Date().toISOString();
 
-		return this.findById(id);
-	}
+	const stmts = ids.map((mediaId) =>
+		db
+			.prepare('UPDATE media_attachments SET status_id = ?, updated_at = ? WHERE id = ?')
+			.bind(statusId, now, mediaId)
+	);
 
-	async attachToStatus(ids: string[], statusId: string): Promise<void> {
-		if (ids.length === 0) return;
-		const now = new Date().toISOString();
-
-		const stmts = ids.map((mediaId) =>
-			this.db
-				.prepare('UPDATE media_attachments SET status_id = ?, updated_at = ? WHERE id = ?')
-				.bind(statusId, now, mediaId)
-		);
-
-		await this.db.batch(stmts);
-	}
-}
+	await db.batch(stmts);
+};

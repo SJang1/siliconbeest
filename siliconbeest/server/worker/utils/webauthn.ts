@@ -5,6 +5,8 @@
  * COSE key import, and assertion signature verification.
  */
 
+/* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, no-param-reassign, no-explicit-any, fp/no-promise-reject */
+
 import { decodeCBOR } from './cbor';
 
 // ---------------------------------------------------------------------------
@@ -50,10 +52,10 @@ export function base64urlDecode(str: string): Uint8Array {
 		const buf = new Uint8Array(bufLen);
 		let p = 0;
 		for (let i = 0; i < len; i += 4) {
-			const a = lookup[s.charCodeAt(i)]!;
-			const b = lookup[s.charCodeAt(i + 1)]!;
-			const c = lookup[s.charCodeAt(i + 2)]!;
-			const d = lookup[s.charCodeAt(i + 3)]!;
+			const a = lookup[s.charCodeAt(i)];
+			const b = lookup[s.charCodeAt(i + 1)];
+			const c = lookup[s.charCodeAt(i + 2)];
+			const d = lookup[s.charCodeAt(i + 3)];
 			buf[p++] = (a << 2) | (b >> 4);
 			if (p < bufLen) buf[p++] = ((b & 15) << 4) | (c >> 2);
 			if (p < bufLen) buf[p++] = ((c & 3) << 6) | d;
@@ -66,25 +68,25 @@ export function base64urlDecode(str: string): Uint8Array {
 // Authenticator data parsing
 // ---------------------------------------------------------------------------
 
-export interface AuthenticatorDataFlags {
+export type AuthenticatorDataFlags = {
 	up: boolean; // User Present
 	uv: boolean; // User Verified
 	at: boolean; // Attested Credential Data present
 	ed: boolean; // Extension Data present
-}
+};
 
-export interface AttestedCredentialData {
+export type AttestedCredentialData = {
 	aaguid: Uint8Array;
 	credentialId: Uint8Array;
 	publicKey: Map<number, any>;
-}
+};
 
-export interface ParsedAuthenticatorData {
+export type ParsedAuthenticatorData = {
 	rpIdHash: Uint8Array;
 	flags: AuthenticatorDataFlags;
 	signCount: number;
 	attestedCredentialData?: AttestedCredentialData;
-}
+};
 
 /**
  * Parse the raw authenticator data bytes from a WebAuthn response.
@@ -96,7 +98,7 @@ export function parseAuthenticatorData(authData: Uint8Array): ParsedAuthenticato
 	}
 
 	const rpIdHash = authData.slice(0, 32);
-	const flagsByte = authData[32]!;
+	const flagsByte = authData[32];
 	const flags: AuthenticatorDataFlags = {
 		up: !!(flagsByte & 0x01),
 		uv: !!(flagsByte & 0x04),
@@ -147,11 +149,11 @@ export function parseAuthenticatorData(authData: Uint8Array): ParsedAuthenticato
 // ---------------------------------------------------------------------------
 
 // COSE key type identifiers
-const COSE_KTY = 1;
+const _COSE_KTY = 1;
 const COSE_ALG = 3;
 
 // COSE EC2 key parameters
-const COSE_EC2_CRV = -1;
+const _COSE_EC2_CRV = -1;
 const COSE_EC2_X = -2;
 const COSE_EC2_Y = -3;
 
@@ -289,8 +291,8 @@ function derToRaw(derSig: Uint8Array): Uint8Array {
 	let offset = 2; // skip 0x30 and total length
 
 	// Handle long form length encoding
-	if (derSig[1]! & 0x80) {
-		const lenBytes = derSig[1]! & 0x7f;
+	if (derSig[1] & 0x80) {
+		const lenBytes = derSig[1] & 0x7f;
 		offset = 2 + lenBytes;
 	}
 
@@ -299,7 +301,7 @@ function derToRaw(derSig: Uint8Array): Uint8Array {
 		throw new Error('Invalid DER signature: missing INTEGER tag for r');
 	}
 	offset += 1;
-	const rLen = derSig[offset]!;
+	const rLen = derSig[offset];
 	offset += 1;
 	let r = derSig.slice(offset, offset + rLen);
 	offset += rLen;
@@ -309,7 +311,7 @@ function derToRaw(derSig: Uint8Array): Uint8Array {
 		throw new Error('Invalid DER signature: missing INTEGER tag for s');
 	}
 	offset += 1;
-	const sLen = derSig[offset]!;
+	const sLen = derSig[offset];
 	offset += 1;
 	let s = derSig.slice(offset, offset + sLen);
 

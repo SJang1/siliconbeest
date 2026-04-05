@@ -9,38 +9,38 @@ import type { BaseEnv } from '../../../packages/shared/types/env';
  * Cloudflare Workers environment bindings.
  * Must match the bindings declared in wrangler.jsonc.
  */
-export interface Env extends BaseEnv {
+export type Env = BaseEnv & {
   // KV Namespaces (worker-only)
-  SESSIONS: KVNamespace;
+  readonly SESSIONS: KVNamespace;
 
   // Queues (worker-only)
-  QUEUE_EMAIL: Queue<SendEmailMessage>;
+  readonly QUEUE_EMAIL: Queue<SendEmailMessage>;
 
   // Durable Objects (worker-only)
-  STREAMING_DO: DurableObjectNamespace;
+  readonly STREAMING_DO: DurableObjectNamespace;
 
   // Environment variables (wrangler.jsonc vars)
-  INSTANCE_TITLE: string;
-  REGISTRATION_MODE: string;
+  readonly INSTANCE_TITLE: string;
+  readonly REGISTRATION_MODE: string;
 
   // Secrets (worker-only)
-  OTP_ENCRYPTION_KEY: string;
-}
+  readonly OTP_ENCRYPTION_KEY: string;
+};
 
 /**
  * Hono context variables set by middleware.
  */
-export interface AppVariables {
+export type AppVariables = {
   currentUser: {
-    id: string;
-    account_id: string;
-    email: string;
-    role: string;
+    readonly id: string;
+    readonly account_id: string;
+    readonly email: string;
+    readonly role: string;
   } | null;
   currentAccount: {
-    id: string;
-    username: string;
-    domain: string | null;
+    readonly id: string;
+    readonly username: string;
+    readonly domain: string | null;
   } | null;
   /** OAuth token scopes (space-separated), e.g. "read write follow push". */
   tokenScopes: string | null;
@@ -51,7 +51,7 @@ export interface AppVariables {
   isActivityPub: boolean;
   /** Fedify Federation instance (created per-request in middleware). */
   federation: Federation<FedifyContextData>;
-}
+};
 
 /**
  * Fully-typed Hono app used across the project.

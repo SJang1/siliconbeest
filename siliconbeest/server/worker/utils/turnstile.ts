@@ -29,7 +29,7 @@ export async function verifyTurnstile(
     },
   );
 
-  const data = (await res.json()) as { success: boolean };
+  const data: { success: boolean } = await res.json();
   return data.success;
 }
 
@@ -42,13 +42,9 @@ export async function getTurnstileSettings(
   cache: KVNamespace,
 ): Promise<{ enabled: boolean; siteKey: string; secretKey: string }> {
   const CACHE_KEY = 'settings:turnstile';
-  const cached = await cache.get(CACHE_KEY, 'json') as {
-    enabled: boolean;
-    siteKey: string;
-    secretKey: string;
-  } | null;
+  const cached = await cache.get(CACHE_KEY, 'json');
 
-  if (cached) return cached;
+  if (cached) return cached as { enabled: boolean; siteKey: string; secretKey: string };
 
   const { results } = await db
     .prepare(
@@ -56,10 +52,9 @@ export async function getTurnstileSettings(
     )
     .all();
 
-  const map: Record<string, string> = {};
-  for (const row of results ?? []) {
-    map[row.key as string] = row.value as string;
-  }
+  const map: Record<string, string> = Object.fromEntries(
+    (results ?? []).map((row) => [row.key as string, row.value as string]),
+  );
 
   const settings = {
     enabled: map.turnstile_enabled === '1',
