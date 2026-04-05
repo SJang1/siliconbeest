@@ -1,215 +1,257 @@
-import { ok, err, type Result } from 'neverthrow';
-import type { StatusRow } from '../types/db';
-import { type AppError, NotFoundError } from '../middleware/errorHandler';
+import { parsePaginationParams, buildPaginationQuery } from '../utils/pagination';
+import type { PaginationParams } from '../utils/pagination';
+import { AppError } from '../middleware/errorHandler';
 
 /**
- * Timeline service: home, public, tag, and list timelines
- * with cursor-based pagination (max_id / since_id / min_id).
+ * Shared account columns selected alongside statuses in timeline queries.
+ * Every timeline function uses this exact column list for the JOIN on accounts.
  */
+const ACCOUNT_COLUMNS = `
+  a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
+  a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
+  a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
+  a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
+  a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
+  a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
+  a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
+  a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
+  a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+  a.emoji_tags AS a_emoji_tags`;
 
-type PaginationOpts = {
-	limit?: number;
-	maxId?: string;
-	sinceId?: string;
-	minId?: string;
-};
+export interface TimelinePaginationOpts {
+  maxId?: string;
+  sinceId?: string;
+  minId?: string;
+  limit?: number;
+}
 
-type PublicTimelineOpts = PaginationOpts & {
-	local?: boolean;
-	onlyMedia?: boolean;
-};
+export interface PublicTimelineOpts extends TimelinePaginationOpts {
+  local?: boolean;
+  remote?: boolean;
+  onlyMedia?: boolean;
+}
 
-type TagTimelineOpts = PaginationOpts & {
-	local?: boolean;
-};
-
-// ----------------------------------------------------------------
-// Helpers
-// ----------------------------------------------------------------
-
-const applyCursorConditions = (
-	opts: PaginationOpts,
-	columnPrefix: string,
-): { fragments: string[]; params: (string | number)[] } => {
-	const fragments: string[] = [];
-	const params: (string | number)[] = [];
-
-	if (opts.maxId) {
-		fragments.push(`${columnPrefix} < ?`);
-		params.push(opts.maxId);
-	}
-	if (opts.sinceId) {
-		fragments.push(`${columnPrefix} > ?`);
-		params.push(opts.sinceId);
-	}
-	if (opts.minId) {
-		fragments.push(`${columnPrefix} > ?`);
-		params.push(opts.minId);
-	}
-
-	return { fragments, params };
-};
-
-const executeTimelineQuery = async (
-	db: D1Database,
-	query: string,
-	params: (string | number)[],
-	useMinIdOrder: boolean,
-): Promise<StatusRow[]> => {
-	const result = await db
-		.prepare(query)
-		.bind(...params)
-		.all();
-
-	const rows = (result.results || []) as unknown as StatusRow[];
-
-	if (useMinIdOrder) {
-		rows.reverse();
-	}
-
-	return rows;
-};
+export interface TagTimelineOpts extends TimelinePaginationOpts {
+  local?: boolean;
+  onlyMedia?: boolean;
+}
 
 // ----------------------------------------------------------------
-// Home timeline (from home_timeline_entries)
+// Home timeline
 // ----------------------------------------------------------------
-export const getHome = async (
-	db: D1Database,
-	accountId: string,
-	opts: PaginationOpts,
-): Promise<StatusRow[]> => {
-	const limit = Math.min(opts.limit || 20, 40);
-	const cursor = applyCursorConditions(opts, 'hte.status_id');
 
-	const baseConditions = ['hte.account_id = ?', 's.deleted_at IS NULL'];
-	const baseParams: (string | number)[] = [accountId];
+/**
+ * Fetch the home timeline for the given account.
+ *
+ * Uses `hte.rowid` for ordering — it auto-increments on INSERT and correctly
+ * reflects the order statuses entered the home timeline, regardless of whether
+ * the status ID is local (00MN) or remote (01KM). Cursor pagination resolves
+ * the status ID to its rowid via subquery.
+ */
+export async function getHomeTimeline(
+  db: D1Database,
+  accountId: string,
+  opts: TimelinePaginationOpts,
+): Promise<Record<string, unknown>[]> {
+  const pag = parsePaginationParams({
+    max_id: opts.maxId,
+    since_id: opts.sinceId,
+    min_id: opts.minId,
+    limit: opts.limit != null ? String(opts.limit) : undefined,
+  });
 
-	const allConditions = [...baseConditions, ...cursor.fragments];
-	const allParams = [...baseParams, ...cursor.params, limit];
+  const conditions: string[] = ['hte.account_id = ?'];
+  const binds: (string | number)[] = [accountId];
+  let orderClause = 'hte.rowid DESC';
 
-	const orderDirection = opts.minId ? 'ASC' : 'DESC';
+  if (pag.maxId) {
+    conditions.push(
+      'hte.rowid < (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)',
+    );
+    binds.push(accountId, pag.maxId);
+  }
+  if (pag.sinceId) {
+    conditions.push(
+      'hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)',
+    );
+    binds.push(accountId, pag.sinceId);
+  }
+  if (pag.minId) {
+    conditions.push(
+      'hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)',
+    );
+    binds.push(accountId, pag.minId);
+    orderClause = 'hte.rowid ASC';
+  }
 
-	const query = `
-		SELECT s.* FROM statuses s
-		INNER JOIN home_timeline_entries hte ON hte.status_id = s.id
-		WHERE ${allConditions.join(' AND ')}
-		ORDER BY hte.status_id ${orderDirection}
-		LIMIT ?
-	`;
+  conditions.push('s.deleted_at IS NULL');
 
-	return executeTimelineQuery(db, query, allParams, !!opts.minId);
-};
+  const sql = `
+    SELECT s.*, ${ACCOUNT_COLUMNS}
+    FROM home_timeline_entries hte
+    JOIN statuses s ON s.id = hte.status_id
+    JOIN accounts a ON a.id = s.account_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY ${orderClause}
+    LIMIT ?
+  `;
+  binds.push(pag.limit);
+
+  const { results } = await db.prepare(sql).bind(...binds).all();
+  return (results ?? []) as Record<string, unknown>[];
+}
 
 // ----------------------------------------------------------------
 // Public timeline
 // ----------------------------------------------------------------
-export const getPublic = async (
-	db: D1Database,
-	opts: PublicTimelineOpts,
-): Promise<StatusRow[]> => {
-	const limit = Math.min(opts.limit || 20, 40);
-	const cursor = applyCursorConditions(opts, 's.id');
 
-	const baseConditions = [
-		's.deleted_at IS NULL',
-		's.visibility = ?',
-		's.reblog_of_id IS NULL',
-		...(opts.local ? ['s.local = 1'] : []),
-		...(opts.onlyMedia ? ['EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)'] : []),
-	];
-	const baseParams: (string | number)[] = ['public'];
+export async function getPublicTimeline(
+  db: D1Database,
+  opts: PublicTimelineOpts,
+): Promise<Record<string, unknown>[]> {
+  const pag = parsePaginationParams({
+    max_id: opts.maxId,
+    since_id: opts.sinceId,
+    min_id: opts.minId,
+    limit: opts.limit != null ? String(opts.limit) : undefined,
+  });
 
-	const allConditions = [...baseConditions, ...cursor.fragments];
-	const allParams = [...baseParams, ...cursor.params, limit];
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
-	const orderDirection = opts.minId ? 'ASC' : 'DESC';
+  const conditions: string[] = [`s.visibility = 'public'`, 's.deleted_at IS NULL'];
+  const binds: (string | number)[] = [];
 
-	const query = `
-		SELECT s.* FROM statuses s
-		WHERE ${allConditions.join(' AND ')}
-		ORDER BY s.id ${orderDirection}
-		LIMIT ?
-	`;
+  if (whereClause) {
+    conditions.push(whereClause);
+    binds.push(...params);
+  }
 
-	return executeTimelineQuery(db, query, allParams, !!opts.minId);
-};
+  if (opts.local) {
+    conditions.push('s.local = 1');
+  }
+  if (opts.remote) {
+    conditions.push('s.local = 0');
+  }
+  if (opts.onlyMedia) {
+    conditions.push('EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)');
+  }
+
+  const sql = `
+    SELECT s.*, ${ACCOUNT_COLUMNS}
+    FROM statuses s
+    JOIN accounts a ON a.id = s.account_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY ${orderClause}
+    LIMIT ?
+  `;
+  binds.push(limitValue);
+
+  const { results } = await db.prepare(sql).bind(...binds).all();
+  return (results ?? []) as Record<string, unknown>[];
+}
 
 // ----------------------------------------------------------------
 // Tag timeline
 // ----------------------------------------------------------------
-export const getTag = async (
-	db: D1Database,
-	tag: string,
-	opts: TagTimelineOpts,
-): Promise<StatusRow[]> => {
-	const limit = Math.min(opts.limit || 20, 40);
-	const normalizedTag = tag.toLowerCase();
-	const cursor = applyCursorConditions(opts, 's.id');
 
-	const baseConditions = [
-		's.deleted_at IS NULL',
-		"s.visibility IN ('public', 'unlisted')",
-		's.reblog_of_id IS NULL',
-		't.name = ?',
-		...(opts.local ? ['s.local = 1'] : []),
-	];
-	const baseParams: (string | number)[] = [normalizedTag];
+export async function getTagTimeline(
+  db: D1Database,
+  tag: string,
+  opts: TagTimelineOpts,
+): Promise<Record<string, unknown>[]> {
+  const tagName = tag.toLowerCase();
 
-	const allConditions = [...baseConditions, ...cursor.fragments];
-	const allParams = [...baseParams, ...cursor.params, limit];
+  const pag = parsePaginationParams({
+    max_id: opts.maxId,
+    since_id: opts.sinceId,
+    min_id: opts.minId,
+    limit: opts.limit != null ? String(opts.limit) : undefined,
+  });
 
-	const orderDirection = opts.minId ? 'ASC' : 'DESC';
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
-	const query = `
-		SELECT s.* FROM statuses s
-		INNER JOIN status_tags st ON st.status_id = s.id
-		INNER JOIN tags t ON t.id = st.tag_id
-		WHERE ${allConditions.join(' AND ')}
-		ORDER BY s.id ${orderDirection}
-		LIMIT ?
-	`;
+  const conditions: string[] = ['t.name = ?', `s.visibility = 'public'`, 's.deleted_at IS NULL'];
+  const binds: (string | number)[] = [tagName];
 
-	return executeTimelineQuery(db, query, allParams, !!opts.minId);
-};
+  if (whereClause) {
+    conditions.push(whereClause);
+    binds.push(...params);
+  }
+
+  if (opts.local) {
+    conditions.push('s.local = 1');
+  }
+  if (opts.onlyMedia) {
+    conditions.push('EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)');
+  }
+
+  const sql = `
+    SELECT s.*, ${ACCOUNT_COLUMNS}
+    FROM status_tags st
+    JOIN tags t ON t.id = st.tag_id
+    JOIN statuses s ON s.id = st.status_id
+    JOIN accounts a ON a.id = s.account_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY ${orderClause}
+    LIMIT ?
+  `;
+  binds.push(limitValue);
+
+  const { results } = await db.prepare(sql).bind(...binds).all();
+  return (results ?? []) as Record<string, unknown>[];
+}
 
 // ----------------------------------------------------------------
 // List timeline
 // ----------------------------------------------------------------
-export const getList = async (
-	db: D1Database,
-	listId: string,
-	accountId: string,
-	opts: PaginationOpts,
-): Promise<Result<StatusRow[], AppError>> => {
-	// Verify list ownership
-	const list = await db
-		.prepare('SELECT id FROM lists WHERE id = ? AND account_id = ? LIMIT 1')
-		.bind(listId, accountId)
-		.first();
 
-	if (!list) {
-		return err(NotFoundError('List not found'));
-	}
+export async function getListTimeline(
+  db: D1Database,
+  listId: string,
+  accountId: string,
+  opts: TimelinePaginationOpts,
+): Promise<Record<string, unknown>[]> {
+  // Verify list ownership
+  const list = await db
+    .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
+    .bind(listId, accountId)
+    .first();
 
-	const limit = Math.min(opts.limit || 20, 40);
-	const cursor = applyCursorConditions(opts, 's.id');
+  if (!list) {
+    throw new AppError(404, 'Record not found');
+  }
 
-	const baseConditions = ['s.deleted_at IS NULL', 'la.list_id = ?'];
-	const baseParams: (string | number)[] = [listId];
+  const pag = parsePaginationParams({
+    max_id: opts.maxId,
+    since_id: opts.sinceId,
+    min_id: opts.minId,
+    limit: opts.limit != null ? String(opts.limit) : undefined,
+  });
 
-	const allConditions = [...baseConditions, ...cursor.fragments];
-	const allParams = [...baseParams, ...cursor.params, limit];
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
-	const orderDirection = opts.minId ? 'ASC' : 'DESC';
+  const conditions: string[] = ['la.list_id = ?', 's.deleted_at IS NULL'];
+  const binds: (string | number)[] = [listId];
 
-	const query = `
-		SELECT s.* FROM statuses s
-		INNER JOIN list_accounts la ON la.account_id = s.account_id
-		WHERE ${allConditions.join(' AND ')}
-		ORDER BY s.id ${orderDirection}
-		LIMIT ?
-	`;
+  if (whereClause) {
+    conditions.push(whereClause);
+    binds.push(...params);
+  }
 
-	const rows = await executeTimelineQuery(db, query, allParams, !!opts.minId);
-	return ok(rows);
-};
+  const sql = `
+    SELECT s.*, ${ACCOUNT_COLUMNS}
+    FROM statuses s
+    JOIN accounts a ON a.id = s.account_id
+    JOIN list_accounts la ON la.account_id = s.account_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY ${orderClause}
+    LIMIT ?
+  `;
+  binds.push(limitValue);
+
+  const { results } = await db.prepare(sql).bind(...binds).all();
+  return (results ?? []) as Record<string, unknown>[];
+}

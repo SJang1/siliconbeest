@@ -4,6 +4,11 @@ import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, StatusRow } from '../../../../types/db';
+import {
+	listConversationEntries,
+	getConversationParticipants,
+	getConversationLastStatus,
+} from '../../../../services/conversation';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -23,67 +28,31 @@ app.get('/', authRequired, async (c) => {
 
   const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 'ca.conversation_id');
 
-  const conditions: string[] = ['ca.account_id = ?'];
-  const binds: (string | number)[] = [currentAccount.id];
-
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
-
   // Get conversation entries for the current user
-  const sql = `
-    SELECT ca.conversation_id, ca.last_status_id, ca.unread,
-           conv.created_at AS conv_created_at, conv.updated_at AS conv_updated_at
-    FROM conversation_accounts ca
-    JOIN conversations conv ON conv.id = ca.conversation_id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
-    LIMIT ?
-  `;
-  binds.push(limitValue);
-
-  const { results: convRows } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const convRows = await listConversationEntries(c.env.DB, currentAccount.id, {
+    paginationQuery: pag,
+    whereClause,
+    orderClause,
+    limitValue,
+    params,
+  });
 
   const conversations = [];
 
-  for (const conv of convRows ?? []) {
+  for (const conv of convRows) {
     const convId = conv.conversation_id as string;
 
     // Get other participants
-    const { results: participantRows } = await c.env.DB.prepare(
-      `SELECT a.*
-       FROM conversation_accounts ca2
-       JOIN accounts a ON a.id = ca2.account_id
-       WHERE ca2.conversation_id = ?1 AND ca2.account_id != ?2`,
-    )
-      .bind(convId, currentAccount.id)
-      .all();
+    const participantRows = await getConversationParticipants(c.env.DB, convId, currentAccount.id);
 
-    const accounts = (participantRows ?? []).map((row: any) =>
+    const accounts = participantRows.map((row: any) =>
       serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
     );
 
     // Get last status
     let lastStatus = null;
     if (conv.last_status_id) {
-      const statusRow = await c.env.DB.prepare(
-        `SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-                a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-                a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-                a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-                a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-                a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-                a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-                a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-                a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-                a.emoji_tags AS a_emoji_tags
-         FROM statuses s
-         JOIN accounts a ON a.id = s.account_id
-         WHERE s.id = ?1 AND s.deleted_at IS NULL`,
-      )
-        .bind(conv.last_status_id as string)
-        .first();
+      const statusRow = await getConversationLastStatus(c.env.DB, conv.last_status_id as string);
 
       if (statusRow) {
         const accountRow: AccountRow = {

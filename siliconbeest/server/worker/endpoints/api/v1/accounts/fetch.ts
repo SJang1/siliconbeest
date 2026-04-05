@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
+import { getAccountById } from '../../../../services/account';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -15,7 +16,7 @@ app.get('/:id', async (c) => {
   const id = c.req.param('id');
   const domain = c.env.INSTANCE_DOMAIN;
 
-  const row = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(id).first();
+  const row = await getAccountById(c.env.DB, id);
   if (!row) throw new AppError(404, 'Record not found');
 
   const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);

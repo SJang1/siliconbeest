@@ -3,6 +3,14 @@ import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
+import {
+	listCustomEmojis,
+	checkEmojiShortcodeExists,
+	createCustomEmoji,
+	updateCustomEmoji,
+	deleteCustomEmoji,
+	getCustomEmoji,
+} from '../../../../services/admin';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -15,14 +23,8 @@ app.use('*', authRequired, adminRequired);
  */
 app.get('/', async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT * FROM custom_emojis
-     WHERE domain IS NULL OR domain = ?1
-     ORDER BY category ASC, shortcode ASC`,
-  ).bind(domain).all();
-
-  return c.json((results ?? []).map((row: any) => formatEmoji(row, domain)));
+  const results = await listCustomEmojis(c.env.DB, domain);
+  return c.json(results.map((row: any) => formatEmoji(row, domain)));
 });
 
 /**
@@ -49,12 +51,9 @@ app.post('/', async (c) => {
     throw new AppError(422, 'shortcode must contain only letters, numbers, and underscores');
   }
 
-  // Check for duplicate shortcode (local emojis: domain IS NULL or domain = INSTANCE_DOMAIN)
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM custom_emojis WHERE shortcode = ?1 AND (domain IS NULL OR domain = ?2)',
-  ).bind(shortcode, c.env.INSTANCE_DOMAIN).first();
-
-  if (existing) {
+  // Check for duplicate shortcode
+  const exists = await checkEmojiShortcodeExists(c.env.DB, shortcode, c.env.INSTANCE_DOMAIN);
+  if (exists) {
     throw new AppError(422, 'shortcode already exists');
   }
 
@@ -71,15 +70,15 @@ app.post('/', async (c) => {
   });
 
   // Insert into DB
-  const now = new Date().toISOString();
-  const instanceDomain = c.env.INSTANCE_DOMAIN;
-  await c.env.DB.prepare(
-    `INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, category, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, ?7)`,
-  ).bind(id, shortcode.trim(), instanceDomain, imageKey, category, now, now).run();
+  const row = await createCustomEmoji(c.env.DB, {
+    id,
+    shortcode: shortcode.trim(),
+    domain: c.env.INSTANCE_DOMAIN,
+    imageKey,
+    category,
+  });
 
-  const row = await c.env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
-  return c.json(formatEmoji(row!, domain), 200);
+  return c.json(formatEmoji(row, domain), 200);
 });
 
 /**
@@ -89,30 +88,13 @@ app.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const domain = c.env.INSTANCE_DOMAIN;
 
-  const existing = await c.env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
-  if (!existing) throw new AppError(404, 'Record not found');
-
   const body = await c.req.json<{
     category?: string | null;
     visible_in_picker?: boolean;
   }>();
 
-  const now = new Date().toISOString();
-  await c.env.DB.prepare(
-    `UPDATE custom_emojis SET
-       category = ?1,
-       visible_in_picker = ?2,
-       updated_at = ?3
-     WHERE id = ?4`,
-  ).bind(
-    body.category !== undefined ? body.category : existing.category,
-    body.visible_in_picker !== undefined ? (body.visible_in_picker ? 1 : 0) : existing.visible_in_picker,
-    now,
-    id,
-  ).run();
-
-  const row = await c.env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
-  return c.json(formatEmoji(row!, domain));
+  const row = await updateCustomEmoji(c.env.DB, id, body);
+  return c.json(formatEmoji(row, domain));
 });
 
 /**
@@ -121,17 +103,12 @@ app.patch('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
-  const existing = await c.env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
-  if (!existing) throw new AppError(404, 'Record not found');
+  const imageKey = await deleteCustomEmoji(c.env.DB, id);
 
   // Delete from R2
-  const imageKey = existing.image_key as string;
   if (imageKey) {
     await c.env.MEDIA_BUCKET.delete(imageKey);
   }
-
-  // Delete from DB
-  await c.env.DB.prepare('DELETE FROM custom_emojis WHERE id = ?1').bind(id).run();
 
   return c.json({}, 200);
 });

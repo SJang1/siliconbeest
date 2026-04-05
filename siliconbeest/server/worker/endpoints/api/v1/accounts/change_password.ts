@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired } from '../../../../middleware/auth';
-import { hashPassword, verifyPassword } from '../../../../utils/crypto';
+import { changePassword } from '../../../../services/auth';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -28,24 +28,7 @@ app.post('/change_password', authRequired, async (c) => {
 		throw new AppError(422, 'Validation failed: new password must be at least 8 characters');
 	}
 
-	// Fetch the current hash
-	const user = await c.env.DB.prepare('SELECT encrypted_password FROM users WHERE id = ?1')
-		.bind(currentUser.id)
-		.first();
-
-	if (!user) throw new AppError(404, 'Record not found');
-
-	// Verify current password
-	const valid = await verifyPassword(currentPassword, user.encrypted_password as string);
-	if (!valid) {
-		throw new AppError(422, 'Current password is incorrect');
-	}
-
-	// Hash and save
-	const hashed = await hashPassword(newPassword);
-	await c.env.DB.prepare('UPDATE users SET encrypted_password = ?1, updated_at = ?2 WHERE id = ?3')
-		.bind(hashed, new Date().toISOString(), currentUser.id)
-		.run();
+	await changePassword(c.env.DB, currentUser.id, currentPassword, newPassword);
 
 	return c.json({}, 200);
 });

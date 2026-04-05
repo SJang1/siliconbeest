@@ -27,7 +27,6 @@
 		"@sentry/vue": "^10.45.0",
 		"@vueuse/core": "^14.2.1",
 		"bcryptjs": "^3.0.3",
-		"chanfana": "^2.6.3",
 		"hono": "^4.6.20",
 		"marked": "^17.0.5",
 		"neverthrow": "^8.2.0",

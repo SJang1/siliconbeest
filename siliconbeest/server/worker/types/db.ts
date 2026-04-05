@@ -40,6 +40,8 @@ export type AccountRow = {
   readonly moved_at?: string | null;
   /** JSON array of emoji tag objects from ActivityPub actor document */
   readonly emoji_tags?: string | null;
+  readonly fetched_at?: string | null;
+  readonly fields?: string | null;
 };
 
 export type UserRow = {
@@ -276,6 +278,7 @@ export type OAuthApplicationRow = {
 export type OAuthAccessTokenRow = {
   readonly id: string;
   readonly token: string;
+  readonly token_hash: string | null;
   readonly refresh_token: string | null;
   readonly application_id: string;
   readonly user_id: string | null;

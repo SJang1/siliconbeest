@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { AppError } from '../../../../middleware/errorHandler';
-import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
+import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { getListTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -13,17 +13,6 @@ app.get('/:listId', authRequired, async (c) => {
   const listId = c.req.param('listId');
   const account = c.get('currentAccount')!;
 
-  // Verify list ownership
-  const list = await c.env.DB.prepare(
-    'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, account.id)
-    .first();
-
-  if (!list) {
-    throw new AppError(404, 'Record not found');
-  }
-
   const pag = parsePaginationParams({
     max_id: c.req.query('max_id'),
     since_id: c.req.query('since_id'),
@@ -31,43 +20,17 @@ app.get('/:listId', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const allRows = await getListTimeline(c.env.DB, listId, account.id, {
+    maxId: pag.maxId,
+    sinceId: pag.sinceId,
+    minId: pag.minId,
+    limit: pag.limit,
+  });
 
-  const conditions: string[] = ['la.list_id = ?', 's.deleted_at IS NULL'];
-  const binds: (string | number)[] = [listId];
-
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
-
-  const sql = `
-    SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-           a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-           a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-           a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-           a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-           a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-           a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-           a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-           a.emoji_tags AS a_emoji_tags
-    FROM statuses s
-    JOIN accounts a ON a.id = s.account_id
-    JOIN list_accounts la ON la.account_id = s.account_id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
-    LIMIT ?
-  `;
-  binds.push(limitValue);
-
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
-
-  const statusIds = (results ?? []).map((r: any) => r.id as string);
+  const statusIds = allRows.map((r) => r.id as string);
   const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id, c.env.CACHE);
 
-  const statuses = (results ?? []).map((row: any) => {
+  const statuses = allRows.map((row: any) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
       display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,
@@ -98,7 +61,7 @@ app.get('/:listId', authRequired, async (c) => {
   if (pag.minId) statuses.reverse();
 
   const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/list/${listId}`;
-  const link = buildLinkHeader(baseUrl, statuses, limitValue);
+  const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 

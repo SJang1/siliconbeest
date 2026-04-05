@@ -18,6 +18,7 @@ import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers
 import { Like, Undo, Emoji as APEmoji, Image as APImage } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import type { CustomEmojiRow } from '../../../../types/db';
+import { addReaction, removeReaction } from '../../../../services/status';
 
 const app = new Hono<HonoEnv>();
 
@@ -72,21 +73,7 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 		throw new AppError(422, 'Custom emoji not found');
 	}
 
-	const id = generateUlid();
-	const now = new Date().toISOString();
-
-	const customEmojiId = emojiLookup?.row.id ?? null;
-
-	try {
-		await c.env.DB.prepare(
-			`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-		)
-			.bind(id, currentAccountId, statusId, emoji, customEmojiId, now)
-			.run();
-	} catch {
-		// UNIQUE constraint — duplicate reaction, ignore
-	}
+	await addReaction(c.env.DB, currentAccountId, statusId, emoji, domain);
 
 	// Federate the emoji reaction
 	const statusRow = row as Record<string, unknown>;
@@ -134,16 +121,12 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		.first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	const deleted = await c.env.DB.prepare(
-		`DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3`,
-	)
-		.bind(currentAccountId, statusId, emoji)
-		.run();
+	const { changes } = await removeReaction(c.env.DB, currentAccountId, statusId, emoji);
 
 	// Federate Undo(Like) for emoji reaction removal
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
-	if ((deleted.meta?.changes ?? 0) > 0) {
+	if (changes > 0) {
 		const username = c.get('currentAccount')?.username;
 		const actorUri = `https://${domain}/users/${username}`;
 		const statusUri = statusRow.uri as string;

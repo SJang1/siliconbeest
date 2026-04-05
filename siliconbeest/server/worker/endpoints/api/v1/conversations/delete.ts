@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { AppError } from '../../../../middleware/errorHandler';
+import { deleteConversation } from '../../../../services/conversation';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -12,22 +12,7 @@ app.delete('/:id', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const conversationId = c.req.param('id');
 
-  const entry = await c.env.DB.prepare(
-    'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
-  )
-    .bind(conversationId, currentAccount.id)
-    .first();
-
-  if (!entry) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  // Remove the user's participation (hides the conversation)
-  await c.env.DB.prepare(
-    'DELETE FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
-  )
-    .bind(conversationId, currentAccount.id)
-    .run();
+  await deleteConversation(c.env.DB, conversationId, currentAccount.id);
 
   return c.json({}, 200);
 });

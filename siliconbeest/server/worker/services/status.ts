@@ -1,591 +1,1190 @@
-import { ok, err, type Result } from 'neverthrow';
 import { generateUlid } from '../utils/ulid';
-import { parseContent } from '../utils/contentParser';
-import type { StatusRow } from '../types/db';
-import type { QueueMessage, TimelineFanoutMessage, DeliverActivityFanoutMessage } from '../types/queue';
-import type { APActivity } from '../types/activitypub';
-import { type AppError, NotFoundError, ForbiddenError, UnprocessableEntityError } from '../middleware/errorHandler';
-
-/**
- * Status service: CRUD for statuses, favourites, reblogs, bookmarks,
- * and thread context retrieval.
- */
-
-type CreateStatusData = {
-	text: string;
-	visibility?: string;
-	sensitive?: boolean;
-	spoilerText?: string;
-	inReplyToId?: string;
-	mediaIds?: string[];
-	language?: string;
-	pollOptions?: string[];
-	pollExpiresIn?: number;
-	pollMultiple?: boolean;
-};
+import { parseContent, type ParsedContent } from '../utils/contentParser';
+import { AppError } from '../middleware/errorHandler';
+import type { StatusRow, PollRow, AccountRow, CustomEmojiRow } from '../types/db';
+import { serializePoll } from '../utils/mastodonSerializer';
 
 // ----------------------------------------------------------------
-// Create status
+// getStatusById
 // ----------------------------------------------------------------
-export const create = async (
-	db: D1Database,
-	domain: string,
-	federationQueue: Queue<QueueMessage>,
-	internalQueue: Queue<QueueMessage>,
-	accountId: string,
-	data: CreateStatusData,
-): Promise<Result<StatusRow, AppError>> => {
-	const id = generateUlid();
-	const now = new Date().toISOString();
-	const visibility = data.visibility || 'public';
-	const language = data.language || 'en';
-	const sensitive = data.sensitive ? 1 : 0;
-	const spoilerText = data.spoilerText || '';
 
-	// Look up account for URI construction
-	const account = await db.prepare('SELECT username FROM accounts WHERE id = ?').bind(accountId).first();
-	if (!account) {
-		return err(NotFoundError('Account not found'));
-	}
-	const username = account.username as string;
-
-	const uri = `https://${domain}/users/${username}/statuses/${id}`;
-	const url = `https://${domain}/@${username}/${id}`;
-
-	// Parse content into HTML with mentions, hashtags, URLs
-	const parsed = parseContent(data.text, domain);
-
-	// Resolve reply
-	const replyInfo = await (async () => {
-		if (!data.inReplyToId) return { inReplyToId: null, inReplyToAccountId: null, conversationId: null, isReply: 0 };
-		const parent = (await db
-			.prepare('SELECT id, account_id, conversation_id FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
-			.bind(data.inReplyToId)
-			.first());
-		if (parent) {
-			return { inReplyToId: parent.id, inReplyToAccountId: parent.account_id, conversationId: parent.conversation_id, isReply: 1 };
-		}
-		return { inReplyToId: null, inReplyToAccountId: null, conversationId: null, isReply: 0 };
-	})();
-	const { inReplyToId, inReplyToAccountId, isReply } = replyInfo;
-
-	// Create conversation if needed
-	const conversationId = replyInfo.conversationId ?? generateUlid();
-	if (!replyInfo.conversationId) {
-		await db
-			.prepare('INSERT INTO conversations (id, created_at, updated_at) VALUES (?, ?, ?)')
-			.bind(conversationId, now, now)
-			.run();
-	}
-
-	// Insert status
-	await db
-		.prepare(
-			`INSERT INTO statuses
-			(id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
-			 reblog_of_id, text, content, content_warning, visibility, sensitive,
-			 language, conversation_id, reply, replies_count, reblogs_count,
-			 favourites_count, local, federated_at, edited_at, deleted_at,
-			 poll_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, NULL, NULL, NULL, NULL, ?, ?)`,
-		)
-		.bind(
-			id,
-			uri,
-			url,
-			accountId,
-			inReplyToId,
-			inReplyToAccountId,
-			data.text,
-			parsed.html,
-			spoilerText,
-			visibility,
-			sensitive,
-			language,
-			conversationId,
-			isReply,
-			now,
-			now,
-		)
-		.run();
-
-	// Update reply count on parent
-	if (inReplyToId) {
-		await db
-			.prepare('UPDATE statuses SET replies_count = replies_count + 1, updated_at = ? WHERE id = ?')
-			.bind(now, inReplyToId)
-			.run();
-	}
-
-	// Attach media
-	if (data.mediaIds && data.mediaIds.length > 0) {
-		const mediaStmts = data.mediaIds.map((mediaId) =>
-			db.prepare('UPDATE media_attachments SET status_id = ? WHERE id = ? AND account_id = ?').bind(id, mediaId, accountId),
-		);
-		await db.batch(mediaStmts);
-	}
-
-	// Create mention rows
-	if (parsed.mentions.length > 0) {
-		const mentionStmts: D1PreparedStatement[] = [];
-		// oxlint-disable-next-line fp/no-loop-statements
-		for (const mention of parsed.mentions) {
-			// Look up mentioned account
-			const mentionedAccount = mention.domain
-				? await db
-						.prepare('SELECT id FROM accounts WHERE username = ? AND domain = ? LIMIT 1')
-						.bind(mention.username.toLowerCase(), mention.domain.toLowerCase())
-						.first()
-				: await db
-						.prepare('SELECT id FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
-						.bind(mention.username.toLowerCase())
-						.first();
-
-			if (mentionedAccount) {
-				const mentionId = generateUlid();
-				mentionStmts.push(
-					db
-						.prepare('INSERT INTO mentions (id, status_id, account_id, silent, created_at) VALUES (?, ?, ?, 0, ?)')
-						.bind(mentionId, id, mentionedAccount.id as string, now),
-				);
-			}
-		}
-		if (mentionStmts.length > 0) {
-			await db.batch(mentionStmts);
-		}
-	}
-
-	// Create/find tags and link to status
-	if (parsed.tags.length > 0) {
-		// oxlint-disable-next-line fp/no-loop-statements
-		for (const tagName of parsed.tags) {
-			// oxlint-disable-next-line fp/no-let
-			let tag = await db.prepare('SELECT id FROM tags WHERE name = ? LIMIT 1').bind(tagName).first();
-			if (!tag) {
-				const tagId = generateUlid();
-				await db
-					.prepare(
-						`INSERT INTO tags (id, name, display_name, usable, trendable, listable, last_status_at, created_at, updated_at)
-						VALUES (?, ?, NULL, 1, 1, 1, ?, ?, ?)`,
-					)
-					.bind(tagId, tagName, now, now, now)
-					.run();
-				tag = { id: tagId };
-			} else {
-				await db.prepare('UPDATE tags SET last_status_at = ?, updated_at = ? WHERE id = ?').bind(now, now, tag.id as string).run();
-			}
-
-			await db.prepare('INSERT INTO status_tags (status_id, tag_id) VALUES (?, ?)').bind(id, tag.id as string).run();
-		}
-	}
-
-	// Create poll if options provided
-	if (data.pollOptions && data.pollOptions.length > 0) {
-		const pollId = generateUlid();
-		const expiresAt = data.pollExpiresIn ? new Date(Date.now() + data.pollExpiresIn * 1000).toISOString() : null;
-		const multiple = data.pollMultiple ? 1 : 0;
-
-		await db
-			.prepare(
-				`INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
-				VALUES (?, ?, ?, ?, 0, 0, ?, ?)`,
-			)
-			.bind(pollId, id, expiresAt, multiple, JSON.stringify(data.pollOptions), now)
-			.run();
-
-		await db.prepare('UPDATE statuses SET poll_id = ? WHERE id = ?').bind(pollId, id).run();
-	}
-
-	// Update account status count
-	await db
-		.prepare('UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?, updated_at = ? WHERE id = ?')
-		.bind(now, now, accountId)
-		.run();
-
-	// Enqueue timeline fanout
-	await internalQueue.send({
-		type: 'timeline_fanout',
-		statusId: id,
-		accountId,
-	} satisfies TimelineFanoutMessage);
-
-	// Enqueue federation delivery
-	if (visibility !== 'direct') {
-		const createActivity: APActivity = {
-			type: 'Create',
-			actor: `https://${domain}/users/${username}`,
-			object: uri,
-		};
-		await federationQueue.send({
-			type: 'deliver_activity_fanout',
-			activity: createActivity,
-			actorAccountId: accountId,
-			statusId: id,
-		} satisfies DeliverActivityFanoutMessage);
-	}
-
-	const created = await getById(db, id);
-	if (!created) {
-		return err(NotFoundError('Status not found after creation'));
-	}
-	return ok(created);
-};
+export async function getStatusById(db: D1Database, id: string): Promise<StatusRow | null> {
+  return (await db
+    .prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
+    .bind(id)
+    .first()) as StatusRow | null;
+}
 
 // ----------------------------------------------------------------
-// Get by ID
+// deleteStatus
 // ----------------------------------------------------------------
-export const getById = async (db: D1Database, id: string): Promise<StatusRow | null> =>
-	(await db
-		.prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
-		.bind(id)
-		.first());
 
-// ----------------------------------------------------------------
-// Delete (soft delete)
-// ----------------------------------------------------------------
-export const deleteStatus = async (
-	db: D1Database,
-	domain: string,
-	federationQueue: Queue<QueueMessage>,
-	statusId: string,
-	accountId: string,
-): Promise<Result<void, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
-	if (status.account_id !== accountId) {
-		return err(ForbiddenError('Not authorized to delete this status'));
-	}
+export interface DeleteStatusResult {
+  status: StatusRow;
+}
 
-	const now = new Date().toISOString();
-	await db.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(now, now, statusId).run();
+export async function deleteStatus(
+  db: D1Database,
+  statusId: string,
+  accountId: string,
+): Promise<DeleteStatusResult> {
+  const status = await getStatusById(db, statusId);
+  if (!status) throw new AppError(404, 'Record not found');
+  if (status.account_id !== accountId) throw new AppError(403, 'This action is not allowed');
 
-	// Decrement counts
-	await db
-		.prepare('UPDATE accounts SET statuses_count = MAX(statuses_count - 1, 0), updated_at = ? WHERE id = ?')
-		.bind(now, accountId)
-		.run();
+  const now = new Date().toISOString();
+  const stmts = [
+    db.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, statusId),
+    db.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
+  ];
+  if (status.in_reply_to_id) {
+    stmts.push(
+      db.prepare('UPDATE statuses SET replies_count = MAX(0, replies_count - 1) WHERE id = ?1').bind(status.in_reply_to_id),
+    );
+  }
+  await db.batch(stmts);
 
-	// Decrement reply count on parent
-	if (status.in_reply_to_id) {
-		await db
-			.prepare('UPDATE statuses SET replies_count = MAX(replies_count - 1, 0), updated_at = ? WHERE id = ?')
-			.bind(now, status.in_reply_to_id)
-			.run();
-	}
-
-	// Enqueue Delete activity for federation
-	const account = await db.prepare('SELECT username FROM accounts WHERE id = ?').bind(accountId).first();
-	const deleteActivity: APActivity = {
-		type: 'Delete',
-		actor: `https://${domain}/users/${(account?.username as string) ?? ''}`,
-		object: status.uri,
-	};
-	await federationQueue.send({
-		type: 'deliver_activity_fanout',
-		activity: deleteActivity,
-		actorAccountId: accountId,
-		statusId,
-	} satisfies DeliverActivityFanoutMessage);
-
-	return ok(undefined);
-};
+  return { status };
+}
 
 // ----------------------------------------------------------------
-// Get thread context (ancestors + descendants)
+// getContext
 // ----------------------------------------------------------------
-export const getContext = async (
-	db: D1Database,
-	statusId: string,
-): Promise<{ ancestors: StatusRow[]; descendants: StatusRow[] }> => {
-	// Ancestors: walk up the reply chain
-	const ancestors: StatusRow[] = [];
-	// oxlint-disable-next-line fp/no-let
-	let currentId: string | null = statusId;
 
-	// oxlint-disable-next-line fp/no-loop-statements
-	while (currentId) {
-		const status: StatusRow | null = await db
-			.prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
-			.bind(currentId)
-			.first<StatusRow>();
+const STATUS_JOIN_SQL = `
+  SELECT s.*,
+    a.username AS account_username, a.domain AS account_domain,
+    a.display_name AS account_display_name, a.note AS account_note,
+    a.uri AS account_uri, a.url AS account_url,
+    a.avatar_url AS account_avatar_url, a.avatar_static_url AS account_avatar_static_url,
+    a.header_url AS account_header_url, a.header_static_url AS account_header_static_url,
+    a.locked AS account_locked, a.bot AS account_bot, a.discoverable AS account_discoverable,
+    a.followers_count AS account_followers_count, a.following_count AS account_following_count,
+    a.statuses_count AS account_statuses_count, a.last_status_at AS account_last_status_at,
+    a.created_at AS account_created_at, a.emoji_tags AS account_emoji_tags
+  FROM statuses s
+  JOIN accounts a ON a.id = s.account_id
+`;
 
-		if (!status || !status.in_reply_to_id) {
-			break;
-		}
+export interface ContextResult {
+  ancestors: Record<string, unknown>[];
+  descendants: Record<string, unknown>[];
+}
 
-		const parent: StatusRow | null = await db
-			.prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
-			.bind(status.in_reply_to_id)
-			.first<StatusRow>();
+export async function getContext(db: D1Database, statusId: string): Promise<ContextResult> {
+  // Verify status exists
+  const status = await db
+    .prepare('SELECT id, in_reply_to_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+    .bind(statusId)
+    .first();
+  if (!status) throw new AppError(404, 'Record not found');
 
-		if (parent) {
-			ancestors.unshift(parent);
-			currentId = parent.in_reply_to_id;
-		} else {
-			break;
-		}
-	}
+  // Ancestors: walk up the in_reply_to chain
+  const ancestors: Record<string, unknown>[] = [];
+  let currentId = status.in_reply_to_id as string | null;
+  const visited = new Set<string>();
 
-	// Descendants: BFS through replies
-	const descendants: StatusRow[] = [];
-	const queue: string[] = [statusId];
+  while (currentId && !visited.has(currentId) && ancestors.length < 40) {
+    visited.add(currentId);
+    const ancestor = await db
+      .prepare(`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`)
+      .bind(currentId)
+      .first();
+    if (!ancestor) break;
+    ancestors.unshift(ancestor as Record<string, unknown>);
+    currentId = (ancestor.in_reply_to_id as string) || null;
+  }
 
-	// oxlint-disable-next-line fp/no-loop-statements
-	while (queue.length > 0) {
-		const parentId = queue.shift();
-		if (!parentId) break;
-		const replies = await db
-			.prepare('SELECT * FROM statuses WHERE in_reply_to_id = ? AND deleted_at IS NULL ORDER BY created_at ASC')
-			.bind(parentId)
-			.all();
+  // Build set of ancestor IDs + current status to exclude from descendants
+  const excludeIds = new Set<string>([statusId, ...ancestors.map((a) => a.id as string)]);
 
-		((replies.results || []) as unknown as StatusRow[]).forEach((reply) => {
-			descendants.push(reply);
-			queue.push(reply.id);
-		});
-	}
+  // Descendants: BFS through replies
+  const descendantRows: Record<string, unknown>[] = [];
+  const seenDescendantIds = new Set<string>();
+  const queue = [statusId];
+  let depth = 0;
 
-	return { ancestors, descendants };
-};
+  while (queue.length > 0 && depth < 10 && descendantRows.length < 60) {
+    const batch = queue.splice(0, queue.length);
+    const ph = batch.map(() => '?').join(',');
+    const { results: replyRows } = await db
+      .prepare(
+        `${STATUS_JOIN_SQL}
+         WHERE s.in_reply_to_id IN (${ph})
+           AND s.deleted_at IS NULL
+         ORDER BY s.created_at ASC
+         LIMIT 60`,
+      )
+      .bind(...batch)
+      .all();
+    for (const r of (replyRows ?? []) as Record<string, unknown>[]) {
+      const rid = r.id as string;
+      if (!seenDescendantIds.has(rid) && !excludeIds.has(rid)) {
+        seenDescendantIds.add(rid);
+        descendantRows.push(r);
+        queue.push(rid);
+      }
+    }
+    depth++;
+  }
 
-// ----------------------------------------------------------------
-// Favourite
-// ----------------------------------------------------------------
-export const favourite = async (
-	db: D1Database,
-	accountId: string,
-	statusId: string,
-): Promise<Result<StatusRow, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
-
-	const existing = await db
-		.prepare('SELECT id FROM favourites WHERE account_id = ? AND status_id = ? LIMIT 1')
-		.bind(accountId, statusId)
-		.first();
-
-	if (!existing) {
-		const id = generateUlid();
-		const now = new Date().toISOString();
-		await db
-			.prepare('INSERT INTO favourites (id, account_id, status_id, uri, created_at) VALUES (?, ?, ?, NULL, ?)')
-			.bind(id, accountId, statusId, now)
-			.run();
-
-		await db
-			.prepare('UPDATE statuses SET favourites_count = favourites_count + 1, updated_at = ? WHERE id = ?')
-			.bind(now, statusId)
-			.run();
-	}
-
-	const updated = await getById(db, statusId);
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	return ok(updated!);
-};
+  return { ancestors, descendants: descendantRows };
+}
 
 // ----------------------------------------------------------------
-// Unfavourite
+// favouriteStatus
 // ----------------------------------------------------------------
-export const unfavourite = async (
-	db: D1Database,
-	accountId: string,
-	statusId: string,
-): Promise<Result<StatusRow, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
 
-	const existing = await db
-		.prepare('SELECT id FROM favourites WHERE account_id = ? AND status_id = ? LIMIT 1')
-		.bind(accountId, statusId)
-		.first();
+export interface FavouriteResult {
+  created: boolean;
+}
 
-	if (existing) {
-		const now = new Date().toISOString();
-		await db
-			.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
-			.bind(accountId, statusId)
-			.run();
+export async function favouriteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<FavouriteResult> {
+  const existing = await db
+    .prepare('SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .first();
 
-		await db
-			.prepare('UPDATE statuses SET favourites_count = MAX(favourites_count - 1, 0), updated_at = ? WHERE id = ?')
-			.bind(now, statusId)
-			.run();
-	}
+  if (existing) return { created: false };
 
-	const updated = await getById(db, statusId);
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	return ok(updated!);
-};
+  const now = new Date().toISOString();
+  const id = generateUlid();
+  await db.batch([
+    db.prepare('INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)').bind(
+      id,
+      accountId,
+      statusId,
+      now,
+    ),
+    db.prepare('UPDATE statuses SET favourites_count = favourites_count + 1 WHERE id = ?1').bind(statusId),
+  ]);
 
-// ----------------------------------------------------------------
-// Reblog
-// ----------------------------------------------------------------
-export const reblog = async (
-	db: D1Database,
-	domain: string,
-	federationQueue: Queue<QueueMessage>,
-	accountId: string,
-	statusId: string,
-): Promise<Result<StatusRow, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
-
-	if (status.visibility === 'direct' || status.visibility === 'private') {
-		return err(UnprocessableEntityError('Cannot reblog a private or direct status'));
-	}
-
-	// Check if already reblogged
-	const existing = await db
-		.prepare('SELECT id FROM statuses WHERE account_id = ? AND reblog_of_id = ? AND deleted_at IS NULL LIMIT 1')
-		.bind(accountId, statusId)
-		.first();
-
-	if (existing) {
-		const existingStatus = await getById(db, existing.id as string);
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		return ok(existingStatus!);
-	}
-
-	const id = generateUlid();
-	const now = new Date().toISOString();
-
-	const account = await db.prepare('SELECT username FROM accounts WHERE id = ?').bind(accountId).first();
-	const username = (account?.username as string) ?? '';
-	const uri = `https://${domain}/users/${username}/statuses/${id}/activity`;
-
-	await db
-		.prepare(
-			`INSERT INTO statuses
-			(id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
-			 reblog_of_id, text, content, content_warning, visibility, sensitive,
-			 language, conversation_id, reply, replies_count, reblogs_count,
-			 favourites_count, local, federated_at, edited_at, deleted_at,
-			 poll_id, created_at, updated_at)
-			VALUES (?, ?, NULL, ?, NULL, NULL, ?, '', '', '', ?, 0, ?, NULL, 0, 0, 0, 0, 1, NULL, NULL, NULL, NULL, ?, ?)`,
-		)
-		.bind(id, uri, accountId, statusId, status.visibility, status.language, now, now)
-		.run();
-
-	await db
-		.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1, updated_at = ? WHERE id = ?')
-		.bind(now, statusId)
-		.run();
-
-	// Enqueue federation
-	const announceActivity: APActivity = {
-		type: 'Announce',
-		actor: `https://${domain}/users/${username}`,
-		object: status.uri,
-	};
-	await federationQueue.send({
-		type: 'deliver_activity_fanout',
-		activity: announceActivity,
-		actorAccountId: accountId,
-		statusId: id,
-	} satisfies DeliverActivityFanoutMessage);
-
-	const created = await getById(db, id);
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	return ok(created!);
-};
+  return { created: true };
+}
 
 // ----------------------------------------------------------------
-// Unreblog
+// unfavouriteStatus
 // ----------------------------------------------------------------
-export const unreblog = async (
-	db: D1Database,
-	domain: string,
-	federationQueue: Queue<QueueMessage>,
-	accountId: string,
-	statusId: string,
-): Promise<Result<StatusRow, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
 
-	const reblogRow = await db
-		.prepare('SELECT id FROM statuses WHERE account_id = ? AND reblog_of_id = ? AND deleted_at IS NULL LIMIT 1')
-		.bind(accountId, statusId)
-		.first<{ id: string }>();
+export async function unfavouriteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare('SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .first();
 
-	if (reblogRow) {
-		const now = new Date().toISOString();
-		await db.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(now, now, reblogRow.id).run();
-
-		await db
-			.prepare('UPDATE statuses SET reblogs_count = MAX(reblogs_count - 1, 0), updated_at = ? WHERE id = ?')
-			.bind(now, statusId)
-			.run();
-
-		// Enqueue Undo Announce
-		const undoAccount = await db.prepare('SELECT username FROM accounts WHERE id = ?').bind(accountId).first();
-		const undoActivity: APActivity = {
-			type: 'Undo',
-			actor: `https://${domain}/users/${(undoAccount?.username as string) ?? ''}`,
-			object: status.uri,
-		};
-		await federationQueue.send({
-			type: 'deliver_activity_fanout',
-			activity: undoActivity,
-			actorAccountId: accountId,
-			statusId: reblogRow.id,
-		} satisfies DeliverActivityFanoutMessage);
-	}
-
-	const updated = await getById(db, statusId);
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	return ok(updated!);
-};
+  if (existing) {
+    await db.batch([
+      db.prepare('DELETE FROM favourites WHERE id = ?1').bind(existing.id as string),
+      db.prepare('UPDATE statuses SET favourites_count = MAX(0, favourites_count - 1) WHERE id = ?1').bind(statusId),
+    ]);
+  }
+}
 
 // ----------------------------------------------------------------
-// Bookmark
+// reblogStatus
 // ----------------------------------------------------------------
-export const bookmark = async (
-	db: D1Database,
-	accountId: string,
-	statusId: string,
-): Promise<Result<void, AppError>> => {
-	const status = await getById(db, statusId);
-	if (!status) {
-		return err(NotFoundError('Status not found'));
-	}
 
-	const existing = await db
-		.prepare('SELECT id FROM bookmarks WHERE account_id = ? AND status_id = ? LIMIT 1')
-		.bind(accountId, statusId)
-		.first();
+export interface ReblogResult {
+  reblogId: string;
+  reblogUri: string;
+  created: boolean;
+}
 
-	if (!existing) {
-		const id = generateUlid();
-		const now = new Date().toISOString();
-		await db
-			.prepare('INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?, ?, ?, ?)')
-			.bind(id, accountId, statusId, now)
-			.run();
-	}
+export async function reblogStatus(
+  db: D1Database,
+  domain: string,
+  accountId: string,
+  username: string,
+  statusId: string,
+): Promise<ReblogResult> {
+  // Check if already reblogged
+  const existing = await db
+    .prepare('SELECT id FROM statuses WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL')
+    .bind(statusId, accountId)
+    .first();
 
-	return ok(undefined);
-};
+  if (existing) {
+    return {
+      reblogId: existing.id as string,
+      reblogUri: `https://${domain}/users/${username}/statuses/${existing.id}/activity`,
+      created: false,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const reblogId = generateUlid();
+  const reblogUri = `https://${domain}/users/${username}/statuses/${reblogId}/activity`;
+
+  // Fetch original status visibility for the reblog row
+  const originalStatus = await db
+    .prepare('SELECT visibility FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+    .bind(statusId)
+    .first();
+  const visibility = originalStatus ? (originalStatus.visibility as string) : 'public';
+
+  await db.batch([
+    db.prepare(
+      `INSERT INTO statuses (id, uri, url, account_id, reblog_of_id, visibility, local, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?7)`,
+    ).bind(reblogId, reblogUri, null, accountId, statusId, visibility, now),
+    db.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1 WHERE id = ?1').bind(statusId),
+    db.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(accountId),
+  ]);
+
+  // Add reblog to own home timeline immediately
+  await db
+    .prepare('INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)')
+    .bind(reblogId, accountId, now)
+    .run();
+
+  return { reblogId, reblogUri, created: true };
+}
 
 // ----------------------------------------------------------------
-// Unbookmark
+// unreblogStatus
 // ----------------------------------------------------------------
-export const unbookmark = async (
-	db: D1Database,
-	accountId: string,
-	statusId: string,
-): Promise<void> => {
-	await db
-		.prepare('DELETE FROM bookmarks WHERE account_id = ? AND status_id = ?')
-		.bind(accountId, statusId)
-		.run();
-};
+
+export interface UnreblogResult {
+  reblogId: string | null;
+}
+
+export async function unreblogStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<UnreblogResult> {
+  const reblog = await db
+    .prepare('SELECT id FROM statuses WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL')
+    .bind(statusId, accountId)
+    .first();
+
+  if (reblog) {
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, reblog.id as string),
+      db.prepare('UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1').bind(statusId),
+      db.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
+    ]);
+    return { reblogId: reblog.id as string };
+  }
+
+  return { reblogId: null };
+}
+
+// ----------------------------------------------------------------
+// bookmarkStatus
+// ----------------------------------------------------------------
+
+export async function bookmarkStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare('SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .first();
+
+  if (!existing) {
+    const now = new Date().toISOString();
+    const id = generateUlid();
+    await db
+      .prepare('INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+      .bind(id, accountId, statusId, now)
+      .run();
+  }
+}
+
+// ----------------------------------------------------------------
+// unbookmarkStatus
+// ----------------------------------------------------------------
+
+export async function unbookmarkStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// createStatus
+// ----------------------------------------------------------------
+
+export interface CreateStatusData {
+  text: string;
+  visibility?: string;
+  sensitive?: boolean;
+  spoilerText?: string;
+  inReplyToId?: string;
+  mediaIds?: string[];
+  language?: string;
+  pollOptions?: string[];
+  pollExpiresIn?: number;
+  pollMultiple?: boolean;
+  /** FEP-e232: ID of the status to quote */
+  quoteId?: string;
+}
+
+export interface LocalMention {
+  account_id: string;
+  actor_uri: string;
+  profile_url: string | null;
+  acct: string;
+  inbox_url: string | null;
+}
+
+export interface CreateStatusResult {
+  statusId: string;
+  statusUri: string;
+  statusUrl: string;
+  content: string;
+  parsed: ParsedContent;
+  localMentions: LocalMention[];
+  hashtags: string[];
+  emojiTags: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>;
+  pollData: ReturnType<typeof serializePoll> | null;
+  conversationApUri: string | null;
+  inReplyToId: string | null;
+  inReplyToAccountId: string | null;
+  quoteId: string | null;
+  quoteUri: string | null;
+  visibility: string;
+  sensitive: number;
+  spoilerText: string;
+  language: string;
+}
+
+export async function createStatus(
+  db: D1Database,
+  domain: string,
+  accountId: string,
+  username: string,
+  data: CreateStatusData,
+): Promise<CreateStatusResult> {
+  const now = new Date().toISOString();
+  const statusId = generateUlid();
+  const visibility = data.visibility || 'public';
+  const sensitive = data.sensitive ? 1 : 0;
+  const spoilerText = data.spoilerText || '';
+  const language = data.language || 'en';
+  const statusText = (data.text || '').trim();
+  const mediaIds = data.mediaIds || [];
+
+  const parsed = parseContent(statusText, domain);
+  const content = parsed.html;
+  const statusUri = `https://${domain}/users/${username}/statuses/${statusId}`;
+  const statusUrl = `https://${domain}/@${username}/${statusId}`;
+
+  // -- Reply resolution --
+  let inReplyToId: string | null = null;
+  let inReplyToAccountId: string | null = null;
+  let conversationId: string | null = null;
+  let isReply = 0;
+
+  if (data.inReplyToId) {
+    const parent = await db
+      .prepare('SELECT id, account_id, conversation_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+      .bind(data.inReplyToId)
+      .first();
+    if (parent) {
+      inReplyToId = parent.id as string;
+      inReplyToAccountId = parent.account_id as string;
+      conversationId = (parent.conversation_id as string) || null;
+      isReply = 1;
+    }
+  }
+
+  // -- FEP-e232: Resolve quote post --
+  let quoteId: string | null = null;
+  let quoteUri: string | null = null;
+  if (data.quoteId) {
+    const quoted = await db
+      .prepare('SELECT id, uri FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+      .bind(data.quoteId)
+      .first();
+    if (quoted) {
+      quoteId = quoted.id as string;
+      quoteUri = quoted.uri as string;
+    }
+  }
+
+  // -- Conversation creation/lookup --
+  let conversationApUri: string | null = null;
+  if (!conversationId) {
+    conversationId = generateUlid();
+    const year = now.substring(0, 4);
+    conversationApUri = `tag:${domain},${year}:objectId=${conversationId}:objectType=Conversation`;
+    await db
+      .prepare('INSERT INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)')
+      .bind(conversationId, conversationApUri, now)
+      .run();
+  } else {
+    const convRow = await db
+      .prepare('SELECT ap_uri FROM conversations WHERE id = ?1')
+      .bind(conversationId)
+      .first<{ ap_uri: string | null }>();
+    conversationApUri = convRow?.ap_uri ?? null;
+  }
+
+  // -- Custom emoji detection --
+  let emojiTagsJson: string | null = null;
+  let resolvedEmojiTags: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
+  const emojiMatches = [
+    ...new Set(
+      [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g), ...(spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g)].map(
+        (m) => m[1],
+      ),
+    ),
+  ];
+  if (emojiMatches.length > 0) {
+    const placeholders = emojiMatches.map(() => '?').join(',');
+    const emojiRows = await db
+      .prepare(
+        `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
+      )
+      .bind(...emojiMatches, domain)
+      .all<{ shortcode: string; domain: string | null; image_key: string }>();
+    if (emojiRows.results.length > 0) {
+      resolvedEmojiTags = emojiRows.results.map((e) => {
+        const isLocal = !e.domain || e.domain === domain;
+        const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
+        return { shortcode: e.shortcode, url, static_url: url, visible_in_picker: false };
+      });
+      emojiTagsJson = JSON.stringify(
+        resolvedEmojiTags.map((e) => ({ shortcode: e.shortcode, url: e.url, static_url: e.static_url })),
+      );
+    }
+  }
+
+  // -- Main batch: status INSERT + account count + reply count + media linking + home_timeline --
+  const stmts: D1PreparedStatement[] = [
+    db.prepare(
+      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, local, emoji_tags, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1, ?16, ?17, ?17)`,
+    ).bind(
+      statusId,
+      statusUri,
+      statusUrl,
+      accountId,
+      inReplyToId,
+      inReplyToAccountId,
+      statusText,
+      content,
+      spoilerText,
+      visibility,
+      sensitive,
+      language,
+      conversationId,
+      isReply,
+      quoteId,
+      emojiTagsJson,
+      now,
+    ),
+    db.prepare('UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2').bind(
+      now,
+      accountId,
+    ),
+  ];
+
+  if (inReplyToId) {
+    stmts.push(db.prepare('UPDATE statuses SET replies_count = replies_count + 1 WHERE id = ?1').bind(inReplyToId));
+  }
+
+  for (const mediaId of mediaIds) {
+    stmts.push(
+      db.prepare('UPDATE media_attachments SET status_id = ?1 WHERE id = ?2 AND account_id = ?3').bind(
+        statusId,
+        mediaId,
+        accountId,
+      ),
+    );
+  }
+
+  stmts.push(
+    db.prepare('INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)').bind(
+      generateUlid(),
+      accountId,
+      statusId,
+      now,
+    ),
+  );
+
+  await db.batch(stmts);
+
+  // -- Poll creation --
+  let pollData: ReturnType<typeof serializePoll> | null = null;
+  if (data.pollOptions && data.pollOptions.length >= 2) {
+    const pollId = generateUlid();
+    const expiresAt = data.pollExpiresIn ? new Date(Date.now() + data.pollExpiresIn * 1000).toISOString() : null;
+    const multiple = data.pollMultiple ? 1 : 0;
+    const optionsJson = JSON.stringify(
+      data.pollOptions.filter((o: string) => o.trim()).map((title: string) => ({ title, votes_count: 0 })),
+    );
+
+    await db.batch([
+      db.prepare(
+        `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
+         VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6)`,
+      ).bind(pollId, statusId, expiresAt, multiple, optionsJson, now),
+      db.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId),
+    ]);
+
+    pollData = serializePoll(
+      {
+        id: pollId,
+        status_id: statusId,
+        expires_at: expiresAt,
+        multiple,
+        votes_count: 0,
+        voters_count: 0,
+        options: optionsJson,
+        created_at: now,
+      },
+      { voted: false, ownVotes: [] },
+    );
+  }
+
+  // -- Hashtag batch upsert (optimized: batch SELECT + batch INSERT + batch UPDATE) --
+  const hashtags = parsed.tags;
+  if (hashtags.length > 0) {
+    const existingTags = await db
+      .prepare(`SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`)
+      .bind(...hashtags)
+      .all<{ id: string; name: string }>();
+
+    const existingTagMap = new Map(existingTags.results.map((t) => [t.name, t.id]));
+    const newTagsToInsert: Array<{ id: string; name: string }> = [];
+    const existingTagIdsToUpdate: string[] = [];
+    const allTagIds: string[] = [];
+
+    for (const tag of hashtags) {
+      let tagId: string;
+      if (existingTagMap.has(tag)) {
+        tagId = existingTagMap.get(tag)!;
+        existingTagIdsToUpdate.push(tagId);
+      } else {
+        tagId = generateUlid();
+        newTagsToInsert.push({ id: tagId, name: tag });
+      }
+      allTagIds.push(tagId);
+    }
+
+    if (existingTagIdsToUpdate.length > 0) {
+      const placeholders = existingTagIdsToUpdate.map(() => '?').join(',');
+      await db
+        .prepare(`UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${placeholders})`)
+        .bind(now, ...existingTagIdsToUpdate)
+        .run();
+    }
+
+    if (newTagsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES ';
+      newTagsToInsert.forEach((tag, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
+        values.push(tag.id, tag.name, tag.name, now);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+
+    if (allTagIds.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES ';
+      allTagIds.forEach((tagId, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
+        values.push(statusId, tagId);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  // -- Local mention resolution (batch SELECT + batch INSERT) --
+  const localMentions: LocalMention[] = [];
+  const localParsedMentions = parsed.mentions.filter((m) => !m.domain);
+
+  if (localParsedMentions.length > 0) {
+    const localUsernames = localParsedMentions.map((m) => m.username);
+    const localAccounts = await db
+      .prepare(
+        `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE username IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`,
+      )
+      .bind(...localUsernames)
+      .all<Record<string, unknown>>();
+
+    const localAccountMap = new Map<string, Record<string, unknown>>();
+    localAccounts.results.forEach((acc) => {
+      localAccountMap.set(acc.username as string, acc);
+    });
+
+    const mentionsToInsert: Array<[string, string, string, string]> = [];
+
+    for (const mention of localParsedMentions) {
+      const accountRow = localAccountMap.get(mention.username);
+      if (!accountRow) continue;
+
+      const mentionedAccountId = accountRow.id as string;
+      const mentionId = generateUlid();
+      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
+
+      localMentions.push({
+        account_id: mentionedAccountId,
+        actor_uri: (accountRow.uri as string) || '',
+        profile_url: (accountRow.url as string) || null,
+        acct: mention.acct,
+        inbox_url: (accountRow.inbox_url as string) || null,
+      });
+    }
+
+    if (mentionsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES ';
+      mentionsToInsert.forEach((mention, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
+        values.push(...mention);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  return {
+    statusId,
+    statusUri,
+    statusUrl,
+    content,
+    parsed,
+    localMentions,
+    hashtags,
+    emojiTags: resolvedEmojiTags,
+    pollData,
+    conversationApUri,
+    inReplyToId,
+    inReplyToAccountId,
+    quoteId,
+    quoteUri,
+    visibility,
+    sensitive,
+    spoilerText,
+    language,
+  };
+}
+
+// ----------------------------------------------------------------
+// editStatus
+// ----------------------------------------------------------------
+
+export interface EditStatusData {
+  text?: string;
+  sensitive?: boolean;
+  spoilerText?: string;
+  language?: string;
+  mediaIds?: string[];
+}
+
+export interface EditStatusResult {
+  status: StatusRow;
+  content: string;
+  hashtags: string[];
+  localMentions: LocalMention[];
+  mediaAttachments: Record<string, unknown>[];
+}
+
+export async function editStatus(
+  db: D1Database,
+  domain: string,
+  statusId: string,
+  accountId: string,
+  data: EditStatusData,
+): Promise<EditStatusResult> {
+  // Fetch existing status
+  const row = await db
+    .prepare('SELECT * FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+    .bind(statusId)
+    .first();
+
+  if (!row) throw new AppError(404, 'Record not found');
+  if (row.account_id !== accountId) throw new AppError(403, 'This action is not allowed');
+
+  const now = new Date().toISOString();
+  const statusText = data.text !== undefined ? data.text.trim() : (row.text as string);
+  const sensitive = data.sensitive !== undefined ? (data.sensitive ? 1 : 0) : (row.sensitive as number);
+  const spoilerText = data.spoilerText !== undefined ? data.spoilerText : (row.content_warning as string) || '';
+  const language = data.language !== undefined ? data.language : (row.language as string) || 'en';
+  const mediaIds = data.mediaIds || [];
+
+  const parsed = parseContent(statusText, domain);
+  const content = parsed.html;
+
+  // Save current state as an edit history snapshot before applying changes
+  const { results: currentMedia } = await db
+    .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
+    .bind(statusId)
+    .all();
+  const mediaSnapshot = (currentMedia ?? []).map((m: any) => ({
+    id: m.id,
+    type: m.type || 'image',
+    url: `https://${domain}/media/${m.file_key}`,
+    preview_url: m.thumbnail_key
+      ? `https://${domain}/media/${m.thumbnail_key}`
+      : `https://${domain}/media/${m.file_key}`,
+    description: m.description || null,
+    blurhash: m.blurhash || null,
+  }));
+
+  await db
+    .prepare(
+      `INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    )
+    .bind(
+      generateUlid(),
+      statusId,
+      (row.content as string) || '',
+      (row.content_warning as string) || '',
+      row.sensitive as number,
+      JSON.stringify(mediaSnapshot),
+      (row.edited_at as string) || (row.created_at as string),
+    )
+    .run();
+
+  // -- Custom emoji detection --
+  let emojiTagsJson: string | null = null;
+  const emojiMatches = [
+    ...new Set(
+      [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g), ...(spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g)].map(
+        (m) => m[1],
+      ),
+    ),
+  ];
+  if (emojiMatches.length > 0) {
+    const placeholders = emojiMatches.map(() => '?').join(',');
+    const emojiRows = await db
+      .prepare(
+        `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
+      )
+      .bind(...emojiMatches, domain)
+      .all<{ shortcode: string; domain: string | null; image_key: string }>();
+    if (emojiRows.results.length > 0) {
+      emojiTagsJson = JSON.stringify(
+        emojiRows.results.map((e) => {
+          const isLocal = !e.domain || e.domain === domain;
+          const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
+          return { shortcode: e.shortcode, url, static_url: url };
+        }),
+      );
+    }
+  }
+
+  // Main update batch: status fields + media attachments
+  const stmts: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE statuses SET text = ?1, content = ?2, content_warning = ?3, sensitive = ?4, language = ?5, emoji_tags = ?6, edited_at = ?7, updated_at = ?7 WHERE id = ?8`,
+      )
+      .bind(statusText, content, spoilerText, sensitive, language, emojiTagsJson, now, statusId),
+  ];
+
+  for (const mediaId of mediaIds) {
+    stmts.push(
+      db
+        .prepare('UPDATE media_attachments SET status_id = ?1 WHERE id = ?2 AND account_id = ?3')
+        .bind(statusId, mediaId, accountId),
+    );
+  }
+
+  await db.batch(stmts);
+
+  // -- Hashtag batch upsert (same pattern as createStatus) --
+  const hashtags = parsed.tags;
+  await db.prepare('DELETE FROM status_tags WHERE status_id = ?1').bind(statusId).run();
+
+  if (hashtags.length > 0) {
+    const existingTags = await db
+      .prepare(`SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`)
+      .bind(...hashtags)
+      .all<{ id: string; name: string }>();
+
+    const existingTagMap = new Map(existingTags.results.map((t) => [t.name, t.id]));
+    const newTagsToInsert: Array<{ id: string; name: string }> = [];
+    const existingTagIdsToUpdate: string[] = [];
+    const allTagIds: string[] = [];
+
+    for (const tag of hashtags) {
+      let tagId: string;
+      if (existingTagMap.has(tag)) {
+        tagId = existingTagMap.get(tag)!;
+        existingTagIdsToUpdate.push(tagId);
+      } else {
+        tagId = generateUlid();
+        newTagsToInsert.push({ id: tagId, name: tag });
+      }
+      allTagIds.push(tagId);
+    }
+
+    if (existingTagIdsToUpdate.length > 0) {
+      const ph = existingTagIdsToUpdate.map(() => '?').join(',');
+      await db
+        .prepare(`UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${ph})`)
+        .bind(now, ...existingTagIdsToUpdate)
+        .run();
+    }
+
+    if (newTagsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES ';
+      newTagsToInsert.forEach((tag, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
+        values.push(tag.id, tag.name, tag.name, now);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+
+    if (allTagIds.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES ';
+      allTagIds.forEach((tagId, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
+        values.push(statusId, tagId);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  // -- Mention re-processing (batch pattern from createStatus) --
+  await db.prepare('DELETE FROM mentions WHERE status_id = ?1').bind(statusId).run();
+
+  const localMentions: LocalMention[] = [];
+  const localParsedMentions = parsed.mentions.filter((m) => !m.domain);
+
+  if (localParsedMentions.length > 0) {
+    const localUsernames = localParsedMentions.map((m) => m.username);
+    const localAccounts = await db
+      .prepare(
+        `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE username IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`,
+      )
+      .bind(...localUsernames)
+      .all<Record<string, unknown>>();
+
+    const localAccountMap = new Map<string, Record<string, unknown>>();
+    localAccounts.results.forEach((acc) => {
+      localAccountMap.set(acc.username as string, acc);
+    });
+
+    const mentionsToInsert: Array<[string, string, string, string]> = [];
+
+    for (const mention of localParsedMentions) {
+      const accountRow = localAccountMap.get(mention.username);
+      if (!accountRow) continue;
+
+      const mentionedAccountId = accountRow.id as string;
+      const mentionId = generateUlid();
+      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
+
+      localMentions.push({
+        account_id: mentionedAccountId,
+        actor_uri: (accountRow.uri as string) || '',
+        profile_url: (accountRow.url as string) || null,
+        acct: mention.acct,
+        inbox_url: (accountRow.inbox_url as string) || null,
+      });
+    }
+
+    if (mentionsToInsert.length > 0) {
+      const values: unknown[] = [];
+      let query = 'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES ';
+      mentionsToInsert.forEach((mention, idx) => {
+        if (idx > 0) query += ', ';
+        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
+        values.push(...mention);
+      });
+      await db.prepare(query).bind(...values).run();
+    }
+  }
+
+  // Fetch updated status and media for response
+  const updatedStatus = (await db
+    .prepare('SELECT * FROM statuses WHERE id = ?1')
+    .bind(statusId)
+    .first()) as StatusRow;
+
+  const { results: mediaResults } = await db
+    .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
+    .bind(statusId)
+    .all();
+
+  const mediaAttachments = (mediaResults ?? []).map((m: any) => ({
+    id: m.id as string,
+    type: (m.type as string) || 'image',
+    url: `https://${domain}/media/${m.file_key}`,
+    preview_url: m.thumbnail_key
+      ? `https://${domain}/media/${m.thumbnail_key}`
+      : `https://${domain}/media/${m.file_key}`,
+    remote_url: (m.remote_url as string) || null,
+    text_url: null,
+    meta: null,
+    description: (m.description as string) || null,
+    blurhash: (m.blurhash as string) || null,
+  }));
+
+  return {
+    status: updatedStatus,
+    content,
+    hashtags,
+    localMentions,
+    mediaAttachments,
+  };
+}
+
+// ----------------------------------------------------------------
+// pinStatus
+// ----------------------------------------------------------------
+
+export async function pinStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE statuses SET pinned = 1 WHERE id = ?1 AND account_id = ?2')
+    .bind(statusId, accountId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// unpinStatus
+// ----------------------------------------------------------------
+
+export async function unpinStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE statuses SET pinned = 0 WHERE id = ?1 AND account_id = ?2')
+    .bind(statusId, accountId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// muteStatus
+// ----------------------------------------------------------------
+
+export async function muteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare('SELECT id FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .first();
+
+  if (!existing) {
+    const now = new Date().toISOString();
+    const id = generateUlid();
+    await db
+      .prepare('INSERT INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+      .bind(id, accountId, statusId, now)
+      .run();
+  }
+}
+
+// ----------------------------------------------------------------
+// unmuteStatus
+// ----------------------------------------------------------------
+
+export async function unmuteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// addReaction
+// ----------------------------------------------------------------
+
+export interface AddReactionResult {
+  reactionId: string;
+  customEmojiId: string | null;
+  created: boolean;
+}
+
+export async function addReaction(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+  emoji: string,
+  domain?: string,
+): Promise<AddReactionResult> {
+  // Validate custom emoji exists
+  let customEmojiId: string | null = null;
+  const isCustom = emoji.startsWith(':') && emoji.endsWith(':');
+
+  if (isCustom && domain) {
+    const shortcode = emoji.slice(1, -1);
+    const row = await db
+      .prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
+      .bind(shortcode, domain)
+      .first<CustomEmojiRow>();
+    if (!row) {
+      throw new AppError(422, 'Custom emoji not found');
+    }
+    customEmojiId = row.id;
+  }
+
+  const id = generateUlid();
+  const now = new Date().toISOString();
+
+  try {
+    await db
+      .prepare(
+        `INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      )
+      .bind(id, accountId, statusId, emoji, customEmojiId, now)
+      .run();
+    return { reactionId: id, customEmojiId, created: true };
+  } catch {
+    // UNIQUE constraint — duplicate reaction, ignore
+    return { reactionId: id, customEmojiId, created: false };
+  }
+}
+
+// ----------------------------------------------------------------
+// removeReaction
+// ----------------------------------------------------------------
+
+export interface RemoveReactionResult {
+  changes: number;
+}
+
+export async function removeReaction(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+  emoji: string,
+): Promise<RemoveReactionResult> {
+  const deleted = await db
+    .prepare('DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3')
+    .bind(accountId, statusId, emoji)
+    .run();
+
+  return { changes: deleted.meta?.changes ?? 0 };
+}
+
+// ----------------------------------------------------------------
+// votePoll
+// ----------------------------------------------------------------
+
+export interface VotePollResult {
+  poll: ReturnType<typeof serializePoll>;
+}
+
+export async function votePoll(
+  db: D1Database,
+  accountId: string,
+  pollId: string,
+  choices: number[],
+): Promise<VotePollResult> {
+  const row = await db
+    .prepare('SELECT * FROM polls WHERE id = ?1')
+    .bind(pollId)
+    .first<PollRow>();
+
+  if (!row) {
+    throw new AppError(404, 'Record not found');
+  }
+
+  // Check if expired
+  if (row.expires_at && new Date(row.expires_at) <= new Date()) {
+    throw new AppError(422, 'Validation failed', 'Poll has ended');
+  }
+
+  // Parse options to validate choice indices
+  let options: Array<string | { title: string; votes_count?: number }>;
+  try {
+    options = JSON.parse(row.options);
+  } catch {
+    throw new AppError(500, 'An unexpected error occurred');
+  }
+
+  for (const choice of choices) {
+    if (choice < 0 || choice >= options.length) {
+      throw new AppError(422, 'Validation failed', 'Invalid choice index');
+    }
+  }
+
+  // Check not multiple if poll doesn't allow it
+  if (!row.multiple && choices.length > 1) {
+    throw new AppError(422, 'Validation failed', 'Poll does not allow multiple choices');
+  }
+
+  // Check not already voted
+  const existingVote = await db
+    .prepare('SELECT id FROM poll_votes WHERE poll_id = ?1 AND account_id = ?2 LIMIT 1')
+    .bind(pollId, accountId)
+    .first();
+
+  if (existingVote) {
+    throw new AppError(422, 'Validation failed', 'Already voted on this poll');
+  }
+
+  const now = new Date().toISOString();
+  const stmts: D1PreparedStatement[] = [];
+
+  // Insert vote rows
+  for (const choice of choices) {
+    const voteId = generateUlid();
+    stmts.push(
+      db.prepare(
+        'INSERT INTO poll_votes (id, poll_id, account_id, choice, created_at) VALUES (?1, ?2, ?3, ?4, ?5)',
+      ).bind(voteId, pollId, accountId, choice, now),
+    );
+  }
+
+  // Update poll options votes_count
+  const updatedOptions = options.map((o, i) => {
+    const opt = typeof o === 'string' ? { title: o, votes_count: 0 } : { ...o, votes_count: o.votes_count ?? 0 };
+    if (choices.includes(i)) {
+      opt.votes_count += 1;
+    }
+    return opt;
+  });
+
+  stmts.push(
+    db.prepare(
+      'UPDATE polls SET options = ?1, votes_count = votes_count + ?2, voters_count = voters_count + 1 WHERE id = ?3',
+    ).bind(JSON.stringify(updatedOptions), choices.length, pollId),
+  );
+
+  await db.batch(stmts);
+
+  // Fetch updated poll
+  const updated = await db
+    .prepare('SELECT * FROM polls WHERE id = ?1')
+    .bind(pollId)
+    .first<PollRow>();
+
+  return { poll: serializePoll(updated!, { voted: true, ownVotes: choices }) };
+}

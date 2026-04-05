@@ -37,11 +37,10 @@ export function createFed(env: Env): Federation<FedifyContextData> {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
     },
-    // TODO: remove skipSignatureVerification for production
-    // Matches the worker's setting — many remote servers trigger 401s due to
-    // signer≠actor mismatches and unsupported signature algorithms. Fedify
-    // still checks LD Signatures and Object Integrity Proofs with this on.
-    skipSignatureVerification: true,
+    // Controlled by SKIP_SIGNATURE_VERIFICATION env var (wrangler.jsonc vars).
+    // When "true", Fedify skips HTTP Signature verification but still checks
+    // LD Signatures and Object Integrity Proofs.
+    skipSignatureVerification: env.SKIP_SIGNATURE_VERIFICATION === 'true',
   });
 
   return cachedFed;

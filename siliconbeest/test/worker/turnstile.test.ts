@@ -1,6 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
+import { hashPassword } from '../../server/worker/utils/crypto';
 
 /**
  * Turnstile CAPTCHA verification tests.
@@ -180,8 +181,9 @@ describe('Turnstile CAPTCHA verification', () => {
 			// Set a real pbkdf2 password (we need the login endpoint to verify it)
 			// Instead, set a plain password the login endpoint treats as a match via dummy_hash fallback
 			// The login endpoint does: hash === password for non-standard hashes
+			const hashed = await hashPassword('testpassword123');
 			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
-				'testpassword123',
+				hashed,
 				userId,
 			).run();
 
@@ -212,8 +214,9 @@ describe('Turnstile CAPTCHA verification', () => {
 		it('10. Login without turnstile_token succeeds when disabled', async () => {
 			await disableTurnstile();
 			const { userId } = await createTestUser('no_turnstile_login');
+			const hashed = await hashPassword('testpassword123');
 			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
-				'testpassword123',
+				hashed,
 				userId,
 			).run();
 

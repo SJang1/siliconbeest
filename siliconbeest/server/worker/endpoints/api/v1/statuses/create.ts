@@ -3,7 +3,6 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
-import { parseContent, type ParsedMention } from '../../../../utils/contentParser';
 import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
 import { getFedifyContext, sendToFollowers, sendToRecipient } from '../../../../federation/helpers/send';
 import {
@@ -18,20 +17,10 @@ import {
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
-import type { PollRow, StatusWithJoinedAccountRow, MediaAttachmentRow } from '../../../../types/db';
-import { serializePoll } from '../../../../utils/mastodonSerializer';
+import type { StatusWithJoinedAccountRow, MediaAttachmentRow } from '../../../../types/db';
+import { createStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
-
 
 const app = new Hono<HonoEnv>();
 
@@ -65,149 +54,33 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Status text or media is required');
   }
 
+  // ============================================================
+  // Call service to handle all DB operations
+  // ============================================================
+  const result = await createStatus(c.env.DB, domain, currentUser.account_id, currentAccount.username, {
+    text: statusText,
+    visibility: body.visibility,
+    sensitive: body.sensitive,
+    spoilerText: body.spoiler_text,
+    inReplyToId: body.in_reply_to_id,
+    mediaIds,
+    language: body.language,
+    pollOptions: body.poll?.options,
+    pollExpiresIn: body.poll?.expires_in,
+    pollMultiple: body.poll?.multiple,
+    quoteId: body.quote_id,
+  });
+
+  const {
+    statusId, statusUri, statusUrl, content, parsed,
+    localMentions, hashtags, emojiTags: resolvedEmojiTags,
+    pollData, conversationApUri,
+    inReplyToId, inReplyToAccountId,
+    quoteId, quoteUri,
+    visibility, sensitive, spoilerText, language,
+  } = result;
+
   const now = new Date().toISOString();
-  const statusId = generateULID();
-  const visibility = body.visibility || 'public';
-  const sensitive = body.sensitive ? 1 : 0;
-  const spoilerText = body.spoiler_text || '';
-  const language = body.language || 'en';
-  const parsed = parseContent(statusText, domain);
-  const content = parsed.html;
-  const statusUri = `https://${domain}/users/${currentAccount.username}/statuses/${statusId}`;
-  const statusUrl = `https://${domain}/@${currentAccount.username}/${statusId}`;
-
-  let inReplyToId: string | null = null;
-  let inReplyToAccountId: string | null = null;
-  let conversationId: string | null = null;
-  let isReply = 0;
-
-  if (body.in_reply_to_id) {
-    const parent = await c.env.DB.prepare(
-      'SELECT id, account_id, conversation_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
-    ).bind(body.in_reply_to_id).first();
-    if (parent) {
-      inReplyToId = parent.id as string;
-      inReplyToAccountId = parent.account_id as string;
-      conversationId = (parent.conversation_id as string) || null;
-      isReply = 1;
-    }
-  }
-
-  // FEP-e232: Resolve quote post
-  let quoteId: string | null = null;
-  let quoteUri: string | null = null;
-  if (body.quote_id) {
-    const quoted = await c.env.DB.prepare(
-      'SELECT id, uri FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
-    ).bind(body.quote_id).first();
-    if (quoted) {
-      quoteId = quoted.id as string;
-      quoteUri = quoted.uri as string;
-    }
-  }
-
-  let conversationApUri: string | null = null;
-  if (!conversationId) {
-    conversationId = generateULID();
-    const year = now.substring(0, 4);
-    conversationApUri = `tag:${domain},${year}:objectId=${conversationId}:objectType=Conversation`;
-    await c.env.DB.prepare(
-      'INSERT INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)',
-    ).bind(conversationId, conversationApUri, now).run();
-  } else {
-    // Inherited conversation — look up its ap_uri
-    const convRow = await c.env.DB.prepare(
-      'SELECT ap_uri FROM conversations WHERE id = ?1',
-    ).bind(conversationId).first<{ ap_uri: string | null }>();
-    conversationApUri = convRow?.ap_uri ?? null;
-  }
-
-  // Detect custom emojis in content text (both status text and CW)
-  let emojiTagsJson: string | null = null;
-  let resolvedEmojiTags: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
-  const emojiMatches = [...new Set(
-    [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g),
-     ...((spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g))].map(m => m[1])
-  )];
-  if (emojiMatches.length > 0) {
-    const placeholders = emojiMatches.map(() => '?').join(',');
-    const emojiRows = await c.env.DB.prepare(
-      `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
-    ).bind(...emojiMatches, domain).all<{ shortcode: string; domain: string | null; image_key: string }>();
-    if (emojiRows.results.length > 0) {
-      resolvedEmojiTags = emojiRows.results.map(e => {
-        const isLocal = !e.domain || e.domain === domain;
-        const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
-        return { shortcode: e.shortcode, url, static_url: url, visible_in_picker: false };
-      });
-      emojiTagsJson = JSON.stringify(resolvedEmojiTags.map(e => ({ shortcode: e.shortcode, url: e.url, static_url: e.static_url })));
-    }
-  }
-
-  const stmts = [
-    c.env.DB.prepare(
-      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, local, emoji_tags, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1, ?16, ?17, ?17)`,
-    ).bind(
-      statusId, statusUri, statusUrl, currentUser.account_id,
-      inReplyToId, inReplyToAccountId,
-      statusText, content, spoilerText, visibility, sensitive, language,
-      conversationId, isReply, quoteId, emojiTagsJson, now,
-    ),
-    c.env.DB.prepare(
-      'UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2',
-    ).bind(now, currentUser.account_id),
-  ];
-
-  // Update parent reply count
-  if (inReplyToId) {
-    stmts.push(
-      c.env.DB.prepare('UPDATE statuses SET replies_count = replies_count + 1 WHERE id = ?1').bind(inReplyToId),
-    );
-  }
-
-  // Link media attachments
-  for (const mediaId of mediaIds) {
-    stmts.push(
-      c.env.DB.prepare('UPDATE media_attachments SET status_id = ?1 WHERE id = ?2 AND account_id = ?3')
-        .bind(statusId, mediaId, currentUser.account_id),
-    );
-  }
-
-  // Also insert into author's own home timeline
-  stmts.push(
-    c.env.DB.prepare(
-      'INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-    ).bind(generateULID(), currentUser.account_id, statusId, now),
-  );
-
-  await c.env.DB.batch(stmts);
-
-  // Create poll if provided
-  let pollData: ReturnType<typeof serializePoll> | null = null;
-  if (body.poll && body.poll.options && body.poll.options.length >= 2) {
-    const pollId = generateULID();
-    const expiresAt = body.poll.expires_in
-      ? new Date(Date.now() + body.poll.expires_in * 1000).toISOString()
-      : null;
-    const multiple = body.poll.multiple ? 1 : 0;
-    const optionsJson = JSON.stringify(
-      body.poll.options.filter((o: string) => o.trim()).map((title: string) => ({ title, votes_count: 0 })),
-    );
-
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
-         VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6)`,
-      ).bind(pollId, statusId, expiresAt, multiple, optionsJson, now),
-      c.env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId),
-    ]);
-
-    pollData = serializePoll(
-      { id: pollId, status_id: statusId, expires_at: expiresAt, multiple, votes_count: 0, voters_count: 0, options: optionsJson, created_at: now },
-      { voted: false, ownVotes: [] },
-    );
-  }
 
   // Enqueue timeline fanout to followers (skip for DMs — handled after mentions are resolved)
   if (visibility !== 'direct') {
@@ -221,8 +94,6 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       // Queue failure should not block status creation
     }
   }
-
-  // DM timeline + streaming is handled after resolvedMentions below
 
   // Enqueue preview card fetch for the first URL in the status text
   try {
@@ -239,67 +110,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
 
   // ============================================================
-  // Handle hashtags (from parseContent results)
-  // ============================================================
-  const hashtags = parsed.tags;
-  if (hashtags.length > 0) {
-    // Batch SELECT all existing tags
-    const existingTags = await c.env.DB.prepare(
-      `SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`
-    ).bind(...hashtags).all<{ id: string; name: string }>();
-
-    const existingTagMap = new Map(existingTags.results.map(t => [t.name, t.id]));
-    const newTagsToInsert: Array<{ id: string; name: string }> = [];
-    const existingTagIdsToUpdate: string[] = [];
-    const allTagIds: string[] = [];
-
-    for (const tag of hashtags) {
-      let tagId: string;
-      if (existingTagMap.has(tag)) {
-        tagId = existingTagMap.get(tag)!;
-        existingTagIdsToUpdate.push(tagId);
-      } else {
-        tagId = generateULID();
-        newTagsToInsert.push({ id: tagId, name: tag });
-      }
-      allTagIds.push(tagId);
-    }
-
-    // Batch UPDATE all existing tags
-    if (existingTagIdsToUpdate.length > 0) {
-      const placeholders = existingTagIdsToUpdate.map(() => '?').join(',');
-      await c.env.DB.prepare(
-        `UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${placeholders})`
-      ).bind(now, ...existingTagIdsToUpdate).run();
-    }
-
-    // Batch INSERT all new tags at once
-    if (newTagsToInsert.length > 0) {
-      const values: unknown[] = [];
-      let query = 'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES ';
-      newTagsToInsert.forEach((tag, idx) => {
-        if (idx > 0) query += ', ';
-        query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
-        values.push(tag.id, tag.name, tag.name, now);
-      });
-      await c.env.DB.prepare(query).bind(...values).run();
-    }
-
-    // Batch INSERT all status_tags at once
-    if (allTagIds.length > 0) {
-      const values: unknown[] = [];
-      let query = 'INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES ';
-      allTagIds.forEach((tagId, idx) => {
-        if (idx > 0) query += ', ';
-        query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
-        values.push(statusId, tagId);
-      });
-      await c.env.DB.prepare(query).bind(...values).run();
-    }
-  }
-
-  // ============================================================
-  // Handle mentions: resolve accounts (local + remote via WebFinger),
+  // Handle mentions: resolve remote accounts via WebFinger,
   // create DB mention rows, and send notifications BEFORE building
   // the AP note so serializeNote sees the correct mention data.
   // ============================================================
@@ -312,24 +123,22 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     mentionDomain: string | null;
   }
 
-  const resolvedMentions: ResolvedMention[] = [];
+  // Start with local mentions from service (add mentionDomain: null)
+  const resolvedMentions: ResolvedMention[] = localMentions.map((lm) => ({
+    ...lm,
+    mentionDomain: null,
+  }));
+
+  // Queue notifications for local mentions
+  const notificationsToQueue: Array<{ recipientAccountId: string; mention: string }> = [];
+  for (const lm of localMentions) {
+    if (lm.account_id !== currentUser.account_id) {
+      notificationsToQueue.push({ recipientAccountId: lm.account_id, mention: 'mention' });
+    }
+  }
 
   if (parsed.mentions.length > 0) {
-    // Separate local and remote mentions
-    const localMentions = parsed.mentions.filter(m => !m.domain);
     const remoteMentions = parsed.mentions.filter(m => m.domain);
-
-    // Batch SELECT all local accounts at once
-    const localAccountMap = new Map<string, Record<string, unknown>>();
-    if (localMentions.length > 0) {
-      const localUsernames = localMentions.map(m => m.username);
-      const localAccounts = await c.env.DB.prepare(
-        `SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`
-      ).bind(...localUsernames).all<Record<string, unknown>>();
-      localAccounts.results.forEach(acc => {
-        localAccountMap.set(acc.username as string, acc);
-      });
-    }
 
     // Batch-query for known remote accounts
     const remoteAccountMap = new Map<string, Record<string, unknown>>();
@@ -385,40 +194,15 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
     const resolvedRemote = await Promise.all(remoteMentionPromises);
 
-    // Prepare all mentions for batch operations
+    // Prepare remote mentions for batch operations
     const mentionsToInsert: Array<[string, string, string, string]> = []; // [mentionId, statusId, accountId, now]
-    const notificationsToQueue: Array<{ recipientAccountId: string; mention: string }> = [];
-
-    // Process local mentions
-    for (const mention of localMentions) {
-      const accountRow = localAccountMap.get(mention.username);
-      if (!accountRow) continue;
-
-      const mentionedAccountId = accountRow.id as string;
-      const mentionId = generateULID();
-
-      mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
-
-      resolvedMentions.push({
-        account_id: mentionedAccountId,
-        actor_uri: (accountRow.uri as string) || '',
-        profile_url: (accountRow.url as string) || null,
-        acct: mention.acct,
-        inbox_url: (accountRow.inbox_url as string) || null,
-        mentionDomain: (accountRow.domain as string) || null,
-      });
-
-      if (mentionedAccountId !== currentUser.account_id) {
-        notificationsToQueue.push({ recipientAccountId: mentionedAccountId, mention: 'mention' });
-      }
-    }
 
     // Process remote mentions
     for (const { mention, accountRow } of resolvedRemote) {
       if (!accountRow) continue;
 
       const mentionedAccountId = accountRow.id as string;
-      const mentionId = generateULID();
+      const mentionId = generateUlid();
 
       mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
 
@@ -436,7 +220,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       }
     }
 
-    // Batch INSERT all mentions at once
+    // Batch INSERT all remote mentions at once
     if (mentionsToInsert.length > 0) {
       const values: unknown[] = [];
       let query = 'INSERT OR IGNORE INTO mentions (id, status_id, account_id, created_at) VALUES ';
@@ -650,6 +434,10 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     });
 
     // -- Build Fedify Note --
+    const emojiTagsJson = resolvedEmojiTags.length > 0
+      ? JSON.stringify(resolvedEmojiTags.map(e => ({ shortcode: e.shortcode, url: e.url, static_url: e.static_url })))
+      : null;
+
     const noteValues: ConstructorParameters<typeof Note>[0] = {
       id: new URL(statusUri),
       attribution: new URL(actorUri),

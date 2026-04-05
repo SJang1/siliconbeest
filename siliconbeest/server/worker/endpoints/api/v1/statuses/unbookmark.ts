@@ -4,6 +4,7 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { unbookmarkStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -19,9 +20,7 @@ app.post('/:id/unbookmark', authRequired, requireScope('write:bookmarks'), async
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  await c.env.DB.prepare(
-    'DELETE FROM bookmarks WHERE account_id = ?1 AND status_id = ?2',
-  ).bind(currentAccountId, statusId).run();
+  await unbookmarkStatus(c.env.DB, currentAccountId, statusId);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.bookmarked = false;

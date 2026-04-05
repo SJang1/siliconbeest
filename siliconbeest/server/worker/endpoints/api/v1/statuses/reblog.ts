@@ -9,7 +9,7 @@ import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToFollowers } from '../../../../federation/helpers/send';
 import { Announce } from '@fedify/fedify/vocab';
-import { generateUlid } from '../../../../utils/ulid';
+import { reblogStatus } from '../../../../services/status';
 
 const app = new Hono<HonoEnv>();
 
@@ -30,17 +30,20 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
     throw new AppError(422, 'Validation failed', 'Cannot reblog this status');
   }
 
-  // Check if already reblogged
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM statuses WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL',
-  ).bind(statusId, currentUser.account_id).first();
+  const { reblogId, reblogUri, created } = await reblogStatus(
+    c.env.DB,
+    domain,
+    currentUser.account_id,
+    currentAccount.username,
+    statusId,
+  );
 
-  if (existing) {
+  if (!created) {
     // Return the existing reblog
     const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);
     rebloggedStatus.reblogged = true;
     return c.json({
-      id: existing.id as string,
+      id: reblogId,
       created_at: new Date().toISOString(),
       in_reply_to_id: null,
       in_reply_to_account_id: null,
@@ -48,8 +51,8 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
       spoiler_text: '',
       visibility,
       language: null,
-      uri: `https://${domain}/users/${currentAccount.username}/statuses/${existing.id}`,
-      url: `https://${domain}/@${currentAccount.username}/${existing.id}`,
+      uri: reblogUri,
+      url: `https://${domain}/@${currentAccount.username}/${reblogId}`,
       replies_count: 0,
       reblogs_count: 0,
       favourites_count: 0,
@@ -96,22 +99,6 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   }
 
   const now = new Date().toISOString();
-  const reblogId = generateUlid();
-  const reblogUri = `https://${domain}/users/${currentAccount.username}/statuses/${reblogId}/activity`;
-
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT INTO statuses (id, uri, url, account_id, reblog_of_id, visibility, local, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?7)`,
-    ).bind(reblogId, reblogUri, null, currentUser.account_id, statusId, visibility, now),
-    c.env.DB.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1 WHERE id = ?1').bind(statusId),
-    c.env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(currentUser.account_id),
-  ]);
-
-  // Add reblog to own home timeline immediately
-  await c.env.DB.prepare(
-    'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-  ).bind(reblogId, currentUser.account_id, now).run();
 
   // Fanout reblog to followers' home timelines
   await c.env.QUEUE_INTERNAL.send({

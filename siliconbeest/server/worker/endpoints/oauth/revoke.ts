@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
+import { sha256 } from '../../utils/crypto';
+import { revokeToken } from '../../services/oauth';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -10,28 +12,10 @@ app.post('/', async (c) => {
 
 	if (token) {
 		// Compute SHA-256 hash for lookup
-		const data = new TextEncoder().encode(token);
-		const hashBuf = await crypto.subtle.digest('SHA-256', data);
-		const hex = Array.from(new Uint8Array(hashBuf))
-			.map((b) => b.toString(16).padStart(2, '0'))
-			.join('');
+		const hex = await sha256(token);
 
-		// Mark the token as revoked (try hash first, then plaintext for legacy)
-		const now = new Date().toISOString();
-		const result = await c.env.DB.prepare(
-			`UPDATE oauth_access_tokens SET revoked_at = ?1 WHERE token_hash = ?2 AND revoked_at IS NULL`,
-		)
-			.bind(now, hex)
-			.run();
-
-		if (!result.meta.changes) {
-			// Fallback for legacy plaintext tokens
-			await c.env.DB.prepare(
-				`UPDATE oauth_access_tokens SET revoked_at = ?1 WHERE token = ?2 AND revoked_at IS NULL`,
-			)
-				.bind(now, token)
-				.run();
-		}
+		// Mark the token as revoked via service
+		await revokeToken(c.env.DB, hex);
 
 		// Invalidate the KV cache for this token
 		await c.env.CACHE.delete(`token:${hex}`);

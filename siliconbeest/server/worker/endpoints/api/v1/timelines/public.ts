@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
-import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
+import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { getPublicTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -20,51 +21,16 @@ app.get('/', authOptional, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  // Order by created_at instead of id because local (00MN...) and remote (01KM...)
-  // IDs use different ULID generators with different timestamp encodings.
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const allRows = await getPublicTimeline(c.env.DB, {
+    maxId: pag.maxId,
+    sinceId: pag.sinceId,
+    minId: pag.minId,
+    limit: pag.limit,
+    local,
+    remote,
+    onlyMedia,
+  });
 
-  const conditions: string[] = [`s.visibility = 'public'`, `s.deleted_at IS NULL`];
-  const binds: (string | number)[] = [];
-
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
-
-  if (local) {
-    conditions.push('s.local = 1');
-  }
-  if (remote) {
-    conditions.push('s.local = 0');
-  }
-  if (onlyMedia) {
-    conditions.push('EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)');
-  }
-
-  const sql = `
-    SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-           a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-           a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-           a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-           a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-           a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-           a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-           a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-           a.emoji_tags AS a_emoji_tags
-    FROM statuses s
-    JOIN accounts a ON a.id = s.account_id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
-    LIMIT ?
-  `;
-  binds.push(limitValue);
-
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
-
-  const allRows = (results ?? []) as Record<string, unknown>[];
   const statusIds = allRows.map((r) => r.id as string);
   const currentAccount = c.get('currentAccount');
   const currentAccountId = currentAccount?.id ?? null;
@@ -161,7 +127,7 @@ app.get('/', authOptional, async (c) => {
   if (pag.minId) statuses.reverse();
 
   const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/public`;
-  const link = buildLinkHeader(baseUrl, statuses, limitValue);
+  const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
+import { searchAccounts } from '../../../../services/account';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -10,41 +11,15 @@ app.get('/search', authRequired, async (c) => {
   const query = c.req.query();
   const q = (query.q || '').trim();
   const limit = Math.min(parseInt(query.limit || '40', 10) || 40, 80);
-  const resolve = query.resolve === 'true';
   const following = query.following === 'true';
   const domain = c.env.INSTANCE_DOMAIN;
   const currentAccountId = c.get('currentUser')!.account_id;
 
   if (!q) return c.json([]);
 
-  let sql: string;
-  const params: unknown[] = [];
+  const results = await searchAccounts(c.env.DB, q, limit, 0, following ? { followedBy: currentAccountId } : undefined);
 
-  if (following) {
-    sql = `
-      SELECT a.* FROM accounts a
-      JOIN follows f ON f.target_account_id = a.id
-      WHERE f.account_id = ?
-        AND (a.username LIKE ? OR a.display_name LIKE ?)
-      ORDER BY a.username ASC
-      LIMIT ?
-    `;
-    params.push(currentAccountId, `%${q}%`, `%${q}%`, limit);
-  } else {
-    sql = `
-      SELECT * FROM accounts
-      WHERE (username LIKE ? OR display_name LIKE ?)
-      ORDER BY
-        CASE WHEN domain IS NULL THEN 0 ELSE 1 END,
-        username ASC
-      LIMIT ?
-    `;
-    params.push(`%${q}%`, `%${q}%`, limit);
-  }
-
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
-
-  const accounts = (results as Record<string, unknown>[]).map((row) => {
+  const accounts = results.map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
     const acctDomain = (row.domain as string) || null;
 

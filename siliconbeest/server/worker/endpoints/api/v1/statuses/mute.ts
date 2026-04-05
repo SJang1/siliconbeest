@@ -4,17 +4,9 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { muteStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
 
 const app = new Hono<HonoEnv>();
 
@@ -28,17 +20,7 @@ app.post('/:id/mute', authRequired, requireScope('write:mutes'), async (c) => {
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM status_mutes WHERE account_id = ?1 AND status_id = ?2',
-  ).bind(currentAccountId, statusId).first();
-
-  if (!existing) {
-    const now = new Date().toISOString();
-    const id = generateULID();
-    await c.env.DB.prepare(
-      'INSERT INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-    ).bind(id, currentAccountId, statusId, now).run();
-  }
+  await muteStatus(c.env.DB, currentAccountId, statusId);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.muted = true;

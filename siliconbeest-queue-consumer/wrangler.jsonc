@@ -19,7 +19,8 @@
 		"mode": "smart"
 	},
 	"vars": {
-		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev"
+		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
+		"SKIP_SIGNATURE_VERIFICATION": "true"
 	},
 	// D1 Database
 	"d1_databases": [

@@ -15,36 +15,15 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { getFedifyContext } from '../../../../federation/helpers/send';
+import { getAliases, addAlias, removeAlias } from '../../../../services/account';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
-
-// ── Helpers ──
-
-/**
- * Parse the also_known_as JSON column into a string array.
- */
-function parseAliases(raw: string | null): string[] {
-	if (!raw) return [];
-	const parsed = JSON.parse(raw);
-	return Array.isArray(parsed) ? parsed : [];
-}
 
 // ── GET /aliases ──
 
 app.get('/aliases', authRequired, async (c) => {
 	const accountId = c.get('currentUser')!.account_id;
-
-	const account = await c.env.DB.prepare(
-		`SELECT also_known_as FROM accounts WHERE id = ?1 LIMIT 1`,
-	)
-		.bind(accountId)
-		.first<{ also_known_as: string | null }>();
-
-	if (!account) {
-		return c.json({ error: 'Account not found' }, 404);
-	}
-
-	const aliases = parseAliases(account.also_known_as);
+	const aliases = await getAliases(c.env.DB, accountId);
 	return c.json({ aliases });
 });
 
@@ -83,33 +62,7 @@ app.post('/aliases', authRequired, async (c) => {
 		actorUri = selfLink.href;
 	}
 
-	// Read current aliases
-	const account = await c.env.DB.prepare(
-		`SELECT also_known_as FROM accounts WHERE id = ?1 LIMIT 1`,
-	)
-		.bind(accountId)
-		.first<{ also_known_as: string | null }>();
-
-	if (!account) {
-		return c.json({ error: 'Account not found' }, 404);
-	}
-
-	const aliases = parseAliases(account.also_known_as);
-
-	// Check if already present
-	if (aliases.includes(actorUri)) {
-		return c.json({ aliases });
-	}
-
-	aliases.push(actorUri);
-
-	const now = new Date().toISOString();
-	await c.env.DB.prepare(
-		`UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3`,
-	)
-		.bind(JSON.stringify(aliases), now, accountId)
-		.run();
-
+	const aliases = await addAlias(c.env.DB, accountId, actorUri);
 	return c.json({ aliases });
 });
 
@@ -123,29 +76,8 @@ app.delete('/aliases', authRequired, async (c) => {
 		return c.json({ error: 'Missing alias parameter' }, 422);
 	}
 
-	const alias = body.alias.trim();
-
-	const account = await c.env.DB.prepare(
-		`SELECT also_known_as FROM accounts WHERE id = ?1 LIMIT 1`,
-	)
-		.bind(accountId)
-		.first<{ also_known_as: string | null }>();
-
-	if (!account) {
-		return c.json({ error: 'Account not found' }, 404);
-	}
-
-	const aliases = parseAliases(account.also_known_as);
-	const filtered = aliases.filter((a) => a !== alias);
-
-	const now = new Date().toISOString();
-	await c.env.DB.prepare(
-		`UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3`,
-	)
-		.bind(filtered.length > 0 ? JSON.stringify(filtered) : null, now, accountId)
-		.run();
-
-	return c.json({ aliases: filtered });
+	const aliases = await removeAlias(c.env.DB, accountId, body.alias.trim());
+	return c.json({ aliases });
 });
 
 export default app;
