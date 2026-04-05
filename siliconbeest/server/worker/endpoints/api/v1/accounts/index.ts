@@ -21,8 +21,8 @@ import aliasesApp from './aliases';
 import migrationApp from './migration';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { generateUlid } from '../../../../utils/ulid';
 import { serializeAccount } from '../../../../utils/mastodonSerializer';
+import { setAccountNote, pinAccount, unpinAccount } from '../../../../services/account';
 import type { AccountRow } from '../../../../types/db';
 
 const accounts = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -48,21 +48,7 @@ accounts.post('/:id/note', authRequired, async (c) => {
   const body = await c.req.json<{ comment?: string }>();
   const comment = (body.comment ?? '').slice(0, 2000);
 
-  const target = await c.env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
-  if (!target) throw new AppError(404, 'Record not found');
-
-  const now = new Date().toISOString();
-  if (comment) {
-    await c.env.DB.prepare(
-      `INSERT INTO account_notes (id, account_id, target_account_id, comment, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-       ON CONFLICT(account_id, target_account_id) DO UPDATE SET comment = ?4, updated_at = ?6`,
-    ).bind(generateUlid(), currentAccount.id, targetId, comment, now, now).run();
-  } else {
-    await c.env.DB.prepare(
-      'DELETE FROM account_notes WHERE account_id = ?1 AND target_account_id = ?2',
-    ).bind(currentAccount.id, targetId).run();
-  }
+  await setAccountNote(c.env.DB, currentAccount.id, targetId, comment);
 
   // Return updated relationship
   const [following, followedBy, blocking, muting] = await Promise.all([
