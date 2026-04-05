@@ -36,7 +36,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
   const token = extractBearerToken(c.req.header('Authorization'));
   if (token) {
     const tokenHash = await sha256(token);
-    const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash);
+    const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash, token);
     if (payload) {
       c.set('currentUser', payload.user);
       c.set('currentAccount', payload.account);
@@ -66,7 +66,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   }
 
   const tokenHash = await sha256(token);
-  const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash);
+  const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash, token);
   if (!payload) {
     return c.json(
       { error: 'The access token is invalid' },

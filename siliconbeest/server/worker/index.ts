@@ -264,7 +264,6 @@ app.route('/oauth/revoke', oauthRevoke);
 // ---------------------------------------------------------------------------
 
 app.route('/api/v1/apps', apps);
-app.use('/api/v1/accounts', createRateLimit(RATE_LIMIT_REGISTRATION));
 app.route('/api/v1/accounts', accounts);
 app.route('/api/v1/timelines', timelines);
 app.route('/api/v1/notifications', notifications);

@@ -116,7 +116,7 @@ export async function registerUser(
 
 	await db.batch([
 		accountStmt.bind(accountId, lowerUsername, lowerUsername, uri, url, now, now),
-		userStmt.bind(userId, accountId, lowerEmail, encryptedPassword, now, approved, now, now),
+		userStmt.bind(userId, accountId, lowerEmail, encryptedPassword, null, approved, now, now),
 		actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
 	]);
 
@@ -166,6 +166,7 @@ export async function resolveToken(
 	db: D1Database,
 	kv: KVNamespace,
 	tokenHash: string,
+	rawToken?: string,
 ): Promise<ResolvedToken | null> {
 	const cacheKey = `token:${tokenHash}`;
 
@@ -189,29 +190,26 @@ export async function resolveToken(
 		return payload;
 	}
 
-	// 2. D1 fallback — query by token_hash (NOT plaintext token)
-	const row = await db
-		.prepare(
-			`SELECT
-			   t.id   AS token_id,
-			   u.id   AS user_id,
-			   u.email,
-			   u.role,
-			   a.id       AS account_id,
-			   a.username,
-			   a.domain,
-			   t.scopes
-			 FROM oauth_access_tokens t
-			 JOIN users    u ON u.id = t.user_id
-			 JOIN accounts a ON a.id = u.account_id
-			 WHERE t.token_hash = ?
-			   AND t.revoked_at IS NULL
-			   AND u.disabled = 0
-			   AND a.suspended_at IS NULL
-			 LIMIT 1`,
-		)
-		.bind(tokenHash)
-		.first();
+	// 2. D1 fallback — query by token_hash, with legacy plaintext fallback
+	const tokenQuery = `SELECT
+		   t.id   AS token_id,
+		   u.id   AS user_id,
+		   u.email,
+		   u.role,
+		   a.id       AS account_id,
+		   a.username,
+		   a.domain,
+		   t.scopes
+		 FROM oauth_access_tokens t
+		 JOIN users    u ON u.id = t.user_id
+		 JOIN accounts a ON a.id = u.account_id
+		 WHERE t.revoked_at IS NULL
+		   AND u.disabled = 0
+		   AND a.suspended_at IS NULL
+		   AND (t.token_hash = ?1 OR t.token = ?2)
+		 LIMIT 1`;
+
+	const row = await db.prepare(tokenQuery).bind(tokenHash, rawToken ?? tokenHash).first();
 
 	if (!row) return null;
 
