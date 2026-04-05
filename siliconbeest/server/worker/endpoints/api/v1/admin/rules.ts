@@ -24,7 +24,7 @@ app.get('/', async (c) => {
  */
 app.get('/:id', async (c) => {
 	const row = await getRule(c.env.DB, c.req.param('id'));
-	return c.json(formatRule(row as unknown as RuleRow));
+	return c.json(formatRule(row));
 });
 
 /**
@@ -39,7 +39,7 @@ app.post('/', async (c) => {
 	if (!body.text) throw new AppError(422, 'text is required');
 
 	const row = await createRule(c.env.DB, body.text, body.priority);
-	return c.json(formatRule(row as unknown as RuleRow), 200);
+	return c.json(formatRule(row), 200);
 });
 
 /**
@@ -52,7 +52,7 @@ app.put('/:id', async (c) => {
 	}>();
 
 	const row = await updateRule(c.env.DB, c.req.param('id'), body);
-	return c.json(formatRule(row as unknown as RuleRow));
+	return c.json(formatRule(row));
 });
 
 /**
@@ -65,11 +65,11 @@ app.delete('/:id', async (c) => {
 
 function formatRule(row: RuleRow) {
 	return {
-		id: row.id as string,
-		text: row.text as string,
-		priority: (row.priority as number) || 0,
-		created_at: row.created_at as string,
-		updated_at: (row.updated_at as string) || row.created_at as string,
+		id: row.id,
+		text: row.text,
+		priority: row.priority || 0,
+		created_at: row.created_at,
+		updated_at: row.updated_at || row.created_at,
 	};
 }
 

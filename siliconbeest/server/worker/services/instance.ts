@@ -107,8 +107,8 @@ export async function getRules(db: D1Database): Promise<RuleRow[]> {
 /**
  * Get a single rule by ID.
  */
-export async function getRule(db: D1Database, id: string): Promise<Record<string, unknown>> {
-	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
+export async function getRule(db: D1Database, id: string): Promise<RuleRow> {
+	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -120,14 +120,14 @@ export async function createRule(
 	db: D1Database,
 	text: string,
 	priority?: number,
-): Promise<Record<string, unknown>> {
+): Promise<RuleRow> {
 	const id = generateUlid();
 	const now = new Date().toISOString();
 	const prio = priority ?? 0;
 	await db.prepare(
 		'INSERT INTO rules (id, text, priority, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)',
 	).bind(id, text, prio, now, now).run();
-	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
+	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	return row!;
 }
 
@@ -138,8 +138,8 @@ export async function updateRule(
 	db: D1Database,
 	id: string,
 	data: { text?: string; priority?: number },
-): Promise<Record<string, unknown>> {
-	const existing = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
+): Promise<RuleRow> {
+	const existing = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	if (!existing) throw new AppError(404, 'Record not found');
 	const now = new Date().toISOString();
 	await db.prepare(
@@ -150,7 +150,7 @@ export async function updateRule(
 		now,
 		id,
 	).run();
-	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
+	const row = await db.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	return row!;
 }
 
