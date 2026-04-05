@@ -9,9 +9,9 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { generateUlid } from '../../../../utils/ulid';
-import { sha256 } from '../../../../utils/crypto';
+import { sha256, generateToken } from '../../../../utils/crypto';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
-import bcrypt from 'bcryptjs';
+import { verifyPassword } from '../../../../services/auth';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -36,72 +36,17 @@ app.post('/', async (c) => {
 		}
 	}
 
-	// Find user by email
-	const user = await c.env.DB.prepare(
-		`SELECT u.id, u.account_id, u.encrypted_password, u.role, u.approved, u.disabled, u.otp_enabled, u.confirmed_at,
-		        a.username, a.display_name
-		 FROM users u
-		 JOIN accounts a ON a.id = u.account_id
-		 WHERE u.email = ?1 LIMIT 1`,
-	)
-		.bind(email.toLowerCase().trim())
-		.first<{
-			id: string;
-			account_id: string;
-			encrypted_password: string;
-			role: string;
-			approved: number;
-			disabled: number;
-			otp_enabled: number;
-			confirmed_at: string | null;
-			username: string;
-			display_name: string;
-		}>();
+	// Verify email/password via auth service
+	const result = await verifyPassword(c.env.DB, email, password);
 
-	if (!user) {
+	if (!result) {
 		return c.json({ error: 'Invalid email or password' }, 401);
 	}
 
-	if (user.disabled) {
-		return c.json({ error: 'Your account has been disabled' }, 403);
-	}
+	const { user, account } = result;
 
 	if (!user.approved) {
 		return c.json({ error: 'Your account is pending approval' }, 403);
-	}
-
-	// Verify password (support both bcrypt and pbkdf2 formats)
-	let passwordValid = false;
-	const hash = user.encrypted_password;
-
-	if (hash.startsWith('$2a$') || hash.startsWith('$2b$')) {
-		// bcrypt
-		passwordValid = await bcrypt.compare(password, hash);
-	} else if (hash.startsWith('pbkdf2:')) {
-		// pbkdf2:saltHex:hashHex format
-		const parts = hash.split(':');
-		if (parts.length === 3) {
-			const saltHex = parts[1]!;
-			const storedHash = parts[2]!;
-			// Convert hex salt back to bytes
-			const saltBytes = new Uint8Array(saltHex.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
-			const encoder = new TextEncoder();
-			const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-			const derived = await crypto.subtle.deriveBits(
-				{ name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
-				keyMaterial,
-				256,
-			);
-			const derivedHex = Array.from(new Uint8Array(derived)).map((b) => b.toString(16).padStart(2, '0')).join('');
-			passwordValid = derivedHex === storedHash;
-		}
-	} else {
-		// Plain comparison for test/dummy hashes
-		passwordValid = hash === password;
-	}
-
-	if (!passwordValid) {
-		return c.json({ error: 'Invalid email or password' }, 401);
 	}
 
 	if (!user.confirmed_at) {
@@ -118,8 +63,8 @@ app.post('/', async (c) => {
 
 	if (!app_record) {
 		const appId = generateUlid();
-		const clientId = crypto.randomUUID().replace(/-/g, '');
-		const clientSecret = crypto.randomUUID().replace(/-/g, '');
+		const clientId = generateToken(32);
+		const clientSecret = generateToken(64);
 		const now = new Date().toISOString();
 		await c.env.DB.prepare(
 			`INSERT INTO oauth_applications (id, name, redirect_uri, client_id, client_secret, scopes, created_at, updated_at)
@@ -129,7 +74,7 @@ app.post('/', async (c) => {
 	}
 
 	// Generate access token — store SHA-256 hash, not plaintext
-	const tokenValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+	const tokenValue = generateToken(64);
 	const tokenHash = await sha256(tokenValue);
 	const tokenId = generateUlid();
 	const now = new Date().toISOString();
