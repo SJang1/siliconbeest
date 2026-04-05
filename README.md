@@ -124,6 +124,10 @@ SiliconBeest runs as 3 Cloudflare Workers:
 
 The main worker enqueues email jobs to the `email` queue via its `QUEUE_EMAIL` producer binding. The email-sender worker consumes from that queue and sends mail via SMTP using [worker-mailer](https://github.com/nicepkg/worker-mailer).
 
+A `packages/shared/` directory contains code shared between workers:
+- **`crypto/`** -- Consolidated HTTP signature signing/verification and PEM key management (used by both the main worker and queue consumer)
+- **`types/`** -- Shared Mastodon API base type definitions (used by both server and frontend)
+
 ---
 
 ## Tech Stack

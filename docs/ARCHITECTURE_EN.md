@@ -1,7 +1,7 @@
 # SiliconBeest Architecture Document
 
 > Comprehensive technical documentation for the SiliconBeest project.
-> Last updated: 2026-03-25
+> Last updated: 2026-04-05
 >
 > **Note:** This document references the old split architecture (`siliconbeest-worker/` + `siliconbeest-vue/`). These have been merged into a single `siliconbeest/` directory. See [UPGRADE.md](../UPGRADE.md) for migration details. The API server lives in `siliconbeest/server/` and the Vue frontend in `siliconbeest/src/`.
 
@@ -228,9 +228,14 @@ siliconbeest/
   README.md                  # Project README with quick start guide
   wrangler.jsonc             # Root wrangler config (unused/legacy)
   scripts/                   # Setup, deploy, and maintenance scripts
-  siliconbeest-worker/       # API server (Hono on Workers)
+  packages/                  # Shared code between workers
+    shared/
+      crypto/                # Consolidated HTTP signature and key management
+      types/                 # Shared Mastodon API base types
+  siliconbeest/              # API server + Vue frontend (merged)
+    server/                  # Hono API server (Workers)
+    src/                     # Vue 3 SPA frontend
   siliconbeest-queue-consumer/ # Async job processor (Queues consumer)
-  siliconbeest-vue/          # Web frontend (Vue 3 SPA)
 ```
 
 ### siliconbeest-worker/ (API Server)
@@ -1267,6 +1272,16 @@ SiliconBeest supports multiple HTTP signature methods for maximum interoperabili
 | Linked Data Signatures | Sign + Verify | RsaSignature2017 on activity objects for relay forwarding. |
 | Object Integrity Proofs (FEP-8b32) | Create + Verify | Ed25519-based DataIntegrityProof with `ed25519-jcs-2022` cryptosuite. |
 
+#### Shared Crypto Package
+
+All HTTP signature signing, verification, PEM key parsing, and digest computation is consolidated in `packages/shared/crypto/`. Both the main API worker and the queue consumer import from this single source, eliminating previously duplicated implementations:
+
+- `keys.ts` — PEM parsing, RSA and Ed25519 key import
+- `sign-cavage.ts` — draft-cavage signing
+- `sign-rfc9421.ts` — RFC 9421 signing
+- `verify.ts` — verification for both standards
+- `digest.ts` — SHA-256 digest computation (Digest header and Content-Digest)
+
 #### Double-Knock Delivery Strategy
 
 When delivering activities to remote inboxes:
@@ -1354,6 +1369,10 @@ Media attachments are serialized as `Document` objects with `mediaType`, `url`, 
 
 ### Inbox Processing
 
+Fedify inbox listeners receive typed activity objects and pass them to 13 specialized processors. Simple activities (Follow, Like, Announce, Block) have their fields extracted directly from Fedify types in the listener; complex activities (Create, Update, Undo, etc.) use minimal JSON-LD extraction inline.
+
+Processors extend a `BaseProcessor` class that provides shared infrastructure: entity resolution (`findStatusByUri`, `findLocalAccountByUri`), remote actor resolution (`resolveActor`), and local-only notifications (`notifyIfLocal`). Repositories (`StatusRepository`, `AccountRepository`, `FavouriteRepository`) encapsulate all database access.
+
 SiliconBeest processes 13+ incoming activity types:
 
 | Activity | Handler | Description |
@@ -1379,6 +1398,10 @@ SiliconBeest processes 13+ incoming activity types:
 When a remote activity targets local followers, SiliconBeest forwards it with the original HTTP headers preserved so the signature can be verified at the destination. This is important for relay scenarios.
 
 ### Collection Pagination
+
+Collection dispatchers are organized in `federation/dispatchers/collections/`:
+- `dispatchers.ts` — registration of all 6 collection dispatchers (followers, following, outbox, featured, featured-tags, liked)
+- `helpers.ts` — shared utilities (`buildFedifyNote`, `resolveAddressing`, `toTemporalInstant`, `buildMediaAttachment`) also used by the Note object dispatcher
 
 All collection endpoints use `OrderedCollection` and `OrderedCollectionPage` with `first`, `next`, and `prev` links:
 

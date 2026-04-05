@@ -3,25 +3,48 @@
  *
  * These types represent the JSON shapes returned by the Mastodon-compatible API.
  * See: https://docs.joinmastodon.org/entities/
+ *
+ * Common base types are imported from packages/shared/types/mastodon-base.ts
+ * to maintain a single source of truth between server and frontend.
  */
+
+// Re-export shared base types
+export type {
+  AccountField,
+  CustomEmoji,
+  PollOption,
+  TagHistory,
+  BaseTag,
+  FilterContext,
+  FilterKeyword,
+  FilterStatus,
+  NotificationType,
+  Token,
+  List,
+  BaseConversation,
+  Relationship,
+} from '../../../../packages/shared/types/mastodon-base';
+
+import type {
+  AccountField,
+  CustomEmoji,
+  PollOption,
+  TagHistory,
+  FilterContext,
+  FilterKeyword,
+  FilterStatus,
+  NotificationType,
+} from '../../../../packages/shared/types/mastodon-base';
 
 // ============================================================
 // PRIMITIVES / SHARED
 // ============================================================
 
-export interface Field {
-  name: string;
-  value: string;
-  verified_at: string | null;
-}
+/** @deprecated Use AccountField instead */
+export type Field = AccountField;
 
-export interface Emoji {
-  shortcode: string;
-  url: string;
-  static_url: string;
-  visible_in_picker: boolean;
-  category?: string;
-}
+/** @deprecated Use CustomEmoji instead */
+export type Emoji = CustomEmoji;
 
 export interface Source {
   privacy: string;
@@ -183,11 +206,6 @@ export interface MediaAttachment {
 // POLL
 // ============================================================
 
-export interface PollOption {
-  title: string;
-  votes_count: number | null;
-}
-
 export interface Poll {
   id: string;
   expires_at: string | null;
@@ -204,19 +222,6 @@ export interface Poll {
 // ============================================================
 // NOTIFICATION
 // ============================================================
-
-export type NotificationType =
-  | 'mention'
-  | 'status'
-  | 'reblog'
-  | 'follow'
-  | 'follow_request'
-  | 'favourite'
-  | 'poll'
-  | 'update'
-  | 'admin.sign_up'
-  | 'admin.report'
-  | 'emoji_reaction';
 
 export interface Notification {
   id: string;
@@ -239,13 +244,6 @@ export interface Application {
   vapid_key?: string;
 }
 
-export interface Token {
-  access_token: string;
-  token_type: string;
-  scope: string;
-  created_at: number;
-}
-
 // ============================================================
 // CONTEXT
 // ============================================================
@@ -258,24 +256,6 @@ export interface Context {
 // ============================================================
 // RELATIONSHIP
 // ============================================================
-
-export interface Relationship {
-  id: string;
-  following: boolean;
-  showing_reblogs: boolean;
-  notifying: boolean;
-  followed_by: boolean;
-  blocking: boolean;
-  blocked_by: boolean;
-  muting: boolean;
-  muting_notifications: boolean;
-  requested: boolean;
-  requested_by: boolean;
-  domain_blocking: boolean;
-  endorsed: boolean;
-  note: string;
-  languages: string[] | null;
-}
 
 // ============================================================
 // INSTANCE
@@ -361,19 +341,6 @@ export interface WebPushSubscription {
 // FILTER
 // ============================================================
 
-export interface FilterKeyword {
-  id: string;
-  keyword: string;
-  whole_word: boolean;
-}
-
-export interface FilterStatus {
-  id: string;
-  status_id: string;
-}
-
-export type FilterContext = 'home' | 'notifications' | 'public' | 'thread' | 'account';
-
 export interface Filter {
   id: string;
   title: string;
@@ -408,23 +375,6 @@ export interface Markers {
 // ============================================================
 // LIST
 // ============================================================
-
-export interface List {
-  id: string;
-  title: string;
-  replies_policy: 'followed' | 'list' | 'none';
-  exclusive: boolean;
-}
-
-// ============================================================
-// TAG
-// ============================================================
-
-export interface TagHistory {
-  day: string;
-  uses: string;
-  accounts: string;
-}
 
 export interface Tag {
   name: string;

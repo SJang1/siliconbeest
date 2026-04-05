@@ -1,4 +1,33 @@
 // Mastodon API entity types for the frontend
+//
+// Common base types are imported from packages/shared/types/mastodon-base.ts
+// to maintain a single source of truth between server and frontend.
+
+// Re-export shared base types
+export type {
+  AccountField,
+  CustomEmoji,
+  PollOption,
+  TagHistory,
+  FilterContext,
+  FilterKeyword,
+  FilterStatus,
+  NotificationType,
+  Token,
+  List,
+  Relationship,
+} from '../../../packages/shared/types/mastodon-base';
+
+import type {
+  AccountField,
+  CustomEmoji,
+  PollOption,
+  TagHistory,
+  FilterContext,
+  FilterKeyword,
+  FilterStatus,
+  NotificationType,
+} from '../../../packages/shared/types/mastodon-base';
 
 export interface Account {
   id: string;
@@ -31,12 +60,6 @@ export interface Account {
   roles?: Role[];
 }
 
-export interface AccountField {
-  name: string;
-  value: string;
-  verified_at: string | null;
-}
-
 export interface Role {
   id: string;
   name: string;
@@ -55,24 +78,6 @@ export interface AccountSource {
   note: string;
   fields: AccountField[];
   follow_requests_count: number;
-}
-
-export interface Relationship {
-  id: string;
-  following: boolean;
-  showing_reblogs: boolean;
-  notifying: boolean;
-  followed_by: boolean;
-  blocking: boolean;
-  blocked_by: boolean;
-  muting: boolean;
-  muting_notifications: boolean;
-  requested: boolean;
-  requested_by: boolean;
-  domain_blocking: boolean;
-  endorsed: boolean;
-  note: string;
-  languages: string[] | null;
 }
 
 export type StatusVisibility = 'public' | 'unlisted' | 'private' | 'direct';
@@ -151,20 +156,6 @@ export interface Tag {
   following?: boolean;
 }
 
-export interface TagHistory {
-  day: string;
-  uses: string;
-  accounts: string;
-}
-
-export interface CustomEmoji {
-  shortcode: string;
-  url: string;
-  static_url: string;
-  visible_in_picker: boolean;
-  category?: string;
-}
-
 export interface Poll {
   id: string;
   expires_at: string | null;
@@ -176,11 +167,6 @@ export interface Poll {
   emojis: CustomEmoji[];
   voted?: boolean;
   own_votes?: number[];
-}
-
-export interface PollOption {
-  title: string;
-  votes_count: number | null;
 }
 
 export interface PreviewCard {
@@ -212,19 +198,6 @@ export interface Notification {
   emoji_url?: string;
 }
 
-export type NotificationType =
-  | 'follow'
-  | 'follow_request'
-  | 'mention'
-  | 'reblog'
-  | 'favourite'
-  | 'poll'
-  | 'status'
-  | 'update'
-  | 'admin.sign_up'
-  | 'admin.report'
-  | 'emoji_reaction';
-
 export interface Conversation {
   id: string;
   unread: boolean;
@@ -246,19 +219,6 @@ export interface Filter {
   filter_action: 'warn' | 'hide';
   keywords: FilterKeyword[];
   statuses: FilterStatus[];
-}
-
-export type FilterContext = 'home' | 'notifications' | 'public' | 'thread' | 'account';
-
-export interface FilterKeyword {
-  id: string;
-  keyword: string;
-  whole_word: boolean;
-}
-
-export interface FilterStatus {
-  id: string;
-  status_id: string;
 }
 
 export interface Instance {
@@ -360,20 +320,6 @@ export interface OAuthApp {
   client_id: string;
   client_secret: string;
   vapid_key: string;
-}
-
-export interface Token {
-  access_token: string;
-  token_type: string;
-  scope: string;
-  created_at: number;
-}
-
-export interface List {
-  id: string;
-  title: string;
-  replies_policy: 'followed' | 'list' | 'none';
-  exclusive: boolean;
 }
 
 export interface Announcement {

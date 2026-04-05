@@ -1,15 +1,10 @@
 /**
  * Fedify Inbox Listener Registration
  *
- * Wires up Fedify's `setInboxListeners` to call the existing 13 inbox
- * processors. Each listener:
- *   1. Receives a Fedify-typed activity (after Fedify has verified signatures)
- *   2. Converts it to the APActivity format via `adaptJsonLdToAPActivity`
- *   3. Resolves the local account ID from the inbox recipient identifier
- *   4. Calls the corresponding processor
- *
- * This file is created as part of Phase 2 (Fedify listener registration).
- * It will NOT be imported/used until Phase 3 wires it up in index.ts.
+ * Wires up Fedify's `setInboxListeners` to the 13 inbox processors.
+ * Each listener extracts fields directly from Fedify's typed objects
+ * and constructs the APActivity format inline, eliminating the need
+ * for the activity-adapter.ts bridging layer.
  */
 
 import type { Federation, InboxContext } from '@fedify/fedify';
@@ -31,9 +26,8 @@ import {
 } from '@fedify/vocab';
 
 import type { Env } from '../../env';
+import type { APActivity } from '../../types/activitypub';
 import type { FedifyContextData } from '../fedify';
-import { adaptJsonLdToAPActivity } from '../helpers/activity-adapter';
-import { isEmojiReaction } from '../helpers/misskey-compat';
 import { isDomainBlocked, extractDomain } from '../helpers/domainBlock';
 
 // Import existing processors
@@ -55,32 +49,15 @@ import { processEmojiReact } from '../inboxProcessors/emojiReact';
 // HELPER: Resolve local account ID from inbox recipient
 // ============================================================
 
-/**
- * Resolve the local account ID from the Fedify inbox context.
- *
- * For personal inboxes, `ctx.recipient` is the `{identifier}` extracted
- * from the path pattern `/users/{identifier}/inbox`. We look up the
- * corresponding account_id from the accounts table.
- *
- * For the shared inbox, `ctx.recipient` is `null` and we return an
- * empty string (matching the existing convention in processInboxActivity).
- *
- * Returns `null` if the recipient does not exist, allowing early exit
- * before expensive JSON-LD parsing.
- */
 async function resolveRecipientAccountId(
 	ctx: InboxContext<FedifyContextData>,
 	env: Env,
 ): Promise<string | null> {
 	if (!ctx.recipient) {
-		// Shared inbox — no specific recipient
-		return '';
+		return ''; // Shared inbox
 	}
 
-	// ctx.recipient is the {identifier} from /users/{identifier}/inbox
-	// which is the username of the local account
 	const username = ctx.recipient;
-
 	const row = await env.DB.prepare(
 		'SELECT id FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1',
 	)
@@ -88,10 +65,8 @@ async function resolveRecipientAccountId(
 		.first<{ id: string }>();
 
 	if (!row) {
-		console.warn(
-			`[inbox] Could not resolve account for recipient: ${username}`,
-		);
-		return null; // Explicitly return null when NOT FOUND
+		console.warn(`[inbox] Could not resolve account for recipient: ${username}`);
+		return null;
 	}
 
 	return row.id;
@@ -101,10 +76,6 @@ async function resolveRecipientAccountId(
 // HELPER: Check if the actor's domain is blocked
 // ============================================================
 
-/**
- * Check if the activity's actor domain is suspended.
- * Returns true if the activity should be silently dropped.
- */
 async function isActorDomainSuspended(
 	actorId: URL | null,
 	env: Env,
@@ -121,29 +92,132 @@ async function isActorDomainSuspended(
 }
 
 // ============================================================
-// HELPER: Convert a Fedify activity to APActivity
+// HELPER: Build APActivity from Fedify typed objects
 // ============================================================
 
 /**
- * Convert a Fedify typed activity to the APActivity format expected by
- * the existing inbox processors.
+ * Build a simple APActivity from a Fedify typed activity.
+ * Used for activities where object is a string URI (Follow, Like, etc.)
  */
-async function toAPActivity(activity: Activity) {
-	const jsonLd = await activity.toJsonLd();
-	return adaptJsonLdToAPActivity(jsonLd as Record<string, unknown>);
+function buildSimpleActivity(
+	type: string,
+	activity: Activity,
+): APActivity {
+	return {
+		type,
+		id: activity.id?.href,
+		actor: activity.actorId?.href ?? '',
+		object: (activity as any).objectId?.href,
+	} as APActivity;
+}
+
+/**
+ * Build an APActivity from raw JSON-LD for complex activities.
+ * Normalizes JSON-LD quirks inline without the adapter layer.
+ */
+function buildActivityFromJsonLd(jsonLd: Record<string, unknown>): APActivity {
+	const activity: Record<string, unknown> = {};
+
+	if (jsonLd['@context']) activity['@context'] = jsonLd['@context'];
+
+	activity.id = normalizeToString(jsonLd.id ?? jsonLd['@id']);
+
+	const rawType = jsonLd.type ?? jsonLd['@type'];
+	if (typeof rawType === 'string') {
+		activity.type = extractLocalName(rawType);
+	} else if (Array.isArray(rawType) && rawType.length > 0) {
+		activity.type = extractLocalName(String(rawType[0]));
+	}
+
+	activity.actor = normalizeToString(jsonLd.actor) ?? '';
+
+	if (jsonLd.object !== undefined) {
+		activity.object = normalizeObjectValue(jsonLd.object);
+	}
+	if (jsonLd.target !== undefined) {
+		activity.target = normalizeObjectValue(jsonLd.target);
+	}
+
+	const to = normalizeToStringArray(jsonLd.to);
+	if (to) activity.to = to;
+	const cc = normalizeToStringArray(jsonLd.cc);
+	if (cc) activity.cc = cc;
+
+	if (typeof jsonLd.published === 'string') activity.published = jsonLd.published;
+	if (typeof jsonLd.content === 'string') activity.content = jsonLd.content;
+
+	if (jsonLd.signature) activity.signature = jsonLd.signature;
+	if (jsonLd.proof) activity.proof = jsonLd.proof;
+	if (jsonLd.tag) activity.tag = jsonLd.tag;
+
+	// Preserve vendor extensions
+	for (const key of Object.keys(jsonLd)) {
+		if (key.startsWith('_misskey_') || key === 'quoteUri') {
+			activity[key] = jsonLd[key];
+		}
+	}
+
+	return activity as unknown as APActivity;
+}
+
+// ============================================================
+// JSON-LD NORMALIZATION (inlined from removed activity-adapter.ts)
+// ============================================================
+
+function normalizeToString(value: unknown): string | undefined {
+	if (typeof value === 'string') return value;
+	if (Array.isArray(value)) {
+		const first = value[0];
+		if (typeof first === 'string') return first;
+		if (first && typeof first === 'object' && '@id' in first) {
+			return (first as Record<string, unknown>)['@id'] as string;
+		}
+		if (first && typeof first === 'object' && '@value' in first) {
+			return (first as Record<string, unknown>)['@value'] as string;
+		}
+	}
+	if (value && typeof value === 'object' && '@id' in value) {
+		return (value as Record<string, unknown>)['@id'] as string;
+	}
+	return undefined;
+}
+
+function normalizeToStringArray(value: unknown): string[] | undefined {
+	if (!value) return undefined;
+	const arr = Array.isArray(value) ? value : [value];
+	const result: string[] = [];
+	for (const item of arr) {
+		const str = normalizeToString(item);
+		if (str) result.push(str);
+	}
+	return result.length > 0 ? result : undefined;
+}
+
+function normalizeObjectValue(value: unknown): string | Record<string, unknown> | undefined {
+	if (typeof value === 'string') return value;
+	if (Array.isArray(value)) {
+		if (value.length === 0) return undefined;
+		if (value.length === 1) return normalizeObjectValue(value[0]);
+		return value as unknown as Record<string, unknown>;
+	}
+	if (value && typeof value === 'object') {
+		return value as Record<string, unknown>;
+	}
+	return undefined;
+}
+
+function extractLocalName(typeStr: string): string {
+	const hashIdx = typeStr.lastIndexOf('#');
+	if (hashIdx !== -1) return typeStr.slice(hashIdx + 1);
+	const slashIdx = typeStr.lastIndexOf('/');
+	if (slashIdx !== -1) return typeStr.slice(slashIdx + 1);
+	return typeStr;
 }
 
 // ============================================================
 // SETUP: Register all inbox listeners
 // ============================================================
 
-/**
- * Register Fedify inbox listeners for all 13 activity types.
- *
- * This sets up the personal inbox at `/users/{identifier}/inbox` and
- * the shared inbox at `/inbox`. Fedify handles HTTP signature verification
- * before calling these listeners.
- */
 export function setupInboxListeners(
 	federation: Federation<FedifyContextData>,
 ): void {
@@ -157,18 +231,18 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(follow.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Follow activity: Recipient not found');
-				return;
-			}
+			if (localAccountId === null) return;
 
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(follow);
-			console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
+			// Simple: extract directly from Fedify types
+			const activity: APActivity = {
+				type: 'Follow',
+				id: follow.id?.href,
+				actor: follow.actorId?.href ?? '',
+				object: follow.objectId?.href,
+			} as APActivity;
+
 			await processFollow(activity, localAccountId, env);
-			console.log('[inbox] Follow processed successfully');
 		})
 
 		// ── Create ──────────────────────────────────────────────
@@ -178,18 +252,13 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(create.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Create activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(create);
-			console.log('[inbox] Processing Create for localAccountId:', localAccountId, 'activity.object.type:', (activity as any).object?.type);
+			if (localAccountId === null) return;
+
+			// Complex: need nested object, use JSON-LD
+			const jsonLd = await create.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processCreate(activity, localAccountId, env);
-			console.log('[inbox] Create processed successfully');
 		})
 
 		// ── Accept ──────────────────────────────────────────────
@@ -198,15 +267,12 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(accept.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Accept activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(accept);
+			if (localAccountId === null) return;
+
+			// Accept needs object as string or nested object
+			const jsonLd = await accept.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processAccept(activity, localAccountId, env);
 		})
 
@@ -216,41 +282,34 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(reject.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Reject activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(reject);
+			if (localAccountId === null) return;
+
+			const jsonLd = await reject.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processReject(activity, localAccountId, env);
 		})
 
 		// ── Like ────────────────────────────────────────────────
-		// Misskey sends emoji reactions as Like activities with
-		// _misskey_reaction or content fields. We check after
-		// converting to JSON-LD/APActivity format.
 		.on(Like, async (ctx, like) => {
 			const { env } = ctx.data;
 
 			if (await isActorDomainSuspended(like.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Like activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
+			if (localAccountId === null) return;
+
+			// Need JSON-LD for Misskey extension detection
 			const jsonLd = await like.toJsonLd();
 			const raw = jsonLd as Record<string, unknown>;
-			const activity = adaptJsonLdToAPActivity(raw);
+			const activity = buildActivityFromJsonLd(raw);
 
-			if (isEmojiReaction(raw)) {
-				// Misskey-style emoji reaction disguised as a Like
+			// Check for Misskey emoji reaction
+			const isMisskeyReaction =
+				(typeof raw._misskey_reaction === 'string' && raw._misskey_reaction !== '') ||
+				(typeof raw.content === 'string' && raw.content !== '');
+
+			if (isMisskeyReaction) {
 				await processEmojiReact(
 					activity as typeof activity & Record<string, unknown>,
 					localAccountId,
@@ -267,15 +326,17 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(announce.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Announce activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(announce);
+			if (localAccountId === null) return;
+
+			// Simple: extract directly from Fedify types
+			const activity: APActivity = {
+				type: 'Announce',
+				id: announce.id?.href,
+				actor: announce.actorId?.href ?? '',
+				object: announce.objectId?.href,
+			} as APActivity;
+
 			await processAnnounce(activity, localAccountId, env);
 		})
 
@@ -285,15 +346,12 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(del.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Delete activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(del);
+			if (localAccountId === null) return;
+
+			// Delete needs object which can be string or nested
+			const jsonLd = await del.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processDelete(activity, localAccountId, env);
 		})
 
@@ -303,15 +361,12 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(update.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Update activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(update);
+			if (localAccountId === null) return;
+
+			// Complex: needs nested object
+			const jsonLd = await update.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processUpdate(activity, localAccountId, env);
 		})
 
@@ -321,15 +376,12 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(undo.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Undo activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(undo);
+			if (localAccountId === null) return;
+
+			// Complex: nested inner activity
+			const jsonLd = await undo.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processUndo(activity, localAccountId, env);
 		})
 
@@ -339,15 +391,17 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(block.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Block activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(block);
+			if (localAccountId === null) return;
+
+			// Simple: extract directly
+			const activity: APActivity = {
+				type: 'Block',
+				id: block.id?.href,
+				actor: block.actorId?.href ?? '',
+				object: block.objectId?.href,
+			} as APActivity;
+
 			await processBlock(activity, localAccountId, env);
 		})
 
@@ -357,15 +411,12 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(move.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Move activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(move);
+			if (localAccountId === null) return;
+
+			// Move needs both object and target
+			const jsonLd = await move.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processMove(activity, localAccountId, env);
 		})
 
@@ -373,27 +424,23 @@ export function setupInboxListeners(
 		.on(Flag, async (ctx, flag) => {
 			const { env } = ctx.data;
 
-			// For reports, also check rejectReports
 			if (flag.actorId) {
 				const domain = extractDomain(flag.actorId.href);
 				if (domain) {
-					const block = await isDomainBlocked(env.DB, env.CACHE, domain);
-					if (block.blocked || block.rejectReports) {
+					const blockResult = await isDomainBlocked(env.DB, env.CACHE, domain);
+					if (blockResult.blocked || blockResult.rejectReports) {
 						console.log(`[inbox] Dropping Flag from blocked/reject-reports domain: ${domain}`);
 						return;
 					}
 				}
 			}
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping Flag activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(flag);
+			if (localAccountId === null) return;
+
+			// Flag has complex object (array of URIs)
+			const jsonLd = await flag.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processFlag(activity, localAccountId, env);
 		})
 
@@ -403,15 +450,11 @@ export function setupInboxListeners(
 
 			if (await isActorDomainSuspended(emojiReact.actorId, env)) return;
 
-			// CHEAP DB LOOKUP FIRST
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
-			if (localAccountId === null) {
-				console.warn('[inbox] Dropping EmojiReact activity: Recipient not found');
-				return;
-			}
-			
-			// EXPENSIVE WORK ONLY IF RECIPIENT EXISTS
-			const activity = await toAPActivity(emojiReact);
+			if (localAccountId === null) return;
+
+			const jsonLd = await emojiReact.toJsonLd();
+			const activity = buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 			await processEmojiReact(
 				activity as typeof activity & Record<string, unknown>,
 				localAccountId,
