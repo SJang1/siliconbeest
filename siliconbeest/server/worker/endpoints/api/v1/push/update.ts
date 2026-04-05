@@ -7,6 +7,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
+import { getPushSubscription, updatePushSubscription } from '../../../../services/push';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -26,17 +27,7 @@ const ALERT_MAP: Record<string, string> = {
 app.put('/', authRequired, requireScope('push'), async (c) => {
   const tokenId = c.get('tokenId')!;
 
-  const existing = await c.env.DB.prepare(
-    `SELECT id, endpoint, policy,
-            alert_mention, alert_follow, alert_favourite, alert_reblog,
-            alert_poll, alert_status, alert_update, alert_follow_request,
-            alert_admin_sign_up, alert_admin_report
-     FROM web_push_subscriptions
-     WHERE access_token_id = ?1
-     LIMIT 1`,
-  )
-    .bind(tokenId)
-    .first();
+  const existing = await getPushSubscription(c.env.DB, tokenId);
 
   if (!existing) {
     return c.json({ error: 'Record not found' }, 404);
@@ -75,25 +66,8 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
     params.push(policy);
   }
 
-  sets.push(`updated_at = datetime('now')`);
-  params.push(existing.id);
+  const row = await updatePushSubscription(c.env.DB, existing.id as string, { sets, params });
 
-  await c.env.DB.prepare(
-    `UPDATE web_push_subscriptions SET ${sets.join(', ')} WHERE id = ?${paramIdx}`,
-  )
-    .bind(...params)
-    .run();
-
-  // Re-read the updated row
-  const updated = await c.env.DB.prepare(
-    `SELECT id, endpoint, policy,
-            alert_mention, alert_follow, alert_favourite, alert_reblog,
-            alert_poll, alert_status, alert_update, alert_follow_request,
-            alert_admin_sign_up, alert_admin_report
-     FROM web_push_subscriptions WHERE id = ?1`,
-  ).bind(existing.id).first();
-
-  const row = updated!;
   return c.json({
     id: row.id,
     endpoint: row.endpoint,

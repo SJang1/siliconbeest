@@ -10,6 +10,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
+import { createPushSubscription } from '../../../../services/push';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -90,24 +91,27 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
 
   const id = crypto.randomUUID();
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
-    ).bind(tokenId),
-    c.env.DB.prepare(
-      `INSERT INTO web_push_subscriptions
-         (id, user_id, access_token_id, endpoint, key_p256dh, key_auth,
-          alert_mention, alert_follow, alert_favourite, alert_reblog,
-          alert_poll, alert_status, alert_update, alert_follow_request,
-          alert_admin_sign_up, alert_admin_report, policy, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, datetime('now'), datetime('now'))`,
-    ).bind(
-      id, user.id, tokenId, endpoint, p256dh, auth,
-      alertMention, alertFollow, alertFavourite, alertReblog,
-      alertPoll, alertStatus, alertUpdate, alertFollowRequest,
-      alertAdminSignUp, alertAdminReport, policy,
-    ),
-  ]);
+  await createPushSubscription(c.env.DB, {
+    id,
+    userId: user.id,
+    tokenId,
+    endpoint,
+    p256dh,
+    auth,
+    alerts: {
+      mention: alertMention,
+      follow: alertFollow,
+      favourite: alertFavourite,
+      reblog: alertReblog,
+      poll: alertPoll,
+      status: alertStatus,
+      update: alertUpdate,
+      follow_request: alertFollowRequest,
+      admin_sign_up: alertAdminSignUp,
+      admin_report: alertAdminReport,
+    },
+    policy,
+  });
 
   const alerts: Record<string, boolean> = {
     mention: !!alertMention,

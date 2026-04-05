@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendWelcome } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
+import { getAccountWithUser, approveAccount } from '../../../../../services/admin';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -15,18 +16,13 @@ app.post('/:id/approve', async (c) => {
 	const id = c.req.param('id');
 	const domain = c.env.INSTANCE_DOMAIN;
 
-	// Verify the account exists
-	const account = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(id).first();
-	if (!account) throw new AppError(404, 'Record not found');
+	const { account, user } = await getAccountWithUser(c.env.DB, id);
 
-	// Check that the user is actually pending
-	const user = await c.env.DB.prepare('SELECT * FROM users WHERE account_id = ?1').bind(id).first();
-	if (!user) throw new AppError(404, 'Record not found');
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
 	if (!user.confirmed_at) throw new AppError(422, 'User has not confirmed their email address');
 
 	// Approve
-	await c.env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(id).run();
+	await approveAccount(c.env.DB, id);
 
 	// Send welcome email in user's locale (best-effort — never block approval)
 	if (user.email) {
