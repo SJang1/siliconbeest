@@ -20,7 +20,6 @@ import unmuteApp from './unmute';
 import aliasesApp from './aliases';
 import migrationApp from './migration';
 import { authRequired } from '../../../../middleware/auth';
-import { AppError } from '../../../../middleware/errorHandler';
 import { serializeAccount } from '../../../../utils/mastodonSerializer';
 import { setAccountNote, pinAccount, unpinAccount } from '../../../../services/account';
 import type { AccountRow } from '../../../../types/db';
