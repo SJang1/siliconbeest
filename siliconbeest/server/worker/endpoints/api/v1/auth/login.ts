@@ -5,13 +5,22 @@
  * This is a non-standard convenience endpoint that combines
  * OAuth app creation + authorization + token exchange into one step.
  * Third-party apps should use the standard OAuth 2.0 flow instead.
+ *
+ * When the user has TOTP 2FA enabled, this endpoint returns an
+ * `mfa_required` challenge instead of an access token. The client
+ * must then call POST /api/v1/auth/mfa/challenge with the temporary
+ * mfa_token and the TOTP code.
  */
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
-import { generateUlid } from '../../../../utils/ulid';
-import { sha256, generateToken } from '../../../../utils/crypto';
+import { generateToken } from '../../../../utils/crypto';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
-import { verifyPassword } from '../../../../services/auth';
+import {
+	verifyPassword,
+	getOrCreateInternalApp,
+	createAccessToken,
+	updateSignInTracking,
+} from '../../../../services/auth';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -43,7 +52,7 @@ app.post('/', async (c) => {
 		return c.json({ error: 'Invalid email or password' }, 401);
 	}
 
-	const { user, account } = result;
+	const { user } = result;
 
 	if (!user.approved) {
 		return c.json({ error: 'Your account is pending approval' }, 403);
@@ -53,51 +62,32 @@ app.post('/', async (c) => {
 		return c.json({ error: 'Email not confirmed', error_description: 'Please confirm your email address' }, 403);
 	}
 
-	// TODO: Handle 2FA (otp_enabled) — for now, skip
+	// 2FA challenge: if TOTP is enabled, return a temporary mfa_token
+	if (user.otp_enabled) {
+		const mfaToken = generateToken(64);
+		// Store in KV with 5-minute TTL: mfa:<token> → user_id
+		await c.env.CACHE.put(`mfa:${mfaToken}`, user.id, { expirationTtl: 300 });
 
-	// Create or find internal app for the built-in frontend
-	const INTERNAL_APP_NAME = '__siliconbeest_web__';
-	let app_record = await c.env.DB.prepare(
-		"SELECT id, client_id FROM oauth_applications WHERE name = ?1 LIMIT 1",
-	).bind(INTERNAL_APP_NAME).first<{ id: string; client_id: string }>();
-
-	if (!app_record) {
-		const appId = generateUlid();
-		const clientId = generateToken(32);
-		const clientSecret = generateToken(64);
-		const now = new Date().toISOString();
-		await c.env.DB.prepare(
-			`INSERT INTO oauth_applications (id, name, redirect_uri, client_id, client_secret, scopes, created_at, updated_at)
-			 VALUES (?1, ?2, 'urn:ietf:wg:oauth:2.0:oob', ?3, ?4, 'read write follow push', ?5, ?5)`,
-		).bind(appId, INTERNAL_APP_NAME, clientId, clientSecret, now).run();
-		app_record = { id: appId, client_id: clientId };
+		return c.json({
+			error: 'mfa_required',
+			mfa_token: mfaToken,
+			supported_challenge_types: ['totp'],
+		}, 403);
 	}
 
-	// Generate access token — store SHA-256 hash, not plaintext
-	const tokenValue = generateToken(64);
-	const tokenHash = await sha256(tokenValue);
-	const tokenId = generateUlid();
-	const now = new Date().toISOString();
-
-	await c.env.DB.prepare(
-		`INSERT INTO oauth_access_tokens (id, token_hash, application_id, user_id, scopes, created_at)
-		 VALUES (?1, ?2, ?3, ?4, 'read write follow push', ?5)`,
-	).bind(tokenId, tokenHash, app_record.id, user.id, now).run();
+	// No 2FA — issue access token directly
+	const appRecord = await getOrCreateInternalApp(c.env.DB);
+	const { tokenValue, createdAt } = await createAccessToken(c.env.DB, appRecord.id, user.id);
 
 	// Update sign-in tracking
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
-	await c.env.DB.prepare(
-		`UPDATE users SET sign_in_count = sign_in_count + 1,
-		 last_sign_in_at = current_sign_in_at, last_sign_in_ip = current_sign_in_ip,
-		 current_sign_in_at = ?1, current_sign_in_ip = ?2
-		 WHERE id = ?3`,
-	).bind(now, ip, user.id).run();
+	await updateSignInTracking(c.env.DB, user.id, ip);
 
 	return c.json({
 		access_token: tokenValue,
 		token_type: 'Bearer',
 		scope: 'read write follow push',
-		created_at: Math.floor(new Date(now).getTime() / 1000),
+		created_at: Math.floor(new Date(createdAt).getTime() / 1000),
 	});
 });
 
