@@ -7,6 +7,7 @@ import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
 import { Like, Undo } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
+import { unfavouriteStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -22,16 +23,12 @@ app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), asy
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
+  // Check if favourite exists before unfavouriting (for federation decision)
   const existing = await c.env.DB.prepare(
     'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
   ).bind(currentAccountId, statusId).first();
 
-  if (existing) {
-    await c.env.DB.batch([
-      c.env.DB.prepare('DELETE FROM favourites WHERE id = ?1').bind(existing.id as string),
-      c.env.DB.prepare('UPDATE statuses SET favourites_count = MAX(0, favourites_count - 1) WHERE id = ?1').bind(statusId),
-    ]);
-  }
+  await unfavouriteStatus(c.env.DB, currentAccountId, statusId);
 
   // Federation: deliver Undo(Like)
   if (existing) {

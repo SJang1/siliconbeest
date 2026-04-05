@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
-import { generateToken } from '../../../utils/crypto';
-import { generateUlid } from '../../../utils/ulid';
+import { sha256 } from '../../../utils/crypto';
+import { createOAuthApp } from '../../../services/oauth';
 import { getVapidPublicKey } from '../../../utils/vapid';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -20,7 +20,7 @@ app.post('/', async (c) => {
 	const clientName = body.client_name as string | undefined;
 	const redirectUris = body.redirect_uris as string | undefined;
 	const scopes = (body.scopes as string) ?? 'read';
-	const website = (body.website as string) ?? null;
+	const website = (body.website as string) ?? undefined;
 
 	if (!clientName) {
 		return c.json(
@@ -36,28 +36,18 @@ app.post('/', async (c) => {
 		);
 	}
 
-	const id = generateUlid();
-	const clientId = generateToken(43);
-	const clientSecret = generateToken(64);
-	const now = new Date().toISOString();
-
 	// Take only the first redirect URI for storage (Mastodon compat)
 	const redirectUri = redirectUris.split(/\s+/)[0];
 
-	await c.env.DB.prepare(
-		`INSERT INTO oauth_applications (id, name, client_id, client_secret, redirect_uri, scopes, website, created_at, updated_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
-	)
-		.bind(id, clientName, clientId, clientSecret, redirectUri, scopes, website, now, now)
-		.run();
+	const oauthApp = await createOAuthApp(c.env.DB, clientName, redirectUri, scopes, website);
 
 	return c.json({
-		id,
-		name: clientName,
-		website,
-		redirect_uri: redirectUri,
-		client_id: clientId,
-		client_secret: clientSecret,
+		id: oauthApp.id,
+		name: oauthApp.name,
+		website: oauthApp.website,
+		redirect_uri: oauthApp.redirect_uri,
+		client_id: oauthApp.client_id,
+		client_secret: oauthApp.client_secret,
 		vapid_key: await getVapidPublicKey(c.env.DB),
 	});
 });
@@ -71,12 +61,8 @@ app.get('/verify_credentials', async (c) => {
 	}
 	const token = parts[1];
 
-	// Look up the token (try hash first, then plaintext for legacy)
-	const data = new TextEncoder().encode(token);
-	const hashBuf = await crypto.subtle.digest('SHA-256', data);
-	const tokenHash = Array.from(new Uint8Array(hashBuf))
-		.map((b) => b.toString(16).padStart(2, '0'))
-		.join('');
+	// Look up the token by hash
+	const tokenHash = await sha256(token);
 
 	let row = await c.env.DB.prepare(
 		`SELECT a.name, a.website, a.scopes
