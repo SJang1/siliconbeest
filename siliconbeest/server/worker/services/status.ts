@@ -950,3 +950,241 @@ export async function editStatus(
     mediaAttachments,
   };
 }
+
+// ----------------------------------------------------------------
+// pinStatus
+// ----------------------------------------------------------------
+
+export async function pinStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE statuses SET pinned = 1 WHERE id = ?1 AND account_id = ?2')
+    .bind(statusId, accountId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// unpinStatus
+// ----------------------------------------------------------------
+
+export async function unpinStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE statuses SET pinned = 0 WHERE id = ?1 AND account_id = ?2')
+    .bind(statusId, accountId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// muteStatus
+// ----------------------------------------------------------------
+
+export async function muteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare('SELECT id FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .first();
+
+  if (!existing) {
+    const now = new Date().toISOString();
+    const id = generateUlid();
+    await db
+      .prepare('INSERT INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+      .bind(id, accountId, statusId, now)
+      .run();
+  }
+}
+
+// ----------------------------------------------------------------
+// unmuteStatus
+// ----------------------------------------------------------------
+
+export async function unmuteStatus(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
+    .bind(accountId, statusId)
+    .run();
+}
+
+// ----------------------------------------------------------------
+// addReaction
+// ----------------------------------------------------------------
+
+export interface AddReactionResult {
+  reactionId: string;
+  customEmojiId: string | null;
+  created: boolean;
+}
+
+export async function addReaction(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+  emoji: string,
+  domain?: string,
+): Promise<AddReactionResult> {
+  // Validate custom emoji exists
+  let customEmojiId: string | null = null;
+  const isCustom = emoji.startsWith(':') && emoji.endsWith(':');
+
+  if (isCustom && domain) {
+    const shortcode = emoji.slice(1, -1);
+    const row = await db
+      .prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
+      .bind(shortcode, domain)
+      .first<CustomEmojiRow>();
+    if (!row) {
+      throw new AppError(422, 'Custom emoji not found');
+    }
+    customEmojiId = row.id;
+  }
+
+  const id = generateUlid();
+  const now = new Date().toISOString();
+
+  try {
+    await db
+      .prepare(
+        `INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      )
+      .bind(id, accountId, statusId, emoji, customEmojiId, now)
+      .run();
+    return { reactionId: id, customEmojiId, created: true };
+  } catch {
+    // UNIQUE constraint — duplicate reaction, ignore
+    return { reactionId: id, customEmojiId, created: false };
+  }
+}
+
+// ----------------------------------------------------------------
+// removeReaction
+// ----------------------------------------------------------------
+
+export interface RemoveReactionResult {
+  changes: number;
+}
+
+export async function removeReaction(
+  db: D1Database,
+  accountId: string,
+  statusId: string,
+  emoji: string,
+): Promise<RemoveReactionResult> {
+  const deleted = await db
+    .prepare('DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3')
+    .bind(accountId, statusId, emoji)
+    .run();
+
+  return { changes: deleted.meta?.changes ?? 0 };
+}
+
+// ----------------------------------------------------------------
+// votePoll
+// ----------------------------------------------------------------
+
+export interface VotePollResult {
+  poll: ReturnType<typeof serializePoll>;
+}
+
+export async function votePoll(
+  db: D1Database,
+  accountId: string,
+  pollId: string,
+  choices: number[],
+): Promise<VotePollResult> {
+  const row = await db
+    .prepare('SELECT * FROM polls WHERE id = ?1')
+    .bind(pollId)
+    .first<PollRow>();
+
+  if (!row) {
+    throw new AppError(404, 'Record not found');
+  }
+
+  // Check if expired
+  if (row.expires_at && new Date(row.expires_at) <= new Date()) {
+    throw new AppError(422, 'Validation failed', 'Poll has ended');
+  }
+
+  // Parse options to validate choice indices
+  let options: Array<string | { title: string; votes_count?: number }>;
+  try {
+    options = JSON.parse(row.options);
+  } catch {
+    throw new AppError(500, 'An unexpected error occurred');
+  }
+
+  for (const choice of choices) {
+    if (choice < 0 || choice >= options.length) {
+      throw new AppError(422, 'Validation failed', 'Invalid choice index');
+    }
+  }
+
+  // Check not multiple if poll doesn't allow it
+  if (!row.multiple && choices.length > 1) {
+    throw new AppError(422, 'Validation failed', 'Poll does not allow multiple choices');
+  }
+
+  // Check not already voted
+  const existingVote = await db
+    .prepare('SELECT id FROM poll_votes WHERE poll_id = ?1 AND account_id = ?2 LIMIT 1')
+    .bind(pollId, accountId)
+    .first();
+
+  if (existingVote) {
+    throw new AppError(422, 'Validation failed', 'Already voted on this poll');
+  }
+
+  const now = new Date().toISOString();
+  const stmts: D1PreparedStatement[] = [];
+
+  // Insert vote rows
+  for (const choice of choices) {
+    const voteId = generateUlid();
+    stmts.push(
+      db.prepare(
+        'INSERT INTO poll_votes (id, poll_id, account_id, choice, created_at) VALUES (?1, ?2, ?3, ?4, ?5)',
+      ).bind(voteId, pollId, accountId, choice, now),
+    );
+  }
+
+  // Update poll options votes_count
+  const updatedOptions = options.map((o, i) => {
+    const opt = typeof o === 'string' ? { title: o, votes_count: 0 } : { ...o, votes_count: o.votes_count ?? 0 };
+    if (choices.includes(i)) {
+      opt.votes_count += 1;
+    }
+    return opt;
+  });
+
+  stmts.push(
+    db.prepare(
+      'UPDATE polls SET options = ?1, votes_count = votes_count + ?2, voters_count = voters_count + 1 WHERE id = ?3',
+    ).bind(JSON.stringify(updatedOptions), choices.length, pollId),
+  );
+
+  await db.batch(stmts);
+
+  // Fetch updated poll
+  const updated = await db
+    .prepare('SELECT * FROM polls WHERE id = ?1')
+    .bind(pollId)
+    .first<PollRow>();
+
+  return { poll: serializePoll(updated!, { voted: true, ownVotes: choices }) };
+}
