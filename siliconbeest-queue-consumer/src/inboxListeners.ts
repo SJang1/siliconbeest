@@ -8,6 +8,10 @@
  *
  * The inbox processor functions (plain business logic) are still imported
  * from the worker's source tree — they don't use Fedify vocab types.
+ *
+ * Activity conversion is done inline (no adapter layer) — simple activities
+ * extract fields directly from Fedify types, complex ones use minimal
+ * JSON-LD normalization.
  */
 
 import type { Federation, InboxContext } from '@fedify/fedify';
@@ -31,8 +35,7 @@ import { measureAsync } from './observability/performance';
 
 import type { FedifyContextData } from './fedify';
 import type { Env } from './env';
-import { adaptJsonLdToAPActivity } from '../../siliconbeest/server/worker/federation/helpers/activity-adapter';
-import { isEmojiReaction } from '../../siliconbeest/server/worker/federation/helpers/misskey-compat';
+import type { APActivity } from '../../siliconbeest/server/worker/types/activitypub';
 
 // Import existing processors from the worker (plain functions, no Fedify types)
 import { processFollow } from '../../siliconbeest/server/worker/federation/inboxProcessors/follow';
@@ -80,12 +83,100 @@ async function resolveRecipientAccountId(
 }
 
 // ============================================================
-// HELPER: Convert a Fedify activity to APActivity
+// HELPER: Build APActivity from JSON-LD (inline, no adapter)
 // ============================================================
+
+function normalizeToString(value: unknown): string | undefined {
+	if (typeof value === 'string') return value;
+	if (Array.isArray(value)) {
+		const first = value[0];
+		if (typeof first === 'string') return first;
+		if (first && typeof first === 'object' && '@id' in first) {
+			return (first as Record<string, unknown>)['@id'] as string;
+		}
+		if (first && typeof first === 'object' && '@value' in first) {
+			return (first as Record<string, unknown>)['@value'] as string;
+		}
+	}
+	if (value && typeof value === 'object' && '@id' in value) {
+		return (value as Record<string, unknown>)['@id'] as string;
+	}
+	return undefined;
+}
+
+function normalizeToStringArray(value: unknown): string[] | undefined {
+	if (!value) return undefined;
+	const arr = Array.isArray(value) ? value : [value];
+	const result: string[] = [];
+	for (const item of arr) {
+		const str = normalizeToString(item);
+		if (str) result.push(str);
+	}
+	return result.length > 0 ? result : undefined;
+}
+
+function normalizeObjectValue(value: unknown): string | Record<string, unknown> | undefined {
+	if (typeof value === 'string') return value;
+	if (Array.isArray(value)) {
+		if (value.length === 0) return undefined;
+		if (value.length === 1) return normalizeObjectValue(value[0]);
+		return value as unknown as Record<string, unknown>;
+	}
+	if (value && typeof value === 'object') {
+		return value as Record<string, unknown>;
+	}
+	return undefined;
+}
+
+function extractLocalName(typeStr: string): string {
+	const hashIdx = typeStr.lastIndexOf('#');
+	if (hashIdx !== -1) return typeStr.slice(hashIdx + 1);
+	const slashIdx = typeStr.lastIndexOf('/');
+	if (slashIdx !== -1) return typeStr.slice(slashIdx + 1);
+	return typeStr;
+}
+
+function buildActivityFromJsonLd(jsonLd: Record<string, unknown>): APActivity {
+	const activity: Record<string, unknown> = {};
+
+	if (jsonLd['@context']) activity['@context'] = jsonLd['@context'];
+	activity.id = normalizeToString(jsonLd.id ?? jsonLd['@id']);
+
+	const rawType = jsonLd.type ?? jsonLd['@type'];
+	if (typeof rawType === 'string') {
+		activity.type = extractLocalName(rawType);
+	} else if (Array.isArray(rawType) && rawType.length > 0) {
+		activity.type = extractLocalName(String(rawType[0]));
+	}
+
+	activity.actor = normalizeToString(jsonLd.actor) ?? '';
+
+	if (jsonLd.object !== undefined) activity.object = normalizeObjectValue(jsonLd.object);
+	if (jsonLd.target !== undefined) activity.target = normalizeObjectValue(jsonLd.target);
+
+	const to = normalizeToStringArray(jsonLd.to);
+	if (to) activity.to = to;
+	const cc = normalizeToStringArray(jsonLd.cc);
+	if (cc) activity.cc = cc;
+
+	if (typeof jsonLd.published === 'string') activity.published = jsonLd.published;
+	if (typeof jsonLd.content === 'string') activity.content = jsonLd.content;
+	if (jsonLd.signature) activity.signature = jsonLd.signature;
+	if (jsonLd.proof) activity.proof = jsonLd.proof;
+	if (jsonLd.tag) activity.tag = jsonLd.tag;
+
+	for (const key of Object.keys(jsonLd)) {
+		if (key.startsWith('_misskey_') || key === 'quoteUri') {
+			activity[key] = jsonLd[key];
+		}
+	}
+
+	return activity as unknown as APActivity;
+}
 
 async function toAPActivity(activity: Activity) {
 	const jsonLd = await activity.toJsonLd();
-	return adaptJsonLdToAPActivity(jsonLd as Record<string, unknown>);
+	return buildActivityFromJsonLd(jsonLd as Record<string, unknown>);
 }
 
 // ============================================================
@@ -105,11 +196,14 @@ export function setupInboxListeners(
 				async () => {
 					console.log('[inbox] Follow received from:', follow.actorId?.href);
 					const { env } = ctx.data;
-					const activity = await toAPActivity(follow);
+					const activity: APActivity = {
+						type: 'Follow',
+						id: follow.id?.href,
+						actor: follow.actorId?.href ?? '',
+						object: follow.objectId?.href,
+					} as APActivity;
 					const localAccountId = await resolveRecipientAccountId(ctx, env);
-					console.log('[inbox] Processing Follow for localAccountId:', localAccountId);
 					await processFollow(activity, localAccountId, env as any);
-					console.log('[inbox] Follow processed successfully');
 				},
 				{ actor: follow.actorId?.href }
 			);
@@ -124,9 +218,7 @@ export function setupInboxListeners(
 					const { env } = ctx.data;
 					const activity = await toAPActivity(create);
 					const localAccountId = await resolveRecipientAccountId(ctx, env);
-					console.log('[inbox] Processing Create for localAccountId:', localAccountId, 'activity.object.type:', (activity as any).object?.type);
 					await processCreate(activity, localAccountId, env as any);
-					console.log('[inbox] Create processed successfully');
 				},
 				{ actor: create.actorId?.href }
 			);
@@ -168,10 +260,15 @@ export function setupInboxListeners(
 					const { env } = ctx.data;
 					const jsonLd = await like.toJsonLd();
 					const raw = jsonLd as Record<string, unknown>;
-					const activity = adaptJsonLdToAPActivity(raw);
+					const activity = buildActivityFromJsonLd(raw);
 					const localAccountId = await resolveRecipientAccountId(ctx, env);
 
-					if (isEmojiReaction(raw)) {
+					// Inline Misskey emoji reaction detection
+					const isMisskeyReaction =
+						(typeof raw._misskey_reaction === 'string' && raw._misskey_reaction !== '') ||
+						(typeof raw.content === 'string' && raw.content !== '');
+
+					if (isMisskeyReaction) {
 						await processEmojiReact(
 							activity as typeof activity & Record<string, unknown>,
 							localAccountId,
@@ -181,7 +278,7 @@ export function setupInboxListeners(
 						await processLike(activity, localAccountId, env as any);
 					}
 				},
-				{ actor: like.actorId?.href, isEmoji: isEmojiReaction(await like.toJsonLd() as Record<string, unknown>) }
+				{ actor: like.actorId?.href }
 			);
 		})
 
@@ -191,7 +288,12 @@ export function setupInboxListeners(
 				'inbox.Announce',
 				async () => {
 					const { env } = ctx.data;
-					const activity = await toAPActivity(announce);
+					const activity: APActivity = {
+						type: 'Announce',
+						id: announce.id?.href,
+						actor: announce.actorId?.href ?? '',
+						object: announce.objectId?.href,
+					} as APActivity;
 					const localAccountId = await resolveRecipientAccountId(ctx, env);
 					await processAnnounce(activity, localAccountId, env as any);
 				},
@@ -247,7 +349,12 @@ export function setupInboxListeners(
 				'inbox.Block',
 				async () => {
 					const { env } = ctx.data;
-					const activity = await toAPActivity(block);
+					const activity: APActivity = {
+						type: 'Block',
+						id: block.id?.href,
+						actor: block.actorId?.href ?? '',
+						object: block.objectId?.href,
+					} as APActivity;
 					const localAccountId = await resolveRecipientAccountId(ctx, env);
 					await processBlock(activity, localAccountId, env as any);
 				},
