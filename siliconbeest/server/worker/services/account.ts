@@ -621,3 +621,189 @@ export async function unpinAccount(
 		.bind(accountId, targetId)
 		.run();
 }
+
+// ----------------------------------------------------------------
+// Aliases (alsoKnownAs)
+// ----------------------------------------------------------------
+
+/**
+ * Get the also_known_as aliases for an account.
+ */
+export async function getAliases(db: D1Database, accountId: string): Promise<string[]> {
+	const account = await db.prepare(
+		'SELECT also_known_as FROM accounts WHERE id = ?1 LIMIT 1',
+	).bind(accountId).first<{ also_known_as: string | null }>();
+
+	if (!account) throw new AppError(404, 'Account not found');
+
+	if (!account.also_known_as) return [];
+	const parsed = JSON.parse(account.also_known_as);
+	return Array.isArray(parsed) ? parsed : [];
+}
+
+/**
+ * Add an alias to an account's also_known_as list.
+ * Returns the updated alias list.
+ */
+export async function addAlias(db: D1Database, accountId: string, actorUri: string): Promise<string[]> {
+	const aliases = await getAliases(db, accountId);
+
+	if (aliases.includes(actorUri)) return aliases;
+
+	aliases.push(actorUri);
+
+	const now = new Date().toISOString();
+	await db.prepare(
+		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
+	).bind(JSON.stringify(aliases), now, accountId).run();
+
+	return aliases;
+}
+
+/**
+ * Remove an alias from an account's also_known_as list.
+ * Returns the updated alias list.
+ */
+export async function removeAlias(db: D1Database, accountId: string, alias: string): Promise<string[]> {
+	const aliases = await getAliases(db, accountId);
+	const filtered = aliases.filter((a) => a !== alias);
+
+	const now = new Date().toISOString();
+	await db.prepare(
+		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
+	).bind(filtered.length > 0 ? JSON.stringify(filtered) : null, now, accountId).run();
+
+	return filtered;
+}
+
+// ----------------------------------------------------------------
+// Migration
+// ----------------------------------------------------------------
+
+/**
+ * Get account URI and username for migration verification.
+ */
+export async function getAccountUri(
+	db: D1Database,
+	accountId: string,
+): Promise<{ username: string; uri: string } | null> {
+	return db.prepare(
+		'SELECT username, uri FROM accounts WHERE id = ?1 LIMIT 1',
+	).bind(accountId).first<{ username: string; uri: string }>();
+}
+
+/**
+ * Set the moved_to_account_id on an account for migration.
+ */
+export async function setMovedTo(
+	db: D1Database,
+	accountId: string,
+	targetAccountId: string,
+): Promise<void> {
+	const now = new Date().toISOString();
+	await db.prepare(
+		'UPDATE accounts SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?3 WHERE id = ?4',
+	).bind(targetAccountId, now, now, accountId).run();
+}
+
+// ----------------------------------------------------------------
+// Export queries
+// ----------------------------------------------------------------
+
+/**
+ * Get following accounts for CSV export.
+ */
+export async function getFollowingForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<Array<{ username: string; domain: string | null }>> {
+	const { results } = await db.prepare(
+		`SELECT a.username, a.domain
+		 FROM follows f
+		 JOIN accounts a ON a.id = f.target_account_id
+		 WHERE f.account_id = ?`,
+	).bind(accountId).all();
+	return (results ?? []) as Array<{ username: string; domain: string | null }>;
+}
+
+/**
+ * Get followers for CSV export.
+ */
+export async function getFollowersForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<Array<{ username: string; domain: string | null }>> {
+	const { results } = await db.prepare(
+		`SELECT a.username, a.domain
+		 FROM follows f
+		 JOIN accounts a ON a.id = f.account_id
+		 WHERE f.target_account_id = ?`,
+	).bind(accountId).all();
+	return (results ?? []) as Array<{ username: string; domain: string | null }>;
+}
+
+/**
+ * Get blocked accounts for CSV export.
+ */
+export async function getBlocksForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<Array<{ username: string; domain: string | null }>> {
+	const { results } = await db.prepare(
+		`SELECT a.username, a.domain
+		 FROM blocks bl
+		 JOIN accounts a ON a.id = bl.target_account_id
+		 WHERE bl.account_id = ?`,
+	).bind(accountId).all();
+	return (results ?? []) as Array<{ username: string; domain: string | null }>;
+}
+
+/**
+ * Get muted accounts for CSV export.
+ */
+export async function getMutesForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<Array<{ username: string; domain: string | null }>> {
+	const { results } = await db.prepare(
+		`SELECT a.username, a.domain
+		 FROM mutes m
+		 JOIN accounts a ON a.id = m.target_account_id
+		 WHERE m.account_id = ?`,
+	).bind(accountId).all();
+	return (results ?? []) as Array<{ username: string; domain: string | null }>;
+}
+
+/**
+ * Get bookmarked status URIs for CSV export.
+ */
+export async function getBookmarksForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<string[]> {
+	const { results } = await db.prepare(
+		`SELECT s.uri
+		 FROM bookmarks b
+		 JOIN statuses s ON s.id = b.status_id
+		 WHERE b.account_id = ?`,
+	).bind(accountId).all();
+	return (results ?? []).map((r: any) => r.uri as string);
+}
+
+/**
+ * Get list memberships for CSV export.
+ */
+export async function getListsForExport(
+	db: D1Database,
+	accountId: string,
+): Promise<Array<{ title: string; username: string; domain: string | null }>> {
+	const { results } = await db.prepare(
+		`SELECT l.title, a.username, a.domain
+		 FROM lists l
+		 JOIN list_accounts la ON la.list_id = l.id
+		 JOIN accounts a ON a.id = la.account_id
+		 WHERE l.account_id = ?
+		 ORDER BY l.title ASC`,
+	).bind(accountId).all();
+	return (results ?? []) as Array<{ title: string; username: string; domain: string | null }>;
+}
