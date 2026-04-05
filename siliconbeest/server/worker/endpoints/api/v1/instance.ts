@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { getVapidPublicKey } from '../../../utils/vapid';
+import { MASTODON_V1_VERSION } from '../../../version';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -81,7 +82,7 @@ app.get('/', async (c) => {
     short_description: description,
     description,
     email: dbSettings.site_contact_email || `admin@${domain}`,
-    version: '4.0.0 (compatible; SiliconBeest 0.1.0)',
+    version: MASTODON_V1_VERSION,
     urls: {
       streaming_api: `wss://${domain}/api/v1/streaming`,
     },

@@ -10,6 +10,7 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
+import { SILICONBEEST_VERSION } from '../../version';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -55,7 +56,7 @@ app.get('/2.0', async (c) => {
 			version: '2.0',
 			software: {
 				name: 'siliconbeest',
-				version: '0.1.0',
+				version: SILICONBEEST_VERSION,
 			},
 			protocols: ['activitypub'],
 			usage: {

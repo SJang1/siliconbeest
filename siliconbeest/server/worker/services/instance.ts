@@ -1,4 +1,5 @@
 import type { RuleRow, SettingRow } from '../types/db';
+import { MASTODON_SERVICE_VERSION } from '../version';
 
 /**
  * Instance service: instance metadata for /api/v2/instance,
@@ -31,7 +32,7 @@ export class InstanceService {
 		return {
 			domain: this.domain,
 			title: this.title,
-			version: '4.2.0 (compatible; siliconbeest/0.1.0)',
+			version: MASTODON_SERVICE_VERSION,
 			source_url: 'https://github.com/SJang1/siliconbeest',
 			description,
 			usage: {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { getTurnstileSettings } from '../../../utils/turnstile';
+import { MASTODON_V2_VERSION } from '../../../version';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -48,7 +49,7 @@ app.get('/', async (c) => {
   return c.json({
     domain,
     title,
-    version: '4.0.0 (compatible; SiliconBeest 0.1.0)',
+    version: MASTODON_V2_VERSION,
     source_url: 'https://github.com/SJang1/siliconbeest',
     description: dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`,
     usage: {

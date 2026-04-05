@@ -11,6 +11,7 @@
 
 import type { Federation, NodeInfo } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
+import { SILICONBEEST_VERSION } from '../version';
 
 const STATS_CACHE_KEY = 'nodeinfo:stats:fedify';
 const STATS_CACHE_TTL = 3600; // 1 hour
@@ -62,7 +63,7 @@ export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): voi
     return {
       software: {
         name: 'siliconbeest',
-        version: '0.1.0',
+        version: SILICONBEEST_VERSION,
         repository: new URL('https://github.com/nicepkg/siliconbeest'),
         homepage: new URL(`https://${env.INSTANCE_DOMAIN}`),
       },
