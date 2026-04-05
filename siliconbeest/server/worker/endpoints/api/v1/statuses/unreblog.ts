@@ -8,6 +8,7 @@ import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToFollowers } from '../../../../federation/helpers/send';
 import { Announce, Undo } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
+import { unreblogStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -23,21 +24,10 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  const reblog = await c.env.DB.prepare(
-    'SELECT id FROM statuses WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL',
-  ).bind(statusId, currentAccountId).first();
-
-  if (reblog) {
-    const now = new Date().toISOString();
-    await c.env.DB.batch([
-      c.env.DB.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, reblog.id as string),
-      c.env.DB.prepare('UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1').bind(statusId),
-      c.env.DB.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(currentAccountId),
-    ]);
-  }
+  const { reblogId } = await unreblogStatus(c.env.DB, currentAccountId, statusId);
 
   // Federation: deliver Undo(Announce) to followers
-  if (reblog) {
+  if (reblogId) {
     try {
       const currentAccount = await c.env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
@@ -70,7 +60,7 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.reblogged = false;
-  if (reblog) {
+  if (reblogId) {
     status.reblogs_count = Math.max(0, status.reblogs_count - 1);
   }
 
