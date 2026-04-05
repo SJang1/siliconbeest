@@ -116,25 +116,7 @@ accounts.post('/:id/pin', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  const target = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(targetId).first();
-  if (!target) throw new AppError(404, 'Record not found');
-
-  // Must be following to endorse
-  const follow = await c.env.DB.prepare(
-    'SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
-  ).bind(currentAccount.id, targetId).first();
-  if (!follow) throw new AppError(422, 'Validation failed: you must be following this account to endorse it');
-
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2',
-  ).bind(currentAccount.id, targetId).first();
-
-  if (!existing) {
-    const now = new Date().toISOString();
-    await c.env.DB.prepare(
-      'INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-    ).bind(generateUlid(), currentAccount.id, targetId, now).run();
-  }
+  await pinAccount(c.env.DB, currentAccount.id, targetId);
 
   return c.json({
     id: targetId,
@@ -160,9 +142,7 @@ accounts.post('/:id/unpin', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await c.env.DB.prepare(
-    'DELETE FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2',
-  ).bind(currentAccount.id, targetId).run();
+  await unpinAccount(c.env.DB, currentAccount.id, targetId);
 
   return c.json({
     id: targetId,
