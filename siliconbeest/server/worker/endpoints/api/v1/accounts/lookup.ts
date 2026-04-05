@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { getFedifyContext } from '../../../../federation/helpers/send';
 import { isActor } from '@fedify/fedify/vocab';
+import { getAccountByUsername } from '../../../../services/account';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -30,14 +31,10 @@ app.get('/lookup', async (c) => {
   let row;
   if (!acctDomain || acctDomain === instanceDomain) {
     // Local account
-    row = await c.env.DB.prepare(
-      'SELECT * FROM accounts WHERE username = ?1 AND domain IS NULL',
-    ).bind(username).first();
+    row = await getAccountByUsername(c.env.DB, username);
   } else {
     // Remote account — check if we have it cached
-    row = await c.env.DB.prepare(
-      'SELECT * FROM accounts WHERE username = ?1 AND domain = ?2',
-    ).bind(username, acctDomain).first();
+    row = await getAccountByUsername(c.env.DB, username, acctDomain);
   }
 
   // If remote account not in DB, try WebFinger + Fedify lookupObject

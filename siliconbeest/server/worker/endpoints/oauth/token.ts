@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
+import { exchangeCode } from '../../services/oauth';
 import { generateToken, sha256 } from '../../utils/crypto';
 import { generateUlid } from '../../utils/ulid';
+import { AppError } from '../../middleware/errorHandler';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -35,29 +37,8 @@ app.post('/', async (c) => {
 		);
 	}
 
-	const oauthApp = await c.env.DB.prepare(
-		`SELECT id, client_secret, redirect_uri, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
-	)
-		.bind(clientId)
-		.first();
-
-	if (!oauthApp) {
-		return c.json(
-			{ error: 'invalid_client', error_description: 'Unknown client_id' },
-			401,
-		);
-	}
-
-	// Verify client_secret (required for confidential clients)
-	if (clientSecret && oauthApp.client_secret !== clientSecret) {
-		return c.json(
-			{ error: 'invalid_client', error_description: 'Invalid client_secret' },
-			401,
-		);
-	}
-
 	// ---------------------------------------------------------------------------
-	// grant_type=authorization_code
+	// grant_type=authorization_code — delegate to oauth service
 	// ---------------------------------------------------------------------------
 
 	if (grantType === 'authorization_code') {
@@ -68,110 +49,31 @@ app.post('/', async (c) => {
 			);
 		}
 
-		// Look up authorization code
-		const authCode = await c.env.DB.prepare(
-			`SELECT id, user_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at
-			 FROM oauth_authorization_codes
-			 WHERE code = ?1 AND application_id = ?2
-			 LIMIT 1`,
-		)
-			.bind(code, oauthApp.id)
-			.first();
-
-		if (!authCode) {
+		if (!clientSecret) {
 			return c.json(
-				{ error: 'invalid_grant', error_description: 'Authorization code is invalid' },
-				400,
+				{ error: 'invalid_client', error_description: 'client_secret is required' },
+				401,
 			);
 		}
 
-		// Check expiry
-		if (new Date(authCode.expires_at as string) < new Date()) {
-			// Clean up expired code
-			await c.env.DB.prepare(
-				`DELETE FROM oauth_authorization_codes WHERE id = ?1`,
-			)
-				.bind(authCode.id)
-				.run();
+		try {
+			const result = await exchangeCode(c.env.DB, code, clientId, clientSecret, redirectUri, codeVerifier);
 
-			return c.json(
-				{ error: 'invalid_grant', error_description: 'Authorization code has expired' },
-				400,
-			);
-		}
-
-		// Validate redirect_uri matches
-		if (redirectUri && authCode.redirect_uri !== redirectUri) {
-			return c.json(
-				{ error: 'invalid_grant', error_description: 'redirect_uri mismatch' },
-				400,
-			);
-		}
-
-		// PKCE verification
-		if (authCode.code_challenge) {
-			if (!codeVerifier) {
+			return c.json({
+				access_token: result.token,
+				token_type: 'Bearer',
+				scope: result.scope,
+				created_at: result.createdAt,
+			});
+		} catch (err) {
+			if (err instanceof AppError) {
 				return c.json(
-					{ error: 'invalid_grant', error_description: 'code_verifier is required' },
-					400,
+					{ error: err.message, error_description: err.errorDescription ?? err.message },
+					err.statusCode as 400 | 401,
 				);
 			}
-
-			const method = (authCode.code_challenge_method as string) || 'S256';
-			let computedChallenge: string;
-
-			if (method === 'S256') {
-				const digest = await crypto.subtle.digest(
-					'SHA-256',
-					new TextEncoder().encode(codeVerifier),
-				);
-				computedChallenge = base64UrlEncode(new Uint8Array(digest));
-			} else {
-				// plain method
-				computedChallenge = codeVerifier;
-			}
-
-			if (computedChallenge !== authCode.code_challenge) {
-				return c.json(
-					{ error: 'invalid_grant', error_description: 'PKCE verification failed' },
-					400,
-				);
-			}
+			throw err;
 		}
-
-		// Delete the authorization code (single-use)
-		await c.env.DB.prepare(
-			`DELETE FROM oauth_authorization_codes WHERE id = ?1`,
-		)
-			.bind(authCode.id)
-			.run();
-
-		// Issue access token — store SHA-256 hash, not plaintext
-		const accessToken = generateToken(64);
-		const tokenHash = await sha256(accessToken);
-		const tokenId = generateUlid();
-		const now = new Date().toISOString();
-
-		await c.env.DB.prepare(
-			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token_hash, scopes, created_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-		)
-			.bind(
-				tokenId,
-				oauthApp.id,
-				authCode.user_id,
-				tokenHash,
-				authCode.scopes ?? scope,
-				now,
-			)
-			.run();
-
-		return c.json({
-			access_token: accessToken,
-			token_type: 'Bearer',
-			scope: authCode.scopes ?? scope,
-			created_at: Math.floor(new Date(now).getTime() / 1000),
-		});
 	}
 
 	// ---------------------------------------------------------------------------
@@ -179,7 +81,19 @@ app.post('/', async (c) => {
 	// ---------------------------------------------------------------------------
 
 	if (grantType === 'client_credentials') {
-		// Client credentials grant: app-level token, no user
+		const oauthApp = await c.env.DB.prepare(
+			`SELECT id, client_secret, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
+		)
+			.bind(clientId)
+			.first();
+
+		if (!oauthApp) {
+			return c.json(
+				{ error: 'invalid_client', error_description: 'Unknown client_id' },
+				401,
+			);
+		}
+
 		if (!clientSecret) {
 			return c.json(
 				{ error: 'invalid_client', error_description: 'client_secret is required for client_credentials grant' },
@@ -223,17 +137,5 @@ app.post('/', async (c) => {
 		400,
 	);
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function base64UrlEncode(bytes: Uint8Array): string {
-	const binary = String.fromCharCode(...bytes);
-	return btoa(binary)
-		.replace(/\+/g, '-')
-		.replace(/\//g, '_')
-		.replace(/=+$/, '');
-}
 
 export default app;

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { generateToken } from '../../../../utils/crypto';
 import { sendConfirmation } from '../../../../services/email';
+import { getUserForConfirmation, setConfirmationToken } from '../../../../services/auth';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -29,9 +30,7 @@ app.post('/', async (c) => {
 	}
 
 	// Look up user by email
-	const user = await c.env.DB.prepare(
-		'SELECT id, confirmed_at, confirmation_token FROM users WHERE email = ?1 LIMIT 1',
-	).bind(email).first<{ id: string; confirmed_at: string | null; confirmation_token: string | null }>();
+	const user = await getUserForConfirmation(c.env.DB, email);
 
 	// If not found or already confirmed, return 200 silently
 	if (!user || user.confirmed_at) {
@@ -50,7 +49,7 @@ app.post('/', async (c) => {
 		JSON.stringify({ userId: user.id, email }),
 		{ expirationTtl: 86400 },
 	);
-	await c.env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(newToken, user.id).run();
+	await setConfirmationToken(c.env.DB, user.id, newToken);
 
 	// Set cooldown
 	await c.env.CACHE.put(cooldownKey, '1', { expirationTtl: 60 });

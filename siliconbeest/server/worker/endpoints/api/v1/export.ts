@@ -8,6 +8,14 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
+import {
+	getFollowingForExport,
+	getFollowersForExport,
+	getBlocksForExport,
+	getMutesForExport,
+	getBookmarksForExport,
+	getListsForExport,
+} from '../../../services/account';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -41,20 +49,8 @@ function csvResponse(body: string): Response {
 
 app.get('/following.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.username, a.domain
-     FROM follows f
-     JOIN accounts a ON a.id = f.target_account_id
-     WHERE f.account_id = ?`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map(
-    (r: any) => `${formatAcct(r.username, r.domain)},true`,
-  );
-
+  const results = await getFollowingForExport(c.env.DB, account.id);
+  const rows = results.map((r) => `${formatAcct(r.username, r.domain)},true`);
   return csvResponse(`Account address,Show boosts\n${rows.join('\n')}\n`);
 });
 
@@ -64,18 +60,8 @@ app.get('/following.csv', authRequired, async (c) => {
 
 app.get('/followers.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.username, a.domain
-     FROM follows f
-     JOIN accounts a ON a.id = f.account_id
-     WHERE f.target_account_id = ?`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map((r: any) => formatAcct(r.username, r.domain));
-
+  const results = await getFollowersForExport(c.env.DB, account.id);
+  const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
 
@@ -85,18 +71,8 @@ app.get('/followers.csv', authRequired, async (c) => {
 
 app.get('/blocks.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.username, a.domain
-     FROM blocks bl
-     JOIN accounts a ON a.id = bl.target_account_id
-     WHERE bl.account_id = ?`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map((r: any) => formatAcct(r.username, r.domain));
-
+  const results = await getBlocksForExport(c.env.DB, account.id);
+  const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
 
@@ -106,18 +82,8 @@ app.get('/blocks.csv', authRequired, async (c) => {
 
 app.get('/mutes.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.username, a.domain
-     FROM mutes m
-     JOIN accounts a ON a.id = m.target_account_id
-     WHERE m.account_id = ?`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map((r: any) => formatAcct(r.username, r.domain));
-
+  const results = await getMutesForExport(c.env.DB, account.id);
+  const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
 
@@ -127,19 +93,8 @@ app.get('/mutes.csv', authRequired, async (c) => {
 
 app.get('/bookmarks.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT s.uri
-     FROM bookmarks b
-     JOIN statuses s ON s.id = b.status_id
-     WHERE b.account_id = ?`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map((r: any) => r.uri as string);
-
-  return csvResponse(`${rows.join('\n')}\n`);
+  const results = await getBookmarksForExport(c.env.DB, account.id);
+  return csvResponse(`${results.join('\n')}\n`);
 });
 
 // ---------------------------------------------------------------------------
@@ -148,22 +103,8 @@ app.get('/bookmarks.csv', authRequired, async (c) => {
 
 app.get('/lists.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT l.title, a.username, a.domain
-     FROM lists l
-     JOIN list_accounts la ON la.list_id = l.id
-     JOIN accounts a ON a.id = la.account_id
-     WHERE l.account_id = ?
-     ORDER BY l.title ASC`,
-  )
-    .bind(account.id)
-    .all();
-
-  const rows = (results ?? []).map(
-    (r: any) => `${r.title},${formatAcct(r.username, r.domain)}`,
-  );
-
+  const results = await getListsForExport(c.env.DB, account.id);
+  const rows = results.map((r) => `${r.title},${formatAcct(r.username, r.domain)}`);
   return csvResponse(`List name,Account address\n${rows.join('\n')}\n`);
 });
 

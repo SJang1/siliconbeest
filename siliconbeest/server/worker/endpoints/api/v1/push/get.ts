@@ -7,6 +7,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
+import { getPushSubscription } from '../../../../services/push';
 
 function rowToAlerts(row: Record<string, unknown>): Record<string, boolean> {
   return {
@@ -28,17 +29,7 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 app.get('/', authRequired, requireScope('push'), async (c) => {
   const tokenId = c.get('tokenId')!;
 
-  const row = await c.env.DB.prepare(
-    `SELECT id, endpoint, policy, created_at, updated_at,
-            alert_mention, alert_follow, alert_favourite, alert_reblog,
-            alert_poll, alert_status, alert_update, alert_follow_request,
-            alert_admin_sign_up, alert_admin_report
-     FROM web_push_subscriptions
-     WHERE access_token_id = ?1
-     LIMIT 1`,
-  )
-    .bind(tokenId)
-    .first();
+  const row = await getPushSubscription(c.env.DB, tokenId);
 
   if (!row) {
     return c.json({ error: 'Record not found' }, 404);

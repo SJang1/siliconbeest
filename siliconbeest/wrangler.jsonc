@@ -20,7 +20,8 @@
 	"vars": {
 		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
 		"INSTANCE_TITLE": "SiliconBeest by siliconsjang",
-		"REGISTRATION_MODE": "approval"
+		"REGISTRATION_MODE": "approval",
+		"SKIP_SIGNATURE_VERIFICATION": "true"
 	},
 
 	// D1 Database

@@ -12,7 +12,6 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { generateUlid } from '../../../../utils/ulid';
-import { sha256 } from '../../../../utils/crypto';
 import { generateSecureRandom } from '../../../../utils/crypto';
 import { decodeCBOR } from '../../../../utils/cbor';
 import {
@@ -22,6 +21,19 @@ import {
 	coseKeyToCryptoKey,
 	verifySignature,
 } from '../../../../utils/webauthn';
+import {
+	getWebAuthnCredentials,
+	storeWebAuthnCredential,
+	getWebAuthnCredentialByCredentialId,
+	updateWebAuthnCredentialCounter,
+	getUserForWebAuthn,
+	getOrCreateInternalApp,
+	createAccessToken,
+	updateSignInTracking,
+	listWebAuthnCredentials,
+	deleteWebAuthnCredential,
+	getWebAuthnCredentialsByEmail,
+} from '../../../../services/auth';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -60,13 +72,9 @@ app.post('/register/options', authRequired, async (c) => {
 	);
 
 	// Query existing credentials for excludeCredentials
-	const existing = await c.env.DB.prepare(
-		'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?1',
-	)
-		.bind(user.id)
-		.all<{ credential_id: string; transports: string | null }>();
+	const existing = await getWebAuthnCredentials(c.env.DB, user.id);
 
-	const excludeCredentials = (existing.results || []).map((cred) => ({
+	const excludeCredentials = existing.map((cred) => ({
 		type: 'public-key' as const,
 		id: cred.credential_id,
 		transports: cred.transports ? JSON.parse(cred.transports) : undefined,
@@ -190,9 +198,6 @@ app.post('/register/verify', authRequired, async (c) => {
 	await coseKeyToCryptoKey(cosePublicKey);
 
 	// 10. Serialize COSE public key for storage
-	const publicKeyB64 = base64urlEncode(attestationObjectBytes);
-
-	// Actually, store the COSE key map as JSON-compatible format
 	const publicKeyJson = serializeCoseKey(cosePublicKey, algorithm);
 
 	// 11. Determine device type and backup eligibility
@@ -202,24 +207,19 @@ app.post('/register/verify', authRequired, async (c) => {
 	const deviceType = backupEligible ? 'multiDevice' : 'singleDevice';
 
 	// 12. Store credential in DB
-	const now = new Date().toISOString();
 	const id = generateUlid();
 
-	await c.env.DB.prepare(
-		`INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_type, backed_up, transports, name, created_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
-	).bind(
+	await storeWebAuthnCredential(c.env.DB, {
 		id,
-		user.id,
-		credentialIdB64,
-		publicKeyJson,
-		parsed.signCount,
+		userId: user.id,
+		credentialId: credentialIdB64,
+		publicKey: publicKeyJson,
+		counter: parsed.signCount,
 		deviceType,
-		backupState ? 1 : 0,
-		null, // transports not provided in this flow; client can update
-		body.name || null,
-		now,
-	).run();
+		backedUp: backupState,
+		transports: null,
+		name: body.name || null,
+	});
 
 	return c.json({
 		id,
@@ -227,7 +227,7 @@ app.post('/register/verify', authRequired, async (c) => {
 		device_type: deviceType,
 		backed_up: backupState,
 		name: body.name || null,
-		created_at: now,
+		created_at: new Date().toISOString(),
 	});
   } catch (err) {
     console.error('[webauthn/register/verify]', err);
@@ -262,22 +262,14 @@ app.post('/authenticate/options', async (c) => {
 	let allowCredentials: Array<{ type: string; id: string; transports?: string[] }> | undefined;
 
 	if (body.email) {
-		const user = await c.env.DB.prepare(
-			'SELECT id FROM users WHERE email = ?1 LIMIT 1',
-		).bind(body.email.toLowerCase().trim()).first<{ id: string }>();
+		const creds = await getWebAuthnCredentialsByEmail(c.env.DB, body.email);
 
-		if (user) {
-			const creds = await c.env.DB.prepare(
-				'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?1',
-			).bind(user.id).all<{ credential_id: string; transports: string | null }>();
-
-			if (creds.results && creds.results.length > 0) {
-				allowCredentials = creds.results.map((cred) => ({
-					type: 'public-key',
-					id: cred.credential_id,
-					transports: cred.transports ? JSON.parse(cred.transports) : undefined,
-				}));
-			}
+		if (creds.length > 0) {
+			allowCredentials = creds.map((cred) => ({
+				type: 'public-key',
+				id: cred.credential_id,
+				transports: cred.transports ? JSON.parse(cred.transports) : undefined,
+			}));
 		}
 	}
 
@@ -340,18 +332,7 @@ app.post('/authenticate/verify', async (c) => {
 
 	// 3. Look up credential by credential_id
 	const credentialIdB64 = body.id;
-	const credRow = await c.env.DB.prepare(
-		`SELECT wc.id, wc.user_id, wc.credential_id, wc.public_key, wc.counter
-		 FROM webauthn_credentials wc
-		 WHERE wc.credential_id = ?1
-		 LIMIT 1`,
-	).bind(credentialIdB64).first<{
-		id: string;
-		user_id: string;
-		credential_id: string;
-		public_key: string;
-		counter: number;
-	}>();
+	const credRow = await getWebAuthnCredentialByCredentialId(c.env.DB, credentialIdB64);
 
 	if (!credRow) {
 		return c.json({ error: 'Credential not found' }, 400);
@@ -410,29 +391,10 @@ app.post('/authenticate/verify', async (c) => {
 	}
 
 	// 11. Update counter and last_used_at
-	const now = new Date().toISOString();
-	await c.env.DB.prepare(
-		'UPDATE webauthn_credentials SET counter = ?1, last_used_at = ?2 WHERE id = ?3',
-	).bind(parsed.signCount, now, credRow.id).run();
+	await updateWebAuthnCredentialCounter(c.env.DB, credRow.id, parsed.signCount);
 
 	// 12. Check user status
-	const user = await c.env.DB.prepare(
-		`SELECT u.id, u.account_id, u.email, u.role, u.approved, u.disabled, u.confirmed_at,
-		        a.username, a.display_name
-		 FROM users u
-		 JOIN accounts a ON a.id = u.account_id
-		 WHERE u.id = ?1 LIMIT 1`,
-	).bind(credRow.user_id).first<{
-		id: string;
-		account_id: string;
-		email: string;
-		role: string;
-		approved: number;
-		disabled: number;
-		confirmed_at: string | null;
-		username: string;
-		display_name: string;
-	}>();
+	const user = await getUserForWebAuthn(c.env.DB, credRow.user_id);
 
 	if (!user) {
 		return c.json({ error: 'User not found' }, 400);
@@ -451,45 +413,18 @@ app.post('/authenticate/verify', async (c) => {
 	}
 
 	// 13. Create OAuth access token (same pattern as login.ts)
-	const INTERNAL_APP_NAME = '__siliconbeest_web__';
-	let appRecord = await c.env.DB.prepare(
-		"SELECT id, client_id FROM oauth_applications WHERE name = ?1 LIMIT 1",
-	).bind(INTERNAL_APP_NAME).first<{ id: string; client_id: string }>();
-
-	if (!appRecord) {
-		const appId = generateUlid();
-		const clientId = crypto.randomUUID().replace(/-/g, '');
-		const clientSecret = crypto.randomUUID().replace(/-/g, '');
-		await c.env.DB.prepare(
-			`INSERT INTO oauth_applications (id, name, redirect_uri, client_id, client_secret, scopes, created_at, updated_at)
-			 VALUES (?1, ?2, 'urn:ietf:wg:oauth:2.0:oob', ?3, ?4, 'read write follow push', ?5, ?5)`,
-		).bind(appId, INTERNAL_APP_NAME, clientId, clientSecret, now).run();
-		appRecord = { id: appId, client_id: clientId };
-	}
-
-	const tokenValue = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-	const tokenHash = await sha256(tokenValue);
-	const tokenId = generateUlid();
-
-	await c.env.DB.prepare(
-		`INSERT INTO oauth_access_tokens (id, token_hash, application_id, user_id, scopes, created_at)
-		 VALUES (?1, ?2, ?3, ?4, 'read write follow push', ?5)`,
-	).bind(tokenId, tokenHash, appRecord.id, user.id, now).run();
+	const appRecord = await getOrCreateInternalApp(c.env.DB);
+	const { tokenValue, createdAt } = await createAccessToken(c.env.DB, appRecord.id, user.id);
 
 	// 14. Update sign-in tracking
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
-	await c.env.DB.prepare(
-		`UPDATE users SET sign_in_count = sign_in_count + 1,
-		 last_sign_in_at = current_sign_in_at, last_sign_in_ip = current_sign_in_ip,
-		 current_sign_in_at = ?1, current_sign_in_ip = ?2
-		 WHERE id = ?3`,
-	).bind(now, ip, user.id).run();
+	await updateSignInTracking(c.env.DB, user.id, ip);
 
 	return c.json({
 		access_token: tokenValue,
 		token_type: 'Bearer',
 		scope: 'read write follow push',
-		created_at: Math.floor(new Date(now).getTime() / 1000),
+		created_at: Math.floor(new Date(createdAt).getTime() / 1000),
 	});
   } catch (err) {
     console.error('[webauthn/authenticate/verify]', err);
@@ -504,24 +439,10 @@ app.post('/authenticate/verify', async (c) => {
 app.get('/credentials', authRequired, async (c) => {
 	const user = c.get('currentUser')!;
 
-	const result = await c.env.DB.prepare(
-		`SELECT id, credential_id, device_type, backed_up, transports, name, created_at, last_used_at
-		 FROM webauthn_credentials
-		 WHERE user_id = ?1
-		 ORDER BY created_at DESC`,
-	).bind(user.id).all<{
-		id: string;
-		credential_id: string;
-		device_type: string | null;
-		backed_up: number;
-		transports: string | null;
-		name: string | null;
-		created_at: string;
-		last_used_at: string | null;
-	}>();
+	const credentials = await listWebAuthnCredentials(c.env.DB, user.id);
 
 	return c.json(
-		(result.results || []).map((row) => ({
+		credentials.map((row) => ({
 			id: row.id,
 			credential_id: row.credential_id,
 			device_type: row.device_type,
@@ -542,11 +463,9 @@ app.delete('/credentials/:id', authRequired, async (c) => {
 	const user = c.get('currentUser')!;
 	const credId = c.req.param('id');
 
-	const result = await c.env.DB.prepare(
-		'DELETE FROM webauthn_credentials WHERE id = ?1 AND user_id = ?2',
-	).bind(credId, user.id).run();
+	const changes = await deleteWebAuthnCredential(c.env.DB, credId, user.id);
 
-	if (!result.meta.changes || result.meta.changes === 0) {
+	if (!changes || changes === 0) {
 		return c.json({ error: 'Credential not found' }, 404);
 	}
 
@@ -559,7 +478,6 @@ app.delete('/credentials/:id', authRequired, async (c) => {
 
 /**
  * Serialize a COSE key Map to a JSON-storable object.
- * Stores the algorithm and the key components as base64url strings.
  */
 function serializeCoseKey(coseKey: Map<number, any>, algorithm: number): string {
 	const keyObj: Record<string, string> = {};

@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendRejection } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
+import { getAccountWithUser, rejectAccount } from '../../../../../services/admin';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -14,13 +15,8 @@ const app = new Hono<HonoEnv>();
 app.post('/:id/reject', async (c) => {
 	const id = c.req.param('id');
 
-	// Verify the account exists
-	const account = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(id).first();
-	if (!account) throw new AppError(404, 'Record not found');
+	const { account, user } = await getAccountWithUser(c.env.DB, id);
 
-	// Check that the user is actually pending
-	const user = await c.env.DB.prepare('SELECT * FROM users WHERE account_id = ?1').bind(id).first();
-	if (!user) throw new AppError(404, 'Record not found');
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
 
 	// Send rejection email in user's locale before deleting (best-effort — never block rejection)
@@ -31,10 +27,7 @@ app.post('/:id/reject', async (c) => {
 	}
 
 	// Delete the user and account (cascading)
-	await c.env.DB.batch([
-		c.env.DB.prepare('DELETE FROM users WHERE account_id = ?1').bind(id),
-		c.env.DB.prepare('DELETE FROM accounts WHERE id = ?1').bind(id),
-	]);
+	await rejectAccount(c.env.DB, id);
 
 	return c.json({}, 200);
 });

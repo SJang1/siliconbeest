@@ -24,6 +24,7 @@ import { sendToFollowers, getFedifyContext } from '../../../../federation/helper
 import { isActor } from '@fedify/fedify/vocab';
 import { Move } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
+import { getAccountUri, setMovedTo } from '../../../../services/account';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -66,11 +67,7 @@ app.post('/migration', authRequired, async (c) => {
 	}
 
 	// 3. Verify alsoKnownAs bidirectional link
-	const account = await c.env.DB.prepare(
-		`SELECT username, uri FROM accounts WHERE id = ?1 LIMIT 1`,
-	)
-		.bind(accountId)
-		.first<{ username: string; uri: string }>();
+	const account = await getAccountUri(c.env.DB, accountId);
 
 	if (!account) {
 		return c.json({ error: 'Account not found' }, 404);
@@ -95,12 +92,7 @@ app.post('/migration', authRequired, async (c) => {
 	}
 
 	// Update moved_to_account_id + moved_at
-	const now = new Date().toISOString();
-	await c.env.DB.prepare(
-		`UPDATE accounts SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?3 WHERE id = ?4`,
-	)
-		.bind(targetAccountId, now, now, accountId)
-		.run();
+	await setMovedTo(c.env.DB, accountId, targetAccountId);
 
 	// 5. Build Move activity and fanout to followers
 	const move = new Move({

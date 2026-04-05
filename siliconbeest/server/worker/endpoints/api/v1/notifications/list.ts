@@ -6,6 +6,7 @@ import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '..
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { listNotifications } from '../../../../services/notification';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -22,85 +23,17 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
 
   const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 'n.id');
 
-  const conditions: string[] = ['n.account_id = ?'];
-  const binds: (string | number)[] = [account.id];
-
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
-
-  // Filter by types[]
   const types = c.req.queries('types[]');
-  if (types && types.length > 0) {
-    const placeholders = types.map(() => '?').join(', ');
-    conditions.push(`n.type IN (${placeholders})`);
-    binds.push(...types);
-  }
-
-  // Filter by exclude_types[]
   const excludeTypes = c.req.queries('exclude_types[]');
-  if (excludeTypes && excludeTypes.length > 0) {
-    const placeholders = excludeTypes.map(() => '?').join(', ');
-    conditions.push(`n.type NOT IN (${placeholders})`);
-    binds.push(...excludeTypes);
-  }
 
-  const sql = `
-    SELECT n.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-           a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-           a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-           a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-           a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-           a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-           a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-           a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-           a.emoji_tags AS a_emoji_tags
-    FROM notifications n
-    JOIN accounts a ON a.id = n.from_account_id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
-    LIMIT ?
-  `;
-  binds.push(limitValue);
-
-  interface NotifWithAccountRow {
-    id: string;
-    account_id: string;
-    from_account_id: string;
-    type: string;
-    status_id: string | null;
-    emoji: string | null;
-    read: number;
-    created_at: string;
-    a_id: string;
-    a_username: string;
-    a_domain: string | null;
-    a_display_name: string;
-    a_note: string;
-    a_uri: string;
-    a_url: string | null;
-    a_avatar_url: string | null;
-    a_avatar_static_url: string | null;
-    a_header_url: string | null;
-    a_header_static_url: string | null;
-    a_locked: number;
-    a_bot: number;
-    a_discoverable: number | null;
-    a_statuses_count: number;
-    a_followers_count: number;
-    a_following_count: number;
-    a_last_status_at: string | null;
-    a_created_at: string;
-    a_suspended_at: string | null;
-    a_memorial: number;
-    a_moved_to_account_id: string | null;
-    a_emoji_tags: string | null;
-  }
-
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
-  const rows = results ?? [];
+  const rows = await listNotifications(c.env.DB, account.id, {
+    whereClause: whereClause || undefined,
+    orderClause,
+    paginationParams: params,
+    limit: limitValue,
+    types: types && types.length > 0 ? types : undefined,
+    excludeTypes: excludeTypes && excludeTypes.length > 0 ? excludeTypes : undefined,
+  });
 
   // Collect status IDs that need fetching
   const statusIds = rows
@@ -136,9 +69,6 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
 
     for (const sr of statusRows ?? []) {
       const sId = sr.id as string;
-      const saAcct = sr.sa_domain
-        ? `${sr.sa_username}@${sr.sa_domain}`
-        : (sr.sa_username as string);
       const e = enrichments.get(sId);
 
       const statusAccountRow: AccountRow = {
@@ -189,25 +119,6 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
         account: serializeAccount(statusAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       });
     }
-  }
-
-  // Batch-fetch account emojis for notification from_accounts
-  const notifAccountTexts: string[] = [];
-  const notifAccountDomains = new Map<string, string | null>();
-  for (const row of rows) {
-    const displayName = row.a_display_name || '';
-    const note = row.a_note || '';
-    const acctDomain = row.a_domain || null;
-    notifAccountTexts.push(displayName, note);
-    notifAccountDomains.set(row.a_id, acctDomain);
-  }
-
-  // Group by domain for batch fetching
-  const notifDomainTexts = new Map<string, string[]>();
-  for (const row of rows) {
-    const dk = row.a_domain || '__local__';
-    if (!notifDomainTexts.has(dk)) notifDomainTexts.set(dk, []);
-    notifDomainTexts.get(dk)!.push(row.a_display_name || '', row.a_note || '');
   }
 
   // Batch-fetch custom emoji URLs for emoji_reaction notifications

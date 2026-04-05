@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { getVapidPublicKey } from '../../../utils/vapid';
 import { MASTODON_V1_VERSION } from '../../../version';
+import { getSettings, getRules, getStats } from '../../../services/instance';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -12,35 +13,21 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 app.get('/', async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
 
-  const dbSettings: Record<string, string> = {};
-  const { results: settingsRows } = await c.env.DB.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'registration_message', 'site_contact_email', 'site_contact_username', 'web_push_enabled')",
-  ).all();
-  for (const row of settingsRows ?? []) {
-    dbSettings[row.key as string] = row.value as string;
-  }
+  const dbSettings = await getSettings(c.env.DB, [
+    'site_title', 'site_description', 'registration_mode', 'registration_message',
+    'site_contact_email', 'site_contact_username', 'web_push_enabled',
+  ]);
 
   const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
   const description = dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`;
   const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
 
-  const userCount = await c.env.DB.prepare(
-    'SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL',
-  ).first<{ cnt: number }>();
-
-  const statusCount = await c.env.DB.prepare(
-    'SELECT COUNT(*) AS cnt FROM statuses WHERE local = 1 AND deleted_at IS NULL',
-  ).first<{ cnt: number }>();
-
-  const domainCount = await c.env.DB.prepare(
-    'SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL',
-  ).first<{ cnt: number }>();
-
-  // Rules
-  const { results: ruleRows } = await c.env.DB.prepare(
-    'SELECT id, text FROM rules ORDER BY priority ASC',
-  ).all();
-  const rules = (ruleRows ?? []).map((r: any) => ({ id: r.id, text: r.text }));
+  // Stats + rules (parallel)
+  const [stats, ruleRows] = await Promise.all([
+    getStats(c.env.DB),
+    getRules(c.env.DB),
+  ]);
+  const rules = ruleRows.map((r) => ({ id: r.id, text: r.text }));
 
   // Contact account (admin)
   let contactAccount = null;
@@ -87,9 +74,9 @@ app.get('/', async (c) => {
       streaming_api: `wss://${domain}/api/v1/streaming`,
     },
     stats: {
-      user_count: userCount?.cnt ?? 0,
-      status_count: statusCount?.cnt ?? 0,
-      domain_count: domainCount?.cnt ?? 0,
+      user_count: stats.userCount,
+      status_count: stats.statusCount,
+      domain_count: stats.domainCount,
     },
     thumbnail: `https://${domain}/thumbnail.png`,
     languages: ['en'],

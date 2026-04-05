@@ -6,6 +6,7 @@ import { serializeAccount, serializeNotification, ensureISO8601 } from '../../..
 import type { AccountRow, NotificationRow } from '../../../../types/db';
 import type { Status } from '../../../../types/mastodon';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { getNotification } from '../../../../services/notification';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -14,56 +15,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
   const id = c.req.param('id');
 
-  interface NotifWithAccountRow {
-    id: string;
-    account_id: string;
-    from_account_id: string;
-    type: string;
-    status_id: string | null;
-    emoji: string | null;
-    read: number;
-    created_at: string;
-    a_id: string;
-    a_username: string;
-    a_domain: string | null;
-    a_display_name: string;
-    a_note: string;
-    a_uri: string;
-    a_url: string | null;
-    a_avatar_url: string | null;
-    a_avatar_static_url: string | null;
-    a_header_url: string | null;
-    a_header_static_url: string | null;
-    a_locked: number;
-    a_bot: number;
-    a_discoverable: number | null;
-    a_statuses_count: number;
-    a_followers_count: number;
-    a_following_count: number;
-    a_last_status_at: string | null;
-    a_created_at: string;
-    a_suspended_at: string | null;
-    a_memorial: number;
-    a_moved_to_account_id: string | null;
-    a_emoji_tags: string | null;
-  }
-
-  const row = await c.env.DB.prepare(`
-    SELECT n.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-           a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-           a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-           a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-           a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-           a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-           a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-           a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-           a.emoji_tags AS a_emoji_tags
-    FROM notifications n
-    JOIN accounts a ON a.id = n.from_account_id
-    WHERE n.id = ?1 AND n.account_id = ?2
-    LIMIT 1
-  `).bind(id, account.id).first<NotifWithAccountRow>();
+  const row = await getNotification(c.env.DB, id, account.id);
 
   if (!row) {
     return c.json({ error: 'Record not found' }, 404);
@@ -150,9 +102,6 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
     if (sr) {
       const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id, c.env.CACHE);
       const e = enrichments.get(sr.id);
-      const saAcct = sr.sa_domain
-        ? `${sr.sa_username}@${sr.sa_domain}`
-        : sr.sa_username;
 
       const statusAccountRow: AccountRow = {
         id: sr.sa_id, username: sr.sa_username, domain: sr.sa_domain,

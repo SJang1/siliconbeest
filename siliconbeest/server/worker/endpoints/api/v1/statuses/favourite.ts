@@ -9,6 +9,7 @@ import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
 import { Like } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
+import { favouriteStatus } from '../../../../services/status';
 
 const app = new Hono<HonoEnv>();
 
@@ -22,20 +23,9 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
-  ).bind(currentAccountId, statusId).first();
+  const { created } = await favouriteStatus(c.env.DB, currentAccountId, statusId);
 
-  if (!existing) {
-    const now = new Date().toISOString();
-    const id = generateUlid();
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        'INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
-      ).bind(id, currentAccountId, statusId, now),
-      c.env.DB.prepare('UPDATE statuses SET favourites_count = favourites_count + 1 WHERE id = ?1').bind(statusId),
-    ]);
-
+  if (created) {
     // Create notification for the status author (don't notify yourself)
     const statusAuthorId = row.account_id as string;
     if (statusAuthorId !== currentAccountId) {
@@ -77,7 +67,7 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.favourited = true;
-  if (!existing) {
+  if (created) {
     status.favourites_count += 1;
   }
 
