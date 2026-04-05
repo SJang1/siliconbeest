@@ -94,7 +94,7 @@ export async function updateProfile(
 // ----------------------------------------------------------------
 
 export async function getRelationship(db: D1Database, accountId: string, targetId: string): Promise<Relationship> {
-	const [follow, followedBy, followReq, followReqBy, block, blockedBy, mute] = await Promise.all([
+	const [follow, followedBy, followReq, followReqBy, block, blockedBy, mute, targetAccount] = await Promise.all([
 		db
 			.prepare('SELECT * FROM follows WHERE account_id = ? AND target_account_id = ? LIMIT 1')
 			.bind(accountId, targetId)
@@ -123,12 +123,45 @@ export async function getRelationship(db: D1Database, accountId: string, targetI
 			.prepare('SELECT * FROM mutes WHERE account_id = ? AND target_account_id = ? LIMIT 1')
 			.bind(accountId, targetId)
 			.first() as Promise<MuteRow | null>,
+		db
+			.prepare('SELECT domain FROM accounts WHERE id = ? LIMIT 1')
+			.bind(targetId)
+			.first<{ domain: string | null }>(),
 	]);
+
+	// Queries for tables added in migration 0023 (graceful fallback)
+	let endorsed = false;
+	let noteComment = '';
+	let domainBlocking = false;
+	try {
+		const [endorsedRow, accountNote] = await Promise.all([
+			db
+				.prepare('SELECT id FROM account_pins WHERE account_id = ? AND target_account_id = ?')
+				.bind(accountId, targetId)
+				.first(),
+			db
+				.prepare('SELECT comment FROM account_notes WHERE account_id = ? AND target_account_id = ?')
+				.bind(accountId, targetId)
+				.first<{ comment: string }>(),
+		]);
+		endorsed = !!endorsedRow;
+		noteComment = accountNote?.comment ?? '';
+
+		if (targetAccount?.domain) {
+			const dbRow = await db
+				.prepare('SELECT id FROM user_domain_blocks WHERE account_id = ? AND domain = ?')
+				.bind(accountId, targetAccount.domain)
+				.first();
+			domainBlocking = !!dbRow;
+		}
+	} catch {
+		// Tables may not exist yet (pre-migration 0023)
+	}
 
 	return {
 		id: targetId,
 		following: !!follow,
-		showing_reblogs: follow ? !!follow.show_reblogs : false,
+		showing_reblogs: follow ? !!follow.show_reblogs : true,
 		notifying: follow ? !!follow.notify : false,
 		followed_by: !!followedBy,
 		blocking: !!block,
@@ -137,9 +170,9 @@ export async function getRelationship(db: D1Database, accountId: string, targetI
 		muting_notifications: mute ? !!mute.hide_notifications : false,
 		requested: !!followReq,
 		requested_by: !!followReqBy,
-		domain_blocking: false,
-		endorsed: false,
-		note: '',
+		domain_blocking: domainBlocking,
+		endorsed,
+		note: noteComment,
 		languages: follow?.languages ? JSON.parse(follow.languages) : null,
 	};
 }
