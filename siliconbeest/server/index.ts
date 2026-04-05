@@ -28,7 +28,7 @@ const WORKER_PREFIXES = [
   '/media/',
   '/proxy',
   '/authorize_interaction',
-  '/auth/',
+  '/auth/confirm',
   '/healthz',
   '/thumbnail.png',
   '/favicon.ico',
