@@ -106,7 +106,7 @@ export async function importRsaKeyPairFromPem(
 /**
  * Convert a base64url-encoded string to a Uint8Array.
  */
-function base64UrlToBytes(base64url: string): Uint8Array {
+export function base64UrlToBytes(base64url: string): Uint8Array {
 	const base64 = base64url
 		.replace(/-/g, '+')
 		.replace(/_/g, '/');
@@ -117,6 +117,82 @@ function base64UrlToBytes(base64url: string): Uint8Array {
 		bytes[i] = binaryString.charCodeAt(i);
 	}
 	return bytes;
+}
+
+// ============================================================
+// RSA KEY IMPORT (individual keys with configurable extractable)
+// ============================================================
+
+/**
+ * Import a SPKI-encoded PEM public key for RSASSA-PKCS1-v1_5 SHA-256 verification.
+ * @param extractable - Whether the key can be exported (default: true)
+ */
+export async function importRsaPublicKey(
+	pem: string,
+	extractable = true,
+): Promise<CryptoKey> {
+	return crypto.subtle.importKey(
+		'spki',
+		parsePemToBuffer(pem),
+		RSA_ALGORITHM,
+		extractable,
+		['verify'],
+	);
+}
+
+/**
+ * Import a PKCS8-encoded PEM private key for RSASSA-PKCS1-v1_5 SHA-256 signing.
+ * @param extractable - Whether the key can be exported (default: true)
+ */
+export async function importRsaPrivateKey(
+	pem: string,
+	extractable = true,
+): Promise<CryptoKey> {
+	return crypto.subtle.importKey(
+		'pkcs8',
+		parsePemToBuffer(pem),
+		RSA_ALGORITHM,
+		extractable,
+		['sign'],
+	);
+}
+
+// ============================================================
+// Ed25519 KEY IMPORT (individual keys with configurable extractable)
+// ============================================================
+
+/**
+ * Import an Ed25519 public key from base64url-encoded raw bytes for verification.
+ * @param extractable - Whether the key can be exported (default: false)
+ */
+export async function importEd25519PublicKey(
+	base64url: string,
+	extractable = false,
+): Promise<CryptoKey> {
+	return crypto.subtle.importKey(
+		'raw',
+		base64UrlToBytes(base64url),
+		'Ed25519',
+		extractable,
+		['verify'],
+	);
+}
+
+/**
+ * Import an Ed25519 private key from base64url-encoded PKCS8 for signing.
+ * @param extractable - Whether the key can be exported (default: false)
+ */
+export async function importEd25519PrivateKey(
+	base64url: string,
+	extractable = false,
+): Promise<CryptoKey> {
+	return crypto.subtle.importKey(
+		'pkcs8',
+		base64UrlToBytes(base64url),
+		'Ed25519',
+		extractable,
+		['sign'],
+	);
 }
 
 /**
@@ -131,20 +207,8 @@ export async function importEd25519KeyPairFromBase64url(
 	privateKeyBase64url: string,
 ): Promise<CryptoKeyPair> {
 	const [publicKey, privateKey] = await Promise.all([
-		crypto.subtle.importKey(
-			'raw',
-			base64UrlToBytes(publicKeyBase64url),
-			'Ed25519',
-			true,
-			['verify'],
-		),
-		crypto.subtle.importKey(
-			'pkcs8',
-			base64UrlToBytes(privateKeyBase64url),
-			'Ed25519',
-			true,
-			['sign'],
-		),
+		importEd25519PublicKey(publicKeyBase64url, true),
+		importEd25519PrivateKey(privateKeyBase64url, true),
 	]);
 
 	return { publicKey, privateKey };

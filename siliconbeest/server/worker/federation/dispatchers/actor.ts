@@ -26,8 +26,13 @@ import type { Federation } from '@fedify/fedify';
 import type { Link as WebFingerLink } from '@fedify/webfinger';
 import type { FedifyContextData } from '../fedify';
 import type { AccountRow, ActorKeyRow, CustomEmojiRow } from '../../types/db';
-import { parsePemToBuffer as parsePemKey } from '../../../../../packages/shared/crypto/keys';
-import { encodeEd25519PublicKeyMultibase, base64UrlToBytes, generateEd25519KeyPair } from '../../utils/crypto';
+import {
+  importRsaPublicKey,
+  importRsaPrivateKey,
+  importEd25519PublicKey,
+  importEd25519PrivateKey,
+} from '../../../../../packages/shared/crypto/keys';
+import { encodeEd25519PublicKeyMultibase, generateEd25519KeyPair } from '../../utils/crypto';
 
 /** Profile metadata field as stored in accounts.fields JSON column. */
 interface ProfileField {
@@ -43,50 +48,6 @@ function extractEmojiShortcodes(text: string): string[] {
   const matches = text.match(/:([a-zA-Z0-9_]+):/g);
   if (!matches) return [];
   return [...new Set(matches.map((m) => m.replace(/:/g, '')))];
-}
-
-/**
- * Import an RSA public key PEM as a CryptoKey (SPKI / RSASSA-PKCS1-v1_5 SHA-256).
- */
-async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
-  const keyData = parsePemKey(pem);
-  return crypto.subtle.importKey(
-    'spki',
-    keyData,
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
-    true,
-    ['verify'],
-  );
-}
-
-/**
- * Import an RSA private key PEM as a CryptoKey (PKCS8 / RSASSA-PKCS1-v1_5 SHA-256).
- */
-async function importRsaPrivateKey(pem: string): Promise<CryptoKey> {
-  const keyData = parsePemKey(pem);
-  return crypto.subtle.importKey(
-    'pkcs8',
-    keyData,
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
-    true,
-    ['sign'],
-  );
-}
-
-/**
- * Import an Ed25519 public key from base64url raw bytes as a CryptoKey.
- */
-async function importEd25519Pub(base64url: string): Promise<CryptoKey> {
-  const keyData = base64UrlToBytes(base64url);
-  return crypto.subtle.importKey('raw', keyData, 'Ed25519', true, ['verify']);
-}
-
-/**
- * Import an Ed25519 private key from base64url PKCS8 as a CryptoKey.
- */
-async function importEd25519Priv(base64url: string): Promise<CryptoKey> {
-  const keyData = base64UrlToBytes(base64url);
-  return crypto.subtle.importKey('pkcs8', keyData, 'Ed25519', true, ['sign']);
 }
 
 /**
@@ -218,7 +179,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       }
       let assertionMethod: Multikey | undefined;
       if (ed25519PubBase64) {
-        const ed25519PubCryptoKey = await importEd25519Pub(ed25519PubBase64);
+        const ed25519PubCryptoKey = await importEd25519PublicKey(ed25519PubBase64, true);
         assertionMethod = new Multikey({
           id: new URL(`${actorUri}#ed25519-key`),
           controller: new URL(actorUri),
@@ -331,8 +292,8 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
           .run();
       }
 
-      const ed25519PublicKey = await importEd25519Pub(ed25519Pub);
-      const ed25519PrivateKey = await importEd25519Priv(ed25519Priv);
+      const ed25519PublicKey = await importEd25519PublicKey(ed25519Pub, true);
+      const ed25519PrivateKey = await importEd25519PrivateKey(ed25519Priv, true);
       keyPairs.push({ publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey });
 
       return keyPairs;
@@ -392,7 +353,7 @@ async function buildInstanceActor(
 
   let assertionMethod: Multikey | undefined;
   if (actorKey.ed25519_public_key) {
-    const ed25519PubCryptoKey = await importEd25519Pub(actorKey.ed25519_public_key);
+    const ed25519PubCryptoKey = await importEd25519PublicKey(actorKey.ed25519_public_key, true);
     assertionMethod = new Multikey({
       id: new URL(`${actorId}#ed25519-key`),
       controller: new URL(actorId),

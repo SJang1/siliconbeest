@@ -1,4 +1,10 @@
 import bcrypt from 'bcryptjs';
+import { base64UrlToBytes } from '../../../../packages/shared/crypto/keys';
+export {
+	base64UrlToBytes,
+	importEd25519PublicKey,
+	importEd25519PrivateKey,
+} from '../../../../packages/shared/crypto/keys';
 
 /**
  * Hash a password using bcryptjs with cost factor 10.
@@ -129,34 +135,6 @@ export async function generateEd25519KeyPair(): Promise<{ publicKey: string; pri
 	const privateKey = bytesToBase64Url(new Uint8Array(privateKeyBuffer as ArrayBuffer));
 
 	return { publicKey, privateKey };
-}
-
-/**
- * Import an Ed25519 private key from base64url-encoded PKCS8 for signing.
- */
-export async function importEd25519PrivateKey(base64url: string): Promise<CryptoKey> {
-	const keyData = base64UrlToBytes(base64url);
-	return crypto.subtle.importKey(
-		'pkcs8',
-		keyData,
-		'Ed25519',
-		false,
-		['sign'],
-	);
-}
-
-/**
- * Import an Ed25519 public key from base64url-encoded raw bytes for verification.
- */
-export async function importEd25519PublicKey(base64url: string): Promise<CryptoKey> {
-	const keyData = base64UrlToBytes(base64url);
-	return crypto.subtle.importKey(
-		'raw',
-		keyData,
-		'Ed25519',
-		false,
-		['verify'],
-	);
 }
 
 /**
@@ -342,10 +320,3 @@ function bytesToBase64Url(bytes: Uint8Array): string {
 		.replace(/=+$/, '');
 }
 
-export function base64UrlToBytes(base64url: string): Uint8Array {
-	const base64 = base64url
-		.replace(/-/g, '+')
-		.replace(/_/g, '/');
-	const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-	return base64ToBytes(padded);
-}

@@ -19,7 +19,7 @@ import { measureAsync, logPerformance } from './observability/performance';
 // Consumer-local inbox listeners and collection dispatchers.
 // These files use Fedify vocab types from the consumer's own node_modules,
 // avoiding the dual-package hazard that occurs when importing from the worker.
-import { setupInboxListeners } from './inboxListeners';
+import { setupConsumerInboxListeners } from './inboxListeners';
 import { setupCollectionDispatchers } from './collectionDispatchers';
 import { handleDeliverActivity } from './handlers/deliverActivity';
 import { handleDeliverActivityFanout } from './handlers/deliverActivityFanout';
@@ -42,7 +42,7 @@ function ensureFedInitialized(env: Env) {
   const fed = createFed(env);
   if (!fedInitialized) {
     setupActorDispatcher(fed);
-    setupInboxListeners(fed);
+    setupConsumerInboxListeners(fed);
     setupCollectionDispatchers(fed);
     fedInitialized = true;
   }

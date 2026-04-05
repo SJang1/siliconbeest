@@ -70,6 +70,11 @@ export async function handleSendWebPush(
     status_id: notification.status_id,
   });
 
+  if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) {
+    console.warn('[web-push] VAPID keys not configured, skipping push');
+    return;
+  }
+
   // Send to each subscription
   for (const sub of subscriptions.results) {
     try {

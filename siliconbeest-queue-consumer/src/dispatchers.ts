@@ -16,6 +16,12 @@
 
 import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from './fedify';
+import {
+  importRsaPublicKey,
+  importRsaPrivateKey,
+  importEd25519PublicKey,
+  importEd25519PrivateKey,
+} from '../../packages/shared/crypto/keys';
 
 // Note: setupInboxListeners and setupCollectionDispatchers are defined
 // locally in the consumer (inboxListeners.ts, collectionDispatchers.ts)
@@ -31,67 +37,6 @@ interface ActorKeyRow {
   ed25519_public_key: string | null;
   ed25519_private_key: string | null;
   created_at: string;
-}
-
-// ============================================================
-// PEM / Base64url helpers
-// ============================================================
-
-function parsePemToBuffer(pem: string): ArrayBuffer {
-  const lines = pem
-    .replace(/-----BEGIN [A-Z ]+-----/, '')
-    .replace(/-----END [A-Z ]+-----/, '')
-    .replace(/\r?\n/g, '')
-    .trim();
-  const binaryString = atob(lines);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-function base64UrlToBytes(base64url: string): Uint8Array {
-  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-  const binaryString = atob(padded);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// ============================================================
-// Key import helpers
-// ============================================================
-
-async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'spki',
-    parsePemToBuffer(pem),
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
-    true,
-    ['verify'],
-  );
-}
-
-async function importRsaPrivateKey(pem: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'pkcs8',
-    parsePemToBuffer(pem),
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
-    true,
-    ['sign'],
-  );
-}
-
-async function importEd25519Pub(base64url: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', base64UrlToBytes(base64url), 'Ed25519', true, ['verify']);
-}
-
-async function importEd25519Priv(base64url: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey('pkcs8', base64UrlToBytes(base64url), 'Ed25519', true, ['sign']);
 }
 
 // ============================================================
@@ -147,8 +92,8 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
 
       // Ed25519 key pair (optional)
       if (actorKey.ed25519_public_key && actorKey.ed25519_private_key) {
-        const ed25519PublicKey = await importEd25519Pub(actorKey.ed25519_public_key);
-        const ed25519PrivateKey = await importEd25519Priv(actorKey.ed25519_private_key);
+        const ed25519PublicKey = await importEd25519PublicKey(actorKey.ed25519_public_key, true);
+        const ed25519PrivateKey = await importEd25519PrivateKey(actorKey.ed25519_private_key, true);
         keyPairs.push({ publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey });
       }
 

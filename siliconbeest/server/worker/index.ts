@@ -20,7 +20,7 @@ import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
 import { setupCollectionDispatchers } from './federation/dispatchers/collections';
 import { setupObjectDispatchers, handleActivityRequest } from './federation/dispatchers/objects';
-import { setupInboxListeners } from './federation/listeners/inbox';
+import { setupWorkerInboxListeners } from './federation/listeners/inbox';
 
 // ---------------------------------------------------------------------------
 // Fedify Federation — singleton per isolate
@@ -176,7 +176,7 @@ app.use('*', async (c, next) => {
     setupNodeInfoDispatcher(fed);
     setupCollectionDispatchers(fed);
     setupObjectDispatchers(fed);
-    setupInboxListeners(fed);
+    setupWorkerInboxListeners(fed);
     fedInitialized = true;
   }
 

@@ -5,6 +5,8 @@
  * Data Integrity Proofs on outgoing ActivityPub activities.
  */
 
+import { base64UrlToBytes } from '../../../packages/shared/crypto/keys';
+
 // ============================================================
 // BASE58BTC ENCODING
 // ============================================================
@@ -48,23 +50,6 @@ function base58btcEncode(bytes: Uint8Array): string {
   }
 
   return result;
-}
-
-// ============================================================
-// BASE64URL HELPERS
-// ============================================================
-
-function base64UrlToBytes(base64url: string): Uint8Array {
-  const base64 = base64url
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
 
 // ============================================================
