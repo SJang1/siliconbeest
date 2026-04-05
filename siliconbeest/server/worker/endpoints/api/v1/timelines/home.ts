@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
+import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { getHomeTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -17,54 +18,13 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  // Use hte.rowid for ordering — it's auto-incrementing on INSERT and
-  // correctly reflects the order statuses entered the home timeline,
-  // regardless of whether the status ID is local (00MN) or remote (01KM).
-  // For cursor pagination, we resolve the status ID to its rowid via subquery.
-  const conditions = [`hte.account_id = ?`];
-  const binds: (string | number)[] = [account.id];
-  let orderClause = 'hte.rowid DESC';
-  const limitValue = pag.limit;
+  const allRows = await getHomeTimeline(c.env.DB, account.id, {
+    maxId: pag.maxId,
+    sinceId: pag.sinceId,
+    minId: pag.minId,
+    limit: pag.limit,
+  });
 
-  if (pag.maxId) {
-    conditions.push(`hte.rowid < (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
-    binds.push(account.id, pag.maxId);
-  }
-  if (pag.sinceId) {
-    conditions.push(`hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
-    binds.push(account.id, pag.sinceId);
-  }
-  if (pag.minId) {
-    conditions.push(`hte.rowid > (SELECT rowid FROM home_timeline_entries WHERE account_id = ? AND status_id = ?)`);
-    binds.push(account.id, pag.minId);
-    orderClause = 'hte.rowid ASC';
-  }
-
-  conditions.push('s.deleted_at IS NULL');
-
-  const sql = `
-    SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-           a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-           a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-           a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-           a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-           a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-           a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-           a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-           a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-           a.emoji_tags AS a_emoji_tags
-    FROM home_timeline_entries hte
-    JOIN statuses s ON s.id = hte.status_id
-    JOIN accounts a ON a.id = s.account_id
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
-    LIMIT ?
-  `;
-  binds.push(limitValue);
-
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
-
-  const allRows = (results ?? []) as Record<string, unknown>[];
   const statusIds = allRows.map((r) => r.id as string);
 
   // Collect reblog_of_ids to fetch original statuses
@@ -162,7 +122,7 @@ app.get('/', authRequired, async (c) => {
   if (pag.minId) statuses.reverse();
 
   const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/home`;
-  const link = buildLinkHeader(baseUrl, statuses, limitValue);
+  const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 
