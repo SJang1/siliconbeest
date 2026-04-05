@@ -65,11 +65,12 @@ import m0021 from '../../migrations/0021_accounts_emoji_tags.sql?raw';
 import m0022 from '../../migrations/0022_hash_oauth_tokens.sql?raw';
 import m0023 from '../../migrations/0023_feature_gaps.sql?raw';
 import m0024 from '../../migrations/0024_i18n_registration_reason.sql?raw';
+import m0025 from '../../migrations/0025_user_default_privacy.sql?raw';
 
 const MIGRATIONS: string[] = [
   m0001, m0002, m0003, m0004, m0005, m0006, m0007, m0008,
   m0009a, m0009b, m0010, m0011, m0012, m0013, m0014, m0015,
-  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024,
+  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024, m0025,
 ];
 
 /**

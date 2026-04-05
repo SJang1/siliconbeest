@@ -152,8 +152,13 @@ async function enablePush() {
       return
     }
 
-    // Get the service worker registration
-    const registration = await navigator.serviceWorker.ready
+    // Get the service worker registration (with timeout in case SW isn't registered)
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Service worker not available. Please reload the page and try again.')), 5000),
+      ),
+    ])
 
     // Get server key (VAPID public key) from instance
     let serverKey = pushSubscription.value?.server_key

@@ -168,9 +168,21 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     ).bind(sourceLanguage, now, currentUser.account_id).run();
   }
 
+  // Handle default privacy update (source[privacy] or source.privacy)
+  const validPrivacy = ['public', 'unlisted', 'private', 'direct'];
+  let sourcePrivacy: unknown = body['source[privacy]'];
+  if (!sourcePrivacy && typeof body.source === 'object' && body.source !== null) {
+    sourcePrivacy = (body.source as Record<string, unknown>).privacy;
+  }
+  if (typeof sourcePrivacy === 'string' && validPrivacy.includes(sourcePrivacy)) {
+    await c.env.DB.prepare(
+      'UPDATE users SET default_privacy = ?1, updated_at = ?2 WHERE account_id = ?3',
+    ).bind(sourcePrivacy, now, currentUser.account_id).run();
+  }
+
   // Fetch updated account
   const row = await c.env.DB.prepare(
-    `SELECT a.*, u.locale, u.role
+    `SELECT a.*, u.locale, u.role, u.default_privacy
      FROM accounts a
      JOIN users u ON u.account_id = a.id
      WHERE a.id = ?1`,
@@ -204,7 +216,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     emojis: [],
     fields: parseFields(row.fields as string | null),
     source: {
-      privacy: 'public',
+      privacy: (row.default_privacy as string) || 'public',
       sensitive: false,
       language: (row.locale as string) || 'en',
       note: (row.note as string) || '',

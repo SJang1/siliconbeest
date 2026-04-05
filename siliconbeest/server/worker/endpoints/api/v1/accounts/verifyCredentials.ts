@@ -18,7 +18,7 @@ app.get('/verify_credentials', authRequired, requireScope('read:accounts'), asyn
   const domain = c.env.INSTANCE_DOMAIN;
 
   const row = await c.env.DB.prepare(
-    `SELECT a.*, u.locale, u.role
+    `SELECT a.*, u.locale, u.role, u.default_privacy
      FROM accounts a
      JOIN users u ON u.account_id = a.id
      WHERE a.id = ?1`,
@@ -52,7 +52,7 @@ app.get('/verify_credentials', authRequired, requireScope('read:accounts'), asyn
     emojis: [],
     fields: safeJsonParse(row.fields as string | null, []),
     source: {
-      privacy: 'public',
+      privacy: (row.default_privacy as string) || 'public',
       sensitive: false,
       language: (row.locale as string) || 'en',
       note: (row.note as string) || '',

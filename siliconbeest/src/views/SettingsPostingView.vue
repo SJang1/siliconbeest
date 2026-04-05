@@ -14,12 +14,20 @@ const visibilityOptions: { value: StatusVisibility; labelKey: string; icon: stri
   { value: 'direct', labelKey: 'compose.visibility.direct', icon: '✉️' },
 ]
 
+const saving = ref(false)
 const saved = ref(false)
 
-function selectVisibility(v: StatusVisibility) {
-  compose.setDefaultVisibility(v)
-  saved.value = true
-  setTimeout(() => { saved.value = false }, 2000)
+async function selectVisibility(v: StatusVisibility) {
+  if (saving.value || v === compose.defaultVisibility) return
+  saving.value = true
+  saved.value = false
+  try {
+    await compose.setDefaultVisibility(v)
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 2000)
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -39,7 +47,8 @@ function selectVisibility(v: StatusVisibility) {
           <button
             v-for="opt in visibilityOptions"
             :key="opt.value"
-            class="flex items-center gap-2 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors"
+            :disabled="saving"
+            class="flex items-center gap-2 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors disabled:opacity-50"
             :class="
               compose.defaultVisibility === opt.value
                 ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'

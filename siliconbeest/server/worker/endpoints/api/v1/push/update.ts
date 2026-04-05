@@ -23,18 +23,36 @@ import { getVapidPublicKey } from '../../../../utils/vapid';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
+const ALERT_MAP: Record<string, string> = {
+  mention: 'alert_mention',
+  follow: 'alert_follow',
+  favourite: 'alert_favourite',
+  reblog: 'alert_reblog',
+  poll: 'alert_poll',
+  status: 'alert_status',
+  update: 'alert_update',
+  follow_request: 'alert_follow_request',
+  'admin.sign_up': 'alert_admin_sign_up',
+  'admin.report': 'alert_admin_report',
+};
+
 app.put('/', authRequired, requireScope('push'), async (c) => {
   const authHeader = c.req.header('Authorization')!;
-  const accessToken = authHeader.slice(7);
+  const rawToken = authHeader.slice(7);
 
-  // Fetch existing subscription
+  // Fetch existing subscription via token join
   const existing = await c.env.DB.prepare(
-    `SELECT id, endpoint, key_p256dh, key_auth, alerts, policy
-     FROM web_push_subscriptions
-     WHERE access_token = ?1
+    `SELECT s.id, s.endpoint, s.policy,
+            s.alert_mention, s.alert_follow, s.alert_favourite, s.alert_reblog,
+            s.alert_poll, s.alert_status, s.alert_update, s.alert_follow_request,
+            s.alert_admin_sign_up, s.alert_admin_report,
+            t.id AS token_id
+     FROM web_push_subscriptions s
+     JOIN oauth_access_tokens t ON t.id = s.access_token_id
+     WHERE t.token = ?1
      LIMIT 1`,
   )
-    .bind(accessToken)
+    .bind(rawToken)
     .first();
 
   if (!existing) {
@@ -50,46 +68,64 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
     body = Object.fromEntries((await c.req.parseBody({ all: true })) as any);
   }
 
-  // Merge alerts
-  let currentAlerts: Record<string, boolean>;
-  try {
-    currentAlerts = JSON.parse(existing.alerts as string);
-  } catch {
-    currentAlerts = {};
-  }
-
+  // Build SET clauses for changed alerts
   const alertsRaw = (body as any)?.data?.alerts ?? {};
-  const alertKeys = [
-    'mention', 'status', 'reblog', 'follow', 'follow_request',
-    'favourite', 'poll', 'update', 'admin.sign_up', 'admin.report',
-  ];
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
 
-  for (const key of alertKeys) {
-    const flatKey = `data[alerts][${key}]`;
-    const value = alertsRaw[key] ?? (body as any)[flatKey];
+  for (const [apiKey, colName] of Object.entries(ALERT_MAP)) {
+    const flatKey = `data[alerts][${apiKey}]`;
+    const value = alertsRaw[apiKey] ?? (body as any)[flatKey];
     if (value !== undefined) {
-      currentAlerts[key] = value === true || value === 'true' || value === '1';
+      sets.push(`${colName} = ?${paramIdx++}`);
+      params.push(value === true || value === 'true' || value === '1' ? 1 : 0);
     }
   }
 
   const policy =
     (body as any)?.data?.policy ??
-    (body as any)['data[policy]'] ??
-    existing.policy;
+    (body as any)['data[policy]'];
+  if (policy !== undefined) {
+    sets.push(`policy = ?${paramIdx++}`);
+    params.push(policy);
+  }
+
+  sets.push(`updated_at = datetime('now')`);
+  params.push(existing.id);
 
   await c.env.DB.prepare(
-    `UPDATE web_push_subscriptions
-     SET alerts = ?1, policy = ?2, updated_at = datetime('now')
-     WHERE access_token = ?3`,
+    `UPDATE web_push_subscriptions SET ${sets.join(', ')} WHERE id = ?${paramIdx}`,
   )
-    .bind(JSON.stringify(currentAlerts), policy, accessToken)
+    .bind(...params)
     .run();
 
+  // Re-read the updated row
+  const updated = await c.env.DB.prepare(
+    `SELECT id, endpoint, policy,
+            alert_mention, alert_follow, alert_favourite, alert_reblog,
+            alert_poll, alert_status, alert_update, alert_follow_request,
+            alert_admin_sign_up, alert_admin_report
+     FROM web_push_subscriptions WHERE id = ?1`,
+  ).bind(existing.id).first();
+
+  const row = updated!;
   return c.json({
-    id: existing.id,
-    endpoint: existing.endpoint,
-    alerts: currentAlerts,
-    policy,
+    id: row.id,
+    endpoint: row.endpoint,
+    alerts: {
+      mention: !!(row.alert_mention),
+      follow: !!(row.alert_follow),
+      favourite: !!(row.alert_favourite),
+      reblog: !!(row.alert_reblog),
+      poll: !!(row.alert_poll),
+      status: !!(row.alert_status),
+      update: !!(row.alert_update),
+      follow_request: !!(row.alert_follow_request),
+      'admin.sign_up': !!(row.alert_admin_sign_up),
+      'admin.report': !!(row.alert_admin_report),
+    },
+    policy: row.policy,
     server_key: await getVapidPublicKey(c.env.DB, c.env),
   });
 });

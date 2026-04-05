@@ -1,25 +1,23 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { StatusVisibility, MediaAttachment, Status } from '@/types/mastodon';
 import { createStatus, editStatus } from '@/api/mastodon/statuses';
+import { updateCredentials } from '@/api/mastodon/accounts';
 import { uploadMedia } from '@/api/mastodon/media';
 import { useAuthStore } from './auth';
 import { useStatusesStore } from './statuses';
 import { useTimelinesStore } from './timelines';
 
 const MAX_CHARACTERS = 500;
-const VISIBILITY_STORAGE_KEY = 'siliconbeest:defaultVisibility';
-
-function loadDefaultVisibility(): StatusVisibility {
-  try {
-    const stored = localStorage.getItem(VISIBILITY_STORAGE_KEY);
-    if (stored === 'public' || stored === 'unlisted' || stored === 'private' || stored === 'direct') return stored;
-  } catch { /* ignore */ }
-  return 'public';
-}
 
 export const useComposeStore = defineStore('compose', () => {
-  const defaultVisibility = ref<StatusVisibility>(loadDefaultVisibility());
+  const defaultVisibility = ref<StatusVisibility>('public');
+
+  // Sync defaultVisibility from currentUser.source.privacy when user data loads
+  const auth = useAuthStore();
+  watch(() => auth.currentUser?.source?.privacy, (privacy) => {
+    if (privacy) defaultVisibility.value = privacy;
+  }, { immediate: true });
   const text = ref('');
   const contentWarning = ref('');
   const showContentWarning = ref(false);
@@ -66,9 +64,15 @@ export const useComposeStore = defineStore('compose', () => {
     showPoll.value = false;
   }
 
-  function setDefaultVisibility(v: StatusVisibility) {
+  async function setDefaultVisibility(v: StatusVisibility) {
     defaultVisibility.value = v;
-    try { localStorage.setItem(VISIBILITY_STORAGE_KEY, v); } catch { /* ignore */ }
+    const auth = useAuthStore();
+    if (auth.token) {
+      const formData = new FormData();
+      formData.append('source[privacy]', v);
+      await updateCredentials(auth.token, formData);
+      await auth.fetchCurrentUser();
+    }
   }
 
   function setReplyTo(status: Status) {
