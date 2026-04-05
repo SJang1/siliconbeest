@@ -9,6 +9,7 @@
 
 import type { Env } from '../../env';
 import type { APActivity, APObject, APActor } from '../../types/activitypub';
+import type { UpdateAccountInput } from '../../repositories/account';
 import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
 
@@ -39,7 +40,7 @@ class UpdateProcessor extends BaseProcessor {
 				return;
 			}
 
-			const updates: Record<string, unknown> = {};
+			const updates: UpdateAccountInput = {};
 
 			if (actor.name !== undefined) updates.display_name = actor.name ?? '';
 			if (actor.summary !== undefined) updates.note = sanitizeHtml(actor.summary ?? '');
@@ -63,7 +64,7 @@ class UpdateProcessor extends BaseProcessor {
 
 			if (Object.keys(updates).length === 0) return;
 
-			await this.accountRepo.update(actorAccount.id, updates as any);
+			await this.accountRepo.update(actorAccount.id, updates);
 			return;
 		}
 

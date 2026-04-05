@@ -7,6 +7,33 @@ import { serializeAccount, serializeStatus } from '../../../utils/mastodonSerial
 import { enrichStatuses } from '../../../utils/statusEnrichment';
 import type { AccountRow, StatusRow } from '../../../types/db';
 
+interface FavouriteJoinRow extends StatusRow {
+  f_id: string;
+  a_id: string;
+  a_username: string;
+  a_domain: string | null;
+  a_display_name: string;
+  a_note: string;
+  a_uri: string;
+  a_url: string | null;
+  a_avatar_url: string;
+  a_avatar_static_url: string;
+  a_header_url: string;
+  a_header_static_url: string;
+  a_locked: number;
+  a_bot: number;
+  a_discoverable: number | null;
+  a_statuses_count: number;
+  a_followers_count: number;
+  a_following_count: number;
+  a_last_status_at: string | null;
+  a_created_at: string;
+  a_suspended_at: string | null;
+  a_memorial: number;
+  a_moved_to_account_id: string | null;
+  a_emoji_tags: string | null;
+}
+
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
@@ -49,12 +76,12 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<FavouriteJoinRow>();
 
-  const statusIds = (results ?? []).map((r: any) => r.id as string);
+  const statusIds = (results ?? []).map((r) => r.id);
   const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id, c.env.CACHE);
 
-  const statuses = (results ?? []).map((row: any) => {
+  const statuses = (results ?? []).map((row) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
       display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,
@@ -69,7 +96,7 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
       emoji_tags: row.a_emoji_tags || null,
     };
     const e = enrichments.get(row.id);
-    const status = serializeStatus(row as StatusRow, {
+    const status = serializeStatus(row, {
       account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       favourited: true,
       mediaAttachments: e?.mediaAttachments,
@@ -80,8 +107,9 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
     });
     // Keep status.id as the status ID (Mastodon API spec)
     // Use f_id internally for pagination Link headers
-    (status as any)._pagination_id = row.f_id;
-    return status;
+    const statusWithPagination = status as typeof status & { _pagination_id: string };
+    statusWithPagination._pagination_id = row.f_id;
+    return statusWithPagination;
   });
 
   if (pag.minId) statuses.reverse();

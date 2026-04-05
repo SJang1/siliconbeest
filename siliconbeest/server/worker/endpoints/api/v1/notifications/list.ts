@@ -65,13 +65,47 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  interface NotifWithAccountRow {
+    id: string;
+    account_id: string;
+    from_account_id: string;
+    type: string;
+    status_id: string | null;
+    emoji: string | null;
+    read: number;
+    created_at: string;
+    a_id: string;
+    a_username: string;
+    a_domain: string | null;
+    a_display_name: string;
+    a_note: string;
+    a_uri: string;
+    a_url: string | null;
+    a_avatar_url: string | null;
+    a_avatar_static_url: string | null;
+    a_header_url: string | null;
+    a_header_static_url: string | null;
+    a_locked: number;
+    a_bot: number;
+    a_discoverable: number | null;
+    a_statuses_count: number;
+    a_followers_count: number;
+    a_following_count: number;
+    a_last_status_at: string | null;
+    a_created_at: string;
+    a_suspended_at: string | null;
+    a_memorial: number;
+    a_moved_to_account_id: string | null;
+    a_emoji_tags: string | null;
+  }
+
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
   const rows = results ?? [];
 
   // Collect status IDs that need fetching
   const statusIds = rows
-    .filter((row: any) => row.status_id)
-    .map((row: any) => row.status_id as string);
+    .filter((row) => row.status_id)
+    .map((row) => row.status_id as string);
   const uniqueStatusIds = [...new Set(statusIds)];
 
   // Batch-fetch statuses with their accounts
@@ -160,26 +194,26 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   // Batch-fetch account emojis for notification from_accounts
   const notifAccountTexts: string[] = [];
   const notifAccountDomains = new Map<string, string | null>();
-  for (const row of rows as any[]) {
-    const displayName = (row.a_display_name as string) || '';
-    const note = (row.a_note as string) || '';
-    const acctDomain = (row.a_domain as string) || null;
+  for (const row of rows) {
+    const displayName = row.a_display_name || '';
+    const note = row.a_note || '';
+    const acctDomain = row.a_domain || null;
     notifAccountTexts.push(displayName, note);
-    notifAccountDomains.set(row.a_id as string, acctDomain);
+    notifAccountDomains.set(row.a_id, acctDomain);
   }
 
   // Group by domain for batch fetching
   const notifDomainTexts = new Map<string, string[]>();
-  for (const row of rows as any[]) {
-    const dk = (row.a_domain as string) || '__local__';
+  for (const row of rows) {
+    const dk = row.a_domain || '__local__';
     if (!notifDomainTexts.has(dk)) notifDomainTexts.set(dk, []);
-    notifDomainTexts.get(dk)!.push((row.a_display_name as string) || '', (row.a_note as string) || '');
+    notifDomainTexts.get(dk)!.push(row.a_display_name || '', row.a_note || '');
   }
 
   // Batch-fetch custom emoji URLs for emoji_reaction notifications
   const emojiShortcodes = new Set<string>();
-  for (const row of rows as any[]) {
-    const emoji = row.emoji as string | null;
+  for (const row of rows) {
+    const emoji = row.emoji;
     if (row.type === 'emoji_reaction' && emoji?.startsWith(':') && emoji?.endsWith(':')) {
       emojiShortcodes.add(emoji.slice(1, -1));
     }
@@ -200,12 +234,12 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
     }
   }
 
-  const notifications = rows.map((row: any) => {
+  const notifications = rows.map((row) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
       display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,
-      url: row.a_url, avatar_url: row.a_avatar_url, avatar_static_url: row.a_avatar_static_url,
-      header_url: row.a_header_url, header_static_url: row.a_header_static_url,
+      url: row.a_url, avatar_url: row.a_avatar_url ?? '', avatar_static_url: row.a_avatar_static_url ?? '',
+      header_url: row.a_header_url ?? '', header_static_url: row.a_header_static_url ?? '',
       locked: row.a_locked, bot: row.a_bot, discoverable: row.a_discoverable,
       manually_approves_followers: 0, statuses_count: row.a_statuses_count,
       followers_count: row.a_followers_count, following_count: row.a_following_count,
@@ -226,11 +260,11 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
       status: statusObj,
     });
     // Attach custom emoji URL for emoji_reaction notifications
-    const emoji = row.emoji as string | null;
+    const emoji = row.emoji;
     if (notifRow.type === 'emoji_reaction' && emoji?.startsWith(':') && emoji?.endsWith(':')) {
       const sc = emoji.slice(1, -1);
       const url = emojiUrlMap.get(sc);
-      if (url) (notif as any).emoji_url = url;
+      if (url) (notif as unknown as Record<string, unknown>).emoji_url = url;
     }
     return notif;
   });

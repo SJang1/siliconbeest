@@ -4,6 +4,11 @@ import { authRequired } from '../../../middleware/auth';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
+interface TagFollowRow {
+  follow_id: string;
+  name: string;
+}
+
 const app = new Hono<HonoEnv>();
 
 // GET /api/v1/followed_tags — list hashtags the user follows
@@ -35,13 +40,13 @@ app.get('/', authRequired, async (c) => {
      LIMIT ?${binds.length + 1}`,
   )
     .bind(...binds, limit + 1)
-    .all();
+    .all<TagFollowRow>();
 
   const rows = results ?? [];
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
 
-  const tags = items.map((row: any) => ({
+  const tags = items.map((row) => ({
     name: row.name,
     url: `https://${domain}/tags/${row.name}`,
     history: [],
@@ -53,11 +58,11 @@ app.get('/', authRequired, async (c) => {
     const linkParts: string[] = [];
     if (hasMore) {
       linkParts.push(
-        `<https://${domain}/api/v1/followed_tags?max_id=${(items[items.length - 1] as any).follow_id}&limit=${limit}>; rel="next"`,
+        `<https://${domain}/api/v1/followed_tags?max_id=${items[items.length - 1].follow_id}&limit=${limit}>; rel="next"`,
       );
     }
     linkParts.push(
-      `<https://${domain}/api/v1/followed_tags?since_id=${(items[0] as any).follow_id}&limit=${limit}>; rel="prev"`,
+      `<https://${domain}/api/v1/followed_tags?since_id=${items[0].follow_id}&limit=${limit}>; rel="prev"`,
     );
     headers.set('Link', linkParts.join(', '));
   }

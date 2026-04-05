@@ -96,7 +96,7 @@ app.get('/:id/context', authOptional, async (c) => {
     const e = enrichments.get(r.id as string);
     const s = serializeStatus(r, domain, undefined, e?.accountEmojis);
     if (e) {
-      s.media_attachments = e.mediaAttachments as any[];
+      s.media_attachments = e.mediaAttachments ?? [];
       s.favourited = e.favourited ?? false;
       s.reblogged = e.reblogged ?? false;
       s.bookmarked = e.bookmarked ?? false;

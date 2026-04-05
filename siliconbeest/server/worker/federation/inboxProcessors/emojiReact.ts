@@ -62,7 +62,7 @@ class EmojiReactProcessor extends BaseProcessor {
 				const emojiUrl = iconObj?.url as string | undefined;
 				if (!emojiName || !emojiUrl) continue;
 
-				const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
+				const reactorUri = activity.actor;
 				const emojiDomain = new URL(reactorUri).hostname;
 
 				if (emojiDomain) {
@@ -81,7 +81,7 @@ class EmojiReactProcessor extends BaseProcessor {
 		let customEmojiId: string | null = null;
 		if (emoji.startsWith(':') && emoji.endsWith(':')) {
 			const shortcode = emoji.slice(1, -1);
-			const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
+			const reactorUri = activity.actor;
 			const emojiDomain = new URL(reactorUri).hostname;
 			if (emojiDomain) {
 				const emojiRow = await this.env.DB.prepare(

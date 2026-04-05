@@ -8,6 +8,7 @@
 
 import type { Env } from '../../env';
 import type { APActivity, APObject, APTag, APNote } from '../../types/activitypub';
+import type { StatusWithJoinedAccountRow } from '../../types/db';
 import { generateUlid } from '../../utils/ulid';
 import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
@@ -121,12 +122,12 @@ class CreateProcessor extends BaseProcessor {
 		}
 
 		// Extract emoji tags for db column
-		const rawTags: Array<Record<string, unknown>> = Array.isArray(note.tag) ? note.tag as any : [];
+		const rawTags: APTag[] = Array.isArray(note.tag) ? note.tag : [];
 		const emojiTagsForDb = rawTags
 			.filter((t) => t.type === 'Emoji')
 			.map((et) => {
-				const name = ((et.name as string) || '').replace(/^:|:$/g, '');
-				const iconObj = (et as any).icon as { url?: string } | undefined;
+				const name = (et.name || '').replace(/^:|:$/g, '');
+				const iconObj = et.icon;
 				return name && iconObj?.url ? { shortcode: name, url: iconObj.url, static_url: iconObj.url } : null;
 			})
 			.filter(Boolean);
@@ -183,31 +184,32 @@ class CreateProcessor extends BaseProcessor {
 		authorAccountId: string,
 		now: string,
 	): Promise<void> {
-		const rawAttachments = (note as any).attachment;
+		const rawAttachments = note.attachment;
 		const attachments = Array.isArray(rawAttachments) ? rawAttachments : rawAttachments ? [rawAttachments] : [];
-		for (const att of attachments as any[]) {
+		for (const att of attachments) {
 			if (!att || typeof att !== 'object') continue;
+			const attObj = att as Record<string, unknown>;
 			let url: string | null = null;
-			if (typeof att.url === 'string') {
-				url = att.url;
-			} else if (Array.isArray(att.url)) {
-				const link = att.url.find((u: any) => typeof u === 'string' || (u && u.href));
-				url = typeof link === 'string' ? link : link?.href ?? null;
-			} else if (att.url && typeof att.url === 'object' && att.url.href) {
-				url = att.url.href;
-			} else if (typeof att.href === 'string') {
-				url = att.href;
+			if (typeof attObj.url === 'string') {
+				url = attObj.url;
+			} else if (Array.isArray(attObj.url)) {
+				const link = (attObj.url as unknown[]).find((u) => typeof u === 'string' || (u && typeof u === 'object' && (u as Record<string, unknown>).href));
+				url = typeof link === 'string' ? link : (link as Record<string, unknown> | undefined)?.href as string ?? null;
+			} else if (attObj.url && typeof attObj.url === 'object' && (attObj.url as Record<string, unknown>).href) {
+				url = (attObj.url as Record<string, unknown>).href as string;
+			} else if (typeof attObj.href === 'string') {
+				url = attObj.href;
 			}
 			if (!url) continue;
 
-			const mediaType = att.mediaType || att.mimeType || 'image/jpeg';
+			const mediaType = (attObj.mediaType as string | undefined) || (attObj.mimeType as string | undefined) || 'image/jpeg';
 			let type = 'unknown';
 			if (mediaType.startsWith('image/')) type = 'image';
 			else if (mediaType.startsWith('video/')) type = 'video';
 			else if (mediaType.startsWith('audio/')) type = 'audio';
-			else if (att.type === 'Image') type = 'image';
-			else if (att.type === 'Video') type = 'video';
-			else if (att.type === 'Audio') type = 'audio';
+			else if (attObj.type === 'Image') type = 'image';
+			else if (attObj.type === 'Video') type = 'video';
+			else if (attObj.type === 'Audio') type = 'audio';
 			else type = 'image';
 
 			try {
@@ -218,8 +220,8 @@ class CreateProcessor extends BaseProcessor {
 				).bind(
 					generateUlid(), statusId, authorAccountId, type,
 					url, url, mediaType,
-					att.name || att.summary || null,
-					att.width || null, att.height || null, att.blurhash || null, now,
+					(attObj.name as string | undefined) || (attObj.summary as string | undefined) || null,
+					(attObj.width as number | undefined) || null, (attObj.height as number | undefined) || null, (attObj.blurhash as string | undefined) || null, now,
 				).run();
 			} catch (e) {
 				console.error(`Failed to insert media attachment for ${statusId}:`, e);
@@ -288,14 +290,13 @@ class CreateProcessor extends BaseProcessor {
 		actorUri: string,
 		now: string,
 	): Promise<void> {
-		const actorServerDomain = new URL(typeof actorUri === 'string' ? actorUri : (actorUri as any)?.id || '').hostname;
+		const actorServerDomain = new URL(actorUri).hostname;
 		const emojiTags = tags.filter((t) => t.type === 'Emoji');
 		const newEmojis: Array<{ shortcode: string; url: string; static_url: string; domain: string }> = [];
 
 		for (const et of emojiTags) {
 			const emojiName = ((et.name as string) || '').replace(/^:|:$/g, '');
-			const iconObj = (et as any).icon as { url?: string } | undefined;
-			const emojiUrl = iconObj?.url;
+			const emojiUrl = et.icon?.url;
 			if (!emojiName || !emojiUrl) continue;
 			const emojiDomain = actorServerDomain;
 			if (!emojiDomain) continue;
@@ -338,18 +339,19 @@ class CreateProcessor extends BaseProcessor {
 		authorAccountId: string,
 		now: string,
 	): Promise<void> {
+		interface LocalMentionRow { account_id: string }
 		const { results: localMentions } = await this.env.DB.prepare(
 			`SELECT m.account_id FROM mentions m
 			 JOIN accounts a ON a.id = m.account_id
 			 WHERE m.status_id = ?1 AND a.domain IS NULL`,
-		).bind(statusId).all();
+		).bind(statusId).all<LocalMentionRow>();
 
 		if (!localMentions || localMentions.length === 0) return;
 
-		const stmts = localMentions.map((m: any) =>
+		const stmts = localMentions.map((m) =>
 			this.env.DB.prepare(
 				'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-			).bind(statusId, m.account_id as string, now),
+			).bind(statusId, m.account_id, now),
 		);
 		await this.env.DB.batch(stmts);
 
@@ -364,41 +366,41 @@ class CreateProcessor extends BaseProcessor {
 				        a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
 				        a.created_at AS a_created_at, a.emoji_tags AS a_emoji_tags
 				 FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
-			).bind(statusId).first();
+			).bind(statusId).first<StatusWithJoinedAccountRow>();
 
 			if (dmStatusRow) {
-				const acct = (dmStatusRow as any).a_domain
-					? `${(dmStatusRow as any).a_username}@${(dmStatusRow as any).a_domain}`
-					: (dmStatusRow as any).a_username;
+				const acct = dmStatusRow.a_domain
+					? `${dmStatusRow.a_username}@${dmStatusRow.a_domain}`
+					: dmStatusRow.a_username;
 				const dmPayload = JSON.stringify({
-					id: statusId, uri: (dmStatusRow as any).uri, created_at: (dmStatusRow as any).created_at,
-					content: (dmStatusRow as any).content, visibility: 'direct',
-					sensitive: !!(dmStatusRow as any).sensitive, spoiler_text: (dmStatusRow as any).content_warning || '',
-					language: (dmStatusRow as any).language, url: (dmStatusRow as any).url,
-					in_reply_to_id: (dmStatusRow as any).in_reply_to_id, in_reply_to_account_id: (dmStatusRow as any).in_reply_to_account_id,
+					id: statusId, uri: dmStatusRow.uri, created_at: dmStatusRow.created_at,
+					content: dmStatusRow.content, visibility: 'direct',
+					sensitive: !!dmStatusRow.sensitive, spoiler_text: dmStatusRow.content_warning || '',
+					language: dmStatusRow.language, url: dmStatusRow.url,
+					in_reply_to_id: dmStatusRow.in_reply_to_id, in_reply_to_account_id: dmStatusRow.in_reply_to_account_id,
 					reblogs_count: 0, favourites_count: 0, replies_count: 0, edited_at: null,
 					media_attachments: [], mentions: [], tags: [], emojis: [],
 					reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
 					account: {
-						id: authorAccountId, username: (dmStatusRow as any).a_username, acct,
-						display_name: (dmStatusRow as any).a_display_name || '',
-						locked: !!((dmStatusRow as any).a_locked), bot: !!((dmStatusRow as any).a_bot),
-						discoverable: !!((dmStatusRow as any).a_discoverable), group: false,
-						created_at: (dmStatusRow as any).a_created_at, note: (dmStatusRow as any).a_note || '',
-						url: (dmStatusRow as any).a_url || '', uri: (dmStatusRow as any).a_uri || '',
-						avatar: (dmStatusRow as any).a_avatar_url || '', avatar_static: (dmStatusRow as any).a_avatar_static_url || '',
-						header: (dmStatusRow as any).a_header_url || '', header_static: (dmStatusRow as any).a_header_static_url || '',
-						followers_count: (dmStatusRow as any).a_followers_count || 0, following_count: (dmStatusRow as any).a_following_count || 0,
-						statuses_count: (dmStatusRow as any).a_statuses_count || 0, last_status_at: null,
+						id: authorAccountId, username: dmStatusRow.a_username, acct,
+						display_name: dmStatusRow.a_display_name || '',
+						locked: !!dmStatusRow.a_locked, bot: !!dmStatusRow.a_bot,
+						discoverable: !!dmStatusRow.a_discoverable, group: false,
+						created_at: dmStatusRow.a_created_at, note: dmStatusRow.a_note || '',
+						url: dmStatusRow.a_url || '', uri: dmStatusRow.a_uri || '',
+						avatar: dmStatusRow.a_avatar_url || '', avatar_static: dmStatusRow.a_avatar_static_url || '',
+						header: dmStatusRow.a_header_url || '', header_static: dmStatusRow.a_header_static_url || '',
+						followers_count: dmStatusRow.a_followers_count || 0, following_count: dmStatusRow.a_following_count || 0,
+						statuses_count: dmStatusRow.a_statuses_count || 0, last_status_at: null,
 						emojis: [], fields: [],
 					},
 				});
 
-				for (const m of localMentions as any[]) {
-					const userRow = await this.env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first();
+				for (const m of localMentions) {
+					const userRow = await this.env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
 					if (userRow) {
 						try {
-							const doId = this.env.STREAMING_DO.idFromName(userRow.id as string);
+							const doId = this.env.STREAMING_DO.idFromName(userRow.id);
 							const stub = this.env.STREAMING_DO.get(doId);
 							await stub.fetch('https://streaming/event', {
 								method: 'POST',

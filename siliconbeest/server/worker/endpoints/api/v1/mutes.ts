@@ -6,6 +6,10 @@ import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '..
 import { serializeAccount } from '../../../utils/mastodonSerializer';
 import type { AccountRow } from '../../../types/db';
 
+interface MuteJoinRow extends AccountRow {
+  m_id: string;
+}
+
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
@@ -38,10 +42,10 @@ app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<MuteJoinRow>();
 
   // Build link header using mute row IDs
-  const paginationItems = (results ?? []).map((row: any) => ({ id: row.m_id as string }));
+  const paginationItems = (results ?? []).map((row) => ({ id: row.m_id }));
   if (pag.minId) paginationItems.reverse();
 
   const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/mutes`;
@@ -50,8 +54,8 @@ app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
   if (link) headers['Link'] = link;
 
   // Restore actual account IDs in the response
-  const serialized = (results as any[]).map((row: any) => {
-    return serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
+  const serialized = (results ?? []).map((row) => {
+    return serializeAccount(row, { instanceDomain: c.env.INSTANCE_DOMAIN });
   });
   if (pag.minId) serialized.reverse();
 

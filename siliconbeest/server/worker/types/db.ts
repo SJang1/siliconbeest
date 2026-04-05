@@ -541,3 +541,42 @@ export interface ConversationAccountRow {
   last_status_id: string | null;
   unread: number;
 }
+
+// ============================================================
+// JOIN ROW TYPES (SELECT s.*, a.* with aliased account columns)
+// ============================================================
+
+/**
+ * Result of `SELECT s.*, a.username AS a_username, a.domain AS a_domain, ...`
+ * Used by DM streaming, inbox processors, and other status+account JOINs.
+ */
+export interface StatusWithJoinedAccountRow extends StatusRow {
+  a_username: string;
+  a_domain: string | null;
+  a_display_name: string;
+  a_note: string;
+  a_uri: string;
+  a_url: string | null;
+  a_avatar_url: string | null;
+  a_avatar_static_url: string | null;
+  a_header_url: string | null;
+  a_header_static_url: string | null;
+  a_locked: number;
+  a_bot: number;
+  a_discoverable: number | null;
+  a_followers_count: number;
+  a_following_count: number;
+  a_statuses_count: number;
+  a_created_at: string;
+  a_last_status_at?: string | null;
+  a_emoji_tags?: string | null;
+}
+
+/** Result of `SELECT content, spoiler_text, sensitive, created_at, ... FROM status_edits` */
+export interface StatusEditRow {
+  content: string;
+  spoiler_text: string;
+  sensitive: number;
+  created_at: string;
+  media_attachments_json: string | null;
+}

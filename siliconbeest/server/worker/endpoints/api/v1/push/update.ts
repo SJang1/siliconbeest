@@ -48,18 +48,19 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
   if (contentType.includes('application/json')) {
     body = await c.req.json();
   } else {
-    body = Object.fromEntries((await c.req.parseBody({ all: true })) as any);
+    body = Object.fromEntries(Object.entries(await c.req.parseBody({ all: true })));
   }
 
   // Build SET clauses for changed alerts
-  const alertsRaw = (body as any)?.data?.alerts ?? {};
+  const dataObj = body.data as Record<string, unknown> | undefined;
+  const alertsRaw = (dataObj?.alerts as Record<string, unknown> | undefined) ?? {};
   const sets: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
 
   for (const [apiKey, colName] of Object.entries(ALERT_MAP)) {
     const flatKey = `data[alerts][${apiKey}]`;
-    const value = alertsRaw[apiKey] ?? (body as any)[flatKey];
+    const value = alertsRaw[apiKey] ?? body[flatKey];
     if (value !== undefined) {
       sets.push(`${colName} = ?${paramIdx++}`);
       params.push(value === true || value === 'true' || value === '1' ? 1 : 0);
@@ -67,8 +68,8 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
   }
 
   const policy =
-    (body as any)?.data?.policy ??
-    (body as any)['data[policy]'];
+    (dataObj?.policy as string | undefined) ??
+    (body['data[policy]'] as string | undefined);
   if (policy !== undefined) {
     sets.push(`policy = ?${paramIdx++}`);
     params.push(policy);

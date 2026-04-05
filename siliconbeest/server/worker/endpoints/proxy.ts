@@ -24,6 +24,7 @@
  */
 
 import { Hono } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Env, AppVariables } from '../env';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -220,7 +221,7 @@ app.get('/', async (c) => {
     const status = originResponse.status >= 400 && originResponse.status < 600
       ? originResponse.status
       : 502;
-    return c.json({ error: `Remote server returned ${originResponse.status}` }, status as any);
+    return c.json({ error: `Remote server returned ${originResponse.status}` }, status as ContentfulStatusCode);
   }
 
   const contentType = originResponse.headers.get('Content-Type');

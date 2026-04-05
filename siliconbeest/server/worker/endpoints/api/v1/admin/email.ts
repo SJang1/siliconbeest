@@ -15,7 +15,7 @@ app.use('*', authRequired, adminRequired);
  * Body: { to: string, subject: string, body: string }
  */
 app.post('/', async (c) => {
-	const payload = await c.req.json<{ to?: string; subject?: string; body?: string }>().catch(() => ({} as any));
+	const payload = await c.req.json<{ to?: string; subject?: string; body?: string }>().catch((): { to?: string; subject?: string; body?: string } => ({}));
 
 	if (!payload.to || !payload.subject || !payload.body) {
 		throw new AppError(422, 'Validation failed: to, subject, and body are required');

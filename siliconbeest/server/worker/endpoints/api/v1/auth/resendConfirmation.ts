@@ -14,7 +14,7 @@ const app = new Hono<HonoEnv>();
  * Always returns 200 to prevent email enumeration.
  */
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ email?: string }>().catch((): { email?: string } => ({}));
 	const email = body.email?.toLowerCase().trim();
 
 	if (!email) {

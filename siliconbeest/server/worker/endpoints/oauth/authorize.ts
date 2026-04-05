@@ -185,7 +185,7 @@ async function resolveBearer(c: any): Promise<string | null> {
 
 	// KV cache
 	const cached = await c.env.CACHE.get(cacheKey, 'json');
-	if (cached) return (cached as any).user?.id ?? null;
+	if (cached) return (cached as { user?: { id?: string } }).user?.id ?? null;
 
 	// D1 fallback (token_hash first, then legacy plaintext)
 	let row = await c.env.DB.prepare(

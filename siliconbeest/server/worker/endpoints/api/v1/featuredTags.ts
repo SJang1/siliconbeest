@@ -6,7 +6,24 @@ import { generateUlid } from '../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
-function serialize(row: any, domain: string) {
+interface FeaturedTagWithNameRow {
+  id: string;
+  tag_name: string;
+  statuses_count: number | null;
+  last_status_at: string | null;
+}
+
+interface TagRow {
+  id: string;
+  name: string;
+}
+
+interface SuggestionRow {
+  name: string;
+  cnt: number;
+}
+
+function serialize(row: FeaturedTagWithNameRow, domain: string) {
   return {
     id: row.id,
     name: row.tag_name,
@@ -31,9 +48,9 @@ app.get('/', authRequired, async (c) => {
      ORDER BY ft.created_at DESC`,
   )
     .bind(currentAccount.id)
-    .all();
+    .all<FeaturedTagWithNameRow>();
 
-  return c.json((results ?? []).map((r: any) => serialize(r, domain)));
+  return c.json((results ?? []).map((r) => serialize(r, domain)));
 });
 
 // POST /api/v1/featured_tags — feature a tag
@@ -49,7 +66,7 @@ app.post('/', authRequired, async (c) => {
   // Find or create the tag
   let tag = await c.env.DB.prepare('SELECT * FROM tags WHERE name = ?1')
     .bind(tagName)
-    .first();
+    .first<TagRow>();
 
   if (!tag) {
     const tagId = generateUlid();
@@ -66,7 +83,7 @@ app.post('/', authRequired, async (c) => {
   const existing = await c.env.DB.prepare(
     'SELECT id FROM featured_tags WHERE account_id = ?1 AND tag_id = ?2',
   )
-    .bind(currentAccount.id, (tag as any).id)
+    .bind(currentAccount.id, tag.id)
     .first();
 
   if (existing) throw new AppError(422, 'Validation failed: tag is already featured');
@@ -77,7 +94,7 @@ app.post('/', authRequired, async (c) => {
      JOIN status_tags st ON st.status_id = s.id
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL`,
   )
-    .bind(currentAccount.id, (tag as any).id)
+    .bind(currentAccount.id, tag.id)
     .first<{ cnt: number }>();
 
   const lastRow = await c.env.DB.prepare(
@@ -86,7 +103,7 @@ app.post('/', authRequired, async (c) => {
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL
      ORDER BY s.created_at DESC LIMIT 1`,
   )
-    .bind(currentAccount.id, (tag as any).id)
+    .bind(currentAccount.id, tag.id)
     .first<{ created_at: string }>();
 
   const id = generateUlid();
@@ -96,7 +113,7 @@ app.post('/', authRequired, async (c) => {
     `INSERT INTO featured_tags (id, account_id, tag_id, statuses_count, last_status_at, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
   )
-    .bind(id, currentAccount.id, (tag as any).id, countRow?.cnt ?? 0, lastRow?.created_at ?? null, now)
+    .bind(id, currentAccount.id, tag.id, countRow?.cnt ?? 0, lastRow?.created_at ?? null, now)
     .run();
 
   return c.json({
@@ -145,10 +162,10 @@ app.get('/suggestions', authRequired, async (c) => {
      LIMIT 10`,
   )
     .bind(currentAccount.id)
-    .all();
+    .all<SuggestionRow>();
 
   return c.json(
-    (results ?? []).map((r: any) => ({
+    (results ?? []).map((r) => ({
       name: r.name,
       url: `https://${domain}/tags/${r.name}`,
       history: [],

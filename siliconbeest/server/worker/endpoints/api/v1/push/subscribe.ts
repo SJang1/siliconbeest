@@ -27,21 +27,23 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
   if (contentType.includes('application/json')) {
     body = await c.req.json();
   } else {
-    body = Object.fromEntries((await c.req.parseBody({ all: true })) as any);
+    body = Object.fromEntries(Object.entries(await c.req.parseBody({ all: true })));
   }
 
   // Extract subscription params
+  const subscriptionObj = body.subscription as Record<string, unknown> | undefined;
+  const subscriptionKeys = subscriptionObj?.keys as Record<string, unknown> | undefined;
   const endpoint =
-    (body as any)?.subscription?.endpoint ??
-    (body as any)['subscription[endpoint]'] ??
+    (subscriptionObj?.endpoint as string | undefined) ??
+    (body['subscription[endpoint]'] as string | undefined) ??
     null;
   const p256dh =
-    (body as any)?.subscription?.keys?.p256dh ??
-    (body as any)['subscription[keys][p256dh]'] ??
+    (subscriptionKeys?.p256dh as string | undefined) ??
+    (body['subscription[keys][p256dh]'] as string | undefined) ??
     null;
   const auth =
-    (body as any)?.subscription?.keys?.auth ??
-    (body as any)['subscription[keys][auth]'] ??
+    (subscriptionKeys?.auth as string | undefined) ??
+    (body['subscription[keys][auth]'] as string | undefined) ??
     null;
 
   if (!endpoint || !p256dh || !auth) {
@@ -62,10 +64,11 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
   }
 
   // Extract alert preferences
-  const alertsRaw = (body as any)?.data?.alerts ?? {};
+  const dataObj = body.data as Record<string, unknown> | undefined;
+  const alertsRaw = (dataObj?.alerts as Record<string, unknown> | undefined) ?? {};
   function getAlert(key: string): number {
     const flatKey = `data[alerts][${key}]`;
-    const value = alertsRaw[key] ?? (body as any)[flatKey];
+    const value = alertsRaw[key] ?? body[flatKey];
     return toBool(value);
   }
 
@@ -81,8 +84,8 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
   const alertAdminReport = getAlert('admin.report');
 
   const policy =
-    (body as any)?.data?.policy ??
-    (body as any)['data[policy]'] ??
+    (dataObj?.policy as string | undefined) ??
+    (body['data[policy]'] as string | undefined) ??
     'all';
 
   const id = crypto.randomUUID();

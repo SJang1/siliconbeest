@@ -204,7 +204,7 @@ export function setupInboxListeners<
 				if (localAccountId === null) return;
 
 				const apActivity = await Promise.resolve(convert(activity));
-				await processor(apActivity as any, localAccountId, env);
+				await processor(apActivity, localAccountId, env);
 			});
 		};
 	}
@@ -253,13 +253,13 @@ export function setupInboxListeners<
 
 				if (isMisskeyReaction) {
 					await processors.processEmojiReact(
-						activity as any,
+						activity,
 						localAccountId,
 						env,
 					);
 				} else {
 					await processors.processLike(
-						activity as any,
+						activity,
 						localAccountId,
 						env,
 					);
@@ -323,7 +323,7 @@ export function setupInboxListeners<
 
 				const activity = await viaJsonLd(flag);
 				await processors.processFlag(
-					activity as any,
+					activity,
 					localAccountId,
 					env,
 				);

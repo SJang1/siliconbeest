@@ -4,6 +4,7 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
 import type { AccountRow, NotificationRow } from '../../../../types/db';
+import type { Status } from '../../../../types/mastodon';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -13,7 +14,41 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
   const id = c.req.param('id');
 
-  const row: any = await c.env.DB.prepare(`
+  interface NotifWithAccountRow {
+    id: string;
+    account_id: string;
+    from_account_id: string;
+    type: string;
+    status_id: string | null;
+    emoji: string | null;
+    read: number;
+    created_at: string;
+    a_id: string;
+    a_username: string;
+    a_domain: string | null;
+    a_display_name: string;
+    a_note: string;
+    a_uri: string;
+    a_url: string | null;
+    a_avatar_url: string | null;
+    a_avatar_static_url: string | null;
+    a_header_url: string | null;
+    a_header_static_url: string | null;
+    a_locked: number;
+    a_bot: number;
+    a_discoverable: number | null;
+    a_statuses_count: number;
+    a_followers_count: number;
+    a_following_count: number;
+    a_last_status_at: string | null;
+    a_created_at: string;
+    a_suspended_at: string | null;
+    a_memorial: number;
+    a_moved_to_account_id: string | null;
+    a_emoji_tags: string | null;
+  }
+
+  const row = await c.env.DB.prepare(`
     SELECT n.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
            a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
            a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -28,7 +63,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
     JOIN accounts a ON a.id = n.from_account_id
     WHERE n.id = ?1 AND n.account_id = ?2
     LIMIT 1
-  `).bind(id, account.id).first();
+  `).bind(id, account.id).first<NotifWithAccountRow>();
 
   if (!row) {
     return c.json({ error: 'Record not found' }, 404);
@@ -37,25 +72,63 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   const accountRow: AccountRow = {
     id: row.a_id, username: row.a_username, domain: row.a_domain,
     display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,
-    url: row.a_url, avatar_url: row.a_avatar_url, avatar_static_url: row.a_avatar_static_url,
-    header_url: row.a_header_url, header_static_url: row.a_header_static_url,
+    url: row.a_url ?? '', avatar_url: row.a_avatar_url ?? '', avatar_static_url: row.a_avatar_static_url ?? '',
+    header_url: row.a_header_url ?? '', header_static_url: row.a_header_static_url ?? '',
     locked: row.a_locked, bot: row.a_bot, discoverable: row.a_discoverable,
     manually_approves_followers: 0, statuses_count: row.a_statuses_count,
     followers_count: row.a_followers_count, following_count: row.a_following_count,
     last_status_at: row.a_last_status_at, created_at: row.a_created_at,
     updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
     silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
-    emoji_tags: (row.a_emoji_tags as string) || null,
+    emoji_tags: row.a_emoji_tags || null,
   };
   const notifRow: NotificationRow = {
     id: row.id, account_id: row.account_id, from_account_id: row.from_account_id,
     type: row.type, status_id: row.status_id, emoji: row.emoji ?? null, read: row.read, created_at: row.created_at,
   };
 
+  interface StatusWithAccountRow {
+    id: string;
+    uri: string;
+    url: string | null;
+    content: string;
+    visibility: string;
+    sensitive: number;
+    content_warning: string;
+    language: string | null;
+    created_at: string;
+    in_reply_to_id: string | null;
+    in_reply_to_account_id: string | null;
+    reblogs_count: number;
+    favourites_count: number;
+    replies_count: number;
+    edited_at: string | null;
+    sa_id: string;
+    sa_username: string;
+    sa_domain: string | null;
+    sa_display_name: string;
+    sa_note: string;
+    sa_uri: string;
+    sa_url: string | null;
+    sa_avatar_url: string | null;
+    sa_avatar_static_url: string | null;
+    sa_header_url: string | null;
+    sa_header_static_url: string | null;
+    sa_locked: number;
+    sa_bot: number;
+    sa_discoverable: number | null;
+    sa_followers_count: number;
+    sa_following_count: number;
+    sa_statuses_count: number;
+    sa_last_status_at: string | null;
+    sa_created_at: string;
+    sa_emoji_tags: string | null;
+  }
+
   // Fetch status if notification has one
-  let statusObj: any = null;
+  let statusObj: Status | null = null;
   if (row.status_id) {
-    const sr: any = await c.env.DB.prepare(
+    const sr = await c.env.DB.prepare(
       `SELECT s.id, s.uri, s.url, s.content, s.visibility, s.sensitive,
               s.content_warning, s.language, s.created_at, s.in_reply_to_id,
               s.in_reply_to_account_id, s.reblogs_count, s.favourites_count,
@@ -72,7 +145,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
        FROM statuses s
        JOIN accounts sa ON sa.id = s.account_id
        WHERE s.id = ?1 AND s.deleted_at IS NULL`,
-    ).bind(row.status_id).first();
+    ).bind(row.status_id).first<StatusWithAccountRow>();
 
     if (sr) {
       const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id, c.env.CACHE);
@@ -82,35 +155,35 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
         : sr.sa_username;
 
       const statusAccountRow: AccountRow = {
-        id: sr.sa_id as string, username: sr.sa_username as string, domain: sr.sa_domain as string | null,
-        display_name: (sr.sa_display_name as string) || '', note: (sr.sa_note as string) || '',
-        uri: sr.sa_uri as string, url: (sr.sa_url as string) || '',
-        avatar_url: (sr.sa_avatar_url as string) || '', avatar_static_url: (sr.sa_avatar_static_url as string) || '',
-        header_url: (sr.sa_header_url as string) || '', header_static_url: (sr.sa_header_static_url as string) || '',
-        locked: sr.sa_locked as number, bot: sr.sa_bot as number, discoverable: sr.sa_discoverable as number | null,
-        manually_approves_followers: 0, statuses_count: (sr.sa_statuses_count || 0) as number,
-        followers_count: (sr.sa_followers_count || 0) as number, following_count: (sr.sa_following_count || 0) as number,
-        last_status_at: sr.sa_last_status_at as string | null, created_at: sr.sa_created_at as string,
-        updated_at: sr.sa_created_at as string, suspended_at: null, silenced_at: null, memorial: 0, moved_to_account_id: null,
-        emoji_tags: (sr.sa_emoji_tags as string) || null,
+        id: sr.sa_id, username: sr.sa_username, domain: sr.sa_domain,
+        display_name: sr.sa_display_name || '', note: sr.sa_note || '',
+        uri: sr.sa_uri, url: sr.sa_url || '',
+        avatar_url: sr.sa_avatar_url || '', avatar_static_url: sr.sa_avatar_static_url || '',
+        header_url: sr.sa_header_url || '', header_static_url: sr.sa_header_static_url || '',
+        locked: sr.sa_locked, bot: sr.sa_bot, discoverable: sr.sa_discoverable,
+        manually_approves_followers: 0, statuses_count: sr.sa_statuses_count || 0,
+        followers_count: sr.sa_followers_count || 0, following_count: sr.sa_following_count || 0,
+        last_status_at: sr.sa_last_status_at, created_at: sr.sa_created_at,
+        updated_at: sr.sa_created_at, suspended_at: null, silenced_at: null, memorial: 0, moved_to_account_id: null,
+        emoji_tags: sr.sa_emoji_tags || null,
       };
 
       statusObj = {
-        id: sr.id as string,
+        id: sr.id,
         uri: sr.uri,
         url: sr.url || null,
-        created_at: ensureISO8601(sr.created_at as string),
+        created_at: ensureISO8601(sr.created_at),
+        edited_at: sr.edited_at || null,
         content: sr.content || '',
-        visibility: sr.visibility || 'public',
+        visibility: (sr.visibility || 'public') as Status['visibility'],
         sensitive: !!sr.sensitive,
-        spoiler_text: (sr.content_warning as string) || '',
+        spoiler_text: sr.content_warning || '',
         language: sr.language || null,
         in_reply_to_id: sr.in_reply_to_id || null,
         in_reply_to_account_id: sr.in_reply_to_account_id || null,
         reblogs_count: sr.reblogs_count || 0,
         favourites_count: sr.favourites_count || 0,
         replies_count: sr.replies_count || 0,
-        edited_at: sr.edited_at || null,
         favourited: e?.favourited ?? false,
         reblogged: e?.reblogged ?? false,
         bookmarked: e?.bookmarked ?? false,
@@ -127,7 +200,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
         tags: [],
         emojis: e?.emojis ?? [],
         account: serializeAccount(statusAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
-      };
+      } as Status;
     }
   }
 
@@ -143,7 +216,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
     ).bind(sc).first<{ domain: string | null; image_key: string }>();
     if (er) {
       const isLocal = !er.domain || er.domain === c.env.INSTANCE_DOMAIN;
-      (notif as any).emoji_url = isLocal
+      (notif as unknown as Record<string, unknown>).emoji_url = isLocal
         ? `https://${c.env.INSTANCE_DOMAIN}/media/${er.image_key}`
         : `https://${c.env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(er.image_key)}`;
     }

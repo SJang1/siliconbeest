@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Env, AppVariables } from '../env';
 
 type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
@@ -71,7 +72,7 @@ export function errorHandler(err: Error, c: AppContext) {
     if (err.errorDescription) {
       body.error_description = err.errorDescription;
     }
-    return c.json(body, err.statusCode as any);
+    return c.json(body, err.statusCode as ContentfulStatusCode);
   }
 
   // Unexpected / internal errors

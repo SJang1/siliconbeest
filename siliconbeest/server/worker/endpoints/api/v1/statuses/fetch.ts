@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import type { MediaAttachment } from '../../../../types/mastodon';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -71,7 +72,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
     bookmarked: false,
     pinned: false,
     content: (row.content as string) || '',
-    filtered: [] as any[],
+    filtered: [] as Record<string, unknown>[],
     reblog: null,
     application: null,
     account: {
@@ -99,7 +100,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
       roles: [],
       fields: [],
     },
-    media_attachments: [] as any[],
+    media_attachments: [] as MediaAttachment[],
     mentions: [] as { id: string; username: string; acct: string; url: string }[],
     tags: [] as { name: string; url: string }[],
     emojis: [] as { shortcode: string; url: string; static_url: string; visible_in_picker: boolean }[],
@@ -125,7 +126,7 @@ async function serializeStatusEnriched(
   const e = enrichments.get(statusId);
   const status = serializeStatus(row, domain, undefined, e?.accountEmojis);
   if (e) {
-    status.media_attachments = e.mediaAttachments as any[];
+    status.media_attachments = e.mediaAttachments ?? [];
     status.favourited = e.favourited ?? false;
     status.reblogged = e.reblogged ?? false;
     status.bookmarked = e.bookmarked ?? false;

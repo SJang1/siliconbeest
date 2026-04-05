@@ -45,7 +45,7 @@ export async function resolveReblogs(
     const s = serializeStatusFn(r, domain);
     const e = enrichments.get(r.id as string);
     if (e) {
-      s.media_attachments = e.mediaAttachments as any[];
+      s.media_attachments = e.mediaAttachments;
       s.favourited = e.favourited ?? false;
       s.reblogged = e.reblogged ?? false;
       s.bookmarked = e.bookmarked ?? false;

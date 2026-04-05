@@ -43,8 +43,8 @@ class MoveProcessor extends BaseProcessor {
 			return;
 		}
 
-		const alsoKnownAs: string[] = (newActorObj as any).aliasIds
-			? Array.from((newActorObj as any).aliasIds).map((u: any) => typeof u === 'string' ? u : u.href)
+		const alsoKnownAs: string[] = newActorObj.aliasIds
+			? Array.from(newActorObj.aliasIds).map((u: URL) => u.href)
 			: [];
 
 		if (!alsoKnownAs.includes(oldAccountUri)) {

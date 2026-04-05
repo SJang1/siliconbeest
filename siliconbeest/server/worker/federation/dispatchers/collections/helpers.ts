@@ -152,9 +152,9 @@ export function buildFedifyNote(
 
   // Build custom emoji tags from emoji_tags JSON
   const emojiTagObjects: APEmoji[] = [];
-  if ((status as any).emoji_tags) {
+  if (status.emoji_tags) {
     try {
-      const emojiTags = JSON.parse((status as any).emoji_tags) as Array<{ shortcode: string; url: string; static_url?: string }>;
+      const emojiTags = JSON.parse(status.emoji_tags) as Array<{ shortcode: string; url: string; static_url?: string }>;
       for (const et of emojiTags) {
         if (!et.shortcode || !et.url) continue;
         emojiTagObjects.push(new APEmoji({

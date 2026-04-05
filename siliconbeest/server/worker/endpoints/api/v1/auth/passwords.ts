@@ -15,7 +15,7 @@ const app = new Hono<HonoEnv>();
  * Always returns 200 to prevent email enumeration.
  */
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ email?: string }>().catch((): { email?: string } => ({}));
 	const email = body.email?.trim().toLowerCase();
 
 	if (!email) {
@@ -50,7 +50,7 @@ app.post('/', async (c) => {
  * Body: { token: string, password: string }
  */
 app.post('/reset', async (c) => {
-	const body = await c.req.json<{ token?: string; password?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ token?: string; password?: string }>().catch((): { token?: string; password?: string } => ({}));
 	const token = body.token?.trim();
 	const password = body.password;
 

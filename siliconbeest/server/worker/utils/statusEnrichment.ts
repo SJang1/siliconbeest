@@ -348,7 +348,7 @@ export async function enrichStatuses(
     for (const tag of emojiTags) {
       const shortcode = (typeof tag.shortcode === 'string' ? tag.shortcode : ((tag.name as string) || '').replace(/^:|:$/g, ''));
       if (!shortcodesInContent.has(shortcode)) continue;
-      const url = (tag.url as string) || (tag.icon as any)?.url;
+      const url = (tag.url as string) || (tag.icon as { url?: string } | undefined)?.url;
       if (!url) continue;
 
       const proxyUrl = proxyEmojiUrl(url, domain);

@@ -18,7 +18,7 @@ import {
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
-import type { PollRow } from '../../../../types/db';
+import type { PollRow, StatusWithJoinedAccountRow, MediaAttachmentRow } from '../../../../types/db';
 import { serializePoll } from '../../../../utils/mastodonSerializer';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -514,38 +514,38 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
                 a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
                 a.last_status_at AS a_last_status_at, a.created_at AS a_created_at
          FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
-      ).bind(statusId).first();
+      ).bind(statusId).first<StatusWithJoinedAccountRow>();
 
       if (dmRow) {
         const { results: dmMedia } = await c.env.DB.prepare(
           'SELECT id, type, file_key, description, blurhash, width, height FROM media_attachments WHERE status_id = ?1',
-        ).bind(statusId).all();
-        const mediaArr = (dmMedia ?? []).map((m: any) => {
-          const fk = m.file_key as string;
+        ).bind(statusId).all<Pick<MediaAttachmentRow, 'id' | 'type' | 'file_key' | 'description' | 'blurhash' | 'width' | 'height'>>();
+        const mediaArr = (dmMedia ?? []).map((m) => {
+          const fk = m.file_key;
           const mUrl = fk.startsWith('http') ? `https://${domain}/proxy?url=${encodeURIComponent(fk)}` : `https://${domain}/media/${fk}`;
           return { id: m.id, type: m.type || 'image', url: mUrl, preview_url: mUrl, remote_url: fk.startsWith('http') ? fk : null, text_url: null, meta: m.width ? { original: { width: m.width, height: m.height } } : null, description: m.description || null, blurhash: m.blurhash || null };
         });
-        const dmAcct = (dmRow as any).a_domain ? `${(dmRow as any).a_username}@${(dmRow as any).a_domain}` : (dmRow as any).a_username;
+        const dmAcct = dmRow.a_domain ? `${dmRow.a_username}@${dmRow.a_domain}` : dmRow.a_username;
         const dmPayload = JSON.stringify({
           id: statusId, uri: statusUri, created_at: now, content: fixedContent, visibility,
           sensitive: !!sensitive, spoiler_text: spoilerText, language, url: statusUrl,
           in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
-          reblogs_count: (dmRow as any).reblogs_count || 0, favourites_count: (dmRow as any).favourites_count || 0,
-          replies_count: (dmRow as any).replies_count || 0, edited_at: (dmRow as any).edited_at || null,
+          reblogs_count: dmRow.reblogs_count || 0, favourites_count: dmRow.favourites_count || 0,
+          replies_count: dmRow.replies_count || 0, edited_at: dmRow.edited_at || null,
           media_attachments: mediaArr, mentions: resolvedMentions.map((rm) => ({ id: rm.account_id, username: rm.acct.split('@')[0], url: rm.actor_uri, acct: rm.acct })),
           tags: parsed.tags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
           emojis: [], reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
           account: {
-            id: currentUser.account_id, username: (dmRow as any).a_username, acct: dmAcct,
-            display_name: (dmRow as any).a_display_name || '', locked: !!((dmRow as any).a_locked),
-            bot: !!((dmRow as any).a_bot), discoverable: !!((dmRow as any).a_discoverable), group: false,
-            created_at: (dmRow as any).a_created_at || now, note: (dmRow as any).a_note || '',
-            url: (dmRow as any).a_url || `https://${domain}/@${currentAccount.username}`,
-            uri: (dmRow as any).a_uri || `https://${domain}/users/${currentAccount.username}`,
-            avatar: (dmRow as any).a_avatar_url || '', avatar_static: (dmRow as any).a_avatar_static_url || (dmRow as any).a_avatar_url || '',
-            header: (dmRow as any).a_header_url || '', header_static: (dmRow as any).a_header_static_url || (dmRow as any).a_header_url || '',
-            followers_count: (dmRow as any).a_followers_count || 0, following_count: (dmRow as any).a_following_count || 0,
-            statuses_count: (dmRow as any).a_statuses_count || 0, last_status_at: (dmRow as any).a_last_status_at || null,
+            id: currentUser.account_id, username: dmRow.a_username, acct: dmAcct,
+            display_name: dmRow.a_display_name || '', locked: !!dmRow.a_locked,
+            bot: !!dmRow.a_bot, discoverable: !!dmRow.a_discoverable, group: false,
+            created_at: dmRow.a_created_at || now, note: dmRow.a_note || '',
+            url: dmRow.a_url || `https://${domain}/@${currentAccount.username}`,
+            uri: dmRow.a_uri || `https://${domain}/users/${currentAccount.username}`,
+            avatar: dmRow.a_avatar_url || '', avatar_static: dmRow.a_avatar_static_url || dmRow.a_avatar_url || '',
+            header: dmRow.a_header_url || '', header_static: dmRow.a_header_static_url || dmRow.a_header_url || '',
+            followers_count: dmRow.a_followers_count || 0, following_count: dmRow.a_following_count || 0,
+            statuses_count: dmRow.a_statuses_count || 0, last_status_at: dmRow.a_last_status_at || null,
             emojis: [], fields: [],
           },
         });

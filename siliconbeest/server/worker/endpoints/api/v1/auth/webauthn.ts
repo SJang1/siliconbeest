@@ -240,7 +240,7 @@ app.post('/register/verify', authRequired, async (c) => {
 // ---------------------------------------------------------------------------
 
 app.post('/authenticate/options', async (c) => {
-	const body = await c.req.json<{ email?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ email?: string }>().catch((): { email?: string } => ({}));
 
 	// Generate 32-byte random challenge
 	const challenge = generateSecureRandom(32);

@@ -161,7 +161,7 @@ export function serializeAccount(
     statuses_count: row.statuses_count,
     followers_count: row.followers_count,
     following_count: row.following_count,
-    fields: (opts?.fields ?? parseJsonField((row as any).fields, [])).filter((f: any) => f.name || f.value),
+    fields: (opts?.fields ?? parseJsonField((row as AccountRow & { fields?: string | null }).fields, [])).filter((f: Field) => f.name || f.value),
     emojis: accountEmojis,
   };
 
@@ -294,7 +294,7 @@ export function serializeNotification(
       ? `${row.type}-${row.status_id}-${row.from_account_id}`
       : `ungrouped-${row.id}`,
     account: opts.account,
-    read: !!((row as any).read),
+    read: !!(row.read),
   };
 
   if (opts.status !== undefined) {

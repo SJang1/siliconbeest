@@ -104,7 +104,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   // or fields_attributes: [{name, value}] in JSON
   const fields: Array<{ name: string; value: string; verified_at: string | null }> = [];
   if (body.fields_attributes) {
-    const attrs = body.fields_attributes as any;
+    const attrs = body.fields_attributes as Array<{ name?: unknown; value?: unknown }> | Record<string, { name?: unknown; value?: unknown }>;
     if (Array.isArray(attrs)) {
       for (const f of attrs) {
         if (f && f.name !== undefined) {

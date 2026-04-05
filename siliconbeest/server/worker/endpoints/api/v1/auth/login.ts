@@ -16,7 +16,7 @@ import bcrypt from 'bcryptjs';
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string; password?: string; turnstile_token?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ email?: string; password?: string; turnstile_token?: string }>().catch((): { email?: string; password?: string; turnstile_token?: string } => ({}));
 	const { email, password } = body;
 
 	if (!email || !password) {

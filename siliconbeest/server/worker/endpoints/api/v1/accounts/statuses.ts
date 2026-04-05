@@ -4,6 +4,7 @@ import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import type { MediaAttachment } from '../../../../types/mastodon';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -58,7 +59,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string) {
       emojis: [],
       fields: [],
     },
-    media_attachments: [] as any[],
+    media_attachments: [] as MediaAttachment[],
     mentions: [] as { id: string; username: string; acct: string; url: string }[],
     tags: [] as { name: string; url: string }[],
     emojis: [] as { shortcode: string; url: string; static_url: string; visible_in_picker: boolean }[],
@@ -195,7 +196,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
     const s = serializeStatus(r, domain);
     const e = (reblogOfIds.length > 0 ? allEnrichments : enrichments).get(r.id as string);
     if (e) {
-      s.media_attachments = e.mediaAttachments as any[];
+      s.media_attachments = e.mediaAttachments ?? [];
       s.favourited = e.favourited ?? false;
       s.reblogged = e.reblogged ?? false;
       s.bookmarked = e.bookmarked ?? false;
@@ -210,14 +211,14 @@ app.get('/:id/statuses', authOptional, async (c) => {
         const origStatus = serializeStatus(origRow, domain);
         const origE = allEnrichments.get(reblogOfId);
         if (origE) {
-          origStatus.media_attachments = origE.mediaAttachments as any[];
+          origStatus.media_attachments = origE.mediaAttachments ?? [];
           origStatus.favourited = origE.favourited ?? false;
           origStatus.reblogged = origE.reblogged ?? false;
           origStatus.bookmarked = origE.bookmarked ?? false;
           origStatus.card = origE.card ?? null;
           origStatus.emojis = origE.emojis ?? [];
         }
-        s.reblog = origStatus as any;
+        (s as { reblog: ReturnType<typeof serializeStatus> | null }).reblog = origStatus;
       }
     }
     return s;
