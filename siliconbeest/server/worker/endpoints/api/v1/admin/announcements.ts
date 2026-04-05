@@ -126,7 +126,10 @@ app.delete('/:id', async (c) => {
 	const existing = await c.env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await c.env.DB.prepare('DELETE FROM announcements WHERE id = ?1').bind(id).run();
+	await c.env.DB.batch([
+		c.env.DB.prepare('DELETE FROM announcement_dismissals WHERE announcement_id = ?1').bind(id),
+		c.env.DB.prepare('DELETE FROM announcements WHERE id = ?1').bind(id),
+	]);
 	return c.json({}, 200);
 });
 
