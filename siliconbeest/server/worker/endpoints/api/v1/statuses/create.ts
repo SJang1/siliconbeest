@@ -18,20 +18,9 @@ import {
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
 import type { StatusWithJoinedAccountRow, MediaAttachmentRow } from '../../../../types/db';
-import { serializePoll } from '../../../../utils/mastodonSerializer';
-import { createStatus, type CreateStatusResult } from '../../../../services/status';
+import { createStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
-
 
 const app = new Hono<HonoEnv>();
 
@@ -213,7 +202,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       if (!accountRow) continue;
 
       const mentionedAccountId = accountRow.id as string;
-      const mentionId = generateULID();
+      const mentionId = generateUlid();
 
       mentionsToInsert.push([mentionId, statusId, mentionedAccountId, now]);
 
