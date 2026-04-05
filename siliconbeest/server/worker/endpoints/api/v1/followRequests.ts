@@ -68,38 +68,9 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   const domain = c.env.INSTANCE_DOMAIN;
   const requestAccountId = c.req.param('id');
 
-  const fr = await c.env.DB.prepare(
-    'SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
-  )
-    .bind(requestAccountId, currentAccount.id)
-    .first();
-
-  if (!fr) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  const now = new Date().toISOString();
-  const followId = generateUlid();
-  const followUri = `https://${domain}/users/${currentAccount.username}/followers/${followId}`;
-
-  await c.env.DB.batch([
-    // Create the follow
-    c.env.DB.prepare(
-      `INSERT INTO follows (id, account_id, target_account_id, uri, show_reblogs, notify, languages, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, 1, 0, NULL, ?5, ?5)`,
-    ).bind(followId, requestAccountId, currentAccount.id, followUri, now),
-    // Update follower/following counts
-    c.env.DB.prepare(
-      'UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1',
-    ).bind(requestAccountId),
-    c.env.DB.prepare(
-      'UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1',
-    ).bind(currentAccount.id),
-    // Remove the follow request
-    c.env.DB.prepare(
-      'DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
-    ).bind(requestAccountId, currentAccount.id),
-  ]);
+  const { followRequest: fr } = await acceptFollowRequest(
+    c.env.DB, domain, requestAccountId, currentAccount.id,
+  );
 
   // Create follow notification for the requester (they now have a new follower relationship accepted)
   await c.env.QUEUE_INTERNAL.send({
@@ -155,21 +126,9 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
   const currentAccount = c.get('currentAccount')!;
   const requestAccountId = c.req.param('id');
 
-  const fr = await c.env.DB.prepare(
-    'SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
-  )
-    .bind(requestAccountId, currentAccount.id)
-    .first();
-
-  if (!fr) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  await c.env.DB.prepare(
-    'DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
-  )
-    .bind(requestAccountId, currentAccount.id)
-    .run();
+  const { followRequest: fr } = await rejectFollowRequest(
+    c.env.DB, requestAccountId, currentAccount.id,
+  );
 
   // AP: Send Reject(Follow) to the remote server
   const remoteAccount2 = await c.env.DB.prepare(

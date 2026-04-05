@@ -4,6 +4,7 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { pinStatus } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -23,9 +24,7 @@ app.post('/:id/pin', authRequired, requireScope('write:accounts'), async (c) => 
     throw new AppError(403, 'Forbidden', 'You can only pin your own statuses');
   }
 
-  await c.env.DB.prepare(
-    'UPDATE statuses SET pinned = 1 WHERE id = ?1 AND account_id = ?2',
-  ).bind(statusId, currentAccountId).run();
+  await pinStatus(c.env.DB, currentAccountId, statusId);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE);
   status.pinned = true;
