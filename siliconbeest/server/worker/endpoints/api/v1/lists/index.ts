@@ -3,9 +3,16 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
-import { generateUlid } from '../../../../utils/ulid';
-import { serializeList, serializeAccount } from '../../../../utils/mastodonSerializer';
-import type { ListRow, AccountRow } from '../../../../types/db';
+import {
+  listLists,
+  getList,
+  createList,
+  updateList,
+  deleteList,
+  getListMembers,
+  addListMembers,
+  removeListMembers,
+} from '../../../../services/list';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -17,16 +24,8 @@ const app = new Hono<HonoEnv>();
 
 app.get('/', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
-
-  const { results } = await c.env.DB.prepare(
-    'SELECT * FROM lists WHERE account_id = ?1 ORDER BY created_at ASC',
-  )
-    .bind(currentAccount.id)
-    .all();
-
-  const lists = (results ?? []).map((row: any) => serializeList(row as ListRow));
-
-  return c.json(lists);
+  const result = await listLists(c.env.DB, currentAccount.id);
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -47,24 +46,8 @@ app.post('/', authRequired, requireScope('write:lists'), async (c) => {
     throw new AppError(422, 'Validation failed', 'title is required');
   }
 
-  const listId = generateUlid();
-  const now = new Date().toISOString();
-  const repliesPolicy = body.replies_policy || 'list';
-  const exclusive = body.exclusive ? 1 : 0;
-
-  await c.env.DB.prepare(
-    `INSERT INTO lists (id, account_id, title, replies_policy, exclusive, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
-  )
-    .bind(listId, currentAccount.id, body.title.trim(), repliesPolicy, exclusive, now)
-    .run();
-
-  return c.json({
-    id: listId,
-    title: body.title.trim(),
-    replies_policy: repliesPolicy,
-    exclusive: !!exclusive,
-  });
+  const result = await createList(c.env.DB, currentAccount.id, body.title.trim(), body.replies_policy, body.exclusive);
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -74,18 +57,8 @@ app.post('/', authRequired, requireScope('write:lists'), async (c) => {
 app.get('/:id', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
-
-  const row = await c.env.DB.prepare(
-    'SELECT * FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first<ListRow>();
-
-  if (!row) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  return c.json(serializeList(row));
+  const result = await getList(c.env.DB, listId, currentAccount.id);
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -96,16 +69,6 @@ app.put('/:id', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
-  const existing = await c.env.DB.prepare(
-    'SELECT * FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first<ListRow>();
-
-  if (!existing) {
-    throw new AppError(404, 'Record not found');
-  }
-
   let body: { title?: string; replies_policy?: string; exclusive?: boolean };
   try {
     body = await c.req.json();
@@ -113,23 +76,8 @@ app.put('/:id', authRequired, requireScope('write:lists'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const now = new Date().toISOString();
-  const title = body.title !== undefined ? body.title.trim() : existing.title;
-  const repliesPolicy = body.replies_policy ?? existing.replies_policy;
-  const exclusive = body.exclusive !== undefined ? (body.exclusive ? 1 : 0) : existing.exclusive;
-
-  await c.env.DB.prepare(
-    'UPDATE lists SET title = ?1, replies_policy = ?2, exclusive = ?3, updated_at = ?4 WHERE id = ?5',
-  )
-    .bind(title, repliesPolicy, exclusive, now, listId)
-    .run();
-
-  return c.json({
-    id: listId,
-    title,
-    replies_policy: repliesPolicy,
-    exclusive: !!exclusive,
-  });
+  const result = await updateList(c.env.DB, listId, currentAccount.id, body);
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -139,22 +87,7 @@ app.put('/:id', authRequired, requireScope('write:lists'), async (c) => {
 app.delete('/:id', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
-
-  const existing = await c.env.DB.prepare(
-    'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first();
-
-  if (!existing) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  await c.env.DB.batch([
-    c.env.DB.prepare('DELETE FROM list_accounts WHERE list_id = ?1').bind(listId),
-    c.env.DB.prepare('DELETE FROM lists WHERE id = ?1').bind(listId),
-  ]);
-
+  await deleteList(c.env.DB, listId, currentAccount.id);
   return c.json({}, 200);
 });
 
@@ -165,29 +98,8 @@ app.delete('/:id', authRequired, requireScope('write:lists'), async (c) => {
 app.get('/:id/accounts', authRequired, requireScope('read:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
-
-  const list = await c.env.DB.prepare(
-    'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first();
-
-  if (!list) {
-    throw new AppError(404, 'Record not found');
-  }
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.*
-     FROM list_accounts la
-     JOIN accounts a ON a.id = la.account_id
-     WHERE la.list_id = ?1`,
-  )
-    .bind(listId)
-    .all();
-
-  const accounts = (results ?? []).map((row: any) => serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));
-
-  return c.json(accounts);
+  const result = await getListMembers(c.env.DB, listId, currentAccount.id, c.env.INSTANCE_DOMAIN);
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -197,16 +109,6 @@ app.get('/:id/accounts', authRequired, requireScope('read:lists'), async (c) => 
 app.post('/:id/accounts', authRequired, requireScope('write:lists'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
-
-  const list = await c.env.DB.prepare(
-    'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first();
-
-  if (!list) {
-    throw new AppError(404, 'Record not found');
-  }
 
   let body: { account_ids?: string[] };
   try {
@@ -220,17 +122,7 @@ app.post('/:id/accounts', authRequired, requireScope('write:lists'), async (c) =
     throw new AppError(422, 'Validation failed', 'account_ids is required');
   }
 
-  const stmts: D1PreparedStatement[] = [];
-  for (const accountId of accountIds) {
-    stmts.push(
-      c.env.DB.prepare(
-        'INSERT OR IGNORE INTO list_accounts (list_id, account_id, follow_id) VALUES (?1, ?2, NULL)',
-      ).bind(listId, accountId),
-    );
-  }
-
-  await c.env.DB.batch(stmts);
-
+  await addListMembers(c.env.DB, listId, currentAccount.id, accountIds);
   return c.json({}, 200);
 });
 
@@ -242,16 +134,6 @@ app.delete('/:id/accounts', authRequired, requireScope('write:lists'), async (c)
   const currentAccount = c.get('currentAccount')!;
   const listId = c.req.param('id');
 
-  const list = await c.env.DB.prepare(
-    'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2',
-  )
-    .bind(listId, currentAccount.id)
-    .first();
-
-  if (!list) {
-    throw new AppError(404, 'Record not found');
-  }
-
   let body: { account_ids?: string[] };
   try {
     body = await c.req.json();
@@ -264,17 +146,7 @@ app.delete('/:id/accounts', authRequired, requireScope('write:lists'), async (c)
     throw new AppError(422, 'Validation failed', 'account_ids is required');
   }
 
-  const stmts: D1PreparedStatement[] = [];
-  for (const accountId of accountIds) {
-    stmts.push(
-      c.env.DB.prepare(
-        'DELETE FROM list_accounts WHERE list_id = ?1 AND account_id = ?2',
-      ).bind(listId, accountId),
-    );
-  }
-
-  await c.env.DB.batch(stmts);
-
+  await removeListMembers(c.env.DB, listId, currentAccount.id, accountIds);
   return c.json({}, 200);
 });
 
