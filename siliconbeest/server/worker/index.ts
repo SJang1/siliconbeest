@@ -14,7 +14,7 @@ import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
-import { createRateLimit, RATE_LIMIT_ADMIN } from './middleware/rateLimit';
+import { createRateLimit, RATE_LIMIT_ADMIN, RATE_LIMIT_AUTH, RATE_LIMIT_REGISTRATION } from './middleware/rateLimit';
 import { createFed, setWaitUntil, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
@@ -78,6 +78,7 @@ import endorsements from './endpoints/api/v1/endorsements';
 import passwords from './endpoints/api/v1/auth/passwords';
 import authLogin from './endpoints/api/v1/auth/login';
 import authWebauthn from './endpoints/api/v1/auth/webauthn';
+import mfaChallenge from './endpoints/api/v1/auth/mfa/challenge';
 import resendConfirmation from './endpoints/api/v1/auth/resendConfirmation';
 import emailConfirmPage from './endpoints/auth/confirm';
 
@@ -254,6 +255,7 @@ app.route('/nodeinfo', nodeinfo2_0);
 // ---------------------------------------------------------------------------
 
 app.route('/oauth/authorize', oauthAuthorize);
+app.use('/oauth/token', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/oauth/token', oauthToken);
 app.route('/oauth/revoke', oauthRevoke);
 
@@ -262,6 +264,7 @@ app.route('/oauth/revoke', oauthRevoke);
 // ---------------------------------------------------------------------------
 
 app.route('/api/v1/apps', apps);
+app.use('/api/v1/accounts', createRateLimit(RATE_LIMIT_REGISTRATION));
 app.route('/api/v1/accounts', accounts);
 app.route('/api/v1/timelines', timelines);
 app.route('/api/v1/notifications', notifications);
@@ -294,11 +297,17 @@ app.route('/api/v1/instance/activity', instanceActivity);
 app.route('/api/v1/instance', instanceV1);
 app.route('/api/v1/instance/rules', rules);
 app.route('/api/v1/trends', trends);
+app.use('/api/v1/auth/passwords/*', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/passwords', passwords);
+app.use('/api/v1/auth/login', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/login', authLogin);
 app.route('/api/v1/auth/webauthn', authWebauthn);
+app.use('/api/v1/auth/mfa/challenge', createRateLimit({ maxRequests: 10, windowMs: 5 * 60 * 1000, keyPrefix: 'mfa' }));
+app.route('/api/v1/auth/mfa/challenge', mfaChallenge);
+app.use('/api/v1/auth/resend_confirmation', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/resend_confirmation', resendConfirmation);
 app.route('/auth/confirm', emailConfirmPage);
+app.use('/api/v1/accounts/change_password', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/accounts', changePassword);
 app.use('/api/v1/admin/*', createRateLimit(RATE_LIMIT_ADMIN));
 app.route('/api/v1/admin', admin);
