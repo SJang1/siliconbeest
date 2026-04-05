@@ -106,7 +106,22 @@
     "toggle_cw": "Toggle content warning",
     "emoji_picker": "Emoji",
     "search_emoji": "Search emoji...",
-    "no_custom_emoji": "No custom emojis"
+    "no_custom_emoji": "No custom emojis",
+    "poll_toggle": "Add poll",
+    "poll_option_placeholder": "Option {n}",
+    "poll_add_option": "Add option",
+    "poll_multiple": "Multiple choices",
+    "poll_minutes": "min",
+    "poll_hours": "hr",
+    "poll_days": "day"
+  },
+  "poll": {
+    "vote": "Vote",
+    "total_votes": "{n} votes",
+    "closed": "Closed",
+    "minutes_left": "{n}m left",
+    "hours_left": "{n}h left",
+    "days_left": "{n}d left"
   },
   "nav": {
     "home": "Home",

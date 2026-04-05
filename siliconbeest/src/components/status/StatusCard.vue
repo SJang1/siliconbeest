@@ -13,6 +13,7 @@ import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
 import PreviewCard from './PreviewCard.vue'
+import StatusPoll from './StatusPoll.vue'
 import StatusReactions from './StatusReactions.vue'
 import ReportDialog from '../common/ReportDialog.vue'
 import ImageViewer from '../common/ImageViewer.vue'
@@ -232,6 +233,13 @@ const emit = defineEmits<{
   deleted: [statusId: string]
 }>()
 
+function handlePollUpdate(updatedPoll: Status['poll']) {
+  const target = props.status.reblog ?? props.status
+  if (updatedPoll) {
+    statusesStore.cacheStatus({ ...target, poll: updatedPoll })
+  }
+}
+
 // 리액션 업데이트 시 캐시 갱신
 function handleReactionUpdate(updatedStatus: Status) {
   statusesStore.cacheStatus(updatedStatus)
@@ -373,6 +381,13 @@ async function handleDelete() {
             :spoiler-text="displayStatus.spoiler_text"
             :sensitive="displayStatus.sensitive"
             :emojis="displayStatus.emojis"
+          />
+
+          <!-- Poll -->
+          <StatusPoll
+            v-if="displayStatus.poll"
+            :poll="displayStatus.poll"
+            @updated="handlePollUpdate"
           />
 
           <!-- Media -->

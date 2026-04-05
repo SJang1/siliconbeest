@@ -104,7 +104,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
     tags: [] as { name: string; url: string }[],
     emojis: [] as { shortcode: string; url: string; static_url: string; visible_in_picker: boolean }[],
     card: null as import('../../../../types/mastodon').PreviewCard | null,
-    poll: null,
+    poll: null as import('../../../../types/mastodon').Poll | null,
     edited_at: (row.edited_at as string) || null,
   };
 }
@@ -130,6 +130,7 @@ async function serializeStatusEnriched(
     status.reblogged = e.reblogged ?? false;
     status.bookmarked = e.bookmarked ?? false;
     status.card = e.card ?? null;
+    status.poll = e.poll ?? null;
     status.emojis = e.emojis ?? [];
     status.mentions = e.mentions ?? [];
   }

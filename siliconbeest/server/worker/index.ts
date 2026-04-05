@@ -218,21 +218,28 @@ app.get('/authorize_interaction', (c) => {
   // Strip acct: prefix
   if (acct.startsWith('acct:')) acct = acct.slice(5);
 
+  // Try parsing as a full URL first (e.g. https://ani.work/@dazeemdas)
+  try {
+    const url = new URL(acct);
+    const match = url.pathname.match(/^\/@?([a-zA-Z0-9_.-]+)/);
+    if (match) {
+      // Extract username from path and build user@domain
+      acct = `${match[1]}@${url.hostname}`;
+    } else {
+      return c.redirect(`https://${c.env.INSTANCE_DOMAIN}${url.pathname}`, 302);
+    }
+  } catch {
+    // Not a URL, continue with acct as-is
+  }
+
   // If it looks like user@domain, redirect to /@user@domain profile page
   if (acct.includes('@')) {
     const atAcct = acct.startsWith('@') ? acct : `@${acct}`;
     return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/${atAcct}`, 302);
   }
 
-  // If it's a full URL, try to extract the path
-  try {
-    const url = new URL(acct);
-    // Redirect to the URL path on our instance
-    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}${url.pathname}`, 302);
-  } catch {
-    // Not a URL, just redirect to search
-    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/search?q=${encodeURIComponent(uri)}`, 302);
-  }
+  // Fallback to search
+  return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/search?q=${encodeURIComponent(uri)}`, 302);
 });
 
 // ---------------------------------------------------------------------------

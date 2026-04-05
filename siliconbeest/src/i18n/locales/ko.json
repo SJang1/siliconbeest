@@ -106,7 +106,22 @@
     "toggle_cw": "내용 경고 전환",
     "emoji_picker": "이모지",
     "search_emoji": "이모지 검색...",
-    "no_custom_emoji": "커스텀 이모지 없음"
+    "no_custom_emoji": "커스텀 이모지 없음",
+    "poll_toggle": "투표 추가",
+    "poll_option_placeholder": "선택지 {n}",
+    "poll_add_option": "선택지 추가",
+    "poll_multiple": "복수 선택",
+    "poll_minutes": "분",
+    "poll_hours": "시간",
+    "poll_days": "일"
+  },
+  "poll": {
+    "vote": "투표",
+    "total_votes": "{n}표",
+    "closed": "종료됨",
+    "minutes_left": "{n}분 남음",
+    "hours_left": "{n}시간 남음",
+    "days_left": "{n}일 남음"
   },
   "nav": {
     "home": "홈",

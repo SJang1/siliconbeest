@@ -89,7 +89,7 @@ app.get('/:listId', authRequired, async (c) => {
       favourited: e?.favourited,
       reblogged: e?.reblogged,
       bookmarked: e?.bookmarked,
-      card: e?.card,
+      card: e?.card, poll: e?.poll,
       emojis: e?.emojis,
     });
   });

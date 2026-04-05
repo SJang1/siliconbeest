@@ -119,7 +119,7 @@ app.get('/', authRequired, async (c) => {
         favourited: origE?.favourited,
         reblogged: origE?.reblogged,
         bookmarked: origE?.bookmarked,
-        card: origE?.card,
+        card: origE?.card, poll: origE?.poll,
         emojis: origE?.emojis,
       });
       reblogMap.set(rr.id as string, origSerialized);
@@ -148,7 +148,7 @@ app.get('/', authRequired, async (c) => {
       favourited: e?.favourited,
       reblogged: e?.reblogged,
       bookmarked: e?.bookmarked,
-      card: e?.card,
+      card: e?.card, poll: e?.poll,
       emojis: e?.emojis,
     });
     // Fill reblog object if this is a boost

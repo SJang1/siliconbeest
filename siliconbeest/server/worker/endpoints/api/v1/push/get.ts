@@ -1,8 +1,5 @@
 /**
  * GET /api/v1/push/subscription — Get current push subscription
- *
- * Returns the active Web Push subscription for the current access token,
- * or 404 if none exists.
  */
 
 import { Hono } from 'hono';
@@ -10,12 +7,6 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
-
-const ALERT_COLUMNS = [
-  'alert_mention', 'alert_follow', 'alert_favourite', 'alert_reblog',
-  'alert_poll', 'alert_status', 'alert_update', 'alert_follow_request',
-  'alert_admin_sign_up', 'alert_admin_report',
-] as const;
 
 function rowToAlerts(row: Record<string, unknown>): Record<string, boolean> {
   return {
@@ -35,20 +26,18 @@ function rowToAlerts(row: Record<string, unknown>): Record<string, boolean> {
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('push'), async (c) => {
-  const authHeader = c.req.header('Authorization')!;
-  const rawToken = authHeader.slice(7);
+  const tokenId = c.get('tokenId')!;
 
   const row = await c.env.DB.prepare(
-    `SELECT s.id, s.endpoint, s.policy, s.created_at, s.updated_at,
-            s.alert_mention, s.alert_follow, s.alert_favourite, s.alert_reblog,
-            s.alert_poll, s.alert_status, s.alert_update, s.alert_follow_request,
-            s.alert_admin_sign_up, s.alert_admin_report
-     FROM web_push_subscriptions s
-     JOIN oauth_access_tokens t ON t.id = s.access_token_id
-     WHERE t.token = ?1
+    `SELECT id, endpoint, policy, created_at, updated_at,
+            alert_mention, alert_follow, alert_favourite, alert_reblog,
+            alert_poll, alert_status, alert_update, alert_follow_request,
+            alert_admin_sign_up, alert_admin_report
+     FROM web_push_subscriptions
+     WHERE access_token_id = ?1
      LIMIT 1`,
   )
-    .bind(rawToken)
+    .bind(tokenId)
     .first();
 
   if (!row) {

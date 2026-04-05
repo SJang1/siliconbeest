@@ -106,7 +106,22 @@
     "toggle_cw": "切换内容警告",
     "emoji_picker": "表情",
     "search_emoji": "搜索表情...",
-    "no_custom_emoji": "没有自定义表情"
+    "no_custom_emoji": "没有自定义表情",
+    "poll_toggle": "添加投票",
+    "poll_option_placeholder": "选项 {n}",
+    "poll_add_option": "添加选项",
+    "poll_multiple": "多选",
+    "poll_minutes": "分钟",
+    "poll_hours": "小时",
+    "poll_days": "天"
+  },
+  "poll": {
+    "vote": "投票",
+    "total_votes": "{n} 票",
+    "closed": "已结束",
+    "minutes_left": "剩余 {n} 分钟",
+    "hours_left": "剩余 {n} 小时",
+    "days_left": "剩余 {n} 天"
   },
   "nav": {
     "home": "首页",

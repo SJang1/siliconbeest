@@ -19,6 +19,7 @@ async function sha256(input: string): Promise<string> {
 }
 
 interface TokenPayload {
+  tokenId: string;
   user: { id: string; account_id: string; email: string; role: string };
   account: { id: string; username: string; domain: string | null };
   scopes: string;
@@ -77,6 +78,7 @@ async function resolveToken(
   let row = await db
     .prepare(
       `SELECT
+         t.id   AS token_id,
          u.id   AS user_id,
          u.email,
          u.role,
@@ -101,6 +103,7 @@ async function resolveToken(
     row = await db
       .prepare(
         `SELECT
+           t.id   AS token_id,
            u.id   AS user_id,
            u.email,
            u.role,
@@ -124,6 +127,7 @@ async function resolveToken(
   if (!row) return null;
 
   const payload: TokenPayload = {
+    tokenId: row.token_id as string,
     user: {
       id: row.user_id as string,
       account_id: row.account_id as string,
@@ -158,6 +162,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('currentUser', null);
   c.set('currentAccount', null);
   c.set('tokenScopes', null);
+  c.set('tokenId', null);
 
   const token = extractBearerToken(c.req.header('Authorization'));
   if (token) {
@@ -166,6 +171,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
       c.set('currentUser', payload.user);
       c.set('currentAccount', payload.account);
       c.set('tokenScopes', payload.scopes);
+      c.set('tokenId', payload.tokenId);
     }
   }
 
@@ -179,6 +185,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('currentUser', null);
   c.set('currentAccount', null);
   c.set('tokenScopes', null);
+  c.set('tokenId', null);
 
   const token = extractBearerToken(c.req.header('Authorization'));
   if (!token) {
@@ -199,6 +206,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('currentUser', payload.user);
   c.set('currentAccount', payload.account);
   c.set('tokenScopes', payload.scopes);
+  c.set('tokenId', payload.tokenId);
 
   await next();
 });

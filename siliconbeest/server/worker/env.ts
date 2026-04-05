@@ -57,6 +57,8 @@ export interface AppVariables {
   } | null;
   /** OAuth token scopes (space-separated), e.g. "read write follow push". */
   tokenScopes: string | null;
+  /** The oauth_access_tokens row ID for the current bearer token. */
+  tokenId: string | null;
   requestId: string;
   /** True when the client accepts ActivityPub content types. */
   isActivityPub: boolean;

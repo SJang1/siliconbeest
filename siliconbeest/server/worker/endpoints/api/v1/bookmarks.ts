@@ -75,7 +75,7 @@ app.get('/', authRequired, requireScope('read:bookmarks'), async (c) => {
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,
-      card: e?.card,
+      card: e?.card, poll: e?.poll,
       emojis: e?.emojis,
     });
     (status as any)._pagination_id = row.b_id;

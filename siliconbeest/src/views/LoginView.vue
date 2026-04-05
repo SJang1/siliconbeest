@@ -10,6 +10,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const error = ref('')
+const loginFormRef = ref<InstanceType<typeof LoginForm> | null>(null)
 
 async function handleLogin(credentials: { email: string; password: string; turnstile_token?: string }) {
   error.value = ''
@@ -19,6 +20,8 @@ async function handleLogin(credentials: { email: string; password: string; turns
     router.push(redirect)
   } catch (e: any) {
     error.value = e.message || t('error.unauthorized')
+  } finally {
+    if (loginFormRef.value) loginFormRef.value.loading = false
   }
 }
 
@@ -38,6 +41,8 @@ async function handlePasskey() {
     } else {
       error.value = e.message || t('webauthn.error_failed')
     }
+  } finally {
+    if (loginFormRef.value) loginFormRef.value.passkeyLoading = false
   }
 }
 
@@ -59,7 +64,7 @@ async function handlePasskey() {
         <div v-if="auth.loading" class="text-center py-4 text-gray-500">
           {{ t('common.loading') }}
         </div>
-        <LoginForm v-else @submit="handleLogin" @passkey="handlePasskey" />
+        <LoginForm v-else ref="loginFormRef" :server-error="error" @submit="handleLogin" @passkey="handlePasskey" />
       </div>
     </div>
   </div>

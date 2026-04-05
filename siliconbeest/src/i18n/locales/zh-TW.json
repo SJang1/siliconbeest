@@ -106,7 +106,22 @@
     "toggle_cw": "切換內容警告",
     "emoji_picker": "表情符號",
     "search_emoji": "搜尋表情符號...",
-    "no_custom_emoji": "沒有自訂表情符號"
+    "no_custom_emoji": "沒有自訂表情符號",
+    "poll_toggle": "新增投票",
+    "poll_option_placeholder": "選項 {n}",
+    "poll_add_option": "新增選項",
+    "poll_multiple": "多選",
+    "poll_minutes": "分鐘",
+    "poll_hours": "小時",
+    "poll_days": "天"
+  },
+  "poll": {
+    "vote": "投票",
+    "total_votes": "{n} 票",
+    "closed": "已結束",
+    "minutes_left": "剩餘 {n} 分鐘",
+    "hours_left": "剩餘 {n} 小時",
+    "days_left": "剩餘 {n} 天"
   },
   "nav": {
     "home": "首頁",

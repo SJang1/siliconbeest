@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { apiFetch } from '@/api/client'
+import { apiFetch, ApiError } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
@@ -129,22 +129,40 @@ async function loadPushSubscription() {
       token: authStore.token,
     })
     pushSubscription.value = data
-  } catch {
-    // 404 means no subscription exists
-    pushSubscription.value = null
+  } catch (e) {
+    // 404 means no subscription exists; surface other errors
+    if (e instanceof ApiError && e.status === 404) {
+      pushSubscription.value = null
+    } else {
+      pushSubscription.value = null
+      pushError.value = (e as Error).message
+    }
   } finally {
     pushLoading.value = false
   }
 }
 
 async function enablePush() {
-  if (!pushSupported.value || !authStore.token) return
+  if (pushEnabling.value) return
+  if (!pushSupported.value) {
+    pushError.value = t('settings.push_not_supported')
+    return
+  }
+  if (!authStore.token) {
+    pushError.value = 'Not authenticated'
+    return
+  }
 
   pushEnabling.value = true
   pushError.value = null
 
   try {
-    // Request notification permission
+    // 1. Ensure service worker is registered
+    if (!navigator.serviceWorker.controller) {
+      await navigator.serviceWorker.register('/sw.js')
+    }
+
+    // 2. Request notification permission
     const permission = await Notification.requestPermission()
     pushPermission.value = permission
     if (permission !== 'granted') {
@@ -152,34 +170,35 @@ async function enablePush() {
       return
     }
 
-    // Get the service worker registration (with timeout in case SW isn't registered)
+    // 3. Get the service worker registration (with timeout)
     const registration = await Promise.race([
       navigator.serviceWorker.ready,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Service worker not available. Please reload the page and try again.')), 5000),
+        setTimeout(() => reject(new Error('Service worker not available. Please reload the page and try again.')), 10000),
       ),
     ])
 
-    // Get server key (VAPID public key) from instance
+    // 4. Get server key (VAPID public key) from instance
     let serverKey = pushSubscription.value?.server_key
     if (!serverKey) {
-      try {
-        const { data } = await apiFetch<{ vapid_key?: string }>('/v1/instance')
-        serverKey = data.vapid_key || undefined
-      } catch {
-        // fallback
-      }
+      const { data } = await apiFetch<{ vapid_key?: string }>('/v1/instance')
+      serverKey = data.vapid_key || undefined
     }
 
-    // Subscribe to push
+    if (!serverKey) {
+      pushError.value = 'Push notifications are not configured on this server (missing VAPID key).'
+      return
+    }
+
+    // 5. Subscribe to push via browser
     const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: serverKey ? urlBase64ToUint8Array(serverKey) as BufferSource : undefined,
+      applicationServerKey: urlBase64ToUint8Array(serverKey) as BufferSource,
     })
 
     const keys = sub.toJSON().keys || {}
 
-    // Create subscription on server
+    // 6. Create subscription on server
     const { data } = await apiFetch<{
       id: string
       endpoint: string
@@ -188,7 +207,7 @@ async function enablePush() {
     }>('/v1/push/subscription', {
       method: 'POST',
       token: authStore.token,
-      body: JSON.stringify({
+      body: {
         subscription: {
           endpoint: sub.endpoint,
           keys: {
@@ -206,7 +225,7 @@ async function enablePush() {
             status: true,
           },
         },
-      }),
+      },
     })
 
     pushSubscription.value = data

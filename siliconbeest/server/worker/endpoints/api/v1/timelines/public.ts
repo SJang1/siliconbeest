@@ -121,7 +121,7 @@ app.get('/', authOptional, async (c) => {
         favourited: origE?.favourited,
         reblogged: origE?.reblogged,
         bookmarked: origE?.bookmarked,
-        card: origE?.card,
+        card: origE?.card, poll: origE?.poll,
         emojis: origE?.emojis,
       }));
     }
@@ -149,7 +149,7 @@ app.get('/', authOptional, async (c) => {
       favourited: e?.favourited,
       reblogged: e?.reblogged,
       bookmarked: e?.bookmarked,
-      card: e?.card,
+      card: e?.card, poll: e?.poll,
       emojis: e?.emojis,
     });
     if (row.reblog_of_id) {

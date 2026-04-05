@@ -3,24 +3,6 @@
  *
  * Each access token can have ONE active push subscription.
  * Creating a new subscription replaces any existing one for that token.
- *
- * Body (form or JSON):
- *   subscription[endpoint]       — push service URL
- *   subscription[keys][p256dh]   — user agent public key (Base64url)
- *   subscription[keys][auth]     — auth secret (Base64url)
- *   data[alerts][mention]        — boolean
- *   data[alerts][status]         — boolean
- *   data[alerts][reblog]         — boolean
- *   data[alerts][follow]         — boolean
- *   data[alerts][follow_request] — boolean
- *   data[alerts][favourite]      — boolean
- *   data[alerts][poll]           — boolean
- *   data[alerts][update]         — boolean
- *   data[alerts][admin.sign_up]  — boolean
- *   data[alerts][admin.report]   — boolean
- *   data[policy]                 — all | followed | follower | none
- *
- * Response: WebPushSubscription entity
  */
 
 import { Hono } from 'hono';
@@ -37,19 +19,7 @@ function toBool(value: unknown): number {
 
 app.post('/', authRequired, requireScope('push'), async (c) => {
   const user = c.get('currentUser')!;
-
-  const authHeader = c.req.header('Authorization')!;
-  const rawToken = authHeader.slice(7);
-
-  // Look up the access token ID
-  const tokenRow = await c.env.DB.prepare(
-    'SELECT id FROM oauth_access_tokens WHERE token = ?1',
-  ).bind(rawToken).first();
-
-  if (!tokenRow) {
-    return c.json({ error: 'Invalid access token' }, 401);
-  }
-  const accessTokenId = tokenRow.id as string;
+  const tokenId = c.get('tokenId')!;
 
   // Parse body
   let body: Record<string, unknown>;
@@ -81,6 +51,16 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
     );
   }
 
+  // Validate endpoint is a valid HTTPS URL
+  try {
+    const endpointUrl = new URL(endpoint);
+    if (endpointUrl.protocol !== 'https:') {
+      return c.json({ error: 'Push endpoint must use HTTPS' }, 422);
+    }
+  } catch {
+    return c.json({ error: 'Push endpoint is not a valid URL' }, 422);
+  }
+
   // Extract alert preferences
   const alertsRaw = (body as any)?.data?.alerts ?? {};
   function getAlert(key: string): number {
@@ -110,7 +90,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
-    ).bind(accessTokenId),
+    ).bind(tokenId),
     c.env.DB.prepare(
       `INSERT INTO web_push_subscriptions
          (id, user_id, access_token_id, endpoint, key_p256dh, key_auth,
@@ -119,7 +99,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
           alert_admin_sign_up, alert_admin_report, policy, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, datetime('now'), datetime('now'))`,
     ).bind(
-      id, user.id, accessTokenId, endpoint, p256dh, auth,
+      id, user.id, tokenId, endpoint, p256dh, auth,
       alertMention, alertFollow, alertFavourite, alertReblog,
       alertPoll, alertStatus, alertUpdate, alertFollowRequest,
       alertAdminSignUp, alertAdminReport, policy,

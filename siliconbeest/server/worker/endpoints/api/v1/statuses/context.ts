@@ -101,6 +101,7 @@ app.get('/:id/context', authOptional, async (c) => {
       s.reblogged = e.reblogged ?? false;
       s.bookmarked = e.bookmarked ?? false;
       s.card = e.card ?? null;
+      s.poll = e.poll ?? null;
       s.emojis = e.emojis ?? [];
     }
     return s;

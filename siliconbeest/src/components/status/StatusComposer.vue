@@ -403,6 +403,16 @@ const canSubmit = computed(() => {
   return hasContent && charsRemaining.value >= 0 && !compose.uploading
 })
 
+function togglePoll() {
+  if (compose.showPoll) {
+    compose.showPoll = false
+    compose.pollOptions = []
+  } else {
+    compose.showPoll = true
+    compose.pollOptions = ['', '']
+  }
+}
+
 function triggerFileInput() {
   fileInput.value?.click()
 }
@@ -633,6 +643,58 @@ function submit() {
       </div>
     </div>
 
+    <!-- Poll editor -->
+    <div v-if="compose.showPoll" class="mt-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
+      <div v-for="(_, idx) in compose.pollOptions" :key="idx" class="flex items-center gap-2">
+        <span class="text-xs text-gray-400 w-4">{{ idx + 1 }}</span>
+        <input
+          v-model="compose.pollOptions[idx]"
+          type="text"
+          :placeholder="t('compose.poll_option_placeholder', { n: idx + 1 })"
+          maxlength="50"
+          class="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <button
+          v-if="compose.pollOptions.length > 2"
+          type="button"
+          @click="compose.pollOptions.splice(idx, 1)"
+          class="p-1 text-gray-400 hover:text-red-500 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <button
+        v-if="compose.pollOptions.length < 4"
+        type="button"
+        @click="compose.pollOptions.push('')"
+        class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+      >
+        + {{ t('compose.poll_add_option') }}
+      </button>
+
+      <div class="flex items-center gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input v-model="compose.pollMultiple" type="checkbox" class="rounded border-gray-300 dark:border-gray-600" />
+          {{ t('compose.poll_multiple') }}
+        </label>
+
+        <select
+          v-model.number="compose.pollExpiresIn"
+          class="text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        >
+          <option :value="300">5 {{ t('compose.poll_minutes') }}</option>
+          <option :value="1800">30 {{ t('compose.poll_minutes') }}</option>
+          <option :value="3600">1 {{ t('compose.poll_hours') }}</option>
+          <option :value="21600">6 {{ t('compose.poll_hours') }}</option>
+          <option :value="43200">12 {{ t('compose.poll_hours') }}</option>
+          <option :value="86400">1 {{ t('compose.poll_days') }}</option>
+          <option :value="259200">3 {{ t('compose.poll_days') }}</option>
+          <option :value="604800">7 {{ t('compose.poll_days') }}</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Upload progress -->
     <div v-if="compose.uploading" class="flex items-center gap-2 mt-2 text-sm text-gray-500 dark:text-gray-400">
       <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -646,7 +708,7 @@ function submit() {
         <button
           type="button"
           @click="triggerFileInput"
-          :disabled="compose.mediaAttachments.length >= 4 || compose.uploading"
+          :disabled="compose.mediaAttachments.length >= 4 || compose.uploading || compose.showPoll"
           class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
           :aria-label="t('compose.add_media')"
           :title="t('compose.add_media')"
@@ -665,6 +727,19 @@ function submit() {
           :aria-label="t('compose.toggle_cw')"
         >
           CW
+        </button>
+
+        <!-- Poll toggle -->
+        <button
+          type="button"
+          @click="togglePoll"
+          :disabled="compose.mediaAttachments.length > 0"
+          class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-lg disabled:opacity-30 disabled:cursor-not-allowed"
+          :class="compose.showPoll ? 'bg-gray-200 dark:bg-gray-700 text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-300'"
+          :aria-label="t('compose.poll_toggle')"
+          :title="t('compose.poll_toggle')"
+        >
+          📊
         </button>
 
         <!-- Emoji picker -->

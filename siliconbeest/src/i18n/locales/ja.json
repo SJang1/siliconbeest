@@ -106,7 +106,22 @@
     "toggle_cw": "コンテンツ警告の切り替え",
     "emoji_picker": "絵文字",
     "search_emoji": "絵文字を検索...",
-    "no_custom_emoji": "カスタム絵文字はありません"
+    "no_custom_emoji": "カスタム絵文字はありません",
+    "poll_toggle": "投票を追加",
+    "poll_option_placeholder": "選択肢 {n}",
+    "poll_add_option": "選択肢を追加",
+    "poll_multiple": "複数選択",
+    "poll_minutes": "分",
+    "poll_hours": "時間",
+    "poll_days": "日"
+  },
+  "poll": {
+    "vote": "投票",
+    "total_votes": "{n}票",
+    "closed": "終了",
+    "minutes_left": "残り{n}分",
+    "hours_left": "残り{n}時間",
+    "days_left": "残り{n}日"
   },
   "nav": {
     "home": "ホーム",

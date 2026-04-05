@@ -18,6 +18,8 @@ import {
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
+import type { PollRow } from '../../../../types/db';
+import { serializePoll } from '../../../../utils/mastodonSerializer';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -180,6 +182,32 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   );
 
   await c.env.DB.batch(stmts);
+
+  // Create poll if provided
+  let pollData: ReturnType<typeof serializePoll> | null = null;
+  if (body.poll && body.poll.options && body.poll.options.length >= 2) {
+    const pollId = generateULID();
+    const expiresAt = body.poll.expires_in
+      ? new Date(Date.now() + body.poll.expires_in * 1000).toISOString()
+      : null;
+    const multiple = body.poll.multiple ? 1 : 0;
+    const optionsJson = JSON.stringify(
+      body.poll.options.filter((o: string) => o.trim()).map((title: string) => ({ title, votes_count: 0 })),
+    );
+
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
+         VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6)`,
+      ).bind(pollId, statusId, expiresAt, multiple, optionsJson, now),
+      c.env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId),
+    ]);
+
+    pollData = serializePoll(
+      { id: pollId, status_id: statusId, expires_at: expiresAt, multiple, votes_count: 0, voters_count: 0, options: optionsJson, created_at: now },
+      { voted: false, ownVotes: [] },
+    );
+  }
 
   // Enqueue timeline fanout to followers (skip for DMs — handled after mentions are resolved)
   if (visibility !== 'direct') {
@@ -892,7 +920,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     tags: hashtags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
     emojis: resolvedEmojiTags,
     card: null,
-    poll: null,
+    poll: pollData,
     edited_at: null,
   });
 });

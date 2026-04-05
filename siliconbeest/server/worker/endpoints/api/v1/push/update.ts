@@ -1,18 +1,5 @@
 /**
  * PUT /api/v1/push/subscription — Update push subscription alerts / policy
- *
- * Body (form or JSON):
- *   data[alerts][mention]        — boolean
- *   data[alerts][status]         — boolean
- *   data[alerts][reblog]         — boolean
- *   data[alerts][follow]         — boolean
- *   data[alerts][follow_request] — boolean
- *   data[alerts][favourite]      — boolean
- *   data[alerts][poll]           — boolean
- *   data[alerts][update]         — boolean
- *   data[alerts][admin.sign_up]  — boolean
- *   data[alerts][admin.report]   — boolean
- *   data[policy]                 — all | followed | follower | none
  */
 
 import { Hono } from 'hono';
@@ -37,22 +24,18 @@ const ALERT_MAP: Record<string, string> = {
 };
 
 app.put('/', authRequired, requireScope('push'), async (c) => {
-  const authHeader = c.req.header('Authorization')!;
-  const rawToken = authHeader.slice(7);
+  const tokenId = c.get('tokenId')!;
 
-  // Fetch existing subscription via token join
   const existing = await c.env.DB.prepare(
-    `SELECT s.id, s.endpoint, s.policy,
-            s.alert_mention, s.alert_follow, s.alert_favourite, s.alert_reblog,
-            s.alert_poll, s.alert_status, s.alert_update, s.alert_follow_request,
-            s.alert_admin_sign_up, s.alert_admin_report,
-            t.id AS token_id
-     FROM web_push_subscriptions s
-     JOIN oauth_access_tokens t ON t.id = s.access_token_id
-     WHERE t.token = ?1
+    `SELECT id, endpoint, policy,
+            alert_mention, alert_follow, alert_favourite, alert_reblog,
+            alert_poll, alert_status, alert_update, alert_follow_request,
+            alert_admin_sign_up, alert_admin_report
+     FROM web_push_subscriptions
+     WHERE access_token_id = ?1
      LIMIT 1`,
   )
-    .bind(rawToken)
+    .bind(tokenId)
     .first();
 
   if (!existing) {

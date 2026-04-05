@@ -75,7 +75,7 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       bookmarked: e?.bookmarked,
-      card: e?.card,
+      card: e?.card, poll: e?.poll,
       emojis: e?.emojis,
     });
     // Keep status.id as the status ID (Mastodon API spec)

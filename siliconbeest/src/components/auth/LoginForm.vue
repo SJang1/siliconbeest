@@ -15,7 +15,11 @@ const turnstileRendered = ref(false)
 
 const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
 
+const props = defineProps<{ serverError?: string }>()
 const emit = defineEmits(['submit', 'passkey'])
+
+// Allow parent to reset loading states after async operations complete
+defineExpose({ loading, passkeyLoading })
 
 function tryRenderTurnstile() {
   if (turnstileEnabled.value && !turnstileRendered.value) {
@@ -42,14 +46,12 @@ async function handleSubmit() {
   loading.value = true
   error.value = ''
   emit('submit', { email: email.value, password: password.value, turnstile_token: turnstileToken.value })
-  loading.value = false
 }
 
 function handlePasskeyLogin() {
   passkeyLoading.value = true
   error.value = ''
   emit('passkey')
-  passkeyLoading.value = false
 }
 </script>
 
@@ -58,8 +60,8 @@ function handlePasskeyLogin() {
     <h1 class="text-2xl font-bold text-center">{{ t('auth.sign_in') }}</h1>
 
     <!-- Error -->
-    <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
-      {{ error }}
+    <div v-if="error || props.serverError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+      {{ error || props.serverError }}
     </div>
 
     <!-- Email -->
