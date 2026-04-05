@@ -52,11 +52,10 @@ export function createFed(
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
     },
-    // TODO: Investigate root cause of signature verification failures and remove this.
-    // Many remote servers' Accept/Follow and forwarded activities get 401'd because
-    // Fedify rejects signer≠actor mismatches and some signature algorithms.
-    // With this off, Fedify still checks LD Signatures and Object Integrity Proofs.
-    skipSignatureVerification: true,
+    // Controlled by SKIP_SIGNATURE_VERIFICATION env var (wrangler.jsonc vars).
+    // When "true", Fedify skips HTTP Signature verification but still checks
+    // LD Signatures and Object Integrity Proofs.
+    skipSignatureVerification: env.SKIP_SIGNATURE_VERIFICATION === 'true',
   });
 
   return cachedFed;

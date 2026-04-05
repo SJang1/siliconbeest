@@ -32,4 +32,11 @@ export interface BaseEnv {
 
   // Environment variables
   INSTANCE_DOMAIN: string;
+
+  /**
+   * Set to "true" to skip HTTP Signature verification on incoming federation
+   * requests. Fedify will still check LD Signatures and Object Integrity
+   * Proofs. Useful during development or when debugging signature mismatches.
+   */
+  SKIP_SIGNATURE_VERIFICATION?: string;
 }
