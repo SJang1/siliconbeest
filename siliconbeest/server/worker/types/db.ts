@@ -276,6 +276,7 @@ export interface OAuthApplicationRow {
 export interface OAuthAccessTokenRow {
   id: string;
   token: string;
+  token_hash: string | null;
   refresh_token: string | null;
   application_id: string;
   user_id: string | null;
