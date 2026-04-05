@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { serializeStatus } from './fetch';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
+import { getContext } from '../../../../services/status';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -41,54 +42,10 @@ app.get('/:id/context', authOptional, async (c) => {
     }
   }
 
-  // Ancestors: walk up the in_reply_to chain
-  const ancestors: Record<string, unknown>[] = [];
-  let currentId = status.in_reply_to_id as string | null;
-  const visited = new Set<string>();
-
-  while (currentId && !visited.has(currentId) && ancestors.length < 40) {
-    visited.add(currentId);
-    const ancestor = await c.env.DB.prepare(
-      `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
-    ).bind(currentId).first();
-    if (!ancestor) break;
-    ancestors.unshift(ancestor as Record<string, unknown>);
-    currentId = (ancestor.in_reply_to_id as string) || null;
-  }
-
-  // Build set of ancestor IDs + current status to exclude from descendants
-  const excludeIds = new Set<string>([statusId, ...ancestors.map((a) => a.id as string)]);
-
-  // Descendants: find all replies via BFS from current status
-  const descendantRows: Record<string, unknown>[] = [];
-  const seenDescendantIds = new Set<string>();
-
-  // BFS: find direct replies, then replies to those, etc.
-  const queue = [statusId];
-  let depth = 0;
-  while (queue.length > 0 && depth < 10 && descendantRows.length < 60) {
-    const batch = queue.splice(0, queue.length);
-    const ph = batch.map(() => '?').join(',');
-    const { results: replyRows } = await c.env.DB.prepare(
-      `${STATUS_JOIN_SQL}
-       WHERE s.in_reply_to_id IN (${ph})
-         AND s.deleted_at IS NULL
-       ORDER BY s.created_at ASC
-       LIMIT 60`,
-    ).bind(...batch).all();
-    for (const r of (replyRows ?? []) as Record<string, unknown>[]) {
-      const rid = r.id as string;
-      if (!seenDescendantIds.has(rid) && !excludeIds.has(rid)) {
-        seenDescendantIds.add(rid);
-        descendantRows.push(r);
-        queue.push(rid);
-      }
-    }
-    depth++;
-  }
+  const { ancestors, descendants } = await getContext(c.env.DB, statusId);
 
   // Collect all status IDs for batch enrichment
-  const allRows = [...ancestors, ...(descendantRows as Record<string, unknown>[])];
+  const allRows = [...ancestors, ...descendants];
   const allIds = allRows.map((r) => r.id as string);
   const enrichments = await enrichStatuses(c.env.DB, domain, allIds, currentAccountId, c.env.CACHE);
 
@@ -109,7 +66,7 @@ app.get('/:id/context', authOptional, async (c) => {
 
   return c.json({
     ancestors: ancestors.map(enrichAndSerialize),
-    descendants: (descendantRows as Record<string, unknown>[]).map(enrichAndSerialize),
+    descendants: descendants.map(enrichAndSerialize),
   });
 });
 
