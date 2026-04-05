@@ -452,3 +452,172 @@ export async function removeMute(db: D1Database, accountId: string, targetId: st
 		.bind(accountId, targetId)
 		.run();
 }
+
+// ----------------------------------------------------------------
+// Accept follow request
+// ----------------------------------------------------------------
+
+export interface AcceptFollowRequestResult {
+	followId: string;
+	followUri: string;
+	/** The original follow_request row (including uri for federation) */
+	followRequest: Record<string, unknown>;
+}
+
+export async function acceptFollowRequest(
+	db: D1Database,
+	domain: string,
+	accountId: string,
+	targetAccountId: string,
+): Promise<AcceptFollowRequestResult> {
+	const fr = await db
+		.prepare('SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetAccountId)
+		.first();
+
+	if (!fr) {
+		throw new AppError(404, 'Record not found');
+	}
+
+	const now = new Date().toISOString();
+	const followId = generateUlid();
+
+	// Look up the target account's username for the follow URI
+	const targetAccount = await db
+		.prepare('SELECT username FROM accounts WHERE id = ?1')
+		.bind(targetAccountId)
+		.first<{ username: string }>();
+	const targetUsername = targetAccount?.username ?? 'unknown';
+	const followUri = `https://${domain}/users/${targetUsername}/followers/${followId}`;
+
+	await db.batch([
+		// Create the follow
+		db.prepare(
+			`INSERT INTO follows (id, account_id, target_account_id, uri, show_reblogs, notify, languages, created_at, updated_at)
+			 VALUES (?1, ?2, ?3, ?4, 1, 0, NULL, ?5, ?5)`,
+		).bind(followId, accountId, targetAccountId, followUri, now),
+		// Update follower/following counts
+		db.prepare(
+			'UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1',
+		).bind(accountId),
+		db.prepare(
+			'UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1',
+		).bind(targetAccountId),
+		// Remove the follow request
+		db.prepare(
+			'DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
+		).bind(accountId, targetAccountId),
+	]);
+
+	return { followId, followUri, followRequest: fr as Record<string, unknown> };
+}
+
+// ----------------------------------------------------------------
+// Reject follow request
+// ----------------------------------------------------------------
+
+export interface RejectFollowRequestResult {
+	/** The original follow_request row (including uri for federation) */
+	followRequest: Record<string, unknown>;
+}
+
+export async function rejectFollowRequest(
+	db: D1Database,
+	accountId: string,
+	targetAccountId: string,
+): Promise<RejectFollowRequestResult> {
+	const fr = await db
+		.prepare('SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetAccountId)
+		.first();
+
+	if (!fr) {
+		throw new AppError(404, 'Record not found');
+	}
+
+	await db
+		.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetAccountId)
+		.run();
+
+	return { followRequest: fr as Record<string, unknown> };
+}
+
+// ----------------------------------------------------------------
+// Set personal note on account
+// ----------------------------------------------------------------
+
+export async function setAccountNote(
+	db: D1Database,
+	accountId: string,
+	targetId: string,
+	comment: string,
+): Promise<void> {
+	const target = await db.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
+	if (!target) throw new AppError(404, 'Record not found');
+
+	const now = new Date().toISOString();
+	if (comment) {
+		await db
+			.prepare(
+				`INSERT INTO account_notes (id, account_id, target_account_id, comment, created_at, updated_at)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+				 ON CONFLICT(account_id, target_account_id) DO UPDATE SET comment = ?4, updated_at = ?6`,
+			)
+			.bind(generateUlid(), accountId, targetId, comment, now, now)
+			.run();
+	} else {
+		await db
+			.prepare('DELETE FROM account_notes WHERE account_id = ?1 AND target_account_id = ?2')
+			.bind(accountId, targetId)
+			.run();
+	}
+}
+
+// ----------------------------------------------------------------
+// Pin (endorse) account
+// ----------------------------------------------------------------
+
+export async function pinAccount(
+	db: D1Database,
+	accountId: string,
+	targetId: string,
+): Promise<void> {
+	const target = await db.prepare('SELECT * FROM accounts WHERE id = ?1').bind(targetId).first();
+	if (!target) throw new AppError(404, 'Record not found');
+
+	// Must be following to endorse
+	const follow = await db
+		.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetId)
+		.first();
+	if (!follow) throw new AppError(422, 'Validation failed: you must be following this account to endorse it');
+
+	const existing = await db
+		.prepare('SELECT id FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetId)
+		.first();
+
+	if (!existing) {
+		const now = new Date().toISOString();
+		await db
+			.prepare('INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+			.bind(generateUlid(), accountId, targetId, now)
+			.run();
+	}
+}
+
+// ----------------------------------------------------------------
+// Unpin (remove endorsement) account
+// ----------------------------------------------------------------
+
+export async function unpinAccount(
+	db: D1Database,
+	accountId: string,
+	targetId: string,
+): Promise<void> {
+	await db
+		.prepare('DELETE FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2')
+		.bind(accountId, targetId)
+		.run();
+}
