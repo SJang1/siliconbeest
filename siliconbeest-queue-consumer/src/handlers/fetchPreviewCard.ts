@@ -37,7 +37,8 @@ function extractTitle(html: string): string | null {
   return match?.[1] ? decodeHtmlEntities(match[1].trim()) : null;
 }
 
-function extractDomain(url: string): string {
+/** Returns the domain without the www. prefix, for display purposes. */
+function extractDisplayDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -108,7 +109,7 @@ async function fetchOgMetadata(url: string): Promise<OgData | null> {
     if (!title && !description && !ogImage) return null;
 
     const finalUrl = ogUrl || url;
-    const domain = extractDomain(finalUrl);
+    const domain = extractDisplayDomain(finalUrl);
 
     return {
       url: finalUrl,

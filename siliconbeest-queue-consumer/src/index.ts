@@ -87,10 +87,23 @@ function isFedifyMessage(body: unknown): boolean {
   return true;
 }
 
+/**
+ * Typed shape of the object returned by WorkersMessageQueue.processMessage().
+ * The Fedify SDK does not expose this as a public type, so we define a local
+ * interface that matches the fields we access.
+ */
+interface ProcessMessageResult {
+  shouldProcess: boolean;
+  /** The inner Fedify Message — typed as `any` because the SDK doesn't export the Message type. */
+  message?: any;
+  release?: () => Promise<void>;
+  [key: string]: unknown;
+}
+
 export default {
   async queue(batch: MessageBatch, env: Env): Promise<void> {
     const batchStart = performance.now();
-    
+
     for (const msg of batch.messages) {
       const messageStart = performance.now();
       try {
@@ -102,11 +115,11 @@ export default {
             const fed = ensureFedInitialized(env);
 
             const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
-            const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body));
+            const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
             console.log('[queue] processMessage result:', JSON.stringify({
               shouldProcess: result.shouldProcess,
-              messageType: (result as any).message?.type,
-              messageKeys: Object.keys((result as any).message || {}),
+              messageType: result.message?.type,
+              messageKeys: Object.keys(result.message || {}),
             }));
             if (!result.shouldProcess) {
               console.log('[queue] Fedify message deferred (ordering lock)');
@@ -116,18 +129,18 @@ export default {
               continue;
             }
             try {
-              console.log('[queue] Calling processQueuedTask with message type:', (result as any).message?.type);
+              console.log('[queue] Calling processQueuedTask with message type:', result.message?.type);
               await measureAsync(
                 'queue.fedify.processQueuedTask',
-                () => fed.processQueuedTask({ env }, result.message),
-                { messageType: (result as any).message?.type }
+                () => fed.processQueuedTask({ env }, result.message!),
+                { messageType: result.message?.type }
               );
               console.log('[queue] Fedify task processed successfully');
               msg.ack();
               const totalDuration = performance.now() - messageStart;
-              logPerformance('queue.message.processed', totalDuration, { 
+              logPerformance('queue.message.processed', totalDuration, {
                 messageType: 'fedify',
-                taskType: (result as any).message?.type 
+                taskType: result.message?.type
               });
             } catch (taskErr) {
               console.error('[queue] Fedify processQueuedTask error:', taskErr);
@@ -182,7 +195,7 @@ export default {
                 await handleImportItem(legacyMsg, env);
                 break;
               default:
-                console.warn('Unknown message type:', (legacyMsg as any).type);
+                console.warn('Unknown message type:', (legacyMsg as { type: string }).type);
             }
           },
           { messageType: legacyMsg.type }

@@ -12,13 +12,13 @@ import { createFederation, type Federation } from '@fedify/fedify';
 import { WorkersKvStore, WorkersMessageQueue } from '@fedify/cfworkers';
 import type { Env } from './env';
 import { CloudflareMessageQueue } from '../../packages/shared/fedify/cloudflare-queue';
+import type { FedifyContextData as SharedFedifyContextData } from '../../packages/shared/fedify/context';
 
 /**
  * Context data passed to all Fedify dispatchers and listeners.
+ * Local alias of the shared generic, bound to the consumer's Env.
  */
-export interface FedifyContextData {
-  env: Env;
-}
+export type FedifyContextData = SharedFedifyContextData<Env>;
 
 /** Cached Federation instance (lives for the isolate lifetime) */
 let cachedFed: Federation<FedifyContextData> | null = null;

@@ -14,9 +14,9 @@ import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from '../../fedify';
 import type { AccountRow, StatusRow } from '../../../types/db';
 import { AS_PUBLIC, toTemporalInstant, buildFedifyNote } from './helpers';
+import { setupFollowersDispatcher } from '../../../../../../packages/shared/federation/collection-dispatchers';
 
 // Page sizes matching existing endpoints
-const FOLLOWERS_PAGE_SIZE = 40;
 const FOLLOWING_PAGE_SIZE = 40;
 const OUTBOX_PAGE_SIZE = 20;
 const LIKED_PAGE_SIZE = 20;
@@ -36,87 +36,8 @@ export function setupCollectionDispatchers(
 }
 
 // ============================================================
-// FOLLOWERS
+// FOLLOWERS (delegated to shared implementation)
 // ============================================================
-
-function setupFollowersDispatcher(
-  federation: Federation<FedifyContextData>,
-): void {
-  federation
-    .setFollowersDispatcher(
-      '/users/{identifier}/followers',
-      async (ctx, identifier, cursor) => {
-        const db = ctx.data.env.DB;
-
-        const account = await db
-          .prepare(
-            `SELECT id, followers_count FROM accounts
-             WHERE username = ?1 AND domain IS NULL
-             LIMIT 1`,
-          )
-          .bind(identifier)
-          .first<{ id: string; followers_count: number }>();
-
-        if (!account) return null;
-
-        const conditions: string[] = ['f.target_account_id = ?1'];
-        const binds: (string | number)[] = [account.id];
-
-        if (cursor) {
-          conditions.push('f.id < ?2');
-          binds.push(cursor);
-        }
-
-        const sql = `
-          SELECT f.id AS follow_id, a.uri, a.inbox_url, a.shared_inbox_url
-          FROM follows f
-          JOIN accounts a ON a.id = f.account_id
-          WHERE ${conditions.join(' AND ')}
-          ORDER BY f.id DESC
-          LIMIT ?${binds.length + 1}
-        `;
-        binds.push(FOLLOWERS_PAGE_SIZE + 1);
-
-        const { results } = await db
-          .prepare(sql)
-          .bind(...binds)
-          .all<{ follow_id: string; uri: string; inbox_url: string; shared_inbox_url: string | null }>();
-
-        const rows = results ?? [];
-        const hasNext = rows.length > FOLLOWERS_PAGE_SIZE;
-        const items = hasNext ? rows.slice(0, FOLLOWERS_PAGE_SIZE) : rows;
-
-        const nextCursor = hasNext
-          ? items[items.length - 1].follow_id
-          : null;
-
-        return {
-          items: items.map((r) => ({
-            id: new URL(r.uri),
-            inboxId: r.inbox_url ? new URL(r.inbox_url) : null,
-            endpoints: r.shared_inbox_url
-              ? { sharedInbox: new URL(r.shared_inbox_url) }
-              : null,
-          })),
-          nextCursor,
-        };
-      },
-    )
-    .setCounter(async (ctx, identifier) => {
-      const db = ctx.data.env.DB;
-      const account = await db
-        .prepare(
-          `SELECT followers_count FROM accounts
-           WHERE username = ?1 AND domain IS NULL LIMIT 1`,
-        )
-        .bind(identifier)
-        .first<{ followers_count: number }>();
-      return account?.followers_count ?? 0;
-    })
-    .setFirstCursor(async (_ctx, _identifier) => {
-      return '';
-    });
-}
 
 // ============================================================
 // FOLLOWING

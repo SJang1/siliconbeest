@@ -1,10 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { base64UrlToBytes } from '../../../../packages/shared/crypto/keys';
-export {
-	base64UrlToBytes,
-	importEd25519PublicKey,
-	importEd25519PrivateKey,
-} from '../../../../packages/shared/crypto/keys';
+export { base64UrlToBytes, importEd25519PublicKey, importEd25519PrivateKey } from '../../../../packages/shared/crypto/keys';
 
 /**
  * Hash a password using bcryptjs with cost factor 10.

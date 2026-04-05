@@ -8,7 +8,6 @@
 
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
-import { resolveRemoteAccount } from '../resolveRemoteAccount';
 import { buildFollowActivity } from '../helpers/build-activity';
 import { createFed } from '../fedify';
 import { getFedifyContext } from '../helpers/send';
@@ -59,7 +58,7 @@ class MoveProcessor extends BaseProcessor {
 			return;
 		}
 
-		const newAccountId = await resolveRemoteAccount(newAccountUri, this.env);
+		const newAccountId = await this.resolveActor(newAccountUri);
 		if (!newAccountId) {
 			console.error('[move] Could not resolve new account');
 			return;
