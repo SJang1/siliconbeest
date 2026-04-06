@@ -24,7 +24,7 @@ const gridClass = computed(() =>
       </aside>
 
       <!-- Main Content -->
-      <main class="h-screen overflow-y-auto border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0">
+      <main class="h-screen overflow-x-auto overflow-y-auto border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0">
         <slot />
       </main>
 

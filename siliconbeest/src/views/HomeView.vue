@@ -123,10 +123,7 @@ onMounted(loadTimeline)
   <AppShell>
     <div
       class="grid h-full"
-      :class="{
-        'xl:grid-cols-2': columns.length >= 1,
-        '2xl:grid-cols-3': columns.length >= 2,
-      }"
+      :style="{ gridTemplateColumns: `repeat(${1 + columns.length}, minmax(320px, 1fr))` }"
     >
       <!-- Home Timeline (always visible) -->
       <div ref="homeColumnRef" class="border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto" @scroll="handleScroll">
@@ -172,33 +169,19 @@ onMounted(loadTimeline)
         />
       </div>
 
-      <!-- First extra column (xl+) -->
+      <!-- Extra columns (dynamic, scrolls horizontally if needed) -->
       <div
-        v-if="columns.length >= 1"
-        class="hidden xl:block border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto"
+        v-for="(col, index) in columns"
+        :key="`col-${index}-${col}`"
+        class="border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto"
       >
-        <NotificationsColumn v-if="columns[0] === 'notifications'" />
+        <NotificationsColumn v-if="col === 'notifications'" />
         <TimelineColumn
           v-else
-          :timeline-type="getTimelineType(columns[0]!)"
-          :title="getColumnTitle(columns[0]!)"
-          :banner-storage-key="getBannerKey(columns[0]!)"
-          :banner-text="getBannerText(columns[0]!)"
-        />
-      </div>
-
-      <!-- Second extra column (2xl+) -->
-      <div
-        v-if="columns.length >= 2"
-        class="hidden 2xl:block h-full overflow-y-auto"
-      >
-        <NotificationsColumn v-if="columns[1] === 'notifications'" />
-        <TimelineColumn
-          v-else
-          :timeline-type="getTimelineType(columns[1]!)"
-          :title="getColumnTitle(columns[1]!)"
-          :banner-storage-key="getBannerKey(columns[1]!)"
-          :banner-text="getBannerText(columns[1]!)"
+          :timeline-type="getTimelineType(col)"
+          :title="getColumnTitle(col)"
+          :banner-storage-key="`${getBannerKey(col)}_${index}`"
+          :banner-text="getBannerText(col)"
         />
       </div>
     </div>

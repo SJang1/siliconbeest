@@ -75,13 +75,13 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function addColumn(type: ColumnType) {
-    if (!columns.value.includes(type)) {
-      setColumns([...columns.value, type]);
-    }
+    setColumns([...columns.value, type]);
   }
 
-  function removeColumn(type: ColumnType) {
-    setColumns(columns.value.filter(c => c !== type));
+  function removeColumnAt(index: number) {
+    const arr = [...columns.value];
+    arr.splice(index, 1);
+    setColumns(arr);
   }
 
   function moveColumn(from: number, to: number) {
@@ -132,7 +132,7 @@ export const useUiStore = defineStore('ui', () => {
     setShowTrending,
     setColumns,
     addColumn,
-    removeColumn,
+    removeColumnAt,
     moveColumn,
   };
 });

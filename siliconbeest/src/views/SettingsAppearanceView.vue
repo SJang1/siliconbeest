@@ -29,24 +29,21 @@ const availableColumns: { type: ColumnType; labelKey: string }[] = [
   { type: 'notifications', labelKey: 'settings.column_notifications' },
 ]
 
-function isColumnEnabled(type: ColumnType): boolean {
-  return uiStore.columns.includes(type)
-}
-
-function toggleColumn(type: ColumnType) {
-  if (isColumnEnabled(type)) {
-    uiStore.removeColumn(type)
-  } else {
-    uiStore.addColumn(type)
-  }
-}
-
 function moveColumnUp(index: number) {
   if (index > 0) uiStore.moveColumn(index, index - 1)
 }
 
 function moveColumnDown(index: number) {
   if (index < uiStore.columns.length - 1) uiStore.moveColumn(index, index + 1)
+}
+
+function columnLabel(type: ColumnType): string {
+  const map: Record<ColumnType, string> = {
+    local: t('settings.column_local'),
+    federated: t('settings.column_federated'),
+    notifications: t('settings.column_notifications'),
+  }
+  return map[type]
 }
 
 function selectTheme(theme: Theme) {
@@ -150,57 +147,58 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
         <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.columns') }}</h3>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.columns_desc') }}</p>
 
-        <!-- Available columns (checkboxes) -->
-        <div class="space-y-2 mb-4">
-          <label
-            v-for="col in availableColumns"
-            :key="col.type"
-            class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        <!-- Active columns list -->
+        <div v-if="uiStore.columns.length > 0" class="space-y-1 mb-4">
+          <div
+            v-for="(col, index) in uiStore.columns"
+            :key="`col-${index}`"
+            class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
           >
-            <input
-              type="checkbox"
-              :checked="isColumnEnabled(col.type)"
-              @change="toggleColumn(col.type)"
-              class="w-4 h-4 text-indigo-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
-            />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(col.labelKey) }}</span>
-          </label>
+            <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">
+              {{ columnLabel(col) }}
+            </span>
+            <button
+              @click="moveColumnUp(index)"
+              :disabled="index === 0"
+              class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Move up"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              @click="moveColumnDown(index)"
+              :disabled="index === uiStore.columns.length - 1"
+              class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Move down"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <button
+              @click="uiStore.removeColumnAt(index)"
+              class="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300"
+              aria-label="Remove"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <!-- Active columns order -->
-        <div v-if="uiStore.columns.length > 1">
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.columns_reorder_hint') }}</p>
-          <div class="space-y-1">
-            <div
-              v-for="(col, index) in uiStore.columns"
-              :key="col"
-              class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
-            >
-              <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">
-                {{ t(`settings.column_${col}`) }}
-              </span>
-              <button
-                @click="moveColumnUp(index)"
-                :disabled="index === 0"
-                class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Move up"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-                </svg>
-              </button>
-              <button
-                @click="moveColumnDown(index)"
-                :disabled="index === uiStore.columns.length - 1"
-                class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Move down"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-          </div>
+        <!-- Add column buttons -->
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="col in availableColumns"
+            :key="col.type"
+            @click="uiStore.addColumn(col.type)"
+            class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            + {{ t(col.labelKey) }}
+          </button>
         </div>
       </div>
     </div>
