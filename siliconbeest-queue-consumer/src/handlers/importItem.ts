@@ -10,17 +10,9 @@
 
 import type { Env } from '../env';
 import type { ImportItemMessage } from '../shared/types/queue';
+import { generateUlid } from '../../../packages/shared/utils/ulid';
 
 const AP_CONTEXT = 'https://www.w3.org/ns/activitystreams';
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
 
 /**
  * WebFinger resolve an acct to get the AP actor URI.
@@ -129,7 +121,7 @@ export async function handleImportItem(
   }
 
   const now = new Date().toISOString();
-  const id = generateULID();
+  const id = generateUlid();
 
   switch (action) {
     case 'following': {

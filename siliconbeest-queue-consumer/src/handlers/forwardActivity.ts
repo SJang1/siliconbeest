@@ -9,6 +9,7 @@
 
 import type { Env } from '../env';
 import type { ForwardActivityMessage } from '../shared/types/queue';
+import { ensureInstanceRecord, recordDeliverySuccess, recordDeliveryFailure } from '../../../packages/shared/services/instance';
 
 export async function handleForwardActivity(
 	msg: ForwardActivityMessage,
@@ -37,30 +38,16 @@ export async function handleForwardActivity(
 	const targetDomain = targetUrl.hostname;
 
 	// Ensure instance record exists
-	await env.DB.prepare(
-		`INSERT OR IGNORE INTO instances (id, domain, created_at, updated_at)
-		 VALUES (?, ?, datetime('now'), datetime('now'))`,
-	)
-		.bind(crypto.randomUUID(), targetDomain)
-		.run();
+	await ensureInstanceRecord(env.DB, targetDomain);
 
 	if (response.ok || response.status === 202) {
-		await env.DB.prepare(
-			`UPDATE instances SET last_successful_at = datetime('now'), failure_count = 0, updated_at = datetime('now') WHERE domain = ?`,
-		)
-			.bind(targetDomain)
-			.run();
+		await recordDeliverySuccess(env.DB, targetDomain);
 		console.log(`Forwarded activity to ${targetInboxUrl} (${response.status})`);
 		return;
 	}
 
 	if (response.status >= 500) {
-		await env.DB.prepare(
-			`UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
-		)
-			.bind(targetDomain)
-			.run();
-
+		await recordDeliveryFailure(env.DB, targetDomain);
 		const text = await response.text().catch(() => '');
 		throw new Error(
 			`Forward to ${targetInboxUrl} failed with ${response.status}: ${text.slice(0, 200)}`,
@@ -68,11 +55,7 @@ export async function handleForwardActivity(
 	}
 
 	// 4xx — client error, don't retry
-	await env.DB.prepare(
-		`UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
-	)
-		.bind(targetDomain)
-		.run();
+	await recordDeliveryFailure(env.DB, targetDomain);
 	const text = await response.text().catch(() => '');
 	console.warn(
 		`Forward to ${targetInboxUrl} rejected with ${response.status}: ${text.slice(0, 200)}`,

@@ -18,6 +18,7 @@ import type { Env } from '../env';
 import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
+import { ensureInstanceRecord, recordDeliverySuccess, recordDeliveryFailure } from '../../../packages/shared/services/instance';
 
 // Crypto, signing, and signature preference from shared package
 import {
@@ -86,12 +87,7 @@ export async function handleDeliverActivity(
   const body = JSON.stringify(activityToDeliver);
 
   // Ensure instance record exists before updating it
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO instances (id, domain, created_at, updated_at)
-     VALUES (?, ?, datetime('now'), datetime('now'))`,
-  )
-    .bind(crypto.randomUUID(), targetDomain)
-    .run();
+  await ensureInstanceRecord(env.DB, targetDomain);
 
   // Check cached signature preference for this domain
   const preference = await getSignaturePreference(targetDomain, env.CACHE);
@@ -203,24 +199,14 @@ export async function handleDeliverActivity(
 
   if (response.ok || response.status === 202) {
     // Success — reset failure count and update last_successful_at
-    await env.DB.prepare(
-      `UPDATE instances SET last_successful_at = datetime('now'), failure_count = 0, updated_at = datetime('now') WHERE domain = ?`,
-    )
-      .bind(targetDomain)
-      .run();
+    await recordDeliverySuccess(env.DB, targetDomain);
     console.log(`Delivered activity to ${inboxUrl} (${response.status})`);
     timer.stopWithMetadata({ status: 'success', httpStatus: response.status });
     return;
   }
 
   if (response.status >= 500) {
-    // Record failure
-    await env.DB.prepare(
-      `UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
-    )
-      .bind(targetDomain)
-      .run();
-
+    await recordDeliveryFailure(env.DB, targetDomain);
     timer.stopWithMetadata({ status: 'server_error', httpStatus: response.status });
     // All 5xx (including SSL errors 525-527) — throw to trigger queue retry
     const text = await response.text().catch(() => '');
@@ -230,11 +216,7 @@ export async function handleDeliverActivity(
   }
 
   // 4xx — client error, record failure but don't retry (the message is consumed)
-  await env.DB.prepare(
-    `UPDATE instances SET last_failed_at = datetime('now'), failure_count = failure_count + 1, updated_at = datetime('now') WHERE domain = ?`,
-  )
-    .bind(targetDomain)
-    .run();
+  await recordDeliveryFailure(env.DB, targetDomain);
   timer.stopWithMetadata({ status: 'client_error', httpStatus: response.status });
   const text = await response.text().catch(() => '');
   console.warn(
