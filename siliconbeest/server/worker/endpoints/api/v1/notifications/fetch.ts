@@ -166,7 +166,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
     ).bind(sc).first<{ domain: string | null; image_key: string }>();
     if (er) {
       const isLocal = !er.domain || er.domain === env.INSTANCE_DOMAIN;
-      (notif as unknown as Record<string, unknown>).emoji_url = isLocal
+      (notif as Record<string, unknown>).emoji_url = isLocal
         ? `https://${env.INSTANCE_DOMAIN}/media/${er.image_key}`
         : `https://${env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(er.image_key)}`;
     }

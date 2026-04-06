@@ -145,9 +145,9 @@ export async function encryptPushPayload(
   );
 
   // 5. ECDH key agreement: derive shared secret
+  // but the Workers type definitions don't reflect this correctly.
   const sharedSecretBuffer = await crypto.subtle.deriveBits(
-    // WebCrypto Workers type gap: EcdhKeyDeriveParams doesn't accept CryptoKey for 'public'
-    { name: 'ECDH', public: subscriberPublicKey } as unknown as SubtleCryptoDeriveKeyAlgorithm,
+    { name: 'ECDH', public: subscriberPublicKey } as SubtleCryptoDeriveKeyAlgorithm,
     ephemeralKeyPair.privateKey,
     256, // 32 bytes
   );

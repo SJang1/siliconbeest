@@ -115,7 +115,7 @@ export async function handleFetchRemoteStatus(
   const visibility = determineVisibility(objectDoc);
 
   // Extract emoji tags for lazy-load rendering (no caching, just store tag array)
-  const allTags = objectDoc.tag as unknown[] | undefined;
+  const allTags = objectDoc.tag as Record<string, unknown>[] | undefined;
   const emojiTags = Array.isArray(allTags)
     ? allTags.filter(t => (t as Record<string, unknown>)?.type === 'Emoji')
     : [];
@@ -145,7 +145,7 @@ export async function handleFetchRemoteStatus(
     .run();
 
   // Handle attachments if present
-  const attachments = objectDoc.attachment as unknown[] | undefined;
+  const attachments = objectDoc.attachment as Record<string, unknown>[] | undefined;
   if (Array.isArray(attachments)) {
     const stmts: D1PreparedStatement[] = [];
     for (const att of attachments) {
@@ -176,7 +176,7 @@ export async function handleFetchRemoteStatus(
   }
 
   // Handle tags/mentions/hashtags/emojis if present
-  const tags = objectDoc.tag as unknown[] | undefined;
+  const tags = objectDoc.tag as Record<string, unknown>[] | undefined;
   if (Array.isArray(tags)) {
     const stmts: D1PreparedStatement[] = [];
     for (const tag of tags) {

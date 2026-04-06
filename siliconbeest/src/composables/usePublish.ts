@@ -3,6 +3,7 @@ import { useComposeStore } from '@/stores/compose';
 import { useStatusesStore } from '@/stores/statuses';
 import { useTimelinesStore } from '@/stores/timelines';
 import { useUiStore } from '@/stores/ui';
+import type { StatusVisibility } from '@/types/mastodon';
 
 export interface PublishPayload {
   content: string;
@@ -53,9 +54,9 @@ export function usePublish() {
       const parent = statusesStore.getCached(payload.in_reply_to_id);
       const parentVisibility = parent?.visibility ?? 'public';
       const requested = payload.visibility ?? compose.defaultVisibility;
-      compose.visibility = clampVisibility(requested, parentVisibility) as any;
+      compose.visibility = clampVisibility(requested, parentVisibility) as StatusVisibility;
     } else if (payload.visibility) {
-      compose.visibility = payload.visibility as any;
+      compose.visibility = payload.visibility as StatusVisibility;
     }
 
     if (payload.sensitive) compose.sensitive = payload.sensitive;

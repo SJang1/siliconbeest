@@ -73,7 +73,7 @@ app.get('/', authRequired, async (c) => {
         emoji_tags: (rr.a_emoji_tags as string) || null,
       };
       const origE = enrichments.get(rr.id as string);
-      const origSerialized = serializeStatus(rr as unknown as StatusRow, {
+      const origSerialized = serializeStatus(rr as StatusRow, {
         account: serializeAccount(origAccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,

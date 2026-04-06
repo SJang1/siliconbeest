@@ -193,7 +193,7 @@ class CreateProcessor extends BaseProcessor {
 			if (typeof attObj.url === 'string') {
 				url = attObj.url;
 			} else if (Array.isArray(attObj.url)) {
-				const link = (attObj.url as unknown[]).find((u) => typeof u === 'string' || (u && typeof u === 'object' && (u as Record<string, unknown>).href));
+				const link = (attObj.url as (string | Record<string, unknown>)[]).find((u) => typeof u === 'string' || (u && typeof u === 'object' && (u as Record<string, unknown>).href));
 				url = typeof link === 'string' ? link : (link as Record<string, unknown> | undefined)?.href as string ?? null;
 			} else if (attObj.url && typeof attObj.url === 'object' && (attObj.url as Record<string, unknown>).href) {
 				url = (attObj.url as Record<string, unknown>).href as string;

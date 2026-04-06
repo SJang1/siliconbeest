@@ -2,12 +2,12 @@ import { defineStore } from 'pinia';
 import { ref, computed, watchEffect } from 'vue';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type ColumnType = 'local' | 'federated' | 'notifications';
+export type ColumnType = 'home' | 'local' | 'federated' | 'notifications';
 
 const THEME_KEY = 'siliconbeest_theme';
 const COLUMNS_KEY = 'siliconbeest_columns';
 const TRENDING_KEY = 'siliconbeest_show_trending';
-const DEFAULT_COLUMNS: ColumnType[] = ['local', 'federated'];
+const DEFAULT_COLUMNS: ColumnType[] = ['home', 'local', 'federated'];
 
 export const useUiStore = defineStore('ui', () => {
   const theme = ref<Theme>((localStorage.getItem(THEME_KEY) as Theme) || 'system');

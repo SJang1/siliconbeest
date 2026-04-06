@@ -24,6 +24,7 @@ const defaultLangSuccess = ref(false)
 const localeMap = Object.fromEntries(SUPPORTED_LOCALES.map((l) => [l.code, l.name]))
 
 const availableColumns: { type: ColumnType; labelKey: string }[] = [
+  { type: 'home', labelKey: 'settings.column_home' },
   { type: 'local', labelKey: 'settings.column_local' },
   { type: 'federated', labelKey: 'settings.column_federated' },
   { type: 'notifications', labelKey: 'settings.column_notifications' },
@@ -39,6 +40,7 @@ function moveColumnDown(index: number) {
 
 function columnLabel(type: ColumnType): string {
   const map: Record<ColumnType, string> = {
+    home: t('settings.column_home'),
     local: t('settings.column_local'),
     federated: t('settings.column_federated'),
     notifications: t('settings.column_notifications'),

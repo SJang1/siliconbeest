@@ -118,8 +118,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
 
       // --- Profile metadata fields (PropertyValue) ---
       const attachments: PropertyValue[] = [];
-      const fieldsJson = (account as unknown as Record<string, unknown>)
-        .fields as string | null | undefined;
+      const fieldsJson = account.fields;
       if (fieldsJson) {
         try {
           const fields: ProfileField[] = JSON.parse(fieldsJson);
@@ -140,13 +139,12 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
 
       if (shortcodes.length > 0) {
         const placeholders = shortcodes.map((_: string, i: number) => `?${i + 1}`).join(', ');
-        const { results } = await env.DB.prepare(
+        const { results: customEmojis } = await env.DB.prepare(
           `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = '${domain}')`,
         )
           .bind(...shortcodes)
-          .all();
-        const customEmojis = (results ?? []) as unknown as CustomEmojiRow[];
-        for (const emoji of customEmojis) {
+          .all<CustomEmojiRow>();
+        for (const emoji of customEmojis ?? []) {
           tags.push(
             new Emoji({
               id: new URL(`https://${domain}/emojis/${emoji.shortcode}`),

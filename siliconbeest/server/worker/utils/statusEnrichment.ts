@@ -99,13 +99,13 @@ export async function enrichStatuses(
         `SELECT * FROM media_attachments WHERE status_id IN (${placeholders}) ORDER BY created_at ASC`,
       )
       .bind(...statusIds)
-      .all()
+      .all<MediaAttachmentRow>()
       .then(({ results }) => {
         for (const row of results ?? []) {
           const entry = result.get(row.status_id as string);
           if (entry) {
             entry.mediaAttachments.push(
-              serializeMediaAttachment(row as unknown as MediaAttachmentRow, domain),
+              serializeMediaAttachment(row, domain),
             );
           }
         }

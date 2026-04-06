@@ -355,6 +355,7 @@
     "posting_visibility_saved": "默认可见度已保存。",
     "columns": "栏目",
     "columns_desc": "选择在宽屏幕上主页时间线旁显示的栏目。",
+    "column_home": "首页时间线",
     "column_local": "本站时间线",
     "column_federated": "跨站时间线",
     "column_notifications": "通知",

@@ -3,7 +3,6 @@
 // instead of the full SPA, so link previews work on Twitter, Discord, Slack, Mastodon, etc.
 
 import app from './worker/index';
-import { env } from 'cloudflare:workers';
 
 // User-Agent patterns for crawlers/bots that need OG tags
 const CRAWLER_UA =
@@ -140,13 +139,9 @@ export function generateOgHtml(opts: OgOptions): string {
 
 async function fetchApi(domain: string, path: string): Promise<any> {
   try {
-    const res = await app.fetch(
-      new Request(`https://${domain}${path}`, {
-        headers: { Accept: 'application/json' },
-      }),
-      env,
-      { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext,
-    );
+    const res = await app.request(path, {
+      headers: { Accept: 'application/json' },
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {

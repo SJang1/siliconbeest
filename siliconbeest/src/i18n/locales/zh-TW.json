@@ -355,6 +355,7 @@
     "posting_visibility_saved": "預設可見度已儲存。",
     "columns": "欄位",
     "columns_desc": "選擇在寬螢幕上首頁時間軸旁顯示的欄位。",
+    "column_home": "首頁時間軸",
     "column_local": "本站時間軸",
     "column_federated": "聯邦時間軸",
     "column_notifications": "通知",

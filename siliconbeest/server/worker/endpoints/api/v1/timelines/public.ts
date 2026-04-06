@@ -81,7 +81,7 @@ app.get('/', authOptional, async (c) => {
         emoji_tags: (rr.a_emoji_tags as string) || null,
       };
       const origE = enrichments.get(rr.id as string);
-      reblogMap.set(rr.id as string, serializeStatus(rr as unknown as StatusRow, {
+      reblogMap.set(rr.id as string, serializeStatus(rr as StatusRow, {
         account: serializeAccount(origAccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,

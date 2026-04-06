@@ -83,12 +83,12 @@ export const findByAccountId = async (accountId: string, opts: AccountStatusOpti
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 'account_id = ?', params: [accountId] },
-		{ sql: 'deleted_at IS NULL', params: [] as unknown[] },
+		{ sql: 'deleted_at IS NULL', params: [] as (string | number)[] },
 		...(opts.maxId ? [{ sql: 'id < ?', params: [opts.maxId] }] : []),
-		...(opts.excludeReplies ? [{ sql: 'reply = 0', params: [] as unknown[] }] : []),
-		...(opts.excludeReblogs ? [{ sql: 'reblog_of_id IS NULL', params: [] as unknown[] }] : []),
+		...(opts.excludeReplies ? [{ sql: 'reply = 0', params: [] as (string | number)[] }] : []),
+		...(opts.excludeReblogs ? [{ sql: 'reblog_of_id IS NULL', params: [] as (string | number)[] }] : []),
 		...(opts.onlyMedia
-			? [{ sql: 'id IN (SELECT status_id FROM media_attachments WHERE status_id IS NOT NULL)', params: [] as unknown[] }]
+			? [{ sql: 'id IN (SELECT status_id FROM media_attachments WHERE status_id IS NOT NULL)', params: [] as (string | number)[] }]
 			: []),
 	];
 	const where = clauses.map(c => c.sql).join(' AND ');
@@ -304,9 +304,9 @@ export const findContext = async (statusId: string): Promise<{ ancestors: Status
 export const findPublicTimeline = async (opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
-		{ sql: 'deleted_at IS NULL', params: [] as unknown[] },
-		{ sql: "visibility = 'public'", params: [] as unknown[] },
-		{ sql: 'reblog_of_id IS NULL', params: [] as unknown[] },
+		{ sql: 'deleted_at IS NULL', params: [] as (string | number)[] },
+		{ sql: "visibility = 'public'", params: [] as (string | number)[] },
+		{ sql: 'reblog_of_id IS NULL', params: [] as (string | number)[] },
 		...(opts.maxId ? [{ sql: 'id < ?', params: [opts.maxId] }] : []),
 		...(opts.sinceId ? [{ sql: 'id > ?', params: [opts.sinceId] }] : []),
 		...(opts.minId ? [{ sql: 'id > ?', params: [opts.minId] }] : []),
@@ -328,10 +328,10 @@ export const findPublicTimeline = async (opts: TimelineOptions = {}): Promise<St
 export const findLocalTimeline = async (opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
-		{ sql: 'deleted_at IS NULL', params: [] as unknown[] },
-		{ sql: "visibility = 'public'", params: [] as unknown[] },
-		{ sql: 'local = 1', params: [] as unknown[] },
-		{ sql: 'reblog_of_id IS NULL', params: [] as unknown[] },
+		{ sql: 'deleted_at IS NULL', params: [] as (string | number)[] },
+		{ sql: "visibility = 'public'", params: [] as (string | number)[] },
+		{ sql: 'local = 1', params: [] as (string | number)[] },
+		{ sql: 'reblog_of_id IS NULL', params: [] as (string | number)[] },
 		...(opts.maxId ? [{ sql: 'id < ?', params: [opts.maxId] }] : []),
 		...(opts.sinceId ? [{ sql: 'id > ?', params: [opts.sinceId] }] : []),
 		...(opts.minId ? [{ sql: 'id > ?', params: [opts.minId] }] : []),
@@ -353,8 +353,8 @@ export const findLocalTimeline = async (opts: TimelineOptions = {}): Promise<Sta
 export const findByTag = async (tag: string, opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
-		{ sql: 's.deleted_at IS NULL', params: [] as unknown[] },
-		{ sql: "s.visibility = 'public'", params: [] as unknown[] },
+		{ sql: 's.deleted_at IS NULL', params: [] as (string | number)[] },
+		{ sql: "s.visibility = 'public'", params: [] as (string | number)[] },
 		...(opts.maxId ? [{ sql: 's.id < ?', params: [opts.maxId] }] : []),
 		...(opts.sinceId ? [{ sql: 's.id > ?', params: [opts.sinceId] }] : []),
 	];

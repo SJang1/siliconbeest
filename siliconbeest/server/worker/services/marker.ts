@@ -22,9 +22,9 @@ export async function getMarkers(
 	const { results } = await env.DB.prepare(`
 		SELECT * FROM markers
 		WHERE user_id = ?1 AND timeline IN (${placeholders})
-	`).bind(userId, ...timelines).all();
+	`).bind(userId, ...timelines).all<MarkerRow>();
 
-	return (results ?? []) as unknown as MarkerRow[];
+	return results ?? [];
 }
 
 // ----------------------------------------------------------------

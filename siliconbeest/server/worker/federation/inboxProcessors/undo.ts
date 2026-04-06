@@ -50,7 +50,7 @@ class UndoProcessor extends BaseProcessor {
 				await this.undoFollow(actorAccount.id, objectUri, activityUri);
 				break;
 			case 'Like': {
-				const innerObj = activity.object as unknown as Record<string, unknown> | undefined;
+				const innerObj = activity.object as Record<string, unknown> | undefined;
 				if (innerObj && (innerObj._misskey_reaction || innerObj.content)) {
 					await this.undoEmojiReaction(
 						actorAccount.id,

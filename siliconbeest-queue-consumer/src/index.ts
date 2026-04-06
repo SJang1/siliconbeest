@@ -157,7 +157,13 @@ export default {
         }
 
         // ---- Legacy messages (discriminated union on `type`) ----
-        const legacyMsg = body as unknown as QueueMessage; // body is checked by isFedifyMessage() above
+        if (!('type' in body) || typeof body.type !== 'string') {
+          console.warn('[queue] Unknown message format, skipping:', JSON.stringify(body).slice(0, 200));
+          msg.ack();
+          continue;
+        }
+        // body has been validated to have a string `type` field — safe to treat as QueueMessage
+        const legacyMsg = body as QueueMessage & Record<string, unknown>;
         await measureAsync(
           `queue.legacy.${legacyMsg.type}`,
           async () => {

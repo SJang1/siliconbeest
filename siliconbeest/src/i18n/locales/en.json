@@ -355,6 +355,7 @@
     "posting_visibility_saved": "Default visibility saved.",
     "columns": "Columns",
     "columns_desc": "Choose which columns to show alongside your home timeline on wide screens.",
+    "column_home": "Home Timeline",
     "column_local": "Local Timeline",
     "column_federated": "Federated Timeline",
     "column_notifications": "Notifications",

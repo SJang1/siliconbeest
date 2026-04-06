@@ -57,10 +57,10 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   // Fetch full account data for response
   const accountRow = await env.DB.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
-  ).bind(currentAccountId).first();
+  ).bind(currentAccountId).first<AccountRow>();
 
-  const acct = accountRow!.username as string;
-  const accountData = serializeAccount(accountRow as unknown as AccountRow, { instanceDomain: domain });
+  const acct = accountRow!.username;
+  const accountData = serializeAccount(accountRow!, { instanceDomain: domain });
 
   // Federation: deliver Update(Note) to followers via Fedify if status is local
   if (updatedRow.local === 1) {

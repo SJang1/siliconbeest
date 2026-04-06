@@ -52,10 +52,9 @@ class EmojiReactProcessor extends BaseProcessor {
 		}
 
 		// Store custom emoji if present in the activity's tag array
-		const activityTags = activity.tag as unknown[] | undefined;
+		const activityTags = activity.tag as (Record<string, unknown>)[] | undefined;
 		if (Array.isArray(activityTags)) {
-			for (const tag of activityTags) {
-				const tagObj = tag as Record<string, unknown>;
+			for (const tagObj of activityTags) {
 				if (tagObj.type !== 'Emoji') continue;
 				const emojiName = ((tagObj.name as string) || '').replace(/^:|:$/g, '');
 				const iconObj = tagObj.icon as Record<string, unknown> | undefined;

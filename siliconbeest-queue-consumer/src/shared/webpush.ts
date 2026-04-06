@@ -232,7 +232,7 @@ async function encryptPushPayload(
   // ECDH key agreement
   const sharedSecret = new Uint8Array(
     await crypto.subtle.deriveBits(
-      { name: 'ECDH', public: subscriberPublicKey } as any,
+      { name: 'ECDH', public: subscriberPublicKey } as SubtleCryptoDeriveKeyAlgorithm,
       ephemeralKeyPair.privateKey,
       256,
     ),

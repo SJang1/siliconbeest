@@ -39,12 +39,12 @@ export function normalizeToStringArray(value: unknown): string[] | undefined {
 
 export function normalizeObjectValue(
 	value: unknown,
-): string | Record<string, unknown> | undefined {
+): string | Record<string, unknown> | unknown[] | undefined {
 	if (typeof value === 'string') return value;
 	if (Array.isArray(value)) {
 		if (value.length === 0) return undefined;
 		if (value.length === 1) return normalizeObjectValue(value[0]);
-		return value as unknown as Record<string, unknown>;
+		return value;
 	}
 	if (value && typeof value === 'object') {
 		return value as Record<string, unknown>;

@@ -87,7 +87,7 @@ class FollowProcessor extends BaseProcessor {
 			});
 
 			// Send Accept(Follow) back to the follower's inbox
-			const acceptJson = await buildAcceptActivity(targetAccount.uri, activity as unknown as Record<string, unknown>, activity.actor);
+			const acceptJson = await buildAcceptActivity(targetAccount.uri, activity as Record<string, unknown>, activity.actor);
 
 			// Look up the remote actor's inbox to deliver the Accept
 			const remoteActor = await this.accountRepo.findById(followerAccountId);

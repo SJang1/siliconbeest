@@ -84,7 +84,7 @@ app.get('/', authRequired, async (c) => {
           moved_to_account_id: statusRow.a_moved_to_account_id as string | null,
           emoji_tags: (statusRow.a_emoji_tags as string) || null,
         };
-        lastStatus = serializeStatus(statusRow as unknown as StatusRow, {
+        lastStatus = serializeStatus(statusRow as StatusRow, {
           account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
         });
       }

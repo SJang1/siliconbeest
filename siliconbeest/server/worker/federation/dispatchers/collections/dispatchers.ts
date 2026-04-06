@@ -165,8 +165,8 @@ function setupOutboxDispatcher(
         `;
         binds.push(OUTBOX_PAGE_SIZE + 1);
 
-        const { results } = await db.prepare(sql).bind(...binds).all();
-        const rows = (results ?? []) as unknown as StatusRow[];
+        const { results } = await db.prepare(sql).bind(...binds).all<StatusRow>();
+        const rows = results ?? [];
         const hasNext = rows.length > OUTBOX_PAGE_SIZE;
         const pageRows = hasNext ? rows.slice(0, OUTBOX_PAGE_SIZE) : rows;
 
@@ -346,9 +346,9 @@ function setupFeaturedDispatcher(
            ORDER BY created_at DESC`,
         )
         .bind(account.id)
-        .all();
+        .all<StatusRow>();
 
-      const rows = (results ?? []) as unknown as StatusRow[];
+      const rows = results ?? [];
 
       // Batch-fetch conversation AP URIs
       const convIds = [

@@ -355,6 +355,7 @@
     "posting_visibility_saved": "デフォルトの公開範囲を保存しました。",
     "columns": "カラム",
     "columns_desc": "ワイドスクリーンでホームタイムラインの横に表示するカラムを選択してください。",
+    "column_home": "ホームタイムライン",
     "column_local": "ローカルタイムライン",
     "column_federated": "連合タイムライン",
     "column_notifications": "通知",

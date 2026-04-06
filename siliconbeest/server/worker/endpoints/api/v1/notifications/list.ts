@@ -176,7 +176,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
     if (notifRow.type === 'emoji_reaction' && emoji?.startsWith(':') && emoji?.endsWith(':')) {
       const sc = emoji.slice(1, -1);
       const url = emojiUrlMap.get(sc);
-      if (url) (notif as unknown as Record<string, unknown>).emoji_url = url;
+      if (url) (notif as Record<string, unknown>).emoji_url = url;
     }
     return notif;
   });

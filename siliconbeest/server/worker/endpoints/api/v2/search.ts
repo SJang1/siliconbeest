@@ -78,13 +78,13 @@ app.get('/', authOptional, async (c) => {
         // Check if we already have this actor in the DB
         const existingActor = await env.DB.prepare(
           'SELECT * FROM accounts WHERE uri = ?1',
-        ).bind(actorUri).first();
+        ).bind(actorUri).first<AccountRow>();
 
         if (existingActor) {
           // Include existing actor in results if not already present
-          const existingId = existingActor.id as string;
+          const existingId = existingActor.id;
           if (!accounts.some((a: any) => a.id === existingId)) {
-            accounts.unshift(serializeAccount(existingActor as unknown as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }));
+            accounts.unshift(serializeAccount(existingActor, { instanceDomain: env.INSTANCE_DOMAIN }));
           }
         } else {
           // Fetch remote actor via Fedify lookupObject
@@ -145,10 +145,10 @@ app.get('/', authOptional, async (c) => {
             // Fetch the inserted/existing account
             const insertedAccount = await env.DB.prepare(
               'SELECT * FROM accounts WHERE uri = ?1',
-            ).bind(actorObject.id.href).first();
+            ).bind(actorObject.id.href).first<AccountRow>();
 
             if (insertedAccount) {
-              accounts.unshift(serializeAccount(insertedAccount as unknown as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }));
+              accounts.unshift(serializeAccount(insertedAccount, { instanceDomain: env.INSTANCE_DOMAIN }));
             }
           }
         }

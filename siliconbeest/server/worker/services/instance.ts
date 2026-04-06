@@ -112,8 +112,8 @@ export async function getInstanceTitle(): Promise<string> {
 export async function getRules(): Promise<RuleRow[]> {
 	const { results } = await env.DB
 		.prepare('SELECT * FROM rules ORDER BY priority ASC, created_at ASC')
-		.all();
-	return (results ?? []) as unknown as RuleRow[];
+		.all<RuleRow>();
+	return results ?? [];
 }
 
 /**

@@ -210,9 +210,9 @@ export async function searchAccounts(
 				LIMIT ? OFFSET ?`,
 			)
 			.bind(options.followedBy, searchTerm, searchTerm, limit, offset)
-			.all();
+			.all<AccountRow>();
 
-		return (results.results || []) as unknown as AccountRow[];
+		return results.results || [];
 	}
 
 	const results = await env.DB
@@ -226,9 +226,9 @@ export async function searchAccounts(
 			LIMIT ? OFFSET ?`,
 		)
 		.bind(searchTerm, searchTerm, limit, offset)
-		.all();
+		.all<AccountRow>();
 
-	return (results.results || []) as unknown as AccountRow[];
+	return results.results || [];
 }
 
 // ----------------------------------------------------------------
