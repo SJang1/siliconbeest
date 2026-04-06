@@ -29,7 +29,14 @@ const WORKER_PREFIXES = [
   '/favicon.ico',
   '/default-avatar.svg',
   '/default-header.svg',
+  '/pwa-icon',
   '/internal/',
+];
+
+// Paths that are static PWA files — always serve as-is, never SPA fallback
+const STATIC_PWA_PATHS = [
+  '/manifest.json',
+  '/sw.js',
 ];
 
 function isWorkerPath(pathname: string, request: Request): boolean {
@@ -70,11 +77,30 @@ export default {
       }
     }
 
-    // 3. Try serving static assets
+    // 3. PWA static files — serve with appropriate headers
+    if (STATIC_PWA_PATHS.includes(pathname)) {
+      const assetResponse = await env.ASSETS.fetch(request);
+      if (assetResponse.status !== 404) {
+        const headers = new Headers(assetResponse.headers);
+        if (pathname === '/sw.js') {
+          headers.set('Service-Worker-Allowed', '/');
+          headers.set('Cache-Control', 'no-cache');
+          headers.set('Content-Type', 'application/javascript');
+        } else if (pathname === '/manifest.json') {
+          headers.set('Content-Type', 'application/manifest+json');
+        }
+        return new Response(assetResponse.body, {
+          status: assetResponse.status,
+          headers,
+        });
+      }
+    }
+
+    // 4. Try serving static assets
     const assetResponse = await env.ASSETS.fetch(request);
     if (assetResponse.status !== 404) return assetResponse;
 
-    // 4. SPA fallback — serve index.html for client-side routing
+    // 5. SPA fallback — serve index.html for client-side routing
     return env.ASSETS.fetch(new Request(new URL('/', request.url), request));
   },
 } satisfies ExportedHandler<Env>;
