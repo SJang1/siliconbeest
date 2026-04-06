@@ -361,7 +361,11 @@
     "column_notifications": "通知",
     "columns_reorder_hint": "使用箭頭重新排列欄位。",
     "show_trending": "熱門面板",
-    "show_trending_desc": "在螢幕右側顯示熱門面板。"
+    "show_trending_desc": "在螢幕右側顯示熱門面板。",
+    "clear_cache": "清除本地快取",
+    "clear_cache_desc": "刪除 Service Worker 儲存的快取資料和資源。頁面將重新載入。",
+    "clear_cache_button": "清除快取",
+    "clear_cache_done": "快取已清除。"
   },
   "admin": {
     "title": "管理",

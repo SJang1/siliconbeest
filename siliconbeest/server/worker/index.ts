@@ -409,6 +409,29 @@ app.get('/thumbnail.png', async (c) => {
   });
 });
 
+// PWA icons — serve the admin-uploaded favicon/thumbnail for PWA installability
+app.get('/pwa-icon/:size{192|512}.png', async (c) => {
+  const obj = await env.MEDIA_BUCKET.get('instance/favicon.ico');
+  if (obj) {
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': obj.httpMetadata?.contentType || 'image/x-icon',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+  const thumb = await env.MEDIA_BUCKET.get('instance/thumbnail.png');
+  if (thumb) {
+    return new Response(thumb.body, {
+      headers: {
+        'Content-Type': thumb.httpMetadata?.contentType || 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+  return c.notFound();
+});
+
 app.get('/favicon.ico', async (c) => {
   const obj = await env.MEDIA_BUCKET.get('instance/favicon.ico');
   if (obj) {

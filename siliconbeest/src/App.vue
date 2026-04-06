@@ -64,10 +64,44 @@ onMounted(async () => {
     link.href = '/favicon.ico';
   }
 
-  // Register service worker for Web Push notifications
+  // Auto-clear PWA cache on code update (new deploy)
+  const currentVersion = __APP_VERSION__;
+  if (currentVersion) {
+    const storedVersion = localStorage.getItem('siliconbeest_app_version');
+    if (storedVersion && storedVersion !== currentVersion) {
+      caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n))));
+    }
+    localStorage.setItem('siliconbeest_app_version', currentVersion);
+  }
+
+  // Register service worker for PWA + Web Push notifications
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      // Check for updates periodically (every 60 minutes)
+      setInterval(() => registration.update(), 60 * 60 * 1000);
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available — activate it immediately
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+    }).catch(() => {
       // SW registration failed
+    });
+
+    // Reload when new SW takes over to ensure fresh assets
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
     });
   }
 });

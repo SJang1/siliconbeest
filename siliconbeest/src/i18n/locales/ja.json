@@ -361,7 +361,11 @@
     "column_notifications": "通知",
     "columns_reorder_hint": "矢印を使ってカラムの順序を変更してください。",
     "show_trending": "トレンドパネル",
-    "show_trending_desc": "画面右側にトレンドパネルを表示します。"
+    "show_trending_desc": "画面右側にトレンドパネルを表示します。",
+    "clear_cache": "ローカルキャッシュを削除",
+    "clear_cache_desc": "サービスワーカーが保存したキャッシュデータとアセットを削除します。ページがリロードされます。",
+    "clear_cache_button": "キャッシュを削除",
+    "clear_cache_done": "キャッシュが削除されました。"
   },
   "admin": {
     "title": "管理",

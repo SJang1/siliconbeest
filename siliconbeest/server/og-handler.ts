@@ -123,7 +123,9 @@ export function generateOgHtml(opts: OgOptions): string {
   <meta name="twitter:title" content="${titleEsc}" />
   <meta name="twitter:description" content="${descEsc}" />
   ${image ? `<meta name="twitter:image" content="${escapeAttr(image)}" />` : ''}
+  <meta name="theme-color" content="#6366f1" />
   <link rel="icon" href="/favicon.ico" />
+  <link rel="manifest" href="/manifest.json" />
   <link rel="canonical" href="${escapeAttr(url)}" />
 </head>
 <body>

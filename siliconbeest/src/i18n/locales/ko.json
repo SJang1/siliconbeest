@@ -361,7 +361,11 @@
     "column_notifications": "알림",
     "columns_reorder_hint": "화살표를 사용하여 컬럼 순서를 변경하세요.",
     "show_trending": "트렌딩 패널",
-    "show_trending_desc": "화면 오른쪽에 트렌딩 패널을 표시합니다."
+    "show_trending_desc": "화면 오른쪽에 트렌딩 패널을 표시합니다.",
+    "clear_cache": "로컬 캐시 삭제",
+    "clear_cache_desc": "서비스 워커가 저장한 캐시 데이터와 에셋을 삭제합니다. 페이지가 새로고침됩니다.",
+    "clear_cache_button": "캐시 삭제",
+    "clear_cache_done": "캐시가 삭제되었습니다."
   },
   "admin": {
     "title": "관리",
