@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { useInstanceStore } from '@/stores/instance'
 import { useNotificationsStore } from '@/stores/notifications'
 import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
 import { ref, computed, onMounted } from 'vue'
@@ -13,6 +14,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
+const instanceStore = useInstanceStore()
 const notifStore = useNotificationsStore()
 const showLangMenu = ref(false)
 
@@ -63,7 +65,7 @@ async function switchLocale(code: string) {
   <nav class="flex flex-col h-full p-4" aria-label="Main navigation">
     <!-- Logo -->
     <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
-      <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">SiliconBeest</span>
+      <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceStore.instance?.title || 'SiliconBeest' }}</span>
     </router-link>
 
     <!-- Authenticated: full nav -->
