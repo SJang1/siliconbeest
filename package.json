@@ -2,10 +2,10 @@
   "name": "siliconbeest-monorepo",
   "private": true,
   "scripts": {
-    "build": "pnpm -r build",
-    "deploy": "pnpm -r deploy",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint"
+    "build": "pnpm -r --if-present build",
+    "deploy": "pnpm -r --if-present deploy",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

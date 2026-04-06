@@ -15,7 +15,6 @@
 	},
 	"dependencies": {
 		"@fedify/cfworkers": "^2.1.1",
-		"@fedify/fedify": "^2.1.1",
-		"ulid": "^3.0.2"
+		"@fedify/fedify": "^2.1.1"
 	}
 }
