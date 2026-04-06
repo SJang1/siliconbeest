@@ -411,7 +411,6 @@ app.get('/thumbnail.png', async (c) => {
 
 // PWA icons — serve the admin-uploaded favicon/thumbnail for PWA installability
 app.get('/pwa-icon/:size{192|512}.png', async (c) => {
-  // Try favicon first
   const obj = await env.MEDIA_BUCKET.get('instance/favicon.ico');
   if (obj) {
     return new Response(obj.body, {
@@ -421,7 +420,6 @@ app.get('/pwa-icon/:size{192|512}.png', async (c) => {
       },
     });
   }
-  // Fallback to thumbnail
   const thumb = await env.MEDIA_BUCKET.get('instance/thumbnail.png');
   if (thumb) {
     return new Response(thumb.body, {
@@ -431,12 +429,7 @@ app.get('/pwa-icon/:size{192|512}.png', async (c) => {
       },
     });
   }
-  // Generate fallback SVG
-  const size = c.req.param('size');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${Number(size) * 0.15}" fill="#6366f1"/><text x="${Number(size) / 2}" y="${Number(size) / 2}" font-size="${Number(size) * 0.6}" fill="white" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-weight="bold">S</text></svg>`;
-  return new Response(svg, {
-    headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' },
-  });
+  return c.notFound();
 });
 
 app.get('/favicon.ico', async (c) => {
