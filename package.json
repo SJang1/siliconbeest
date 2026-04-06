@@ -1,0 +1,14 @@
+{
+  "name": "siliconbeest-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "deploy": "pnpm -r deploy",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "packageManager": "pnpm@10.9.0"
+}

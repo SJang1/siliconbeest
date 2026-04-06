@@ -1,0 +1,5 @@
+packages:
+  - 'siliconbeest'
+  - 'siliconbeest-queue-consumer'
+  - 'siliconbeest-email-sender'
+  - 'packages/*'
