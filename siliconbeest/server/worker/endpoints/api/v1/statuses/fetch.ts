@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import type { MediaAttachment } from '../../../../types/mastodon';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 /** Convert any date string to ISO 8601 with milliseconds */
 function toISO(d: unknown): string {
@@ -116,13 +117,12 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
  */
 async function serializeStatusEnriched(
   row: Record<string, unknown>,
-  db: D1Database,
   domain: string,
   currentAccountId?: string | null,
   cache?: KVNamespace,
 ) {
   const statusId = row.id as string;
-  const enrichments = await enrichStatuses(db, domain, [statusId], currentAccountId, cache);
+  const enrichments = await enrichStatuses(domain, [statusId], currentAccountId, cache);
   const e = enrichments.get(statusId);
   const status = serializeStatus(row, domain, undefined, e?.accountEmojis);
   if (e) {
@@ -158,9 +158,9 @@ const app = new Hono<HonoEnv>();
 app.get('/:id', authOptional, async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const row = await c.env.DB.prepare(
+  const row = await env.DB.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(statusId).first();
 
@@ -174,7 +174,7 @@ app.get('/:id', authOptional, async (c) => {
     // DM: only visible to the author and mentioned users
     if (!currentAccountId) throw new AppError(404, 'Record not found');
     if (currentAccountId !== statusAccountId) {
-      const mention = await c.env.DB.prepare(
+      const mention = await env.DB.prepare(
         'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
       ).bind(statusId, currentAccountId).first();
       if (!mention) throw new AppError(404, 'Record not found');
@@ -183,7 +183,7 @@ app.get('/:id', authOptional, async (c) => {
     // Followers-only: only visible to the author and their followers
     if (!currentAccountId) throw new AppError(404, 'Record not found');
     if (currentAccountId !== statusAccountId) {
-      const follow = await c.env.DB.prepare(
+      const follow = await env.DB.prepare(
         'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
       ).bind(currentAccountId, statusAccountId).first();
       if (!follow) throw new AppError(404, 'Record not found');
@@ -191,7 +191,7 @@ app.get('/:id', authOptional, async (c) => {
   }
   // 'public' and 'unlisted' are visible to everyone
 
-  return c.json(await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId, c.env.CACHE));
+  return c.json(await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE));
 });
 
 export { STATUS_JOIN_SQL, serializeStatus, serializeStatusEnriched };

@@ -3,6 +3,7 @@
  */
 
 /* oxlint-disable fp/no-loop-statements */
+import { env } from 'cloudflare:workers';
 
 type VapidKeys = {
 	publicKey: string;
@@ -14,9 +15,8 @@ type VapidKeys = {
  * Returns null if keys are not configured.
  */
 export async function getVapidKeys(
-	db: D1Database,
 ): Promise<VapidKeys | null> {
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare("SELECT key, value FROM settings WHERE key IN ('vapid_public_key', 'vapid_private_key')")
 		.all<{ key: string; value: string }>();
 
@@ -38,9 +38,8 @@ export async function getVapidKeys(
  * Cheaper than getVapidKeys when you only need the public key.
  */
 export async function getVapidPublicKey(
-	db: D1Database,
 ): Promise<string> {
-	const row = await db
+	const row = await env.DB
 		.prepare("SELECT value FROM settings WHERE key = 'vapid_public_key'")
 		.first<{ value: string }>();
 

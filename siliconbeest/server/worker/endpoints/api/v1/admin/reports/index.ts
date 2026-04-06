@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { authRequired, adminRequired } from '../../../../../middleware/auth';
 
 import list from './list';
@@ -7,7 +7,7 @@ import fetch from './fetch';
 import resolve from './resolve';
 import assign from './assign';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.use('*', authRequired, adminRequired);
 

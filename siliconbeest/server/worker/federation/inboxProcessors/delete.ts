@@ -7,9 +7,9 @@
  * Also removes related home_timeline_entries.
  */
 
-import type { Env } from '../../env';
 import type { APActivity, APObject } from '../../types/activitypub';
 import { BaseProcessor } from './BaseProcessor';
+import { env } from 'cloudflare:workers';
 
 class DeleteProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
@@ -49,7 +49,7 @@ class DeleteProcessor extends BaseProcessor {
 			await this.statusRepo.softDeleteByAccount(actorAccount.id);
 
 			// Remove from home timelines
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`DELETE FROM home_timeline_entries
 				 WHERE status_id IN (SELECT id FROM statuses WHERE account_id = ?1)`,
 			)
@@ -61,7 +61,7 @@ class DeleteProcessor extends BaseProcessor {
 		}
 
 		// Otherwise, delete a specific status
-		const status = await this.env.DB.prepare(
+		const status = await env.DB.prepare(
 			`SELECT id, account_id, in_reply_to_id, reblog_of_id FROM statuses
 			 WHERE uri = ?1 AND deleted_at IS NULL LIMIT 1`,
 		)
@@ -95,7 +95,7 @@ class DeleteProcessor extends BaseProcessor {
 		}
 
 		// Remove from home timelines
-		await this.env.DB.prepare(
+		await env.DB.prepare(
 			`DELETE FROM home_timeline_entries WHERE status_id = ?1`,
 		)
 			.bind(status.id)
@@ -106,7 +106,6 @@ class DeleteProcessor extends BaseProcessor {
 export async function processDelete(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new DeleteProcessor(env).process(activity);
+	await new DeleteProcessor().process(activity);
 }

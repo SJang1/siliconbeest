@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authOptional } from '../../../middleware/auth';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
 import type { AccountRow } from '../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -38,10 +39,10 @@ app.get('/', authOptional, async (c) => {
   `;
   binds.push(limit, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) =>
-    serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+    serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
   );
 
   return c.json(accounts);

@@ -6,7 +6,7 @@
  * and an Accept(Follow) is sent back.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { buildAcceptActivity } from '../helpers/build-activity';
@@ -41,7 +41,7 @@ class FollowProcessor extends BaseProcessor {
 			// Insert follow request
 			const requestId = generateUlid();
 			try {
-				await this.env.DB.prepare(
+				await env.DB.prepare(
 					`INSERT INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 				)
@@ -53,7 +53,7 @@ class FollowProcessor extends BaseProcessor {
 			}
 
 			// Notify target about the follow request
-			await this.env.QUEUE_INTERNAL.send({
+			await env.QUEUE_INTERNAL.send({
 				type: 'create_notification',
 				recipientAccountId: targetAccount.id,
 				senderAccountId: followerAccountId,
@@ -63,7 +63,7 @@ class FollowProcessor extends BaseProcessor {
 			// Auto-accept: insert directly into follows
 			const followId = generateUlid();
 			try {
-				await this.env.DB.prepare(
+				await env.DB.prepare(
 					`INSERT INTO follows (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 				)
@@ -79,7 +79,7 @@ class FollowProcessor extends BaseProcessor {
 			await this.accountRepo.incrementCount(followerAccountId, 'following_count');
 
 			// Notify target about the new follower
-			await this.env.QUEUE_INTERNAL.send({
+			await env.QUEUE_INTERNAL.send({
 				type: 'create_notification',
 				recipientAccountId: targetAccount.id,
 				senderAccountId: followerAccountId,
@@ -96,7 +96,7 @@ class FollowProcessor extends BaseProcessor {
 					|| remoteActor.shared_inbox_url
 					|| `https://${remoteActor.domain}/inbox`;
 
-				await this.env.QUEUE_FEDERATION.send({
+				await env.QUEUE_FEDERATION.send({
 					type: 'deliver_activity',
 					activity: JSON.parse(acceptJson),
 					inboxUrl: followerInbox,
@@ -110,7 +110,6 @@ class FollowProcessor extends BaseProcessor {
 export async function processFollow(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new FollowProcessor(env).process(activity);
+	await new FollowProcessor().process(activity);
 }

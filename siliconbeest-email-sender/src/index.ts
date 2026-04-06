@@ -1,21 +1,9 @@
 import { WorkerMailer } from 'worker-mailer';
+import { env } from 'cloudflare:workers';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface Env {
-	DB: D1Database;
-
-	// SMTP configuration (secrets set via `wrangler secret put`)
-	SMTP_HOST?: string;
-	SMTP_PORT?: string;
-	SMTP_USER?: string;
-	SMTP_PASS?: string;
-	SMTP_FROM?: string;
-	SMTP_SECURE?: string;
-	SMTP_AUTH_TYPE?: string;
-}
 
 interface EmailMessage {
 	type: 'send_email';
@@ -43,22 +31,8 @@ interface EmailConfig {
  * Read SMTP config from env vars OR D1 settings table.
  * Priority: env vars > D1 settings.
  */
-async function getEmailConfig(env: Env): Promise<EmailConfig | null> {
-	// Priority 1: environment variables
-	if (env.SMTP_HOST) {
-		const port = parseInt(env.SMTP_PORT || '587');
-		return {
-			host: env.SMTP_HOST,
-			port,
-			username: env.SMTP_USER || '',
-			password: env.SMTP_PASS || '',
-			from: env.SMTP_FROM || 'noreply@localhost',
-			secure: env.SMTP_SECURE === 'true' || port === 465,
-			authType: (env.SMTP_AUTH_TYPE as EmailConfig['authType']) || 'auto',
-		};
-	}
-
-	// Priority 2: D1 settings table
+async function getEmailConfig(): Promise<EmailConfig | null> {
+	// Priority 1: D1 settings table
 	try {
 		const settings = await env.DB
 			.prepare("SELECT key, value FROM settings WHERE key LIKE 'smtp_%'")
@@ -97,11 +71,11 @@ export default {
 		return new Response('siliconbeest-email-sender: queue consumer only', { status: 200 });
 	},
 
-	async queue(batch: MessageBatch, env: Env): Promise<void> {
+	async queue(batch: MessageBatch): Promise<void> {
 		for (const msg of batch.messages) {
 			const body = msg.body as EmailMessage;
 			try {
-				const config = await getEmailConfig(env);
+				const config = await getEmailConfig();
 				if (!config || !config.host) {
 					console.warn('[email-sender] No SMTP configured, dropping message');
 					msg.ack();

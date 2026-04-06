@@ -5,6 +5,7 @@
 
 /* oxlint-disable fp/no-let, fp/no-loop-statements, fp/no-throw-statements, fp/no-try-statements, no-param-reassign */
 
+import { env } from 'cloudflare:workers';
 import type { MediaAttachment as MastodonMediaAttachment, PreviewCard, Poll as MastodonPoll } from '../types/mastodon';
 import { serializeMediaAttachment, serializePoll } from './mastodonSerializer';
 import type { MediaAttachmentRow, PollRow } from '../types/db';
@@ -71,7 +72,6 @@ const EMPTY: StatusEnrichment = {
  * Runs up to 5 queries in parallel (1 media + 1 reactions + 3 interactions if authenticated).
  */
 export async function enrichStatuses(
-  db: D1Database,
   domain: string,
   statusIds: string[],
   currentAccountId?: string | null,
@@ -94,7 +94,7 @@ export async function enrichStatuses(
 
   // 1. Media attachments (always)
   queries.push(
-    db
+    env.DB
       .prepare(
         `SELECT * FROM media_attachments WHERE status_id IN (${placeholders}) ORDER BY created_at ASC`,
       )
@@ -114,7 +114,7 @@ export async function enrichStatuses(
 
   // 2. Emoji reactions (always)
   queries.push(
-    db
+    env.DB
       .prepare(
         `SELECT status_id, emoji, COUNT(*) as count FROM emoji_reactions WHERE status_id IN (${placeholders}) GROUP BY status_id, emoji`,
       )
@@ -135,7 +135,7 @@ export async function enrichStatuses(
 
   // 3. Mentions (always)
   queries.push(
-    db
+    env.DB
       .prepare(
         `SELECT m.status_id, m.account_id, a.username, a.domain, a.url AS a_url
          FROM mentions m
@@ -163,7 +163,7 @@ export async function enrichStatuses(
 
   // 4. Preview cards (always)
   queries.push(
-    db
+    env.DB
       .prepare(
         `SELECT spc.status_id, pc.*
          FROM status_preview_cards spc
@@ -201,7 +201,7 @@ export async function enrichStatuses(
   if (currentAccountId) {
     // Favourited
     queries.push(
-      db
+      env.DB
         .prepare(
           `SELECT status_id FROM favourites WHERE account_id = ?1 AND status_id IN (${placeholders})`,
         )
@@ -218,7 +218,7 @@ export async function enrichStatuses(
 
     // Reblogged
     queries.push(
-      db
+      env.DB
         .prepare(
           `SELECT reblog_of_id FROM statuses WHERE account_id = ?1 AND reblog_of_id IN (${placeholders}) AND deleted_at IS NULL`,
         )
@@ -235,7 +235,7 @@ export async function enrichStatuses(
 
     // Bookmarked
     queries.push(
-      db
+      env.DB
         .prepare(
           `SELECT status_id FROM bookmarks WHERE account_id = ?1 AND status_id IN (${placeholders})`,
         )
@@ -254,7 +254,7 @@ export async function enrichStatuses(
   // 8. Polls — auto-detect from statuses that have poll_id set
   if (!pollIdMap) {
     // Build pollIdMap by querying statuses for poll_ids
-    const pollIdQuery = await db
+    const pollIdQuery = await env.DB
       .prepare(`SELECT id, poll_id FROM statuses WHERE id IN (${placeholders}) AND poll_id IS NOT NULL`)
       .bind(...statusIds)
       .all<{ id: string; poll_id: string }>();
@@ -271,13 +271,13 @@ export async function enrichStatuses(
     const pollPlaceholders = pollIds.map(() => '?').join(',');
 
     // Fetch poll rows and user's votes in parallel
-    const pollQueryPromise = db
+    const pollQueryPromise = env.DB
       .prepare(`SELECT * FROM polls WHERE id IN (${pollPlaceholders})`)
       .bind(...pollIds)
       .all<PollRow>();
 
     const votesQueryPromise = currentAccountId
-      ? db
+      ? env.DB
           .prepare(
             `SELECT poll_id, choice FROM poll_votes WHERE poll_id IN (${pollPlaceholders}) AND account_id = ?${pollIds.length + 1}`,
           )
@@ -316,7 +316,7 @@ export async function enrichStatuses(
   await Promise.all(queries);
 
   // 9. Custom emojis — extract from emoji_tags JSON, verify accessibility, proxy URLs
-  const emojiTagsQuery = await db
+  const emojiTagsQuery = await env.DB
     .prepare(
       `SELECT id, content, content_warning, emoji_tags FROM statuses WHERE id IN (${placeholders})`,
     )

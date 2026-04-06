@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import {
@@ -10,7 +10,7 @@ import {
 	deleteIpBlock,
 } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -21,7 +21,7 @@ app.use('*', authRequired, adminRequired);
  */
 app.get('/', async (c) => {
 	const limit = Math.min(parseInt(c.req.query('limit') || '40', 10), 200);
-	const results = await listIpBlocks(c.env.DB, limit);
+	const results = await listIpBlocks(limit);
 	return c.json(results.map(formatIpBlock));
 });
 
@@ -29,7 +29,7 @@ app.get('/', async (c) => {
  * GET /api/v1/admin/ip_blocks/:id — fetch single.
  */
 app.get('/:id', async (c) => {
-	const row = await getIpBlock(c.env.DB, c.req.param('id'));
+	const row = await getIpBlock(c.req.param('id'));
 	return c.json(formatIpBlock(row));
 });
 
@@ -47,7 +47,7 @@ app.post('/', async (c) => {
 	if (!body.ip) throw new AppError(422, 'ip is required');
 	if (!body.severity) throw new AppError(422, 'severity is required');
 
-	const row = await createIpBlock(c.env.DB, body);
+	const row = await createIpBlock(body);
 	return c.json(formatIpBlock(row), 200);
 });
 
@@ -62,7 +62,7 @@ app.put('/:id', async (c) => {
 		expires_in?: number;
 	}>();
 
-	const row = await updateIpBlock(c.env.DB, c.req.param('id'), body);
+	const row = await updateIpBlock(c.req.param('id'), body);
 	return c.json(formatIpBlock(row));
 });
 
@@ -70,7 +70,7 @@ app.put('/:id', async (c) => {
  * DELETE /api/v1/admin/ip_blocks/:id — remove.
  */
 app.delete('/:id', async (c) => {
-	await deleteIpBlock(c.env.DB, c.req.param('id'));
+	await deleteIpBlock(c.req.param('id'));
 	return c.json({}, 200);
 });
 

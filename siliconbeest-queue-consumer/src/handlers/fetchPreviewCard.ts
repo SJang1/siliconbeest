@@ -5,7 +5,7 @@
  * linked to the originating status.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { FetchPreviewCardMessage } from '../shared/types/queue';
 import { generateUlid } from '../../../packages/shared/utils/ulid';
 
@@ -138,7 +138,6 @@ async function fetchOgMetadata(url: string): Promise<OgData | null> {
 
 export async function handleFetchPreviewCard(
   msg: FetchPreviewCardMessage,
-  env: Env,
 ): Promise<void> {
   const { statusId, url } = msg;
   console.log(`[preview-card] Processing URL: ${url} for status ${statusId}`);

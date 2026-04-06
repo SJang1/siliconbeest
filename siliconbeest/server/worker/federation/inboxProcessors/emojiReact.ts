@@ -6,7 +6,7 @@
  * creates a notification for the status author.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { BaseProcessor } from './BaseProcessor';
@@ -66,7 +66,7 @@ class EmojiReactProcessor extends BaseProcessor {
 				const emojiDomain = new URL(reactorUri).hostname;
 
 				if (emojiDomain) {
-					await this.env.DB.prepare(
+					await env.DB.prepare(
 						`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
 						 VALUES (?1, ?2, ?3, ?4, 0, datetime('now'), datetime('now'))
 						 ON CONFLICT(shortcode, domain) DO UPDATE SET
@@ -84,7 +84,7 @@ class EmojiReactProcessor extends BaseProcessor {
 			const reactorUri = activity.actor;
 			const emojiDomain = new URL(reactorUri).hostname;
 			if (emojiDomain) {
-				const emojiRow = await this.env.DB.prepare(
+				const emojiRow = await env.DB.prepare(
 					'SELECT id FROM custom_emojis WHERE shortcode = ? AND domain = ? LIMIT 1',
 				).bind(shortcode, emojiDomain).first<{ id: string }>();
 				if (emojiRow) customEmojiId = emojiRow.id;
@@ -96,7 +96,7 @@ class EmojiReactProcessor extends BaseProcessor {
 		const now = new Date().toISOString();
 
 		try {
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 			)
@@ -113,7 +113,6 @@ class EmojiReactProcessor extends BaseProcessor {
 export async function processEmojiReact(
 	activity: APActivity & Record<string, unknown>,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new EmojiReactProcessor(env).process(activity);
+	await new EmojiReactProcessor().process(activity);
 }

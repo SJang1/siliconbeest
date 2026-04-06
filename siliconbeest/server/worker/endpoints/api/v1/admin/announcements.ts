@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminRequired } from '../../../../middleware/auth';
 import {
@@ -10,7 +10,7 @@ import {
 	deleteAnnouncement,
 } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -20,7 +20,7 @@ app.use('*', authRequired, adminRequired);
  * GET /api/v1/admin/announcements — list all announcements.
  */
 app.get('/', async (c) => {
-	const results = await listAnnouncements(c.env.DB);
+	const results = await listAnnouncements();
 	return c.json(results.map(formatAnnouncement));
 });
 
@@ -28,7 +28,7 @@ app.get('/', async (c) => {
  * GET /api/v1/admin/announcements/:id — fetch single.
  */
 app.get('/:id', async (c) => {
-	const row = await getAnnouncement(c.env.DB, c.req.param('id'));
+	const row = await getAnnouncement(c.req.param('id'));
 	return c.json(formatAnnouncement(row));
 });
 
@@ -46,7 +46,7 @@ app.post('/', async (c) => {
 
 	if (!body.text) throw new AppError(422, 'text is required');
 
-	const row = await createAnnouncement(c.env.DB, body);
+	const row = await createAnnouncement(body);
 	return c.json(formatAnnouncement(row), 200);
 });
 
@@ -62,7 +62,7 @@ app.put('/:id', async (c) => {
 		all_day?: boolean;
 	}>();
 
-	const row = await updateAnnouncement(c.env.DB, c.req.param('id'), body);
+	const row = await updateAnnouncement(c.req.param('id'), body);
 	return c.json(formatAnnouncement(row));
 });
 
@@ -70,7 +70,7 @@ app.put('/:id', async (c) => {
  * DELETE /api/v1/admin/announcements/:id — remove.
  */
 app.delete('/:id', async (c) => {
-	await deleteAnnouncement(c.env.DB, c.req.param('id'));
+	await deleteAnnouncement(c.req.param('id'));
 	return c.json({}, 200);
 });
 

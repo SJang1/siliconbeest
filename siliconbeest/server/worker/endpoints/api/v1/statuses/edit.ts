@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
@@ -20,7 +21,7 @@ import {
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -28,7 +29,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentUser = c.get('currentUser')!;
   const currentAccountId = currentUser.account_id;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   let body: {
     status?: string;
@@ -43,7 +44,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const result = await editStatus(c.env.DB, domain, statusId, currentAccountId, {
+  const result = await editStatus(domain, statusId, currentAccountId, {
     text: body.status,
     sensitive: body.sensitive,
     spoilerText: body.spoiler_text,
@@ -54,7 +55,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const { status: updatedRow, content, hashtags, mediaAttachments } = result;
 
   // Fetch full account data for response
-  const accountRow = await c.env.DB.prepare(
+  const accountRow = await env.DB.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
   ).bind(currentAccountId).first();
 
@@ -98,14 +99,14 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       // -- Resolve inReplyTo --
       let replyTarget: URL | undefined;
       if (updatedRow.in_reply_to_id) {
-        const parentUri = await c.env.DB.prepare('SELECT uri FROM statuses WHERE id = ?1').bind(updatedRow.in_reply_to_id).first<{ uri: string }>();
+        const parentUri = await env.DB.prepare('SELECT uri FROM statuses WHERE id = ?1').bind(updatedRow.in_reply_to_id).first<{ uri: string }>();
         if (parentUri) replyTarget = new URL(parentUri.uri);
       }
 
       // -- Conversation context --
       let editConvApUri: string | null = null;
       if (updatedRow.conversation_id) {
-        const convRow = await c.env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
+        const convRow = await env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
         editConvApUri = convRow?.ap_uri ?? null;
       }
 
@@ -118,7 +119,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       );
 
       // -- Mention tags (from DB) --
-      const { results: mentionRows } = await c.env.DB.prepare(
+      const { results: mentionRows } = await env.DB.prepare(
         `SELECT m.account_id, a.uri AS actor_uri, a.username, a.domain
          FROM mentions m JOIN accounts a ON a.id = m.account_id
          WHERE m.status_id = ?1`,
@@ -132,7 +133,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       });
 
       // -- Media attachments --
-      const { results: editMediaRows } = await c.env.DB.prepare(
+      const { results: editMediaRows } = await env.DB.prepare(
         'SELECT * FROM media_attachments WHERE status_id = ?1',
       ).bind(statusId).all();
       const mediaAttachmentObjects = (editMediaRows ?? []).map((m: any) => {
@@ -205,7 +206,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
 
       // -- Send via Fedify --
       const fed = c.get('federation');
-      await sendToFollowers(fed, c.env, accountRow!.username as string, update);
+      await sendToFollowers(fed, accountRow!.username as string, update);
     } catch (e) {
       console.error('Federation delivery failed for status edit:', e);
     }

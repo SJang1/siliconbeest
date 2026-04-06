@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
 import fetchApp from './fetch';
 import voteApp from './vote';
 
-const polls = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const polls = new Hono<{ Variables: AppVariables }>();
 
 // GET /api/v1/polls/:id
 polls.route('/', fetchApp);

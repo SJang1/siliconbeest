@@ -17,7 +17,8 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
 import { sendToFollowers, getFedifyContext } from '../../../../federation/helpers/send';
@@ -26,12 +27,12 @@ import { Move } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import { getAccountUri, setMovedTo } from '../../../../services/account';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.post('/migration', authRequired, async (c) => {
 	const currentUser = c.get('currentUser')!;
 	const accountId = currentUser.account_id;
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
 	const body = await c.req.json<{ target_acct: string }>().catch(() => null);
 
@@ -43,7 +44,7 @@ app.post('/migration', authRequired, async (c) => {
 
 	// 1. WebFinger resolve target via Fedify
 	const fed = c.get('federation');
-	const ctx = getFedifyContext(fed, c.env);
+	const ctx = getFedifyContext(fed);
 	const wfResult = await ctx.lookupWebFinger(`acct:${targetAcct.replace(/^@/, '')}`);
 	const selfLink = wfResult?.links?.find(
 		(link) =>
@@ -59,7 +60,7 @@ app.post('/migration', authRequired, async (c) => {
 	const targetActorUri = selfLink.href;
 
 	// 2. Fetch target actor document via Fedify
-	const localAcct = await c.env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+	const localAcct = await env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
 	const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
 	const targetActor = await ctx.lookupObject(targetActorUri, { documentLoader: docLoader });
 	if (!targetActor || !isActor(targetActor) || !targetActor.id) {
@@ -67,7 +68,7 @@ app.post('/migration', authRequired, async (c) => {
 	}
 
 	// 3. Verify alsoKnownAs bidirectional link
-	const account = await getAccountUri(c.env.DB, accountId);
+	const account = await getAccountUri(accountId);
 
 	if (!account) {
 		return c.json({ error: 'Account not found' }, 404);
@@ -86,13 +87,13 @@ app.post('/migration', authRequired, async (c) => {
 	}
 
 	// 4. Resolve or create the target account in our DB
-	const targetAccountId = await resolveRemoteAccount(targetActorUri, c.env);
+	const targetAccountId = await resolveRemoteAccount(targetActorUri);
 	if (!targetAccountId) {
 		return c.json({ error: 'Could not resolve target account' }, 422);
 	}
 
 	// Update moved_to_account_id + moved_at
-	await setMovedTo(c.env.DB, accountId, targetAccountId);
+	await setMovedTo(accountId, targetAccountId);
 
 	// 5. Build Move activity and fanout to followers
 	const move = new Move({
@@ -101,7 +102,7 @@ app.post('/migration', authRequired, async (c) => {
 		object: new URL(ourUri),
 		target: new URL(targetActorUri),
 	});
-	await sendToFollowers(fed, c.env, account.username, move);
+	await sendToFollowers(fed, account.username, move);
 
 	console.log(`[migration] Account ${ourUri} moved to ${targetActorUri}`);
 

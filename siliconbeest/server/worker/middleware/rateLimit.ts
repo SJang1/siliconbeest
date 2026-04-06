@@ -1,7 +1,8 @@
+import { env } from 'cloudflare:workers';
 import { createMiddleware } from 'hono/factory';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 
-type MiddlewareEnv = { Bindings: Env; Variables: AppVariables };
+type MiddlewareEnv = { Variables: AppVariables };
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -74,7 +75,7 @@ export function createRateLimit(opts: RateLimitOptions) {
     const windowId = Math.floor(Date.now() / windowMs);
     const key = `rl:${ip}:${endpoint}:${windowId}`;
 
-    const kv = c.env.CACHE;
+    const kv = env.CACHE;
 
     // Read current count
     const current = parseInt((await kv.get(key)) ?? '0', 10);

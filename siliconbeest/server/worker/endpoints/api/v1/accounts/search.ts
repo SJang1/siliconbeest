@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { searchAccounts } from '../../../../services/account';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -12,12 +13,12 @@ app.get('/search', authRequired, async (c) => {
   const q = (query.q || '').trim();
   const limit = Math.min(parseInt(query.limit || '40', 10) || 40, 80);
   const following = query.following === 'true';
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const currentAccountId = c.get('currentUser')!.account_id;
 
   if (!q) return c.json([]);
 
-  const results = await searchAccounts(c.env.DB, q, limit, 0, following ? { followedBy: currentAccountId } : undefined);
+  const results = await searchAccounts(q, limit, 0, following ? { followedBy: currentAccountId } : undefined);
 
   const accounts = results.map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Notification = {
@@ -24,7 +25,7 @@ export type NotificationQueryOptions = {
 	excludeTypes?: string[];
 };
 
-export const findByAccount = async (db: D1Database, accountId: string, opts: NotificationQueryOptions = {}): Promise<Notification[]> => {
+export const findByAccount = async (accountId: string, opts: NotificationQueryOptions = {}): Promise<Notification[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 'account_id = ?', params: [accountId] },
@@ -39,7 +40,7 @@ export const findByAccount = async (db: D1Database, accountId: string, opts: Not
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM notifications
 			 WHERE ${where}
@@ -50,15 +51,15 @@ export const findByAccount = async (db: D1Database, accountId: string, opts: Not
 	return results;
 };
 
-export const findById = async (db: D1Database, id: string): Promise<Notification | null> => {
-	const result = await db
+export const findById = async (id: string): Promise<Notification | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM notifications WHERE id = ?')
 		.bind(id)
 		.first<Notification>();
 	return result ?? null;
 };
 
-export const create = async (db: D1Database, input: CreateNotificationInput): Promise<Notification> => {
+export const create = async (input: CreateNotificationInput): Promise<Notification> => {
 	const now = new Date().toISOString();
 	const id = generateUlid();
 	const notification: Notification = {
@@ -71,7 +72,7 @@ export const create = async (db: D1Database, input: CreateNotificationInput): Pr
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO notifications (id, account_id, from_account_id, type, status_id, read, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -86,22 +87,22 @@ export const create = async (db: D1Database, input: CreateNotificationInput): Pr
 	return notification;
 };
 
-export const dismiss = async (db: D1Database, id: string, accountId: string): Promise<void> => {
-	await db
+export const dismiss = async (id: string, accountId: string): Promise<void> => {
+	await env.DB
 		.prepare('DELETE FROM notifications WHERE id = ? AND account_id = ?')
 		.bind(id, accountId)
 		.run();
 };
 
-export const clearAll = async (db: D1Database, accountId: string): Promise<void> => {
-	await db
+export const clearAll = async (accountId: string): Promise<void> => {
+	await env.DB
 		.prepare('DELETE FROM notifications WHERE account_id = ?')
 		.bind(accountId)
 		.run();
 };
 
-export const countUnread = async (db: D1Database, accountId: string): Promise<number> => {
-	const result = await db
+export const countUnread = async (accountId: string): Promise<number> => {
+	const result = await env.DB
 		.prepare('SELECT COUNT(*) as count FROM notifications WHERE account_id = ? AND read = 0')
 		.bind(accountId)
 		.first<{ count: number }>();

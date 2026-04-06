@@ -10,16 +10,17 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../types';
 import type { AccountRow } from '../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/:username', async (c) => {
   const username = c.req.param('username');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const account = await c.env.DB.prepare(`
+  const account = await env.DB.prepare(`
     SELECT id, username, suspended_at FROM accounts
     WHERE username = ?1 AND domain IS NULL
     LIMIT 1

@@ -8,10 +8,11 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired, authOptional } from '../../../../middleware/auth';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
@@ -27,13 +28,12 @@ const app = new Hono<HonoEnv>();
  * Returns null for Unicode emoji or if the shortcode is not found.
  */
 async function lookupCustomEmojiTag(
-	db: D1Database,
 	domain: string,
 	emoji: string,
 ): Promise<{ row: CustomEmojiRow; tag: APEmoji } | null> {
 	if (!emoji.startsWith(':') || !emoji.endsWith(':')) return null;
 	const shortcode = emoji.slice(1, -1);
-	const row = await db
+	const row = await env.DB
 		.prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
 		.bind(shortcode, domain)
 		.first<CustomEmojiRow>();
@@ -57,9 +57,9 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 	const statusId = c.req.param('id');
 	const emoji = decodeURIComponent(c.req.param('emoji'));
 	const currentAccountId = c.get('currentUser')!.account_id;
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await c.env.DB.prepare(
+	const row = await env.DB.prepare(
 		`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
 	)
 		.bind(statusId)
@@ -68,12 +68,12 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 
 	// Validate custom emoji exists
 	const isCustom = emoji.startsWith(':') && emoji.endsWith(':');
-	const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
+	const emojiLookup = await lookupCustomEmojiTag(domain, emoji);
 	if (isCustom && !emojiLookup) {
 		throw new AppError(422, 'Custom emoji not found');
 	}
 
-	await addReaction(c.env.DB, currentAccountId, statusId, emoji, domain);
+	await addReaction(currentAccountId, statusId, emoji, domain);
 
 	// Federate the emoji reaction
 	const statusRow = row as Record<string, unknown>;
@@ -93,17 +93,17 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 	if (authorDomain) {
 		// Remote author: send directly to their inbox
 		const authorAccountId = statusRow.account_id as string;
-		const authorAccount = await c.env.DB.prepare(
+		const authorAccount = await env.DB.prepare(
 			'SELECT uri FROM accounts WHERE id = ?',
 		).bind(authorAccountId).first<{ uri: string }>();
 		if (authorAccount) {
-			await sendToRecipient(fed, c.env, username!, authorAccount.uri, like);
+			await sendToRecipient(fed, username!, authorAccount.uri, like);
 		}
 	}
 	// Always fan out to followers (so remote followers see the reaction)
-	await sendToFollowers(fed, c.env, username!, like);
+	await sendToFollowers(fed, username!, like);
 
-	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
+	const status = await serializeStatusEnriched(statusRow, domain, currentAccountId, env.CACHE);
 	return c.json(status);
 });
 
@@ -112,16 +112,16 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 	const statusId = c.req.param('id');
 	const emoji = decodeURIComponent(c.req.param('emoji'));
 	const currentAccountId = c.get('currentUser')!.account_id;
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await c.env.DB.prepare(
+	const row = await env.DB.prepare(
 		`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
 	)
 		.bind(statusId)
 		.first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	const { changes } = await removeReaction(c.env.DB, currentAccountId, statusId, emoji);
+	const { changes } = await removeReaction(currentAccountId, statusId, emoji);
 
 	// Federate Undo(Like) for emoji reaction removal
 	const statusRow = row as Record<string, unknown>;
@@ -130,7 +130,7 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		const username = c.get('currentAccount')?.username;
 		const actorUri = `https://${domain}/users/${username}`;
 		const statusUri = statusRow.uri as string;
-		const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
+		const emojiLookup = await lookupCustomEmojiTag(domain, emoji);
 		const tags = emojiLookup ? [emojiLookup.tag] : [];
 		const originalLike = new Like({
 			id: new URL(`https://${domain}/activities/${generateUlid()}`),
@@ -147,18 +147,18 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		const fed = c.get('federation');
 		if (authorDomain) {
 			const authorAccountId = statusRow.account_id as string;
-			const authorAccount = await c.env.DB.prepare(
+			const authorAccount = await env.DB.prepare(
 				'SELECT uri FROM accounts WHERE id = ?',
 			).bind(authorAccountId).first<{ uri: string }>();
 			if (authorAccount) {
-				await sendToRecipient(fed, c.env, username!, authorAccount.uri, undo);
+				await sendToRecipient(fed, username!, authorAccount.uri, undo);
 			}
 		}
 		// Always fan out to followers
-		await sendToFollowers(fed, c.env, username!, undo);
+		await sendToFollowers(fed, username!, undo);
 	}
 
-	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
+	const status = await serializeStatusEnriched(statusRow, domain, currentAccountId, env.CACHE);
 	return c.json(status);
 });
 
@@ -166,10 +166,10 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 app.get('/:id/reactions', authOptional, async (c) => {
 	const statusId = c.req.param('id');
 	const currentAccountId = c.get('currentUser')?.account_id ?? null;
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
 	// Verify status exists
-	const status = await c.env.DB.prepare(
+	const status = await env.DB.prepare(
 		'SELECT id FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
 	)
 		.bind(statusId)
@@ -177,7 +177,7 @@ app.get('/:id/reactions', authOptional, async (c) => {
 	if (!status) throw new AppError(404, 'Record not found');
 
 	// Fetch all reactions with account info and custom emoji data via LEFT JOIN
-	const { results } = await c.env.DB.prepare(
+	const { results } = await env.DB.prepare(
 		`SELECT er.emoji, er.account_id,
 		   a.username, a.domain, a.display_name, a.note, a.uri, a.url,
 		   a.avatar_url, a.avatar_static_url, a.header_url, a.header_static_url,
@@ -226,7 +226,7 @@ app.get('/:id/reactions', authOptional, async (c) => {
 	if (missingShortcodes.size > 0) {
 		const shortcodes = [...missingShortcodes];
 		const emojiPlaceholders = shortcodes.map(() => '?').join(',');
-		const { results: emojiRows } = await c.env.DB.prepare(
+		const { results: emojiRows } = await env.DB.prepare(
 			`SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
 		).bind(...shortcodes).all();
 		for (const er of emojiRows ?? []) {

@@ -5,8 +5,10 @@
  * All functions are pure DB operations — no federation or queue side-effects.
  */
 
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { generateToken, sha256 } from '../utils/crypto';
+import { createAccessToken } from './auth';
 import { AppError } from '../middleware/errorHandler';
 import type { OAuthApplicationRow } from '../types/db';
 
@@ -15,7 +17,6 @@ import type { OAuthApplicationRow } from '../types/db';
 // ----------------------------------------------------------------
 
 export async function createOAuthApp(
-	db: D1Database,
 	name: string,
 	redirectUri: string,
 	scopes: string,
@@ -26,7 +27,7 @@ export async function createOAuthApp(
 	const clientSecret = generateToken(64);
 	const now = new Date().toISOString();
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -34,7 +35,7 @@ export async function createOAuthApp(
 		.bind(id, name, website || null, redirectUri, clientId, clientSecret, scopes, now, now)
 		.run();
 
-	return (await db.prepare('SELECT * FROM oauth_applications WHERE id = ?').bind(id).first()) as OAuthApplicationRow;
+	return (await env.DB.prepare('SELECT * FROM oauth_applications WHERE id = ?').bind(id).first()) as OAuthApplicationRow;
 }
 
 // ----------------------------------------------------------------
@@ -42,7 +43,6 @@ export async function createOAuthApp(
 // ----------------------------------------------------------------
 
 export async function createAuthorizationCode(
-	db: D1Database,
 	appId: string,
 	userId: string,
 	redirectUri: string,
@@ -55,7 +55,7 @@ export async function createAuthorizationCode(
 	const now = new Date();
 	const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO oauth_authorization_codes
 			(id, code, application_id, user_id, redirect_uri, scopes,
@@ -84,7 +84,6 @@ export async function createAuthorizationCode(
 // ----------------------------------------------------------------
 
 export async function exchangeCode(
-	db: D1Database,
 	code: string,
 	clientId: string,
 	clientSecret: string,
@@ -93,7 +92,7 @@ export async function exchangeCode(
 ): Promise<{ token: string; scope: string; createdAt: number }> {
 	// Look up the authorization code — include application_id check (security fix)
 	// First resolve the application from client_id
-	const app = (await db
+	const app = (await env.DB
 		.prepare('SELECT * FROM oauth_applications WHERE client_id = ? LIMIT 1')
 		.bind(clientId)
 		.first()) as OAuthApplicationRow | null;
@@ -107,7 +106,7 @@ export async function exchangeCode(
 	}
 
 	// Look up code scoped to this application (prevents cross-app code replay)
-	const authCode = await db
+	const authCode = await env.DB
 		.prepare(
 			`SELECT id, user_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at
 			 FROM oauth_authorization_codes
@@ -124,7 +123,7 @@ export async function exchangeCode(
 	// Check expiry
 	if (new Date(authCode.expires_at as string) < new Date()) {
 		// Clean up expired code
-		await db.prepare('DELETE FROM oauth_authorization_codes WHERE id = ?').bind(authCode.id).run();
+		await env.DB.prepare('DELETE FROM oauth_authorization_codes WHERE id = ?').bind(authCode.id).run();
 		throw new AppError(400, 'invalid_grant', 'Authorization code has expired');
 	}
 
@@ -159,27 +158,16 @@ export async function exchangeCode(
 	}
 
 	// DELETE the used code (single-use, not UPDATE used_at)
-	await db.prepare('DELETE FROM oauth_authorization_codes WHERE id = ?').bind(authCode.id).run();
+	await env.DB.prepare('DELETE FROM oauth_authorization_codes WHERE id = ?').bind(authCode.id).run();
 
-	// Generate access token — store SHA-256 hash, not plaintext
-	const token = generateToken(64);
-	const tokenHash = await sha256(token);
-	const tokenId = generateUlid();
-	const now = new Date();
-
-	await db
-		.prepare(
-			`INSERT INTO oauth_access_tokens
-			(id, token_hash, application_id, user_id, scopes, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`,
-		)
-		.bind(tokenId, tokenHash, app.id, authCode.user_id, authCode.scopes ?? 'read', now.toISOString())
-		.run();
+	// Create access token via the unified service function
+	const scopes = (authCode.scopes as string) ?? 'read';
+	const { tokenValue, createdAt } = await createAccessToken(app.id, authCode.user_id as string, { scopes });
 
 	return {
-		token,
-		scope: (authCode.scopes as string) ?? 'read',
-		createdAt: Math.floor(now.getTime() / 1000),
+		token: tokenValue,
+		scope: scopes,
+		createdAt: Math.floor(new Date(createdAt).getTime() / 1000),
 	};
 }
 
@@ -188,19 +176,18 @@ export async function exchangeCode(
 // ----------------------------------------------------------------
 
 export async function revokeToken(
-	db: D1Database,
 	tokenHash: string,
 	appId?: string,
 ): Promise<void> {
 	const now = new Date().toISOString();
 
 	if (appId) {
-		await db
+		await env.DB
 			.prepare('UPDATE oauth_access_tokens SET revoked_at = ? WHERE token_hash = ? AND application_id = ? AND revoked_at IS NULL')
 			.bind(now, tokenHash, appId)
 			.run();
 	} else {
-		await db
+		await env.DB
 			.prepare('UPDATE oauth_access_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL')
 			.bind(now, tokenHash)
 			.run();

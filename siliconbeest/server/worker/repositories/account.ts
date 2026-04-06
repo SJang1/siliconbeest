@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Account = {
@@ -37,48 +38,48 @@ export type UpdateAccountInput = Partial<
 	Omit<Account, 'id' | 'created_at' | 'updated_at'>
 >;
 
-export const findById = async (db: D1Database, id: string): Promise<Account | null> => {
-	const result = await db
+export const findById = async (id: string): Promise<Account | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM accounts WHERE id = ?')
 		.bind(id)
 		.first<Account>();
 	return result ?? null;
 };
 
-export const findByUri = async (db: D1Database, uri: string): Promise<Account | null> => {
-	const result = await db
+export const findByUri = async (uri: string): Promise<Account | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM accounts WHERE uri = ?')
 		.bind(uri)
 		.first<Account>();
 	return result ?? null;
 };
 
-export const findByUsername = async (db: D1Database, username: string, domain?: string | null): Promise<Account | null> => {
+export const findByUsername = async (username: string, domain?: string | null): Promise<Account | null> => {
 	if (domain === undefined || domain === null) {
-		const result = await db
+		const result = await env.DB
 			.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL')
 			.bind(username)
 			.first<Account>();
 		return result ?? null;
 	}
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ?')
 		.bind(username, domain)
 		.first<Account>();
 	return result ?? null;
 };
 
-export const findByIds = async (db: D1Database, ids: string[]): Promise<Account[]> => {
+export const findByIds = async (ids: string[]): Promise<Account[]> => {
 	if (ids.length === 0) return [];
 	const placeholders = ids.map(() => '?').join(', ');
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(`SELECT * FROM accounts WHERE id IN (${placeholders})`)
 		.bind(...ids)
 		.all<Account>();
 	return results;
 };
 
-export const create = async (db: D1Database, input: CreateAccountInput): Promise<Account> => {
+export const create = async (input: CreateAccountInput): Promise<Account> => {
 	const now = new Date().toISOString();
 	const id = generateUlid();
 	const account: Account = {
@@ -111,7 +112,7 @@ export const create = async (db: D1Database, input: CreateAccountInput): Promise
 		moved_to_account_id: input.moved_to_account_id ?? null,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO accounts (
 				id, username, domain, display_name, note, uri, url,
@@ -141,22 +142,21 @@ export const create = async (db: D1Database, input: CreateAccountInput): Promise
 	return account;
 };
 
-export const update = async (db: D1Database, id: string, input: UpdateAccountInput): Promise<Account | null> => {
+export const update = async (id: string, input: UpdateAccountInput): Promise<Account | null> => {
 	const now = new Date().toISOString();
 	const entries = Object.entries(input);
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 
-	return findById(db, id);
+	return findById(id);
 };
 
 export const updateCounts = async (
-	db: D1Database,
 	id: string,
 	counts: { statuses_count?: number; followers_count?: number; following_count?: number }
 ): Promise<void> => {
@@ -167,15 +167,15 @@ export const updateCounts = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), new Date().toISOString(), id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 };
 
-export const search = async (db: D1Database, query: string, limit: number = 20, offset: number = 0): Promise<Account[]> => {
+export const search = async (query: string, limit: number = 20, offset: number = 0): Promise<Account[]> => {
 	const likeQuery = `%${query}%`;
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM accounts
 			 WHERE (username LIKE ? OR display_name LIKE ?)
@@ -193,8 +193,8 @@ export const search = async (db: D1Database, query: string, limit: number = 20, 
  * Find a local account by its URI (domain IS NULL).
  * Used by federation processors to verify the target is a local user.
  */
-export const findLocalByUri = async (db: D1Database, uri: string): Promise<Account | null> => {
-	const result = await db
+export const findLocalByUri = async (uri: string): Promise<Account | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM accounts WHERE uri = ? AND domain IS NULL')
 		.bind(uri)
 		.first<Account>();
@@ -204,8 +204,8 @@ export const findLocalByUri = async (db: D1Database, uri: string): Promise<Accou
 /**
  * Check if an account ID belongs to a local user.
  */
-export const isLocal = async (db: D1Database, id: string): Promise<boolean> => {
-	const result = await db
+export const isLocal = async (id: string): Promise<boolean> => {
+	const result = await env.DB
 		.prepare('SELECT id FROM accounts WHERE id = ? AND domain IS NULL')
 		.bind(id)
 		.first();
@@ -215,8 +215,8 @@ export const isLocal = async (db: D1Database, id: string): Promise<boolean> => {
 /**
  * Increment a count field atomically. Used by federation inbox processors.
  */
-export const incrementCount = async (db: D1Database, id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
-	await db
+export const incrementCount = async (id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
+	await env.DB
 		.prepare(`UPDATE accounts SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -225,15 +225,15 @@ export const incrementCount = async (db: D1Database, id: string, field: 'followe
 /**
  * Decrement a count field atomically, flooring at 0.
  */
-export const decrementCount = async (db: D1Database, id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
-	await db
+export const decrementCount = async (id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
+	await env.DB
 		.prepare(`UPDATE accounts SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
 };
 
-export const findLocalAccounts = async (db: D1Database, limit: number = 20, offset: number = 0): Promise<Account[]> => {
-	const { results } = await db
+export const findLocalAccounts = async (limit: number = 20, offset: number = 0): Promise<Account[]> => {
+	const { results } = await env.DB
 		.prepare(
 			'SELECT * FROM accounts WHERE domain IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?'
 		)

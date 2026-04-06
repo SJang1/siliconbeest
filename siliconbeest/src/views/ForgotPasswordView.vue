@@ -5,22 +5,23 @@ import { apiFetch } from '@/api/client'
 
 const { t } = useI18n()
 
+const username = ref('')
 const email = ref('')
 const loading = ref(false)
 const sent = ref(false)
 const error = ref('')
 
 async function handleSubmit() {
-  if (!email.value) return
+  if (!username.value || !email.value) return
   loading.value = true
   error.value = ''
   try {
     await apiFetch('/v1/auth/passwords', {
       method: 'POST',
-      body: JSON.stringify({ email: email.value }),
+      body: JSON.stringify({ username: username.value, email: email.value }),
     })
   } catch {
-    // Always show success to avoid email enumeration
+    // Always show success to avoid enumeration
   }
   sent.value = true
   loading.value = false
@@ -59,6 +60,19 @@ async function handleSubmit() {
           </div>
 
           <div>
+            <label for="forgot-username" class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
+            <input
+              id="forgot-username"
+              v-model="username"
+              type="text"
+              required
+              autocomplete="username"
+              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              :placeholder="t('auth.username_placeholder')"
+            />
+          </div>
+
+          <div>
             <label for="forgot-email" class="block text-sm font-medium mb-1">{{ t('auth.email') }}</label>
             <input
               id="forgot-email"
@@ -79,11 +93,14 @@ async function handleSubmit() {
             {{ loading ? t('common.loading') : t('passwords.send_reset') }}
           </button>
 
-          <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+          <div class="flex justify-between text-sm">
+            <router-link to="/auth/find-username" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+              {{ t('auth.find_username') }}
+            </router-link>
             <router-link to="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
               {{ t('auth.sign_in') }}
             </router-link>
-          </p>
+          </div>
         </form>
       </div>
     </div>

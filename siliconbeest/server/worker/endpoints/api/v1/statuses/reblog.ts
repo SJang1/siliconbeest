@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { Temporal } from '@js-temporal/polyfill';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 import { sendToFollowers } from '../../../../federation/helpers/send';
@@ -17,9 +18,9 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   const statusId = c.req.param('id');
   const currentUser = c.get('currentUser')!;
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const row = await c.env.DB.prepare(
+  const row = await env.DB.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
@@ -31,7 +32,6 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   }
 
   const { reblogId, reblogUri, created } = await reblogStatus(
-    c.env.DB,
     domain,
     currentUser.account_id,
     currentAccount.username,
@@ -40,7 +40,7 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
 
   if (!created) {
     // Return the existing reblog
-    const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);
+    const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentUser.account_id, env.CACHE);
     rebloggedStatus.reblogged = true;
     return c.json({
       id: reblogId,
@@ -101,7 +101,7 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   const now = new Date().toISOString();
 
   // Fanout reblog to followers' home timelines
-  await c.env.QUEUE_INTERNAL.send({
+  await env.QUEUE_INTERNAL.send({
     type: 'timeline_fanout',
     statusId: reblogId,
     accountId: currentUser.account_id,
@@ -110,7 +110,7 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   // Create notification for the status author (don't notify yourself)
   const statusAuthorId = row.account_id as string;
   if (statusAuthorId !== currentUser.account_id) {
-    await c.env.QUEUE_INTERNAL.send({
+    await env.QUEUE_INTERNAL.send({
       type: 'create_notification',
       recipientAccountId: statusAuthorId,
       senderAccountId: currentUser.account_id,
@@ -133,12 +133,12 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
       ccs: [new URL(followersUri)],
     });
     const fed = c.get('federation');
-    await sendToFollowers(fed, c.env, currentAccount.username, announce);
+    await sendToFollowers(fed, currentAccount.username, announce);
   } catch (e) {
     throw new Error(`Federation delivery failed for reblog: ${e instanceof Error ? e.message : e}`);
   }
 
-  const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);
+  const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentUser.account_id, env.CACHE);
   rebloggedStatus.reblogged = true;
   rebloggedStatus.reblogs_count += 1;
 

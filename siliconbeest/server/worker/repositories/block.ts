@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Block = {
@@ -15,11 +16,10 @@ export type CreateBlockInput = {
 };
 
 export const findByAccountAndTarget = async (
-	db: D1Database,
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Block | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Block>();
@@ -27,7 +27,6 @@ export const findByAccountAndTarget = async (
 };
 
 export const findByAccount = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 40,
 	maxId?: string,
@@ -39,7 +38,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM blocks
 			 WHERE ${where}
@@ -51,7 +50,6 @@ export const findByAccount = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateBlockInput,
 ): Promise<Block> => {
 	const now = new Date().toISOString();
@@ -64,7 +62,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			'INSERT INTO blocks (id, account_id, target_account_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -75,21 +73,19 @@ export const create = async (
 };
 
 export const deleteById = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM blocks WHERE id = ?')
 		.bind(id)
 		.run();
 };
 
 export const isBlocked = async (
-	db: D1Database,
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT 1 FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
 		.bind(accountId, targetId)
 		.first();

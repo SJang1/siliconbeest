@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { getAccountWarnings } from '../../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -13,7 +13,7 @@ const app = new Hono<HonoEnv>();
  */
 app.get('/:id/warnings', async (c) => {
 	const id = c.req.param('id');
-	const warnings = await getAccountWarnings(c.env.DB, id);
+	const warnings = await getAccountWarnings(id);
 	return c.json(warnings);
 });
 

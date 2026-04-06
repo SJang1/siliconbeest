@@ -1,10 +1,11 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 interface FeaturedTagWithNameRow {
   id: string;
@@ -38,9 +39,9 @@ const app = new Hono<HonoEnv>();
 // GET /api/v1/featured_tags — list own featured tags
 app.get('/', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT ft.*, t.name AS tag_name
      FROM featured_tags ft
      JOIN tags t ON t.id = ft.tag_id
@@ -56,7 +57,7 @@ app.get('/', authRequired, async (c) => {
 // POST /api/v1/featured_tags — feature a tag
 app.post('/', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const body = await c.req.json<{ name?: string }>();
 
   if (!body.name) throw new AppError(422, 'Validation failed: name is required');
@@ -64,14 +65,14 @@ app.post('/', authRequired, async (c) => {
   const tagName = body.name.toLowerCase().replace(/^#/, '');
 
   // Find or create the tag
-  let tag = await c.env.DB.prepare('SELECT * FROM tags WHERE name = ?1')
+  let tag = await env.DB.prepare('SELECT * FROM tags WHERE name = ?1')
     .bind(tagName)
     .first<TagRow>();
 
   if (!tag) {
     const tagId = generateUlid();
     const now = new Date().toISOString();
-    await c.env.DB.prepare(
+    await env.DB.prepare(
       'INSERT INTO tags (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(tagId, tagName, now, now)
@@ -80,7 +81,7 @@ app.post('/', authRequired, async (c) => {
   }
 
   // Check if already featured
-  const existing = await c.env.DB.prepare(
+  const existing = await env.DB.prepare(
     'SELECT id FROM featured_tags WHERE account_id = ?1 AND tag_id = ?2',
   )
     .bind(currentAccount.id, tag.id)
@@ -89,7 +90,7 @@ app.post('/', authRequired, async (c) => {
   if (existing) throw new AppError(422, 'Validation failed: tag is already featured');
 
   // Count statuses with this tag
-  const countRow = await c.env.DB.prepare(
+  const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS cnt FROM statuses s
      JOIN status_tags st ON st.status_id = s.id
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL`,
@@ -97,7 +98,7 @@ app.post('/', authRequired, async (c) => {
     .bind(currentAccount.id, tag.id)
     .first<{ cnt: number }>();
 
-  const lastRow = await c.env.DB.prepare(
+  const lastRow = await env.DB.prepare(
     `SELECT s.created_at FROM statuses s
      JOIN status_tags st ON st.status_id = s.id
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL
@@ -109,7 +110,7 @@ app.post('/', authRequired, async (c) => {
   const id = generateUlid();
   const now = new Date().toISOString();
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     `INSERT INTO featured_tags (id, account_id, tag_id, statuses_count, last_status_at, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
   )
@@ -130,7 +131,7 @@ app.delete('/:id', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const ftId = c.req.param('id');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await env.DB.prepare(
     'SELECT id FROM featured_tags WHERE id = ?1 AND account_id = ?2',
   )
     .bind(ftId, currentAccount.id)
@@ -138,7 +139,7 @@ app.delete('/:id', authRequired, async (c) => {
 
   if (!existing) throw new AppError(404, 'Record not found');
 
-  await c.env.DB.prepare('DELETE FROM featured_tags WHERE id = ?1')
+  await env.DB.prepare('DELETE FROM featured_tags WHERE id = ?1')
     .bind(ftId)
     .run();
 
@@ -148,9 +149,9 @@ app.delete('/:id', authRequired, async (c) => {
 // GET /api/v1/featured_tags/suggestions — suggest tags to feature
 app.get('/suggestions', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT t.name, COUNT(*) AS cnt
      FROM status_tags st
      JOIN tags t ON t.id = st.tag_id

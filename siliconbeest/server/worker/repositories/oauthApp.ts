@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type OAuthApplication = {
@@ -22,10 +23,9 @@ export type CreateOAuthAppInput = {
 };
 
 export const findById = async (
-	db: D1Database,
 	id: string,
 ): Promise<OAuthApplication | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM oauth_applications WHERE id = ?')
 		.bind(id)
 		.first<OAuthApplication>();
@@ -33,10 +33,9 @@ export const findById = async (
 };
 
 export const findByClientId = async (
-	db: D1Database,
 	clientId: string,
 ): Promise<OAuthApplication | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM oauth_applications WHERE client_id = ?')
 		.bind(clientId)
 		.first<OAuthApplication>();
@@ -44,7 +43,6 @@ export const findByClientId = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateOAuthAppInput,
 ): Promise<OAuthApplication> => {
 	const now = new Date().toISOString();
@@ -61,7 +59,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO oauth_applications (
 				id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at

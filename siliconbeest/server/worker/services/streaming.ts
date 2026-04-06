@@ -6,6 +6,7 @@
  * connected WebSocket clients.
  */
 
+import { env } from 'cloudflare:workers';
 export type StreamEventPayload = {
   /** Mastodon event type: update, notification, delete, status.update, filters_changed */
   event: string;
@@ -18,17 +19,15 @@ export type StreamEventPayload = {
 /**
  * Send an event to a user's StreamingDO instance.
  *
- * @param doNamespace  The STREAMING_DO binding from Env
  * @param userId       The user ID (used as DO name)
  * @param event        The event to broadcast
  */
 export async function sendStreamEvent(
-  doNamespace: DurableObjectNamespace,
   userId: string,
   event: StreamEventPayload,
 ): Promise<void> {
-  const doId = doNamespace.idFromName(userId);
-  const stub = doNamespace.get(doId);
+  const doId = env.STREAMING_DO.idFromName(userId);
+  const stub = env.STREAMING_DO.get(doId);
 
   await stub.fetch('https://streaming/event', {
     method: 'POST',

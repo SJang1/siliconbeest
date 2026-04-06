@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { createDefaultImages } from '../../../../utils/defaultImages';
 import { generateToken } from '../../../../utils/crypto';
@@ -9,7 +10,7 @@ import { sanitizeLocale } from '../../../../utils/locales';
 import { registerUser, RegisterInput } from '../../../../services/auth';
 import { isEmailDomainBlocked, getSetting } from '../../../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function serializeAccount(row: Record<string, unknown>, domain: string) {
   const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
@@ -61,7 +62,7 @@ app.post('/', async (c) => {
 
   // Check email domain against email_domain_blocks table
   const emailDomain = body.email.split('@')[1];
-  if (emailDomain && await isEmailDomainBlocked(c.env.DB, emailDomain)) {
+  if (emailDomain && await isEmailDomainBlocked(emailDomain)) {
     throw new AppError(422, 'Validation failed', 'Email domain is not allowed for registration');
   }
 
@@ -70,7 +71,7 @@ app.post('/', async (c) => {
   }
 
   // Turnstile CAPTCHA verification (if enabled)
-  const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+  const turnstile = await getTurnstileSettings();
   if (turnstile.enabled && turnstile.secretKey) {
     if (!body.turnstile_token) {
       throw new AppError(422, 'Validation failed', 'CAPTCHA verification failed. Please try again.');
@@ -83,10 +84,10 @@ app.post('/', async (c) => {
   }
 
   // Check registration mode from DB settings first, fall back to env var
-  const regModeValue = await getSetting(c.env.DB, 'registration_mode');
-  const regMode = regModeValue || c.env.REGISTRATION_MODE || 'closed';
+  const regModeValue = await getSetting('registration_mode');
+  const regMode = regModeValue || env.REGISTRATION_MODE || 'closed';
 
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const validatedLocale = sanitizeLocale(body.locale);
 
   // Sanitize reason: strip HTML tags (including unclosed), entities, trim, limit length
@@ -100,7 +101,6 @@ app.post('/', async (c) => {
 
   // Register user via auth service (handles uniqueness checks, keypair generation, batch INSERT)
   const { account, user } = await registerUser(
-    c.env.DB,
     domain,
     body.email,
     body.password,
@@ -110,16 +110,16 @@ app.post('/', async (c) => {
 
   // Generate default avatar and header images
   const { avatarUrl, headerUrl } = await createDefaultImages(
-    c.env.MEDIA_BUCKET, domain, account.id, body.username,
+    env.MEDIA_BUCKET, domain, account.id, body.username,
   );
 
   // Update account with default images and update user locale/reason if needed
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await env.DB.batch([
+    env.DB.prepare(
       'UPDATE accounts SET avatar_url = ?1, avatar_static_url = ?1, header_url = ?2, header_static_url = ?2 WHERE id = ?3',
     ).bind(avatarUrl, headerUrl, account.id),
     ...(validatedLocale !== 'en' || reason
-      ? [c.env.DB.prepare(
+      ? [env.DB.prepare(
           'UPDATE users SET locale = ?1, reason = ?2 WHERE id = ?3',
         ).bind(validatedLocale, reason, user.id)]
       : []),
@@ -127,23 +127,22 @@ app.post('/', async (c) => {
 
   // Generate email confirmation token and store in KV
   const confirmToken = generateToken(64);
-  await c.env.CACHE.put(
+  await env.CACHE.put(
     'email_confirm:' + confirmToken,
     JSON.stringify({ userId: user.id, email: body.email }),
     { expirationTtl: 86400 },
   );
-  await c.env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(confirmToken, user.id).run();
+  await env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(confirmToken, user.id).run();
 
   // Send confirmation email (best-effort, in user's chosen locale)
   try {
-    await sendConfirmation(c.env, body.email, confirmToken, validatedLocale);
+    await sendConfirmation(body.email, confirmToken, validatedLocale);
   } catch { /* email queue failure should not block registration */ }
 
   // Notify admins if approval is required
   if (regMode === 'approval') {
     try {
       await notifyAdminsPendingUser(
-        { ...c.env, DB: c.env.DB },
         body.username,
         body.email,
         reason,

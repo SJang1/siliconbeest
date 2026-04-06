@@ -28,18 +28,18 @@ describe('Email Queue Integration', () => {
       const res = await SELF.fetch('https://localhost/api/v1/auth/passwords', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'test@example.com' }),
+        body: JSON.stringify({ username: 'emailuser', email: 'test@example.com' }),
       });
 
       // Always returns 200 (to prevent email enumeration)
       expect(res.status).toBe(200);
     });
 
-    it('returns 200 even for non-existent email', async () => {
+    it('returns 200 even for non-existent username+email', async () => {
       const res = await SELF.fetch('https://localhost/api/v1/auth/passwords', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'nonexistent@example.com' }),
+        body: JSON.stringify({ username: 'nonexistent', email: 'nonexistent@example.com' }),
       });
       expect(res.status).toBe(200);
     });

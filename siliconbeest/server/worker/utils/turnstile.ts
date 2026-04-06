@@ -4,6 +4,7 @@
  * Verifies a Turnstile token against the Cloudflare siteverify endpoint.
  * Returns true when the token is valid, false otherwise.
  */
+import { env } from 'cloudflare:workers';
 export async function verifyTurnstile(
   token: string,
   secretKey: string,
@@ -38,15 +39,13 @@ export async function verifyTurnstile(
  * Returns { enabled, siteKey, secretKey } or null values when not configured.
  */
 export async function getTurnstileSettings(
-  db: D1Database,
-  cache: KVNamespace,
 ): Promise<{ enabled: boolean; siteKey: string; secretKey: string }> {
   const CACHE_KEY = 'settings:turnstile';
-  const cached = await cache.get(CACHE_KEY, 'json');
+  const cached = await env.CACHE.get(CACHE_KEY, 'json');
 
   if (cached) return cached as { enabled: boolean; siteKey: string; secretKey: string };
 
-  const { results } = await db
+  const { results } = await env.DB
     .prepare(
       "SELECT key, value FROM settings WHERE key IN ('turnstile_enabled', 'turnstile_site_key', 'turnstile_secret_key')",
     )
@@ -62,6 +61,6 @@ export async function getTurnstileSettings(
     secretKey: map.turnstile_secret_key ?? '',
   };
 
-  await cache.put(CACHE_KEY, JSON.stringify(settings), { expirationTtl: 120 });
+  await env.CACHE.put(CACHE_KEY, JSON.stringify(settings), { expirationTtl: 120 });
   return settings;
 }

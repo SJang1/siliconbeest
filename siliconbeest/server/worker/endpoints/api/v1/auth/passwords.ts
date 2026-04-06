@@ -1,35 +1,40 @@
+/**
+ * Password reset endpoints.
+ * POST /  — request reset email (requires username + email)
+ * POST /reset — reset password using token
+ */
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { sendPasswordReset } from '../../../../services/email';
 import { createPasswordResetToken, resetPasswordWithToken } from '../../../../services/auth';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 /**
  * POST /api/v1/auth/passwords — request a password reset email.
- * Body: { email: string }
- *
- * Always returns 200 to prevent email enumeration.
+ * Body: { username: string, email: string }
+ * Both must match. Always returns 200 to prevent enumeration.
  */
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string }>().catch((): { email?: string } => ({}));
+	const body = await c.req.json<{ username?: string; email?: string }>()
+		.catch((): { username?: string; email?: string } => ({}));
+	const username = body.username?.trim().toLowerCase();
 	const email = body.email?.trim().toLowerCase();
 
-	if (!email) {
-		throw new AppError(422, 'Validation failed: email is required');
+	if (!username || !email) {
+		throw new AppError(422, 'Validation failed: username and email are required');
 	}
 
-	const result = await createPasswordResetToken(c.env.DB, email);
+	const result = await createPasswordResetToken(username, email);
 
 	if (result) {
-		// Send email in user's locale (best-effort — failures are logged but do not break the response)
-		await sendPasswordReset(c.env, email, result.token, result.locale || 'en');
+		await sendPasswordReset(email, result.token, result.locale || 'en');
 	}
 
-	// Always return 200 to prevent email enumeration
+	// Always return 200 to prevent enumeration
 	return c.json({}, 200);
 });
 
@@ -38,7 +43,8 @@ app.post('/', async (c) => {
  * Body: { token: string, password: string }
  */
 app.post('/reset', async (c) => {
-	const body = await c.req.json<{ token?: string; password?: string }>().catch((): { token?: string; password?: string } => ({}));
+	const body = await c.req.json<{ token?: string; password?: string }>()
+		.catch((): { token?: string; password?: string } => ({}));
 	const token = body.token?.trim();
 	const password = body.password;
 
@@ -50,7 +56,7 @@ app.post('/reset', async (c) => {
 		throw new AppError(422, 'Validation failed: password must be at least 8 characters');
 	}
 
-	await resetPasswordWithToken(c.env.DB, token, password);
+	await resetPasswordWithToken(token, password);
 
 	return c.json({}, 200);
 });

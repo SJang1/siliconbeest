@@ -5,8 +5,7 @@
  * has accepted our outgoing follow request. Moves the pending request
  * from follow_requests to follows and updates counts.
  */
-
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity, APObject } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { BaseProcessor } from './BaseProcessor';
@@ -22,14 +21,14 @@ class AcceptProcessor extends BaseProcessor {
 		// Relay Accept handling
 		const followId = typeof object === 'string' ? object : (object as APObject).id;
 		if (followId) {
-			const relay = await this.env.DB.prepare(
+			const relay = await env.DB.prepare(
 				'SELECT id FROM relays WHERE follow_activity_id = ?1',
 			)
 				.bind(followId)
 				.first<{ id: string }>();
 
 			if (relay) {
-				await this.env.DB.prepare(
+				await env.DB.prepare(
 					"UPDATE relays SET state = 'accepted', actor_uri = ?1, updated_at = ?2 WHERE id = ?3",
 				)
 					.bind(String(activity.actor), new Date().toISOString(), relay.id)
@@ -48,7 +47,7 @@ class AcceptProcessor extends BaseProcessor {
 		let followRequest: { id: string; account_id: string; target_account_id: string; uri: string | null } | null = null;
 
 		if (typeof object === 'string') {
-			followRequest = await this.env.DB.prepare(
+			followRequest = await env.DB.prepare(
 				`SELECT id, account_id, target_account_id, uri FROM follow_requests
 				 WHERE uri = ?1 LIMIT 1`,
 			)
@@ -57,7 +56,7 @@ class AcceptProcessor extends BaseProcessor {
 		} else {
 			const obj = object as APObject;
 			if (obj.id) {
-				followRequest = await this.env.DB.prepare(
+				followRequest = await env.DB.prepare(
 					`SELECT id, account_id, target_account_id, uri FROM follow_requests
 					 WHERE uri = ?1 LIMIT 1`,
 				)
@@ -68,7 +67,7 @@ class AcceptProcessor extends BaseProcessor {
 
 		// Fallback: find by account pair
 		if (!followRequest) {
-			followRequest = await this.env.DB.prepare(
+			followRequest = await env.DB.prepare(
 				`SELECT id, account_id, target_account_id, uri FROM follow_requests
 				 WHERE target_account_id = ?1
 				 AND account_id IN (SELECT id FROM accounts WHERE domain IS NULL)
@@ -88,12 +87,12 @@ class AcceptProcessor extends BaseProcessor {
 
 		// Move from follow_requests to follows
 		try {
-			await this.env.DB.batch([
-				this.env.DB.prepare(
+			await env.DB.batch([
+				env.DB.prepare(
 					`INSERT INTO follows (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 				).bind(newFollowId, followRequest.account_id, followRequest.target_account_id, followRequest.uri, now, now),
-				this.env.DB.prepare(
+				env.DB.prepare(
 					`DELETE FROM follow_requests WHERE id = ?1`,
 				).bind(followRequest.id),
 			]);
@@ -109,7 +108,6 @@ class AcceptProcessor extends BaseProcessor {
 export async function processAccept(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new AcceptProcessor(env).process(activity);
+	await new AcceptProcessor().process(activity);
 }

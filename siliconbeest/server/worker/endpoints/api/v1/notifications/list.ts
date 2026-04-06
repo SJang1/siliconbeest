@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
@@ -8,11 +9,11 @@ import type { AccountRow, NotificationRow } from '../../../../types/db';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import { listNotifications } from '../../../../services/notification';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const pag = parsePaginationParams({
     max_id: c.req.query('max_id'),
@@ -26,7 +27,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   const types = c.req.queries('types[]');
   const excludeTypes = c.req.queries('exclude_types[]');
 
-  const rows = await listNotifications(c.env.DB, account.id, {
+  const rows = await listNotifications(account.id, {
     whereClause: whereClause || undefined,
     orderClause,
     paginationParams: params,
@@ -45,7 +46,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   const statusMap = new Map<string, any>();
   if (uniqueStatusIds.length > 0) {
     const statusPlaceholders = uniqueStatusIds.map(() => '?').join(',');
-    const { results: statusRows } = await c.env.DB.prepare(
+    const { results: statusRows } = await env.DB.prepare(
       `SELECT s.id, s.uri, s.url, s.content, s.visibility, s.sensitive,
               s.content_warning, s.language, s.created_at, s.in_reply_to_id,
               s.in_reply_to_account_id, s.reblogs_count, s.favourites_count,
@@ -65,7 +66,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
     ).bind(...uniqueStatusIds).all();
 
     // Get enrichments (media, interactions)
-    const enrichments = await enrichStatuses(c.env.DB, domain, uniqueStatusIds, account.id, c.env.CACHE);
+    const enrichments = await enrichStatuses(domain, uniqueStatusIds, account.id, env.CACHE);
 
     for (const sr of statusRows ?? []) {
       const sId = sr.id as string;
@@ -116,7 +117,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(statusAccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       });
     }
   }
@@ -132,10 +133,10 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   const emojiUrlMap = new Map<string, string>();
   if (emojiShortcodes.size > 0) {
     const placeholders = [...emojiShortcodes].map(() => '?').join(',');
-    const emojiRows = await c.env.DB.prepare(
+    const emojiRows = await env.DB.prepare(
       `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders})`,
     ).bind(...emojiShortcodes).all<{ shortcode: string; domain: string | null; image_key: string }>();
-    const instanceDomain = c.env.INSTANCE_DOMAIN;
+    const instanceDomain = env.INSTANCE_DOMAIN;
     for (const er of emojiRows.results) {
       const isLocal = !er.domain || er.domain === instanceDomain;
       const url = isLocal
@@ -167,7 +168,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
     const statusObj = row.status_id ? statusMap.get(row.status_id) ?? null : null;
 
     const notif = serializeNotification(notifRow, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       status: statusObj,
     });
     // Attach custom emoji URL for emoji_reaction notifications
@@ -182,7 +183,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
 
   if (pag.minId) notifications.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/notifications`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/notifications`;
   const link = buildLinkHeader(baseUrl, notifications, limitValue);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

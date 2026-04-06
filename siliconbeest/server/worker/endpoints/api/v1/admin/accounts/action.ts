@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendAccountWarning } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
@@ -14,7 +15,7 @@ import {
 	getUserEmailByAccountId,
 } from '../../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -44,7 +45,7 @@ app.post('/:id/action', async (c) => {
 	}
 
 	// Verify the target account exists
-	const account = await getAccountForModeration(c.env.DB, id);
+	const account = await getAccountForModeration(id);
 
 	const currentUser = c.get('currentUser')!;
 	const sendEmail = body.send_email_notification !== false; // default true
@@ -52,23 +53,23 @@ app.post('/:id/action', async (c) => {
 
 	switch (actionType) {
 		case 'sensitive':
-			await sensitizeAccount(c.env.DB, id);
+			await sensitizeAccount(id);
 			break;
 
 		case 'disable':
-			await disableAccount(c.env.DB, id);
+			await disableAccount(id);
 			break;
 
 		case 'silence':
-			await silenceAccount(c.env.DB, id);
+			await silenceAccount(id);
 			break;
 
 		case 'suspend':
-			await suspendAccount(c.env.DB, id);
+			await suspendAccount(id);
 			// Enqueue Delete(Actor) activity for federation (local accounts only)
 			if (!account.domain) {
-				const actorUri = (account.uri as string) || `https://${c.env.INSTANCE_DOMAIN}/users/${account.username}`;
-				await c.env.QUEUE_FEDERATION.send({
+				const actorUri = (account.uri as string) || `https://${env.INSTANCE_DOMAIN}/users/${account.username}`;
+				await env.QUEUE_FEDERATION.send({
 					type: 'deliver_activity_fanout',
 					actorAccountId: id as string,
 					activity: {
@@ -90,14 +91,14 @@ app.post('/:id/action', async (c) => {
 	}
 
 	// Create account_warnings record for every action
-	await addAccountWarning(c.env.DB, currentUser.account_id, id, actionType, warningText, body.report_id);
+	await addAccountWarning(currentUser.account_id, id, actionType, warningText, body.report_id);
 
 	// Send email notification to local users only (domain IS NULL means local)
 	if (sendEmail && !account.domain) {
-		const user = await getUserEmailByAccountId(c.env.DB, id);
+		const user = await getUserEmailByAccountId(id);
 		if (user?.email) {
 			try {
-				await sendAccountWarning(c.env, user.email, actionType, warningText, sanitizeLocale(user.locale as string | null));
+				await sendAccountWarning(user.email, actionType, warningText, sanitizeLocale(user.locale as string | null));
 			} catch {
 				// Email failure should not block the action
 			}
@@ -106,7 +107,7 @@ app.post('/:id/action', async (c) => {
 
 	// If a report_id was provided, resolve it
 	if (body.report_id) {
-		await resolveReport(c.env.DB, body.report_id, currentUser.account_id);
+		await resolveReport(body.report_id, currentUser.account_id);
 	}
 
 	return c.json({}, 200);

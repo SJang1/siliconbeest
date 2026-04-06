@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Mute = {
@@ -18,11 +19,10 @@ export type CreateMuteInput = {
 };
 
 export const findByAccountAndTarget = async (
-	db: D1Database,
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Mute | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM mutes WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Mute>();
@@ -30,7 +30,6 @@ export const findByAccountAndTarget = async (
 };
 
 export const findByAccount = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 40,
 	maxId?: string,
@@ -42,7 +41,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM mutes
 			 WHERE ${where}
@@ -54,7 +53,6 @@ export const findByAccount = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateMuteInput,
 ): Promise<Mute> => {
 	const now = new Date().toISOString();
@@ -69,7 +67,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO mutes (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -85,21 +83,19 @@ export const create = async (
 };
 
 export const deleteById = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM mutes WHERE id = ?')
 		.bind(id)
 		.run();
 };
 
 export const isMuted = async (
-	db: D1Database,
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> => {
-	const result = await db
+	const result = await env.DB
 		.prepare(
 			`SELECT 1 FROM mutes
 			 WHERE account_id = ? AND target_account_id = ?

@@ -7,8 +7,9 @@
  * DELETE /:id — remove a relay (sends Undo(Follow), deletes record)
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { buildFollowActivity, buildUndoActivity } from '../../../../federation/helpers/build-activity';
@@ -22,7 +23,7 @@ import {
 	type RelayRow,
 } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -46,7 +47,7 @@ function formatRelay(row: RelayRow) {
 // -----------------------------------------------------------------------
 
 app.get('/', async (c) => {
-	const results = await listRelays(c.env.DB);
+	const results = await listRelays();
 	return c.json(results.map(formatRelay));
 });
 
@@ -66,10 +67,10 @@ app.post('/', async (c) => {
 	}
 
 	// Check duplicate
-	const exists = await checkRelayExists(c.env.DB, body.inbox_url);
+	const exists = await checkRelayExists(body.inbox_url);
 	if (exists) throw new AppError(409, 'Relay already exists');
 
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 	const actorUri = `https://${domain}/actor`;
 
 	// Build Follow activity
@@ -78,13 +79,13 @@ app.post('/', async (c) => {
 	const followActivityId = followActivityParsed.id as string;
 
 	// Create relay record
-	const relay = await createRelay(c.env.DB, body.inbox_url, followActivityId);
+	const relay = await createRelay(body.inbox_url, followActivityId);
 
 	// Ensure instance actor keypair exists (needed by queue consumer for signing)
-	await getInstanceActorKey(c.env.DB, domain, c.env.INSTANCE_TITLE);
+	await getInstanceActorKey(domain);
 
 	// Queue the delivery via federation queue
-	await c.env.QUEUE_FEDERATION.send({
+	await env.QUEUE_FEDERATION.send({
 		type: 'deliver_activity',
 		activity: followActivityParsed,
 		inboxUrl: body.inbox_url,
@@ -101,9 +102,9 @@ app.post('/', async (c) => {
 app.delete('/:id', async (c) => {
 	const id = c.req.param('id');
 
-	const relay = await getRelay(c.env.DB, id);
+	const relay = await getRelay(id);
 
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 	const actorUri = `https://${domain}/actor`;
 
 	// Send Undo(Follow) to the relay inbox
@@ -118,7 +119,7 @@ app.delete('/:id', async (c) => {
 
 		const undoJson = await buildUndoActivity(actorUri, originalFollow);
 
-		await c.env.QUEUE_FEDERATION.send({
+		await env.QUEUE_FEDERATION.send({
 			type: 'deliver_activity',
 			activity: JSON.parse(undoJson),
 			inboxUrl: relay.inbox_url,
@@ -127,7 +128,7 @@ app.delete('/:id', async (c) => {
 	}
 
 	// Delete from DB
-	await deleteRelay(c.env.DB, id);
+	await deleteRelay(id);
 
 	return c.json({}, 200);
 });

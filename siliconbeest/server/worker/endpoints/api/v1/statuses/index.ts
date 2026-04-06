@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
 import createApp from './create';
 import fetchApp from './fetch';
@@ -22,7 +22,7 @@ import reactionsApp from './reactions';
 import historyApp from './history';
 import sourceApp from './source';
 
-const statuses = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const statuses = new Hono<{ Variables: AppVariables }>();
 
 // POST /api/v1/statuses — create status
 statuses.route('/', createApp);

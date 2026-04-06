@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { deleteConversation } from '../../../../services/conversation';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -12,7 +12,7 @@ app.delete('/:id', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const conversationId = c.req.param('id');
 
-  await deleteConversation(c.env.DB, conversationId, currentAccount.id);
+  await deleteConversation(conversationId, currentAccount.id);
 
   return c.json({}, 200);
 });

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Status = {
@@ -62,23 +63,23 @@ export type AccountStatusOptions = {
 	onlyMedia?: boolean;
 };
 
-export const findById = async (db: D1Database, id: string): Promise<Status | null> => {
-	const result = await db
+export const findById = async (id: string): Promise<Status | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL')
 		.bind(id)
 		.first<Status>();
 	return result ?? null;
 };
 
-export const findByUri = async (db: D1Database, uri: string): Promise<Status | null> => {
-	const result = await db
+export const findByUri = async (uri: string): Promise<Status | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM statuses WHERE uri = ? AND deleted_at IS NULL')
 		.bind(uri)
 		.first<Status>();
 	return result ?? null;
 };
 
-export const findByAccountId = async (db: D1Database, accountId: string, opts: AccountStatusOptions = {}): Promise<Status[]> => {
+export const findByAccountId = async (accountId: string, opts: AccountStatusOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 'account_id = ?', params: [accountId] },
@@ -93,7 +94,7 @@ export const findByAccountId = async (db: D1Database, accountId: string, opts: A
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -104,7 +105,7 @@ export const findByAccountId = async (db: D1Database, accountId: string, opts: A
 	return results;
 };
 
-export const create = async (db: D1Database, input: CreateStatusInput): Promise<Status> => {
+export const create = async (input: CreateStatusInput): Promise<Status> => {
 	const now = new Date().toISOString();
 	const id = generateUlid();
 	const status: Status = {
@@ -135,7 +136,7 @@ export const create = async (db: D1Database, input: CreateStatusInput): Promise<
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO statuses (
 				id, uri, url, account_id,
@@ -162,7 +163,6 @@ export const create = async (db: D1Database, input: CreateStatusInput): Promise<
 };
 
 export const update = async (
-	db: D1Database,
 	id: string,
 	input: Partial<Omit<Status, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<Status | null> => {
@@ -171,24 +171,23 @@ export const update = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE statuses SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 
-	return findById(db, id);
+	return findById(id);
 };
 
-export const deleteStatus = async (db: D1Database, id: string): Promise<void> => {
+export const deleteStatus = async (id: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE id = ?')
 		.bind(now, now, id)
 		.run();
 };
 
 export const updateCounts = async (
-	db: D1Database,
 	id: string,
 	counts: { replies_count?: number; reblogs_count?: number; favourites_count?: number }
 ): Promise<void> => {
@@ -199,7 +198,7 @@ export const updateCounts = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), new Date().toISOString(), id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE statuses SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -209,8 +208,8 @@ export const updateCounts = async (
  * Increment a count field atomically. Used by federation inbox processors
  * (like, announce, create) to update counts without race conditions.
  */
-export const incrementCount = async (db: D1Database, id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
-	await db
+export const incrementCount = async (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
+	await env.DB
 		.prepare(`UPDATE statuses SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -219,8 +218,8 @@ export const incrementCount = async (db: D1Database, id: string, field: 'replies
 /**
  * Decrement a count field atomically, flooring at 0.
  */
-export const decrementCount = async (db: D1Database, id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
-	await db
+export const decrementCount = async (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
+	await env.DB
 		.prepare(`UPDATE statuses SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -229,9 +228,9 @@ export const decrementCount = async (db: D1Database, id: string, field: 'replies
 /**
  * Soft-delete all statuses by account (used when deleting remote actors).
  */
-export const softDeleteByAccount = async (db: D1Database, accountId: string): Promise<void> => {
+export const softDeleteByAccount = async (accountId: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL')
 		.bind(now, now, accountId)
 		.run();
@@ -240,8 +239,8 @@ export const softDeleteByAccount = async (db: D1Database, accountId: string): Pr
 /**
  * Find a status by URI including deleted statuses (for processing Delete activities).
  */
-export const findByUriIncludeDeleted = async (db: D1Database, uri: string): Promise<Status | null> => {
-	const result = await db
+export const findByUriIncludeDeleted = async (uri: string): Promise<Status | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM statuses WHERE uri = ?')
 		.bind(uri)
 		.first<Status>();
@@ -251,8 +250,8 @@ export const findByUriIncludeDeleted = async (db: D1Database, uri: string): Prom
 /**
  * Find a status with its parent info (for reply threading).
  */
-export const findWithParent = async (db: D1Database, id: string): Promise<(Status & { parent_account_id?: string }) | null> => {
-	const result = await db
+export const findWithParent = async (id: string): Promise<(Status & { parent_account_id?: string }) | null> => {
+	const result = await env.DB
 		.prepare(
 			`SELECT s.*, ps.account_id as parent_account_id
 			 FROM statuses s
@@ -264,7 +263,7 @@ export const findWithParent = async (db: D1Database, id: string): Promise<(Statu
 	return result ?? null;
 };
 
-export const findContext = async (db: D1Database, statusId: string): Promise<{ ancestors: Status[]; descendants: Status[] }> => {
+export const findContext = async (statusId: string): Promise<{ ancestors: Status[]; descendants: Status[] }> => {
 	// Find ancestors by walking up in_reply_to_id chain
 	const ancestors: Status[] = [];
 	// oxlint-disable-next-line fp/no-let
@@ -272,7 +271,7 @@ export const findContext = async (db: D1Database, statusId: string): Promise<{ a
 
 	// oxlint-disable-next-line fp/no-loop-statements
 	while (currentId) {
-		const parent: Status | null = await db
+		const parent: Status | null = await env.DB
 			.prepare(
 				'SELECT * FROM statuses WHERE id = (SELECT in_reply_to_id FROM statuses WHERE id = ? AND deleted_at IS NULL) AND deleted_at IS NULL'
 			)
@@ -285,7 +284,7 @@ export const findContext = async (db: D1Database, statusId: string): Promise<{ a
 	}
 
 	// Find descendants recursively (direct replies and their replies)
-	const { results: descendants } = await db
+	const { results: descendants } = await env.DB
 		.prepare(
 			`WITH RECURSIVE thread AS (
 				SELECT * FROM statuses WHERE in_reply_to_id = ? AND deleted_at IS NULL
@@ -302,7 +301,7 @@ export const findContext = async (db: D1Database, statusId: string): Promise<{ a
 	return { ancestors, descendants };
 };
 
-export const findPublicTimeline = async (db: D1Database, opts: TimelineOptions = {}): Promise<Status[]> => {
+export const findPublicTimeline = async (opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 'deleted_at IS NULL', params: [] as unknown[] },
@@ -315,7 +314,7 @@ export const findPublicTimeline = async (db: D1Database, opts: TimelineOptions =
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -326,7 +325,7 @@ export const findPublicTimeline = async (db: D1Database, opts: TimelineOptions =
 	return results;
 };
 
-export const findLocalTimeline = async (db: D1Database, opts: TimelineOptions = {}): Promise<Status[]> => {
+export const findLocalTimeline = async (opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 'deleted_at IS NULL', params: [] as unknown[] },
@@ -340,7 +339,7 @@ export const findLocalTimeline = async (db: D1Database, opts: TimelineOptions = 
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -351,7 +350,7 @@ export const findLocalTimeline = async (db: D1Database, opts: TimelineOptions = 
 	return results;
 };
 
-export const findByTag = async (db: D1Database, tag: string, opts: TimelineOptions = {}): Promise<Status[]> => {
+export const findByTag = async (tag: string, opts: TimelineOptions = {}): Promise<Status[]> => {
 	const limit = opts.limit ?? 20;
 	const clauses = [
 		{ sql: 's.deleted_at IS NULL', params: [] as unknown[] },
@@ -362,7 +361,7 @@ export const findByTag = async (db: D1Database, tag: string, opts: TimelineOptio
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [tag.toLowerCase(), ...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT s.* FROM statuses s
 			 JOIN status_tags st ON st.status_id = s.id

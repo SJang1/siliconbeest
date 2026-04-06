@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
@@ -7,7 +8,7 @@ import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import { getListTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/:listId', authRequired, async (c) => {
   const listId = c.req.param('listId');
@@ -20,7 +21,7 @@ app.get('/:listId', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const allRows = await getListTimeline(c.env.DB, listId, account.id, {
+  const allRows = await getListTimeline(listId, account.id, {
     maxId: pag.maxId,
     sinceId: pag.sinceId,
     minId: pag.minId,
@@ -28,7 +29,7 @@ app.get('/:listId', authRequired, async (c) => {
   });
 
   const statusIds = allRows.map((r) => r.id as string);
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id, c.env.CACHE);
+  const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, statusIds, account.id, env.CACHE);
 
   const statuses = allRows.map((row: any) => {
     const accountRow: AccountRow = {
@@ -46,7 +47,7 @@ app.get('/:listId', authRequired, async (c) => {
     };
     const e = enrichments.get(row.id);
     return serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,
@@ -60,7 +61,7 @@ app.get('/:listId', authRequired, async (c) => {
   // Reverse when using min_id (ASC query)
   if (pag.minId) statuses.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/list/${listId}`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/timelines/list/${listId}`;
   const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

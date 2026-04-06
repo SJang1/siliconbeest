@@ -6,14 +6,13 @@
  * Also resolves the author account if not already known.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { FetchRemoteStatusMessage } from '../shared/types/queue';
 
 const AP_ACCEPT = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
 
 export async function handleFetchRemoteStatus(
   msg: FetchRemoteStatusMessage,
-  env: Env,
 ): Promise<void> {
   const { statusUri } = msg;
 

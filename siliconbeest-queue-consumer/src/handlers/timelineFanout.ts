@@ -5,14 +5,13 @@
  * the status into their home_timeline_entries using D1 batch.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { TimelineFanoutMessage } from '../shared/types/queue';
 import { measureAsync, PerfTimer } from '../observability/performance';
 import { buildStatusStreamingPayload } from '../../../packages/shared/utils/streamingPayload';
 
 export async function handleTimelineFanout(
   msg: TimelineFanoutMessage,
-  env: Env,
 ): Promise<void> {
   const { statusId, accountId } = msg;
   const timer = new PerfTimer('timelineFanout.total', { statusId });

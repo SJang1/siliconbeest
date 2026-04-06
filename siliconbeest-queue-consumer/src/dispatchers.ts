@@ -15,6 +15,7 @@
  */
 
 import type { Federation } from '@fedify/fedify';
+import { env } from 'cloudflare:workers';
 import type { FedifyContextData } from './fedify';
 import {
   importRsaPublicKey,
@@ -58,8 +59,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       // The consumer never serves actor documents; return null.
       return null;
     })
-    .setKeyPairsDispatcher(async (ctx, identifier) => {
-      const env = ctx.data.env;
+    .setKeyPairsDispatcher(async (_ctx, identifier) => {
 
       // Determine the account_id to look up
       let accountId: string;

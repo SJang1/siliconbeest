@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { getRules, getRule, createRule, updateRule, deleteRule } from '../../../../services/instance';
 import type { RuleRow } from '../../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -15,7 +15,7 @@ app.use('*', authRequired, adminRequired);
  * GET /api/v1/admin/rules — list all instance rules.
  */
 app.get('/', async (c) => {
-	const rules = await getRules(c.env.DB);
+	const rules = await getRules();
 	return c.json(rules.map(formatRule));
 });
 
@@ -23,7 +23,7 @@ app.get('/', async (c) => {
  * GET /api/v1/admin/rules/:id — fetch single rule.
  */
 app.get('/:id', async (c) => {
-	const row = await getRule(c.env.DB, c.req.param('id'));
+	const row = await getRule(c.req.param('id'));
 	return c.json(formatRule(row));
 });
 
@@ -38,7 +38,7 @@ app.post('/', async (c) => {
 
 	if (!body.text) throw new AppError(422, 'text is required');
 
-	const row = await createRule(c.env.DB, body.text, body.priority);
+	const row = await createRule(body.text, body.priority);
 	return c.json(formatRule(row), 200);
 });
 
@@ -51,7 +51,7 @@ app.put('/:id', async (c) => {
 		priority?: number;
 	}>();
 
-	const row = await updateRule(c.env.DB, c.req.param('id'), body);
+	const row = await updateRule(c.req.param('id'), body);
 	return c.json(formatRule(row));
 });
 
@@ -59,7 +59,7 @@ app.put('/:id', async (c) => {
  * DELETE /api/v1/admin/rules/:id — remove a rule.
  */
 app.delete('/:id', async (c) => {
-	await deleteRule(c.env.DB, c.req.param('id'));
+	await deleteRule(c.req.param('id'));
 	return c.json({}, 200);
 });
 

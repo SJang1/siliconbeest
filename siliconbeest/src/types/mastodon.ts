@@ -69,6 +69,7 @@ export interface Role {
 export interface CredentialAccount extends Account {
   source: AccountSource;
   role?: Role;
+  otp_enabled?: boolean;
 }
 
 export interface AccountSource {

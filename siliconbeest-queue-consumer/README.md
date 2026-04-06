@@ -155,7 +155,7 @@ export type QueueMessage =
 
 ```typescript
 // src/handlers/myNewJob.ts
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { MyNewJobMessage } from '../shared/types/queue';
 
 export async function handleMyNewJob(

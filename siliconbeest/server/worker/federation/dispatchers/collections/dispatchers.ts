@@ -15,6 +15,7 @@ import type { FedifyContextData } from '../../fedify';
 import type { AccountRow, StatusRow } from '../../../types/db';
 import { AS_PUBLIC, toTemporalInstant, buildFedifyNote } from './helpers';
 import { setupFollowersDispatcher } from '../../../../../../packages/shared/federation/collection-dispatchers';
+import { env } from 'cloudflare:workers';
 
 // Page sizes matching existing endpoints
 const FOLLOWING_PAGE_SIZE = 40;
@@ -50,7 +51,7 @@ function setupFollowingDispatcher(
     .setFollowingDispatcher(
       '/users/{identifier}/following',
       async (ctx, identifier, cursor) => {
-        const db = ctx.data.env.DB;
+        const db = env.DB;
 
         const account = await db
           .prepare(
@@ -101,7 +102,7 @@ function setupFollowingDispatcher(
       },
     )
     .setCounter(async (ctx, identifier) => {
-      const db = ctx.data.env.DB;
+      const db = env.DB;
       const account = await db
         .prepare(
           `SELECT following_count FROM accounts
@@ -127,8 +128,8 @@ function setupOutboxDispatcher(
     .setOutboxDispatcher(
       '/users/{identifier}/outbox',
       async (ctx, identifier, cursor) => {
-        const db = ctx.data.env.DB;
-        const domain = ctx.data.env.INSTANCE_DOMAIN;
+        const db = env.DB;
+        const domain = env.INSTANCE_DOMAIN;
 
         const account = await db
           .prepare(
@@ -290,7 +291,7 @@ function setupOutboxDispatcher(
       },
     )
     .setCounter(async (ctx, identifier) => {
-      const db = ctx.data.env.DB;
+      const db = env.DB;
       const account = await db
         .prepare(
           `SELECT id FROM accounts
@@ -324,8 +325,8 @@ function setupFeaturedDispatcher(
   federation.setFeaturedDispatcher(
     '/users/{identifier}/collections/featured',
     async (ctx, identifier, _cursor) => {
-      const db = ctx.data.env.DB;
-      const domain = ctx.data.env.INSTANCE_DOMAIN;
+      const db = env.DB;
+      const domain = env.INSTANCE_DOMAIN;
 
       const account = await db
         .prepare(
@@ -436,7 +437,7 @@ function setupFeaturedTagsDispatcher(
   federation.setFeaturedTagsDispatcher(
     '/users/{identifier}/collections/tags',
     async (ctx, identifier, _cursor) => {
-      const db = ctx.data.env.DB;
+      const db = env.DB;
 
       const account = await db
         .prepare(
@@ -448,7 +449,7 @@ function setupFeaturedTagsDispatcher(
 
       if (!account) return null;
 
-      const domain = ctx.data.env.INSTANCE_DOMAIN;
+      const domain = env.INSTANCE_DOMAIN;
 
       try {
         const { results } = await db
@@ -488,7 +489,7 @@ function setupLikedDispatcher(
     .setLikedDispatcher(
       '/users/{identifier}/liked',
       async (ctx, identifier, cursor) => {
-        const db = ctx.data.env.DB;
+        const db = env.DB;
 
         const account = await db
           .prepare(
@@ -538,7 +539,7 @@ function setupLikedDispatcher(
       },
     )
     .setCounter(async (ctx, identifier) => {
-      const db = ctx.data.env.DB;
+      const db = env.DB;
       const account = await db
         .prepare(
           `SELECT id FROM accounts

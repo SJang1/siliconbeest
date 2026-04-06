@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, async (c) => {
   const user = c.get('currentUser')!;
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT key, value FROM user_preferences WHERE user_id = ?1`,
   ).bind(user.id).all();
 

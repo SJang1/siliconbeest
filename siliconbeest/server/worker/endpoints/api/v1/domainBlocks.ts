@@ -1,10 +1,11 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -22,7 +23,7 @@ app.get('/', authRequired, async (c) => {
     binds.push(maxId);
   }
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT id, domain FROM user_domain_blocks
      WHERE ${conditions.join(' AND ')}
      ORDER BY id DESC
@@ -45,7 +46,7 @@ app.post('/', authRequired, async (c) => {
 
   const domain = body.domain.toLowerCase().trim();
 
-  const existing = await c.env.DB.prepare(
+  const existing = await env.DB.prepare(
     'SELECT id FROM user_domain_blocks WHERE account_id = ?1 AND domain = ?2',
   )
     .bind(currentAccount.id, domain)
@@ -54,7 +55,7 @@ app.post('/', authRequired, async (c) => {
   if (!existing) {
     const id = generateUlid();
     const now = new Date().toISOString();
-    await c.env.DB.prepare(
+    await env.DB.prepare(
       'INSERT INTO user_domain_blocks (id, account_id, domain, created_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(id, currentAccount.id, domain, now)
@@ -73,7 +74,7 @@ app.delete('/', authRequired, async (c) => {
 
   const domain = body.domain.toLowerCase().trim();
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     'DELETE FROM user_domain_blocks WHERE account_id = ?1 AND domain = ?2',
   )
     .bind(currentAccount.id, domain)

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Favourite = {
@@ -15,11 +16,10 @@ export type CreateFavouriteInput = {
 };
 
 export const findByAccountAndStatus = async (
-	db: D1Database,
 	accountId: string,
 	statusId: string,
 ): Promise<Favourite | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM favourites WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.first<Favourite>();
@@ -27,7 +27,6 @@ export const findByAccountAndStatus = async (
 };
 
 export const findByAccount = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 20,
 	maxId?: string,
@@ -39,7 +38,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM favourites
 			 WHERE ${where}
@@ -51,7 +50,6 @@ export const findByAccount = async (
 };
 
 export const findByStatus = async (
-	db: D1Database,
 	statusId: string,
 	limit: number = 20,
 	maxId?: string,
@@ -63,7 +61,7 @@ export const findByStatus = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM favourites
 			 WHERE ${where}
@@ -75,7 +73,6 @@ export const findByStatus = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateFavouriteInput,
 ): Promise<Favourite> => {
 	const now = new Date().toISOString();
@@ -88,7 +85,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			'INSERT INTO favourites (id, account_id, status_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -99,10 +96,9 @@ export const create = async (
 };
 
 export const deleteById = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM favourites WHERE id = ?')
 		.bind(id)
 		.run();
@@ -113,10 +109,9 @@ export const deleteById = async (
  * Used by Undo(Like) processing.
  */
 export const findByUri = async (
-	db: D1Database,
 	uri: string,
 ): Promise<Favourite | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM favourites WHERE uri = ?')
 		.bind(uri)
 		.first<Favourite>();
@@ -128,21 +123,19 @@ export const findByUri = async (
  * Used by Undo(Like) processing when URI lookup fails.
  */
 export const deleteByAccountAndStatus = async (
-	db: D1Database,
 	accountId: string,
 	statusId: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.run();
 };
 
 export const countByStatus = async (
-	db: D1Database,
 	statusId: string,
 ): Promise<number> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT COUNT(*) as count FROM favourites WHERE status_id = ?')
 		.bind(statusId)
 		.first<{ count: number }>();

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
 import accounts from './accounts/index';
 import reports from './reports/index';
@@ -17,7 +17,7 @@ import email from './email';
 import customEmojis from './customEmojis';
 import federation from './federation';
 
-const admin = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const admin = new Hono<{ Variables: AppVariables }>();
 
 // Each sub-router applies authRequired + adminRequired internally
 admin.route('/accounts', accounts);

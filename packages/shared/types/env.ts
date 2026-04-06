@@ -5,15 +5,9 @@
  * worker and the queue consumer. Each package extends this with its
  * own additional bindings.
  *
- * Worker (siliconbeest/server/worker/env.ts) adds:
- *   SESSIONS, QUEUE_EMAIL, STREAMING_DO, INSTANCE_TITLE,
- *   REGISTRATION_MODE, OTP_ENCRYPTION_KEY
- *
- * Consumer (siliconbeest-queue-consumer/src/env.ts) adds:
- *   WORKER (service binding)
+ * Uses standard Cloudflare Workers types (compatible with wrangler-generated types).
  */
 
-import type { KVNamespace as CfKVNamespace, Queue } from '@cloudflare/workers-types/experimental';
 import type { QueueMessage } from './queue';
 
 export interface BaseEnv {
@@ -25,7 +19,7 @@ export interface BaseEnv {
 
   // KV Namespaces
   CACHE: KVNamespace;
-  FEDIFY_KV: CfKVNamespace;
+  FEDIFY_KV: KVNamespace;
 
   // Queues (producer bindings)
   QUEUE_FEDERATION: Queue<QueueMessage>;

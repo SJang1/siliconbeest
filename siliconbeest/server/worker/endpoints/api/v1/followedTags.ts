@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 interface TagFollowRow {
   follow_id: string;
@@ -14,7 +15,7 @@ const app = new Hono<HonoEnv>();
 // GET /api/v1/followed_tags — list hashtags the user follows
 app.get('/', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const limit = Math.min(parseInt(c.req.query('limit') || '100', 10) || 100, 200);
   const maxId = c.req.query('max_id');
@@ -31,7 +32,7 @@ app.get('/', authRequired, async (c) => {
     binds.push(sinceId);
   }
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT tf.id AS follow_id, t.name
      FROM tag_follows tf
      JOIN tags t ON t.id = tf.tag_id

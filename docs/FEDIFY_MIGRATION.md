@@ -53,14 +53,14 @@ createFed(env) → createFederation({
                        ┌──────────────────────────────────────┐
                        │         Cloudflare Workers           │
                        │                                      │
-   HTTP Request ──────►│  Hono Global Middleware               │
+   HTTP Request ──────►│  Hono Global Middleware              │
                        │    (requestId, cors, contentNeg,     │
                        │     logger, errorHandler)            │
                        │                                      │
                        │  ┌────────────────────────────────┐  │
-                       │  │  Fedify Middleware (per-request)│  │
+                       │  │ Fedify Middleware (per-request)│  │
                        │  │                                │  │
-                       │  │  1. createFed(c.env)           │  │
+                       │  │  1. createFed(env)             │  │
                        │  │  2. setupActorDispatcher(fed)  │  │
                        │  │  3. setupNodeInfoDispatcher    │  │
                        │  │  4. setupCollectionDispatchers │  │
@@ -68,9 +68,9 @@ createFed(env) → createFederation({
                        │  │  6. c.set('federation', fed)   │  │
                        │  │  7. federation() middleware    │  │
                        │  └──────────┬─────────────────────┘  │
-                       │             │                         │
-                       │   Fedify가 처리?                      │
-                       │     ├── YES → Fedify 직접 응답        │
+                       │             │                        │
+                       │   Fedify가 처리?                       │
+                       │     ├── YES → Fedify 직접 응답         │
                        │     │   (WebFinger, NodeInfo 2.1,    │
                        │     │    Actor, Inbox, Collections)  │
                        │     │                                │
@@ -452,7 +452,7 @@ Fedify Context 객체의 메서드를 사용하여 원격 서버 조회:
 
 ```typescript
 const fed = c.get('federation');
-const ctx = getFedifyContext(fed, c.env);
+const ctx = getFedifyContext(fed);
 const wfResult = await ctx.lookupWebFinger(`acct:user@domain`);
 const actorObject = await ctx.lookupObject(actorUri);
 ```

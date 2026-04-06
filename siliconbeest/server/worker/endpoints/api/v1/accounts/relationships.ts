@@ -1,15 +1,14 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { getRelationships } from '../../../../services/account';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 app.get('/relationships', authRequired, async (c) => {
   const currentAccountId = c.get('currentUser')!.account_id;
-  const db = c.env.DB;
 
   // Mastodon sends id[]=... or id=...
   const url = new URL(c.req.url);
@@ -23,7 +22,7 @@ app.get('/relationships', authRequired, async (c) => {
     return c.json([]);
   }
 
-  return c.json(await getRelationships(db, currentAccountId, ids));
+  return c.json(await getRelationships(currentAccountId, ids));
 });
 
 export default app;

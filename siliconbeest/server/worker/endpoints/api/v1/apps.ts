@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { sha256 } from '../../../utils/crypto';
 import { createOAuthApp } from '../../../services/oauth';
 import { getVapidPublicKey } from '../../../utils/vapid';
 import { getApplicationByAccessToken } from '../../../services/instance';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // POST /api/v1/apps — register an OAuth application
 app.post('/', async (c) => {
@@ -40,7 +41,7 @@ app.post('/', async (c) => {
 	// Take only the first redirect URI for storage (Mastodon compat)
 	const redirectUri = redirectUris.split(/\s+/)[0];
 
-	const oauthApp = await createOAuthApp(c.env.DB, clientName, redirectUri, scopes, website);
+	const oauthApp = await createOAuthApp(clientName, redirectUri, scopes, website);
 
 	return c.json({
 		id: oauthApp.id,
@@ -49,7 +50,7 @@ app.post('/', async (c) => {
 		redirect_uri: oauthApp.redirect_uri,
 		client_id: oauthApp.client_id,
 		client_secret: oauthApp.client_secret,
-		vapid_key: await getVapidPublicKey(c.env.DB),
+		vapid_key: await getVapidPublicKey(),
 	});
 });
 
@@ -64,7 +65,7 @@ app.get('/verify_credentials', async (c) => {
 
 	// Look up the token by hash (with legacy plaintext fallback)
 	const tokenHash = await sha256(token);
-	const appInfo = await getApplicationByAccessToken(c.env.DB, tokenHash, token);
+	const appInfo = await getApplicationByAccessToken(tokenHash, token);
 
 	if (!appInfo) {
 		return c.json({ error: 'The access token is invalid' }, 401);
@@ -73,7 +74,7 @@ app.get('/verify_credentials', async (c) => {
 	return c.json({
 		name: appInfo.name,
 		website: appInfo.website ?? null,
-		vapid_key: await getVapidPublicKey(c.env.DB),
+		vapid_key: await getVapidPublicKey(),
 	});
 });
 

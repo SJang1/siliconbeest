@@ -133,11 +133,11 @@ onMounted(loadTimeline)
         <template v-if="homeView === 'timeline'">
           <!-- Header -->
           <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
-            <h1 class="text-xl font-bold">{{ t('nav.home') }}</h1>
+            <h2 class="text-lg font-bold">{{ t('nav.home') }}</h2>
             <button
               v-if="auth.isAuthenticated"
               @click="ui.openComposeModal()"
-              class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
+              class="px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
             >
               {{ t('nav.compose') }}
             </button>

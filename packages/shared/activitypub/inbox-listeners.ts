@@ -19,6 +19,7 @@
 
 import { isDomainBlocked, extractDomain } from '../domain-blocks';
 import { buildActivityFromJsonLd } from './normalize';
+import { env } from 'cloudflare:workers';
 
 // ============================================================
 // STRUCTURAL TYPES (match Fedify's API without importing it)
@@ -41,13 +42,7 @@ interface FederationLike<TData> {
 	setInboxListeners(path: string, sharedPath: string): InboxListenerBuilder<TData>;
 }
 
-/** Minimal env shape required by inbox processing. Both worker and consumer Env satisfy this. */
-interface InboxEnv {
-	DB: D1Database;
-	CACHE: KVNamespace;
-}
-
-type ProcessorFn = (activity: any, accountId: string, env: any) => Promise<void>;
+type ProcessorFn = (activity: any, accountId: string) => Promise<void>;
 
 /** Fedify vocab activity classes — each caller passes their own to avoid dual-package hazard. */
 export interface InboxListenerVocab {
@@ -104,9 +99,7 @@ export interface InboxListenerOptions {
  * @param processors - Inbox processor functions
  * @param options - Optional configuration (performance measurement)
  */
-export function setupInboxListeners<
-	TData extends { env: InboxEnv },
->(
+export function setupInboxListeners<TData>(
 	federation: FederationLike<TData>,
 	vocab: InboxListenerVocab,
 	processors: InboxListenerProcessors,
@@ -120,7 +113,6 @@ export function setupInboxListeners<
 		ctx: InboxContextLike<TData>,
 	): Promise<string | null> {
 		if (!ctx.recipient) return ''; // Shared inbox
-		const { env } = ctx.data;
 		const row = await env.DB.prepare(
 			'SELECT id FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1',
 		)
@@ -137,7 +129,6 @@ export function setupInboxListeners<
 
 	async function isActorDomainSuspended(
 		actorId: URL | null,
-		env: InboxEnv,
 	): Promise<boolean> {
 		if (!actorId) return false;
 		const domain = extractDomain(actorId.href);
@@ -197,14 +188,13 @@ export function setupInboxListeners<
 	) {
 		return async (ctx: InboxContextLike<TData>, activity: any) => {
 			await withMeasure(name, activity.actorId?.href, async () => {
-				const { env } = ctx.data;
-				if (await isActorDomainSuspended(activity.actorId, env)) return;
+				if (await isActorDomainSuspended(activity.actorId)) return;
 
 				const localAccountId = await resolveRecipientAccountId(ctx);
 				if (localAccountId === null) return;
 
 				const apActivity = await Promise.resolve(convert(activity));
-				await processor(apActivity, localAccountId, env);
+				await processor(apActivity, localAccountId);
 			});
 		};
 	}
@@ -236,8 +226,7 @@ export function setupInboxListeners<
 		// Like: special handling for Misskey emoji reactions
 		.on(vocab.Like, async (ctx: InboxContextLike<TData>, like: any) => {
 			await withMeasure('Like', like.actorId?.href, async () => {
-				const { env } = ctx.data;
-				if (await isActorDomainSuspended(like.actorId, env)) return;
+				if (await isActorDomainSuspended(like.actorId)) return;
 
 				const localAccountId = await resolveRecipientAccountId(ctx);
 				if (localAccountId === null) return;
@@ -255,13 +244,11 @@ export function setupInboxListeners<
 					await processors.processEmojiReact(
 						activity,
 						localAccountId,
-						env,
 					);
 				} else {
 					await processors.processLike(
 						activity,
 						localAccountId,
-						env,
 					);
 				}
 			});
@@ -299,8 +286,6 @@ export function setupInboxListeners<
 		// Flag: special domain block handling (also checks rejectReports)
 		.on(vocab.Flag, async (ctx: InboxContextLike<TData>, flag: any) => {
 			await withMeasure('Flag', flag.actorId?.href, async () => {
-				const { env } = ctx.data;
-
 				if (flag.actorId) {
 					const domain = extractDomain(flag.actorId.href);
 					if (domain) {
@@ -325,7 +310,6 @@ export function setupInboxListeners<
 				await processors.processFlag(
 					activity,
 					localAccountId,
-					env,
 				);
 			});
 		})

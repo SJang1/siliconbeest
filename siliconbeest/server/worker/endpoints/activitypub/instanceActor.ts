@@ -7,11 +7,13 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../types';
 import { generateUlid } from '../../utils/ulid';
 import { encodeEd25519PublicKeyMultibase, generateEd25519KeyPair } from '../../utils/crypto';
+import { getInstanceTitle } from '../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -40,10 +42,10 @@ function toPem(base64: string, type: 'PUBLIC' | 'PRIVATE'): string {
 }
 
 app.get('/', async (c) => {
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
 	// Check if instance actor key exists
-	let actorKey = await c.env.DB.prepare(
+	let actorKey = await env.DB.prepare(
 		"SELECT * FROM actor_keys WHERE account_id = '__instance__'",
 	).first<{ id: string; public_key: string; private_key: string; key_id: string; ed25519_public_key: string | null }>();
 
@@ -71,14 +73,14 @@ app.get('/', async (c) => {
 		const now = new Date().toISOString();
 
 		// Ensure __instance__ account exists (FK requirement)
-		await c.env.DB.prepare(
+		await env.DB.prepare(
 			`INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
 			 VALUES ('__instance__', ?1, NULL, ?2, '', ?3, ?4, ?5, ?5)`,
 		)
-			.bind(domain, c.env.INSTANCE_TITLE || 'SiliconBeest', `https://${domain}/actor`, `https://${domain}/about`, now)
+			.bind(domain, await getInstanceTitle(), `https://${domain}/actor`, `https://${domain}/about`, now)
 			.run();
 
-		await c.env.DB.prepare(
+		await env.DB.prepare(
 			`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
 			 VALUES (?1, '__instance__', ?2, ?3, ?4, ?5)`,
 		)
@@ -98,7 +100,7 @@ app.get('/', async (c) => {
 	if (!actorKey.ed25519_public_key) {
 		try {
 			const ed25519 = await generateEd25519KeyPair();
-			await c.env.DB.prepare(
+			await env.DB.prepare(
 				'UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE account_id = ?3',
 			).bind(ed25519.publicKey, ed25519.privateKey, actorKey.id).run();
 			actorKey.ed25519_public_key = ed25519.publicKey;
@@ -132,7 +134,7 @@ app.get('/', async (c) => {
 		id: actorId,
 		type: 'Application',
 		preferredUsername: domain,
-		name: c.env.INSTANCE_TITLE || 'SiliconBeest',
+		name: await getInstanceTitle(),
 		summary: `Instance actor for ${domain}`,
 		inbox: `https://${domain}/inbox`,
 		outbox: `https://${domain}/outbox`,

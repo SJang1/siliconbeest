@@ -57,5 +57,43 @@
 
   "warning_unsensitize_subject": "미디어 민감 표시 해제",
   "warning_unsensitize_heading": "미디어 민감 표시 해제",
-  "warning_unsensitize_description": "회원님의 미디어에 대한 민감 콘텐츠 표시가 해제되었습니다."
+  "warning_unsensitize_description": "회원님의 미디어에 대한 민감 콘텐츠 표시가 해제되었습니다.",
+
+  "login_notification_subject": "새로운 로그인 — {title}",
+  "login_notification_heading": "새로운 로그인 감지",
+  "login_notification_body": "계정에 새로운 로그인이 감지되었습니다.",
+  "login_notification_time": "시각",
+  "login_notification_ip": "IP 주소",
+  "login_notification_device": "기기",
+  "login_notification_warning": "본인이 아닌 경우 즉시 비밀번호를 변경해 주세요.",
+
+  "password_changed_subject": "비밀번호가 변경되었습니다 — {title}",
+  "password_changed_heading": "비밀번호 변경 완료",
+  "password_changed_body": "비밀번호가 성공적으로 변경되었습니다.",
+  "password_changed_sessions": "보안을 위해 다른 모든 활성 세션이 로그아웃되었습니다.",
+  "password_changed_warning": "본인이 변경한 것이 아니라면 즉시 비밀번호를 재설정해 주세요.",
+
+  "username_reminder_subject": "사용자 이름 알림 — {title}",
+  "username_reminder_heading": "사용자 이름 알림",
+  "username_reminder_body": "이 이메일 주소와 연결된 사용자 이름 알림을 요청하셨습니다.",
+  "username_reminder_your_username": "사용자 이름",
+  "username_reminder_your_handle": "전체 핸들",
+  "username_reminder_ignore": "이 요청을 하지 않으셨다면 이 이메일을 무시하셔도 됩니다.",
+
+  "admin_pending_subject": "새 사용자 승인 대기: @{username}",
+  "admin_pending_heading": "새 회원가입 승인 대기",
+  "admin_pending_body": "새 사용자가 가입 후 승인을 기다리고 있습니다:",
+  "admin_pending_username": "사용자 이름",
+  "admin_pending_email": "이메일",
+  "admin_pending_reason": "가입 사유",
+  "admin_pending_review": "대기 중인 계정 검토",
+
+  "admin_report_subject": "새 신고: @{target}",
+  "admin_report_heading": "새 신고 접수",
+  "admin_report_body": "새 신고가 접수되었습니다:",
+  "admin_report_reporter": "신고자",
+  "admin_report_target": "대상",
+  "admin_report_category": "분류",
+  "admin_report_comment": "내용",
+  "admin_report_review": "신고 검토"
 }

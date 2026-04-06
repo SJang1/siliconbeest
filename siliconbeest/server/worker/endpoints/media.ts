@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../types';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 /**
  * GET /media/:path+ — Serve media from R2 bucket
@@ -20,7 +21,7 @@ app.get('/*', async (c) => {
     return c.json({ error: 'Not found' }, 404);
   }
 
-  const object = await c.env.MEDIA_BUCKET.get(key);
+  const object = await env.MEDIA_BUCKET.get(key);
   if (!object) {
     return c.json({ error: 'Not found' }, 404);
   }

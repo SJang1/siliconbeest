@@ -8,11 +8,12 @@
  * clients still request.
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import type { AppVariables } from '../../types';
 import { SILICONBEEST_VERSION } from '../../version';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 const STATS_CACHE_KEY = 'nodeinfo:stats:2.0';
 const STATS_CACHE_TTL = 3600; // 1 hour
@@ -23,14 +24,14 @@ interface NodeInfoStats {
 	domainCount: number;
 }
 
-async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoStats> {
-	const cached = await cache.get(STATS_CACHE_KEY, 'json');
+async function getStats(): Promise<NodeInfoStats> {
+	const cached = await env.CACHE.get(STATS_CACHE_KEY, 'json');
 	if (cached) return cached as NodeInfoStats;
 
 	const [usersResult, statusesResult, domainsResult] = await Promise.all([
-		db.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
-		db.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
-		db.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
+		env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
+		env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
+		env.DB.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
 	]);
 
 	const stats: NodeInfoStats = {
@@ -39,7 +40,7 @@ async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoSta
 		domainCount: (domainsResult?.cnt as number) ?? 0,
 	};
 
-	await cache.put(STATS_CACHE_KEY, JSON.stringify(stats), {
+	await env.CACHE.put(STATS_CACHE_KEY, JSON.stringify(stats), {
 		expirationTtl: STATS_CACHE_TTL,
 	});
 
@@ -48,8 +49,8 @@ async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoSta
 
 // GET /nodeinfo/2.0
 app.get('/2.0', async (c) => {
-	const stats = await getStats(c.env.DB, c.env.CACHE);
-	const registrationOpen = c.env.REGISTRATION_MODE === 'open';
+	const stats = await getStats();
+	const registrationOpen = (env.REGISTRATION_MODE as string) === 'open';
 
 	return c.json(
 		{

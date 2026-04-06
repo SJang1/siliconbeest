@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { getAccountById } from '../../../../services/account';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function safeJsonParse<T>(val: string | null, fallback: T): T {
   if (!val) return fallback;
@@ -14,9 +15,9 @@ const app = new Hono<HonoEnv>();
 
 app.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const row = await getAccountById(c.env.DB, id);
+  const row = await getAccountById(id);
   if (!row) throw new AppError(404, 'Record not found');
 
   const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
@@ -31,7 +32,7 @@ app.get('/:id', async (c) => {
     const isStale = !fetchedAt || (Date.now() - new Date(fetchedAt).getTime() > staleMs);
     if (isStale) {
       try {
-        await c.env.QUEUE_INTERNAL.send({
+        await env.QUEUE_INTERNAL.send({
           type: 'fetch_remote_account',
           actorUri: row.uri as string,
           forceRefresh: true,

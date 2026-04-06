@@ -3,7 +3,7 @@
 // instead of the full SPA, so link previews work on Twitter, Discord, Slack, Mastodon, etc.
 
 import app from './worker/index';
-import type { Env } from './worker/env';
+import { env } from 'cloudflare:workers';
 
 // User-Agent patterns for crawlers/bots that need OG tags
 const CRAWLER_UA =
@@ -138,7 +138,7 @@ export function generateOgHtml(opts: OgOptions): string {
 // API fetching
 // ---------------------------------------------------------------------------
 
-async function fetchApi(env: Env, domain: string, path: string): Promise<any> {
+async function fetchApi(domain: string, path: string): Promise<any> {
   try {
     const res = await app.fetch(
       new Request(`https://${domain}${path}`, {
@@ -159,12 +159,12 @@ async function fetchApi(env: Env, domain: string, path: string): Promise<any> {
 // Main handler — returns Response for crawlers, or null to fall through to SPA
 // ---------------------------------------------------------------------------
 
-export async function handleOgRequest(url: URL, env: Env): Promise<Response | null> {
+export async function handleOgRequest(url: URL): Promise<Response | null> {
   const domain = url.hostname;
   const page = parsePageType(url.pathname);
 
   // Fetch instance info (used by all page types as fallback and for siteName)
-  const instanceData = await fetchApi(env, domain, '/api/v2/instance');
+  const instanceData = await fetchApi(domain, '/api/v2/instance');
   const siteName: string = instanceData?.title || 'SiliconBeest';
   const siteDescription: string =
     stripHtml(instanceData?.description || instanceData?.short_description || '') ||
@@ -172,7 +172,7 @@ export async function handleOgRequest(url: URL, env: Env): Promise<Response | nu
   const siteThumbnail: string | undefined = instanceData?.thumbnail?.url;
 
   if (page.type === 'status') {
-    const statusData = await fetchApi(env, domain, `/api/v1/statuses/${page.params.statusId}`);
+    const statusData = await fetchApi(domain, `/api/v1/statuses/${page.params.statusId}`);
     if (statusData) {
       // Don't expose private/direct status content in OG tags
       const vis = statusData.visibility;
@@ -215,7 +215,7 @@ export async function handleOgRequest(url: URL, env: Env): Promise<Response | nu
 
   if (page.type === 'profile') {
     const acct = page.params.acct;
-    const accountData = await fetchApi(env, domain, `/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`);
+    const accountData = await fetchApi(domain, `/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`);
     if (accountData) {
       const displayName = accountData.display_name || accountData.username || acct;
       const bio = stripHtml(accountData.note || '');

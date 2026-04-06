@@ -57,5 +57,43 @@
 
   "warning_unsensitize_subject": "メディアのセンシティブ指定解除",
   "warning_unsensitize_heading": "メディアのセンシティブ指定解除",
-  "warning_unsensitize_description": "メディアのセンシティブコンテンツ指定が解除されました。"
+  "warning_unsensitize_description": "メディアのセンシティブコンテンツ指定が解除されました。",
+
+  "login_notification_subject": "新しいログイン — {title}",
+  "login_notification_heading": "新しいログインを検出",
+  "login_notification_body": "アカウントに新しいログインが検出されました。",
+  "login_notification_time": "時刻",
+  "login_notification_ip": "IPアドレス",
+  "login_notification_device": "デバイス",
+  "login_notification_warning": "心当たりがない場合は、すぐにパスワードを変更してください。",
+
+  "password_changed_subject": "パスワードが変更されました — {title}",
+  "password_changed_heading": "パスワード変更完了",
+  "password_changed_body": "パスワードが正常に変更されました。",
+  "password_changed_sessions": "セキュリティのため、他のすべてのセッションがログアウトされました。",
+  "password_changed_warning": "この変更に心当たりがない場合は、すぐにパスワードをリセットしてください。",
+
+  "username_reminder_subject": "ユーザー名のお知らせ — {title}",
+  "username_reminder_heading": "ユーザー名のお知らせ",
+  "username_reminder_body": "このメールアドレスに関連付けられたユーザー名のお知らせをリクエストされました。",
+  "username_reminder_your_username": "ユーザー名",
+  "username_reminder_your_handle": "完全なハンドル",
+  "username_reminder_ignore": "このリクエストに心当たりがない場合は、このメールを無視してください。",
+
+  "admin_pending_subject": "新規ユーザー承認待ち: @{username}",
+  "admin_pending_heading": "新規登録の承認待ち",
+  "admin_pending_body": "新しいユーザーが登録し、承認を待っています：",
+  "admin_pending_username": "ユーザー名",
+  "admin_pending_email": "メールアドレス",
+  "admin_pending_reason": "理由",
+  "admin_pending_review": "保留中のアカウントを確認",
+
+  "admin_report_subject": "新しい報告: @{target}",
+  "admin_report_heading": "新しい報告が提出されました",
+  "admin_report_body": "新しい報告が提出されました：",
+  "admin_report_reporter": "報告者",
+  "admin_report_target": "対象",
+  "admin_report_category": "カテゴリ",
+  "admin_report_comment": "コメント",
+  "admin_report_review": "報告を確認"
 }

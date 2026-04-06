@@ -6,7 +6,7 @@
  * follower/following counts accordingly.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { BaseProcessor } from './BaseProcessor';
@@ -39,7 +39,7 @@ class BlockProcessor extends BaseProcessor {
 
 		// Insert block record (ignore if duplicate)
 		try {
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`INSERT INTO blocks (id, account_id, target_account_id, uri, created_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5)`,
 			)
@@ -51,7 +51,7 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Remove follow from blocker -> target
-		const forwardFollow = await this.env.DB.prepare(
+		const forwardFollow = await env.DB.prepare(
 			`DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2`,
 		)
 			.bind(actorAccount.id, targetAccount.id)
@@ -63,7 +63,7 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Remove follow from target -> blocker
-		const reverseFollow = await this.env.DB.prepare(
+		const reverseFollow = await env.DB.prepare(
 			`DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2`,
 		)
 			.bind(targetAccount.id, actorAccount.id)
@@ -75,11 +75,11 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Also remove pending follow_requests in both directions
-		await this.env.DB.batch([
-			this.env.DB.prepare(
+		await env.DB.batch([
+			env.DB.prepare(
 				`DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2`,
 			).bind(actorAccount.id, targetAccount.id),
-			this.env.DB.prepare(
+			env.DB.prepare(
 				`DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2`,
 			).bind(targetAccount.id, actorAccount.id),
 		]);
@@ -89,7 +89,6 @@ class BlockProcessor extends BaseProcessor {
 export async function processBlock(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new BlockProcessor(env).process(activity);
+	await new BlockProcessor().process(activity);
 }

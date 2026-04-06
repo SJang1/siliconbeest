@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type User = {
@@ -36,31 +37,31 @@ export type CreateUserInput = {
 	confirmation_token?: string | null;
 };
 
-export const findById = async (db: D1Database, id: string): Promise<User | null> => {
-	const result = await db
+export const findById = async (id: string): Promise<User | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM users WHERE id = ?')
 		.bind(id)
 		.first<User>();
 	return result ?? null;
 };
 
-export const findByEmail = async (db: D1Database, email: string): Promise<User | null> => {
-	const result = await db
+export const findByEmail = async (email: string): Promise<User | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM users WHERE email = ?')
 		.bind(email)
 		.first<User>();
 	return result ?? null;
 };
 
-export const findByAccountId = async (db: D1Database, accountId: string): Promise<User | null> => {
-	const result = await db
+export const findByAccountId = async (accountId: string): Promise<User | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM users WHERE account_id = ?')
 		.bind(accountId)
 		.first<User>();
 	return result ?? null;
 };
 
-export const create = async (db: D1Database, input: CreateUserInput): Promise<User> => {
+export const create = async (input: CreateUserInput): Promise<User> => {
 	const now = new Date().toISOString();
 	const id = generateUlid();
 	const user: User = {
@@ -89,7 +90,7 @@ export const create = async (db: D1Database, input: CreateUserInput): Promise<Us
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO users (
 				id, account_id, email, encrypted_password, locale,
@@ -117,30 +118,29 @@ export const create = async (db: D1Database, input: CreateUserInput): Promise<Us
 	return user;
 };
 
-export const update = async (db: D1Database, id: string, input: Partial<Omit<User, 'id' | 'created_at' | 'updated_at'>>): Promise<User | null> => {
+export const update = async (id: string, input: Partial<Omit<User, 'id' | 'created_at' | 'updated_at'>>): Promise<User | null> => {
 	const now = new Date().toISOString();
 	const entries = Object.entries(input);
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 
-	return findById(db, id);
+	return findById(id);
 };
 
-export const updatePassword = async (db: D1Database, id: string, encryptedPassword: string): Promise<void> => {
+export const updatePassword = async (id: string, encryptedPassword: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare('UPDATE users SET encrypted_password = ?, updated_at = ? WHERE id = ?')
 		.bind(encryptedPassword, now, id)
 		.run();
 };
 
 export const updateOtp = async (
-	db: D1Database,
 	id: string,
 	data: { otp_secret?: string | null; otp_enabled?: number; otp_backup_codes?: string | null }
 ): Promise<void> => {
@@ -152,15 +152,15 @@ export const updateOtp = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 };
 
-export const updateSignIn = async (db: D1Database, id: string, ip: string): Promise<void> => {
+export const updateSignIn = async (id: string, ip: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare(
 			`UPDATE users SET
 				last_sign_in_at = current_sign_in_at,

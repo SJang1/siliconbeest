@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../types';
 import { exchangeCode } from '../../services/oauth';
-import { generateToken, sha256 } from '../../utils/crypto';
-import { generateUlid } from '../../utils/ulid';
+import { createAccessToken } from '../../services/auth';
 import { AppError } from '../../middleware/errorHandler';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // POST /oauth/token
 app.post('/', async (c) => {
@@ -57,7 +57,7 @@ app.post('/', async (c) => {
 		}
 
 		try {
-			const result = await exchangeCode(c.env.DB, code, clientId, clientSecret, redirectUri, codeVerifier);
+			const result = await exchangeCode(code, clientId, clientSecret, redirectUri, codeVerifier);
 
 			return c.json({
 				access_token: result.token,
@@ -81,11 +81,11 @@ app.post('/', async (c) => {
 	// ---------------------------------------------------------------------------
 
 	if (grantType === 'client_credentials') {
-		const oauthApp = await c.env.DB.prepare(
+		const oauthApp = await env.DB.prepare(
 			`SELECT id, client_secret, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
 		)
 			.bind(clientId)
-			.first();
+			.first<{ id: string; client_secret: string; scopes: string }>();
 
 		if (!oauthApp) {
 			return c.json(
@@ -108,23 +108,14 @@ app.post('/', async (c) => {
 			);
 		}
 
-		const accessToken = generateToken(64);
-		const ccTokenHash = await sha256(accessToken);
-		const tokenId = generateUlid();
-		const now = new Date().toISOString();
-
-		await c.env.DB.prepare(
-			`INSERT INTO oauth_access_tokens (id, application_id, user_id, token_hash, scopes, created_at)
-			 VALUES (?1, ?2, NULL, ?3, ?4, ?5)`,
-		)
-			.bind(tokenId, oauthApp.id, ccTokenHash, scope, now)
-			.run();
+		// App-level token (no user, no email notification)
+		const { tokenValue, createdAt } = await createAccessToken(oauthApp.id, null, { scopes: scope });
 
 		return c.json({
-			access_token: accessToken,
+			access_token: tokenValue,
 			token_type: 'Bearer',
 			scope,
-			created_at: Math.floor(new Date(now).getTime() / 1000),
+			created_at: Math.floor(new Date(createdAt).getTime() / 1000),
 		});
 	}
 

@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authOptional } from '../../../../middleware/auth';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 /**
  * GET /api/v1/trends/statuses — Return trending statuses.
@@ -17,7 +18,7 @@ app.get('/', authOptional, async (c) => {
   const offsetRaw = parseInt(c.req.query('offset') ?? '0', 10);
   const offset = Math.max(offsetRaw, 0);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
            a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
            a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -41,11 +42,10 @@ app.get('/', authOptional, async (c) => {
   const statusIds = (results ?? []).map((r: any) => r.id as string);
   const currentAccount = c.get('currentAccount');
   const enrichments = await enrichStatuses(
-    c.env.DB,
-    c.env.INSTANCE_DOMAIN,
+    env.INSTANCE_DOMAIN,
     statusIds,
     currentAccount?.id ?? null,
-    c.env.CACHE,
+    env.CACHE,
   );
 
   const statuses = (results ?? []).map((row: any) => {
@@ -64,7 +64,7 @@ app.get('/', authOptional, async (c) => {
     };
     const e = enrichments.get(row.id);
     return serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,

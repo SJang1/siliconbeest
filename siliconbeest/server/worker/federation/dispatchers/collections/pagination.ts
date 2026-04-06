@@ -6,6 +6,8 @@
  * if there's a next page.
  */
 
+import { env } from 'cloudflare:workers';
+
 export interface PaginatedResult<T> {
 	items: T[];
 	nextCursor: string | null;
@@ -27,7 +29,6 @@ export interface PaginatedResult<T> {
  * @param idExtractor - Function to extract the cursor ID from a row
  */
 export async function paginateQuery<T>(
-	db: D1Database,
 	options: {
 		baseConditions: string[];
 		baseBinds: (string | number)[];
@@ -57,7 +58,7 @@ export async function paginateQuery<T>(
 	`;
 	binds.push(options.pageSize + 1);
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(sql)
 		.bind(...binds)
 		.all<T>();

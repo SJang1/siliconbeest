@@ -1,8 +1,9 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -14,10 +15,10 @@ app.post('/:id/resolve', async (c) => {
 	const currentUser = c.get('currentUser')!;
 	const now = new Date().toISOString();
 
-	const row = await c.env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
+	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	await c.env.DB.prepare(
+	await env.DB.prepare(
 		'UPDATE reports SET action_taken_at = ?1, action_taken_by_account_id = ?2 WHERE id = ?3',
 	)
 		.bind(now, currentUser.account_id, id)

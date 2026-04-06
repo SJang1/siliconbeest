@@ -14,7 +14,7 @@
  * Both use RSASSA-PKCS1-v1_5 SHA-256 via the Web Crypto API.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
@@ -34,7 +34,6 @@ import {
 
 export async function handleDeliverActivity(
   msg: DeliverActivityMessage,
-  env: Env,
 ): Promise<void> {
   const { activity, inboxUrl, actorAccountId } = msg;
   const targetDomain = new URL(inboxUrl).hostname;

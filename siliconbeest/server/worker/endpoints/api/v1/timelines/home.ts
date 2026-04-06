@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
@@ -7,7 +8,7 @@ import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import { getHomeTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
@@ -18,7 +19,7 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const allRows = await getHomeTimeline(c.env.DB, account.id, {
+  const allRows = await getHomeTimeline(account.id, {
     maxId: pag.maxId,
     sinceId: pag.sinceId,
     minId: pag.minId,
@@ -35,13 +36,13 @@ app.get('/', authRequired, async (c) => {
 
   // Enrich both normal statuses and reblog originals
   const allIdsToEnrich = [...statusIds, ...uniqueReblogIds];
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, allIdsToEnrich, account.id, c.env.CACHE);
+  const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, allIdsToEnrich, account.id, env.CACHE);
 
   // Fetch reblog original rows
   const reblogMap = new Map<string, any>();
   if (uniqueReblogIds.length > 0) {
     const ph = uniqueReblogIds.map(() => '?').join(',');
-    const { results: reblogResults } = await c.env.DB.prepare(
+    const { results: reblogResults } = await env.DB.prepare(
       `SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
               a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
               a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -73,7 +74,7 @@ app.get('/', authRequired, async (c) => {
       };
       const origE = enrichments.get(rr.id as string);
       const origSerialized = serializeStatus(rr as unknown as StatusRow, {
-        account: serializeAccount(origAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(origAccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,
         favourited: origE?.favourited,
@@ -102,7 +103,7 @@ app.get('/', authRequired, async (c) => {
     };
     const e = enrichments.get(row.id);
     const s = serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,
@@ -121,7 +122,7 @@ app.get('/', authRequired, async (c) => {
   // Reverse when using min_id (ASC query)
   if (pag.minId) statuses.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/home`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/timelines/home`;
   const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

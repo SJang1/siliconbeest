@@ -8,7 +8,7 @@
  * 4. For follow: also enqueue federation delivery of Follow activity
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { ImportItemMessage } from '../shared/types/queue';
 import { generateUlid } from '../../../packages/shared/utils/ulid';
 
@@ -47,7 +47,6 @@ async function webfingerResolve(acct: string): Promise<string | null> {
 
 export async function handleImportItem(
   msg: ImportItemMessage,
-  env: Env,
 ): Promise<void> {
   const { acct, action, accountId } = msg;
 

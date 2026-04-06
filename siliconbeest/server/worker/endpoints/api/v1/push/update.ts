@@ -2,14 +2,15 @@
  * PUT /api/v1/push/subscription — Update push subscription alerts / policy
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
 import { getPushSubscription, updatePushSubscription } from '../../../../services/push';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 const ALERT_MAP: Record<string, string> = {
   mention: 'alert_mention',
@@ -27,7 +28,7 @@ const ALERT_MAP: Record<string, string> = {
 app.put('/', authRequired, requireScope('push'), async (c) => {
   const tokenId = c.get('tokenId')!;
 
-  const existing = await getPushSubscription(c.env.DB, tokenId);
+  const existing = await getPushSubscription(tokenId);
 
   if (!existing) {
     return c.json({ error: 'Record not found' }, 404);
@@ -66,7 +67,7 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
     params.push(policy);
   }
 
-  const row = await updatePushSubscription(c.env.DB, existing.id as string, { sets, params });
+  const row = await updatePushSubscription(existing.id as string, { sets, params });
 
   return c.json({
     id: row.id,
@@ -84,7 +85,7 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
       'admin.report': !!(row.alert_admin_report),
     },
     policy: row.policy,
-    server_key: await getVapidPublicKey(c.env.DB),
+    server_key: await getVapidPublicKey(),
   });
 });
 

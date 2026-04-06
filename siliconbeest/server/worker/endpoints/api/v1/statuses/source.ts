@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 interface StatusSourceRow {
   id: string;
@@ -18,7 +19,7 @@ const app = new Hono<HonoEnv>();
 app.get('/:id/source', authRequired, async (c) => {
   const statusId = c.req.param('id');
 
-  const status = await c.env.DB.prepare(
+  const status = await env.DB.prepare(
     `SELECT id, text, content_warning, content FROM statuses
      WHERE id = ?1 AND deleted_at IS NULL`,
   )

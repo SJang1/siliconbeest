@@ -4,6 +4,7 @@
  * Pure DB operations for conversation (direct message) endpoints.
  */
 
+import { env } from 'cloudflare:workers';
 import { AppError } from '../middleware/errorHandler';
 import type { PaginationParams } from '../utils/pagination';
 
@@ -24,7 +25,6 @@ export interface ConversationListOpts {
  * Returns raw conversation rows (conversation_id, last_status_id, unread).
  */
 export async function listConversationEntries(
-	db: D1Database,
 	accountId: string,
 	opts: ConversationListOpts,
 ): Promise<Record<string, unknown>[]> {
@@ -47,7 +47,7 @@ export async function listConversationEntries(
 	`;
 	binds.push(opts.limitValue);
 
-	const { results } = await db.prepare(sql).bind(...binds).all();
+	const { results } = await env.DB.prepare(sql).bind(...binds).all();
 	return (results ?? []) as Record<string, unknown>[];
 }
 
@@ -55,11 +55,10 @@ export async function listConversationEntries(
  * Get participants in a conversation excluding the current user.
  */
 export async function getConversationParticipants(
-	db: D1Database,
 	conversationId: string,
 	excludeAccountId: string,
 ): Promise<Record<string, unknown>[]> {
-	const { results } = await db.prepare(
+	const { results } = await env.DB.prepare(
 		`SELECT a.*
 		 FROM conversation_accounts ca2
 		 JOIN accounts a ON a.id = ca2.account_id
@@ -73,10 +72,9 @@ export async function getConversationParticipants(
  * Get the last status in a conversation with account data.
  */
 export async function getConversationLastStatus(
-	db: D1Database,
 	statusId: string,
 ): Promise<Record<string, unknown> | null> {
-	return db.prepare(
+	return env.DB.prepare(
 		`SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
 		        a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
 		        a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -102,17 +100,16 @@ export async function getConversationLastStatus(
  * Throws 404 if the user is not a participant.
  */
 export async function markConversationRead(
-	db: D1Database,
 	conversationId: string,
 	accountId: string,
 ): Promise<void> {
-	const entry = await db.prepare(
+	const entry = await env.DB.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	await db.prepare(
+	await env.DB.prepare(
 		'UPDATE conversation_accounts SET unread = 0 WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).run();
 }
@@ -126,17 +123,16 @@ export async function markConversationRead(
  * Throws 404 if the user is not a participant.
  */
 export async function deleteConversation(
-	db: D1Database,
 	conversationId: string,
 	accountId: string,
 ): Promise<void> {
-	const entry = await db.prepare(
+	const entry = await env.DB.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	await db.prepare(
+	await env.DB.prepare(
 		'DELETE FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).run();
 }

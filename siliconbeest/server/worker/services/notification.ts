@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { AppError } from '../middleware/errorHandler';
 import type { NotificationRow } from '../types/db';
@@ -75,7 +76,6 @@ export interface ListNotificationsOpts {
 }
 
 export async function listNotifications(
-  db: D1Database,
   accountId: string,
   opts: ListNotificationsOpts,
 ): Promise<NotifWithAccountRow[]> {
@@ -111,7 +111,7 @@ export async function listNotifications(
     LIMIT ?
   `;
 
-  const { results } = await db.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
   return results ?? [];
 }
 
@@ -120,7 +120,6 @@ export async function listNotifications(
 // -----------------------------------------------------------------
 
 export async function getNotification(
-  db: D1Database,
   id: string,
   accountId: string,
 ): Promise<NotifWithAccountRow | null> {
@@ -131,7 +130,7 @@ export async function getNotification(
     WHERE n.id = ?1 AND n.account_id = ?2
     LIMIT 1
   `;
-  return db.prepare(sql).bind(id, accountId).first<NotifWithAccountRow>();
+  return env.DB.prepare(sql).bind(id, accountId).first<NotifWithAccountRow>();
 }
 
 // -----------------------------------------------------------------
@@ -142,11 +141,10 @@ export async function getNotification(
  * Delete a single notification. Throws 404 if it does not exist.
  */
 export async function dismissNotification(
-  db: D1Database,
   id: string,
   accountId: string,
 ): Promise<void> {
-  const result = await db
+  const result = await env.DB
     .prepare('DELETE FROM notifications WHERE id = ?1 AND account_id = ?2')
     .bind(id, accountId)
     .run();
@@ -161,10 +159,9 @@ export async function dismissNotification(
 // -----------------------------------------------------------------
 
 export async function clearAllNotifications(
-  db: D1Database,
   accountId: string,
 ): Promise<void> {
-  await db
+  await env.DB
     .prepare('DELETE FROM notifications WHERE account_id = ?1')
     .bind(accountId)
     .run();
@@ -175,7 +172,6 @@ export async function clearAllNotifications(
 // -----------------------------------------------------------------
 
 export async function createNotification(
-  db: D1Database,
   accountId: string,
   fromAccountId: string,
   type: string,
@@ -188,7 +184,7 @@ export async function createNotification(
   }
 
   // Check for duplicate: same type, from same account, for same status
-  const existing = await db
+  const existing = await env.DB
     .prepare(
       `SELECT id FROM notifications
        WHERE account_id = ? AND from_account_id = ? AND type = ?
@@ -199,7 +195,7 @@ export async function createNotification(
     .first();
 
   if (existing) {
-    const row = await db
+    const row = await env.DB
       .prepare('SELECT * FROM notifications WHERE id = ? AND account_id = ? LIMIT 1')
       .bind(existing.id as string, accountId)
       .first<NotificationRow>();
@@ -207,7 +203,7 @@ export async function createNotification(
   }
 
   // Check if target has muted the source
-  const muted = await db
+  const muted = await env.DB
     .prepare(
       'SELECT hide_notifications FROM mutes WHERE account_id = ? AND target_account_id = ? LIMIT 1',
     )
@@ -219,7 +215,7 @@ export async function createNotification(
   }
 
   // Check if target has blocked the source
-  const blocked = await db
+  const blocked = await env.DB
     .prepare(
       'SELECT id FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1',
     )
@@ -233,7 +229,7 @@ export async function createNotification(
   const id = generateUlid();
   const now = new Date().toISOString();
 
-  await db
+  await env.DB
     .prepare(
       `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, emoji, read, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
@@ -241,7 +237,7 @@ export async function createNotification(
     .bind(id, accountId, fromAccountId, type, statusId ?? null, emoji ?? null, now)
     .run();
 
-  return (await db
+  return (await env.DB
     .prepare('SELECT * FROM notifications WHERE id = ? AND account_id = ? LIMIT 1')
     .bind(id, accountId)
     .first<NotificationRow>())!;

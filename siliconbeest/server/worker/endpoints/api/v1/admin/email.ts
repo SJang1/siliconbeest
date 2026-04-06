@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
-import { sendEmail } from '../../../../services/email';
+import { sendCustomEmail } from '../../../../services/email';
+import { getInstanceTitle } from '../../../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -21,7 +22,7 @@ app.post('/', async (c) => {
 		throw new AppError(422, 'Validation failed: to, subject, and body are required');
 	}
 
-	const sent = await sendEmail(c.env, payload.to, payload.subject, payload.body);
+	const sent = await sendCustomEmail(payload.to, payload.subject, payload.body);
 
 	return c.json({ sent }, 200);
 });
@@ -33,10 +34,10 @@ app.post('/test', async (c) => {
 	const currentUser = c.get('currentUser');
 	if (!currentUser) throw new AppError(401, 'The access token is invalid');
 
-	const title = c.env.INSTANCE_TITLE || 'SiliconBeest';
+	const title = await getInstanceTitle();
 	const html = `<h1>Test Email</h1><p>This is a test email from <strong>${title}</strong>. If you received this, SMTP is configured correctly.</p>`;
 
-	const sent = await sendEmail(c.env, currentUser.email, `[${title}] Test email`, html);
+	const sent = await sendCustomEmail(currentUser.email, `[${title}] Test email`, html);
 
 	if (!sent) {
 		throw new AppError(422, 'Email not sent', 'SMTP is not configured or delivery failed');

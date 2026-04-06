@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import type { MediaAttachment } from '../../../../types/mastodon';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function serializeStatus(row: Record<string, unknown>, domain: string) {
   const acct = row.account_domain
@@ -73,10 +74,10 @@ const app = new Hono<HonoEnv>();
 
 app.get('/:id/statuses', authOptional, async (c) => {
   const accountId = c.req.param('id');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   // Verify account exists
-  const account = await c.env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
+  const account = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
   if (!account) throw new AppError(404, 'Record not found');
 
   const query = c.req.query();
@@ -107,7 +108,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
     // Own profile: show everything (including DMs authored by self)
   } else if (currentAccountId) {
     // Logged in: check if follower
-    const isFollower = await c.env.DB.prepare(
+    const isFollower = await env.DB.prepare(
       'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
     ).bind(currentAccountId, accountId).first();
     if (isFollower) {
@@ -152,11 +153,11 @@ app.get('/:id/statuses', authOptional, async (c) => {
   `;
   params.push(pag.limitValue);
 
-  const stmt = c.env.DB.prepare(sql);
+  const stmt = env.DB.prepare(sql);
   const { results } = await stmt.bind(...params).all();
 
   const statusIds = (results as Record<string, unknown>[]).map((r) => r.id as string);
-  const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId, c.env.CACHE);
+  const enrichments = await enrichStatuses(domain, statusIds, currentAccountId, env.CACHE);
 
   // Collect reblog_of_ids to fetch original statuses
   const reblogOfIds = (results as Record<string, unknown>[])
@@ -166,7 +167,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
   const reblogMap = new Map<string, Record<string, unknown>>();
   if (reblogOfIds.length > 0) {
     const placeholders = reblogOfIds.map(() => '?').join(',');
-    const { results: reblogResults } = await c.env.DB.prepare(
+    const { results: reblogResults } = await env.DB.prepare(
       `SELECT s.*,
         a.username AS account_username, a.domain AS account_domain,
         a.display_name AS account_display_name, a.note AS account_note,
@@ -189,7 +190,7 @@ app.get('/:id/statuses', authOptional, async (c) => {
   // Enrich reblog originals too
   const allIds = [...statusIds, ...reblogOfIds];
   const allEnrichments = reblogOfIds.length > 0
-    ? await enrichStatuses(c.env.DB, domain, allIds, currentAccountId, c.env.CACHE)
+    ? await enrichStatuses(domain, allIds, currentAccountId, env.CACHE)
     : enrichments;
 
   const statuses = (results as Record<string, unknown>[]).map((r) => {

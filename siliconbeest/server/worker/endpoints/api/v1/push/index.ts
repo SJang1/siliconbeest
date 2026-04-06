@@ -5,14 +5,14 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
 import subscribe from './subscribe';
 import get from './get';
 import update from './update';
 import unsubscribe from './unsubscribe';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // POST   /  — create subscription
 app.route('/', subscribe);

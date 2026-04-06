@@ -23,25 +23,25 @@ describe('Password endpoints', () => {
 	// POST /api/v1/auth/passwords — request password reset
 	// -----------------------------------------------------------------
 	describe('POST /api/v1/auth/passwords', () => {
-		it('returns 200 for a valid email (does not reveal whether email exists)', async () => {
+		it('returns 200 for a valid username+email (does not reveal whether account exists)', async () => {
 			const res = await SELF.fetch(`${BASE}/api/v1/auth/passwords`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: 'pwuser@test.local' }),
+				body: JSON.stringify({ username: 'pwuser', email: 'pwuser@test.local' }),
 			});
 			expect(res.status).toBe(200);
 		});
 
-		it('returns 200 even for a non-existent email', async () => {
+		it('returns 200 even for a non-existent username+email', async () => {
 			const res = await SELF.fetch(`${BASE}/api/v1/auth/passwords`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: 'nobody@test.local' }),
+				body: JSON.stringify({ username: 'nobody', email: 'nobody@test.local' }),
 			});
 			expect(res.status).toBe(200);
 		});
 
-		it('returns 422 when email is missing', async () => {
+		it('returns 422 when username or email is missing', async () => {
 			const res = await SELF.fetch(`${BASE}/api/v1/auth/passwords`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },

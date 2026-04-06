@@ -9,14 +9,13 @@
  * Returns the account ID, or null if resolution fails entirely.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { isDomainBlocked } from './helpers/domainBlock';
 import { sanitizeHtml } from '../utils/sanitize';
 
 export async function resolveRemoteAccount(
 	actorUri: string,
-	env: Env,
 ): Promise<string | null> {
 	const existing = await env.DB.prepare(
 		`SELECT id FROM accounts WHERE uri = ?1 LIMIT 1`,

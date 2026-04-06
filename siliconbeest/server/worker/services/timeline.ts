@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { parsePaginationParams, buildPaginationQuery } from '../utils/pagination';
 import type { PaginationParams } from '../utils/pagination';
 import { AppError } from '../middleware/errorHandler';
@@ -49,7 +50,6 @@ export interface TagTimelineOpts extends TimelinePaginationOpts {
  * the status ID to its rowid via subquery.
  */
 export async function getHomeTimeline(
-  db: D1Database,
   accountId: string,
   opts: TimelinePaginationOpts,
 ): Promise<Record<string, unknown>[]> {
@@ -97,7 +97,7 @@ export async function getHomeTimeline(
   `;
   binds.push(pag.limit);
 
-  const { results } = await db.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return (results ?? []) as Record<string, unknown>[];
 }
 
@@ -106,7 +106,6 @@ export async function getHomeTimeline(
 // ----------------------------------------------------------------
 
 export async function getPublicTimeline(
-  db: D1Database,
   opts: PublicTimelineOpts,
 ): Promise<Record<string, unknown>[]> {
   const pag = parsePaginationParams({
@@ -147,7 +146,7 @@ export async function getPublicTimeline(
   `;
   binds.push(limitValue);
 
-  const { results } = await db.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return (results ?? []) as Record<string, unknown>[];
 }
 
@@ -156,7 +155,6 @@ export async function getPublicTimeline(
 // ----------------------------------------------------------------
 
 export async function getTagTimeline(
-  db: D1Database,
   tag: string,
   opts: TagTimelineOpts,
 ): Promise<Record<string, unknown>[]> {
@@ -199,7 +197,7 @@ export async function getTagTimeline(
   `;
   binds.push(limitValue);
 
-  const { results } = await db.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return (results ?? []) as Record<string, unknown>[];
 }
 
@@ -208,13 +206,12 @@ export async function getTagTimeline(
 // ----------------------------------------------------------------
 
 export async function getListTimeline(
-  db: D1Database,
   listId: string,
   accountId: string,
   opts: TimelinePaginationOpts,
 ): Promise<Record<string, unknown>[]> {
   // Verify list ownership
-  const list = await db
+  const list = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -252,6 +249,6 @@ export async function getListTimeline(
   `;
   binds.push(limitValue);
 
-  const { results } = await db.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return (results ?? []) as Record<string, unknown>[];
 }

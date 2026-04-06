@@ -5,9 +5,9 @@
  * that corresponds to a Follow we sent.
  */
 
-import type { Env } from '../../env';
 import type { APActivity, APObject } from '../../types/activitypub';
 import { BaseProcessor } from './BaseProcessor';
+import { env } from 'cloudflare:workers';
 
 class RejectProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
@@ -27,7 +27,7 @@ class RejectProcessor extends BaseProcessor {
 		let deleted = false;
 
 		if (typeof object === 'string') {
-			const result = await this.env.DB.prepare(
+			const result = await env.DB.prepare(
 				`DELETE FROM follow_requests WHERE uri = ?1`,
 			)
 				.bind(object)
@@ -36,7 +36,7 @@ class RejectProcessor extends BaseProcessor {
 		} else {
 			const obj = object as APObject;
 			if (obj.id) {
-				const result = await this.env.DB.prepare(
+				const result = await env.DB.prepare(
 					`DELETE FROM follow_requests WHERE uri = ?1`,
 				)
 					.bind(obj.id)
@@ -47,7 +47,7 @@ class RejectProcessor extends BaseProcessor {
 
 		// Fallback: delete by account pair
 		if (!deleted) {
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`DELETE FROM follow_requests
 				 WHERE target_account_id = ?1
 				 AND account_id IN (SELECT id FROM accounts WHERE domain IS NULL)`,
@@ -61,7 +61,6 @@ class RejectProcessor extends BaseProcessor {
 export async function processReject(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new RejectProcessor(env).process(activity);
+	await new RejectProcessor().process(activity);
 }

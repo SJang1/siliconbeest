@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { sendAccountWarning } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
 import {
@@ -12,7 +12,7 @@ import {
 	getUserEmailByAccountId,
 } from '../../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -21,18 +21,18 @@ const app = new Hono<HonoEnv>();
  */
 app.post('/:id/unsuspend', async (c) => {
 	const id = c.req.param('id');
-	await getAccountForModeration(c.env.DB, id);
+	await getAccountForModeration(id);
 
 	const currentUser = c.get('currentUser')!;
 
-	await unsuspendAccount(c.env.DB, id);
-	await addAccountWarning(c.env.DB, currentUser.account_id, id, 'unsuspend', '');
+	await unsuspendAccount(id);
+	await addAccountWarning(currentUser.account_id, id, 'unsuspend', '');
 
 	// Send notification email
-	const user = await getUserEmailByAccountId(c.env.DB, id);
+	const user = await getUserEmailByAccountId(id);
 	if (user?.email) {
 		try {
-			await sendAccountWarning(c.env, user.email, 'unsuspend', '', sanitizeLocale(user.locale));
+			await sendAccountWarning(user.email, 'unsuspend', '', sanitizeLocale(user.locale));
 		} catch { /* best-effort */ }
 	}
 
@@ -44,17 +44,17 @@ app.post('/:id/unsuspend', async (c) => {
  */
 app.post('/:id/unsilence', async (c) => {
 	const id = c.req.param('id');
-	await getAccountForModeration(c.env.DB, id);
+	await getAccountForModeration(id);
 
 	const currentUser = c.get('currentUser')!;
 
-	await unsilenceAccount(c.env.DB, id);
-	await addAccountWarning(c.env.DB, currentUser.account_id, id, 'unsilence', '');
+	await unsilenceAccount(id);
+	await addAccountWarning(currentUser.account_id, id, 'unsilence', '');
 
-	const user = await getUserEmailByAccountId(c.env.DB, id);
+	const user = await getUserEmailByAccountId(id);
 	if (user?.email) {
 		try {
-			await sendAccountWarning(c.env, user.email, 'unsilence', '', sanitizeLocale(user.locale));
+			await sendAccountWarning(user.email, 'unsilence', '', sanitizeLocale(user.locale));
 		} catch { /* best-effort */ }
 	}
 
@@ -66,17 +66,17 @@ app.post('/:id/unsilence', async (c) => {
  */
 app.post('/:id/enable', async (c) => {
 	const id = c.req.param('id');
-	await getAccountForModeration(c.env.DB, id);
+	await getAccountForModeration(id);
 
 	const currentUser = c.get('currentUser')!;
 
-	await enableAccount(c.env.DB, id);
-	await addAccountWarning(c.env.DB, currentUser.account_id, id, 'enable', '');
+	await enableAccount(id);
+	await addAccountWarning(currentUser.account_id, id, 'enable', '');
 
-	const user = await getUserEmailByAccountId(c.env.DB, id);
+	const user = await getUserEmailByAccountId(id);
 	if (user?.email) {
 		try {
-			await sendAccountWarning(c.env, user.email, 'enable', '', sanitizeLocale(user.locale));
+			await sendAccountWarning(user.email, 'enable', '', sanitizeLocale(user.locale));
 		} catch { /* best-effort */ }
 	}
 
@@ -88,17 +88,17 @@ app.post('/:id/enable', async (c) => {
  */
 app.post('/:id/unsensitize', async (c) => {
 	const id = c.req.param('id');
-	await getAccountForModeration(c.env.DB, id);
+	await getAccountForModeration(id);
 
 	const currentUser = c.get('currentUser')!;
 
-	await unsensitizeAccount(c.env.DB, id);
-	await addAccountWarning(c.env.DB, currentUser.account_id, id, 'unsensitize', '');
+	await unsensitizeAccount(id);
+	await addAccountWarning(currentUser.account_id, id, 'unsensitize', '');
 
-	const user = await getUserEmailByAccountId(c.env.DB, id);
+	const user = await getUserEmailByAccountId(id);
 	if (user?.email) {
 		try {
-			await sendAccountWarning(c.env, user.email, 'unsensitize', '', sanitizeLocale(user.locale));
+			await sendAccountWarning(user.email, 'unsensitize', '', sanitizeLocale(user.locale));
 		} catch { /* best-effort */ }
 	}
 

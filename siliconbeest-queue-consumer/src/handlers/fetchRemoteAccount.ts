@@ -8,7 +8,7 @@
  * 4. Cache the actor in KV
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { FetchRemoteAccountMessage } from '../shared/types/queue';
 import { ensureInstanceRecord } from '../../../packages/shared/services/instance';
 
@@ -22,7 +22,6 @@ const AP_ACCEPT = 'application/activity+json, application/ld+json; profile="http
 
 export async function handleFetchRemoteAccount(
   msg: FetchRemoteAccountMessage,
-  env: Env,
 ): Promise<void> {
   const { actorUri, forceRefresh } = msg;
 

@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import home from './home';
 import publicTimeline from './public';
 import tag from './tag';
 import list from './list';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.route('/home', home);
 app.route('/public', publicTimeline);

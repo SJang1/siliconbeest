@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import type { StatusEditRow, MediaAttachmentRow } from '../../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 interface StatusWithAccountRow {
   id: string;
@@ -37,9 +38,9 @@ const app = new Hono<HonoEnv>();
 // GET /api/v1/statuses/:id/history — get edit history
 app.get('/:id/history', authOptional, async (c) => {
   const statusId = c.req.param('id');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const status = await c.env.DB.prepare(
+  const status = await env.DB.prepare(
     `SELECT s.*, a.username, a.domain AS account_domain, a.display_name, a.note AS account_note,
        a.uri AS account_uri, a.url AS account_url,
        a.avatar_url, a.avatar_static_url, a.header_url, a.header_static_url,
@@ -72,14 +73,14 @@ app.get('/:id/history', authOptional, async (c) => {
   };
 
   // Fetch edit history from status_edits table
-  const { results: edits } = await c.env.DB.prepare(
+  const { results: edits } = await env.DB.prepare(
     `SELECT * FROM status_edits WHERE status_id = ?1 ORDER BY created_at ASC`,
   )
     .bind(statusId)
     .all<StatusEditRow>();
 
   // Fetch media attachments for this status
-  const { results: media } = await c.env.DB.prepare(
+  const { results: media } = await env.DB.prepare(
     `SELECT * FROM media_attachments WHERE status_id = ?1`,
   )
     .bind(statusId)

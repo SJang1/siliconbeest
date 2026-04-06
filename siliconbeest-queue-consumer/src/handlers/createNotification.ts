@@ -6,7 +6,7 @@
  * a send_web_push message for push delivery.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { CreateNotificationMessage } from '../shared/types/queue';
 import type { AccountRow, StatusRow } from '../../../packages/shared/types/db';
 import { generateUlid } from '../../../packages/shared/utils/ulid';
@@ -14,7 +14,6 @@ import { serializeAccount, serializeStatus } from '../../../packages/shared/seri
 
 export async function handleCreateNotification(
   msg: CreateNotificationMessage,
-  env: Env,
 ): Promise<void> {
   const { recipientAccountId, senderAccountId, notificationType, statusId, emoji } = msg as CreateNotificationMessage & { emoji?: string };
 

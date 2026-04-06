@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type ActorKey = {
@@ -17,10 +18,9 @@ export type CreateActorKeyInput = {
 };
 
 export const findByAccountId = async (
-	db: D1Database,
 	accountId: string,
 ): Promise<ActorKey | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM actor_keys WHERE account_id = ?')
 		.bind(accountId)
 		.first<ActorKey>();
@@ -28,7 +28,6 @@ export const findByAccountId = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateActorKeyInput,
 ): Promise<ActorKey> => {
 	const now = new Date().toISOString();
@@ -42,7 +41,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?)`

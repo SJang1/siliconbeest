@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type MediaAttachment = {
@@ -32,24 +33,24 @@ export type CreateMediaInput = {
 	type?: string;
 };
 
-export const findById = async (db: D1Database, id: string): Promise<MediaAttachment | null> => {
-	const result = await db
+export const findById = async (id: string): Promise<MediaAttachment | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM media_attachments WHERE id = ?')
 		.bind(id)
 		.first<MediaAttachment>();
 	return result ?? null;
 };
 
-export const findByStatusId = async (db: D1Database, statusId: string): Promise<MediaAttachment[]> => {
-	const { results } = await db
+export const findByStatusId = async (statusId: string): Promise<MediaAttachment[]> => {
+	const { results } = await env.DB
 		.prepare('SELECT * FROM media_attachments WHERE status_id = ? ORDER BY created_at ASC')
 		.bind(statusId)
 		.all<MediaAttachment>();
 	return results;
 };
 
-export const findUnattached = async (db: D1Database, accountId: string): Promise<MediaAttachment[]> => {
-	const { results } = await db
+export const findUnattached = async (accountId: string): Promise<MediaAttachment[]> => {
+	const { results } = await env.DB
 		.prepare(
 			'SELECT * FROM media_attachments WHERE account_id = ? AND status_id IS NULL ORDER BY created_at DESC'
 		)
@@ -58,7 +59,7 @@ export const findUnattached = async (db: D1Database, accountId: string): Promise
 	return results;
 };
 
-export const create = async (db: D1Database, input: CreateMediaInput): Promise<MediaAttachment> => {
+export const create = async (input: CreateMediaInput): Promise<MediaAttachment> => {
 	const now = new Date().toISOString();
 	const id = generateUlid();
 	const media: MediaAttachment = {
@@ -79,7 +80,7 @@ export const create = async (db: D1Database, input: CreateMediaInput): Promise<M
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO media_attachments (
 				id, status_id, account_id, file_key, file_content_type, file_size,
@@ -100,35 +101,34 @@ export const create = async (db: D1Database, input: CreateMediaInput): Promise<M
 };
 
 export const update = async (
-	db: D1Database,
 	id: string,
 	input: Partial<Pick<MediaAttachment, 'description' | 'blurhash' | 'width' | 'height' | 'thumbnail_key'>>
 ): Promise<MediaAttachment | null> => {
 	const now = new Date().toISOString();
 	const entries = Object.entries(input);
 
-	if (entries.length === 0) return findById(db, id);
+	if (entries.length === 0) return findById(id);
 
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await db
+	await env.DB
 		.prepare(`UPDATE media_attachments SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
 
-	return findById(db, id);
+	return findById(id);
 };
 
-export const attachToStatus = async (db: D1Database, ids: string[], statusId: string): Promise<void> => {
+export const attachToStatus = async (ids: string[], statusId: string): Promise<void> => {
 	if (ids.length === 0) return;
 	const now = new Date().toISOString();
 
 	const stmts = ids.map((mediaId) =>
-		db
+		env.DB
 			.prepare('UPDATE media_attachments SET status_id = ?, updated_at = ? WHERE id = ?')
 			.bind(statusId, now, mediaId)
 	);
 
-	await db.batch(stmts);
+	await env.DB.batch(stmts);
 };

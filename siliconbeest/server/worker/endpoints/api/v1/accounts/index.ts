@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 
 import createApp from './create';
 import verifyCredentialsApp from './verifyCredentials';
@@ -24,13 +25,13 @@ import { serializeAccount } from '../../../../utils/mastodonSerializer';
 import { setAccountNote, pinAccount, unpinAccount } from '../../../../services/account';
 import type { AccountRow } from '../../../../types/db';
 
-const accounts = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const accounts = new Hono<{ Variables: AppVariables }>();
 
 // GET /api/v1/accounts/:id/lists — lists containing this account
 accounts.get('/:id/lists', authRequired, async (c) => {
   const accountId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT l.id, l.title, l.replies_policy FROM lists l
      JOIN list_accounts la ON la.list_id = l.id
      WHERE la.account_id = ?1 AND l.account_id = ?2`,
@@ -47,14 +48,14 @@ accounts.post('/:id/note', authRequired, async (c) => {
   const body = await c.req.json<{ comment?: string }>();
   const comment = (body.comment ?? '').slice(0, 2000);
 
-  await setAccountNote(c.env.DB, currentAccount.id, targetId, comment);
+  await setAccountNote(currentAccount.id, targetId, comment);
 
   // Return updated relationship
   const [following, followedBy, blocking, muting] = await Promise.all([
-    c.env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
-    c.env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, currentAccount.id).first(),
-    c.env.DB.prepare('SELECT id FROM blocks WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
-    c.env.DB.prepare('SELECT id FROM mutes WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+    env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+    env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, currentAccount.id).first(),
+    env.DB.prepare('SELECT id FROM blocks WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+    env.DB.prepare('SELECT id FROM mutes WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
   ]);
 
   return c.json({
@@ -81,14 +82,14 @@ accounts.post('/:id/remove_from_followers', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     'DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
   ).bind(targetId, currentAccount.id).run();
 
   // Decrement counters
-  await c.env.DB.batch([
-    c.env.DB.prepare('UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1').bind(currentAccount.id),
-    c.env.DB.prepare('UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1').bind(targetId),
+  await env.DB.batch([
+    env.DB.prepare('UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1').bind(currentAccount.id),
+    env.DB.prepare('UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1').bind(targetId),
   ]);
 
   return c.json({
@@ -115,7 +116,7 @@ accounts.post('/:id/pin', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await pinAccount(c.env.DB, currentAccount.id, targetId);
+  await pinAccount(currentAccount.id, targetId);
 
   return c.json({
     id: targetId,
@@ -141,7 +142,7 @@ accounts.post('/:id/unpin', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await unpinAccount(c.env.DB, currentAccount.id, targetId);
+  await unpinAccount(currentAccount.id, targetId);
 
   return c.json({
     id: targetId,
@@ -165,7 +166,7 @@ accounts.post('/:id/unpin', authRequired, async (c) => {
 // GET /api/v1/accounts/familiar_followers — mutual followers
 accounts.get('/familiar_followers', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const url = new URL(c.req.url);
   const ids = url.searchParams.getAll('id[]');
 
@@ -173,7 +174,7 @@ accounts.get('/familiar_followers', authRequired, async (c) => {
 
   const result = await Promise.all(
     ids.map(async (targetId) => {
-      const { results } = await c.env.DB.prepare(
+      const { results } = await env.DB.prepare(
         `SELECT a.* FROM follows f1
          JOIN follows f2 ON f2.account_id = f1.account_id AND f2.target_account_id = ?2
          JOIN accounts a ON a.id = f1.account_id

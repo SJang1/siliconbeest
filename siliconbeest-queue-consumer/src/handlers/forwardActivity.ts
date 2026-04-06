@@ -7,13 +7,12 @@
  * can be forwarded to other servers that also host followers of that actor.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { ForwardActivityMessage } from '../shared/types/queue';
 import { ensureInstanceRecord, recordDeliverySuccess, recordDeliveryFailure } from '../../../packages/shared/services/instance';
 
 export async function handleForwardActivity(
 	msg: ForwardActivityMessage,
-	env: Env,
 ): Promise<void> {
 	const { rawBody, originalHeaders, targetInboxUrl } = msg;
 

@@ -21,6 +21,7 @@ import {
   toTemporalInstant,
   AS_PUBLIC,
 } from './collections';
+import { env } from 'cloudflare:workers';
 
 // ============================================================
 // SETUP: Register Note object dispatcher on Federation
@@ -34,7 +35,6 @@ export function setupObjectDispatchers(
     '/users/{identifier}/statuses/{id}',
     async (ctx, values) => {
       const { identifier, id } = values;
-      const env = ctx.data.env;
       const domain = env.INSTANCE_DOMAIN;
 
       const row = await env.DB.prepare(
@@ -59,7 +59,7 @@ export function setupObjectDispatchers(
       if (!account) return null;
 
       // Load supporting data
-      const { convMap, mediaMap, replyUriMap } = await loadStatusContext(env, row, id, domain);
+      const { convMap, mediaMap, replyUriMap } = await loadStatusContext(row, id, domain);
 
       // Build core Note
       const { note } = buildFedifyNote(row as StatusRow, account, domain, {
@@ -103,7 +103,6 @@ export function setupObjectDispatchers(
 // ============================================================
 
 export async function handleActivityRequest(
-  env: { DB: D1Database; INSTANCE_DOMAIN: string },
   identifier: string,
   id: string,
 ): Promise<Response> {
@@ -159,7 +158,7 @@ export async function handleActivityRequest(
       });
     }
 
-    const { convMap, mediaMap, replyUriMap } = await loadStatusContext(env, row, id, domain);
+    const { convMap, mediaMap, replyUriMap } = await loadStatusContext(row, id, domain);
     const { note, tos, ccs } = buildFedifyNote(row as StatusRow, account, domain, {
       convMap, mediaMap, replyUriMap,
     });
@@ -186,7 +185,6 @@ export async function handleActivityRequest(
 // ============================================================
 
 async function loadStatusContext(
-  env: { DB: D1Database },
   row: StatusRow,
   id: string,
   domain: string,

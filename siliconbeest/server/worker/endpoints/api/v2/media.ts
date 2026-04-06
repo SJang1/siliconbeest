@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { requireScope } from '../../../middleware/scopeCheck';
 import { AppError } from '../../../middleware/errorHandler';
@@ -7,7 +8,7 @@ import { generateUlid } from '../../../utils/ulid';
 import { serializeMediaAttachment } from '../../../utils/mastodonSerializer';
 import type { MediaAttachmentRow } from '../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -32,7 +33,7 @@ const app = new Hono<HonoEnv>();
 // POST /api/v2/media — async media upload
 app.post('/', authRequired, requireScope('write:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const formData = await c.req.formData();
   const file = formData.get('file');
@@ -56,12 +57,12 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
 
   // Upload to R2
   const arrayBuffer = await file.arrayBuffer();
-  await c.env.MEDIA_BUCKET.put(fileKey, arrayBuffer, {
+  await env.MEDIA_BUCKET.put(fileKey, arrayBuffer, {
     httpMetadata: { contentType },
   });
 
   // Insert media_attachments row
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     `INSERT INTO media_attachments
        (id, status_id, account_id, file_key, file_content_type, file_size,
         thumbnail_key, remote_url, description, blurhash, width, height, type,
@@ -81,7 +82,7 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
     .run();
 
   // Enqueue process_media for thumbnail/metadata extraction
-  await c.env.QUEUE_INTERNAL.send({
+  await env.QUEUE_INTERNAL.send({
     type: 'process_media',
     mediaAttachmentId: mediaId,
     accountId: currentUser.account_id,
@@ -108,10 +109,10 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
 // GET /api/v1/media/:id — check upload status
 app.get('/:id', authRequired, requireScope('read:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const mediaId = c.req.param('id');
 
-  const row = await c.env.DB.prepare(
+  const row = await env.DB.prepare(
     'SELECT * FROM media_attachments WHERE id = ?1 AND account_id = ?2',
   )
     .bind(mediaId, currentUser.account_id)
@@ -145,7 +146,7 @@ app.get('/:id', authRequired, requireScope('read:media'), async (c) => {
 // PUT /api/v1/media/:id — update description/focus
 app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   const currentUser = c.get('currentUser')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const mediaId = c.req.param('id');
 
   let body: { description?: string; focus?: string };
@@ -155,7 +156,7 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const row = await c.env.DB.prepare(
+  const row = await env.DB.prepare(
     'SELECT * FROM media_attachments WHERE id = ?1 AND account_id = ?2',
   )
     .bind(mediaId, currentUser.account_id)
@@ -169,7 +170,7 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   const newDescription =
     body.description !== undefined ? body.description : row.description;
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     'UPDATE media_attachments SET description = ?1, updated_at = ?2 WHERE id = ?3',
   )
     .bind(newDescription, now, mediaId)

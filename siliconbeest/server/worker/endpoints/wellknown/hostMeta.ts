@@ -1,11 +1,12 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import type { AppVariables } from '../../types';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // GET /.well-known/host-meta
 app.get('/', async (c) => {
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
 	const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">

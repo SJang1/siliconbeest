@@ -268,6 +268,26 @@ Language detection uses `navigator.language` with fallback to English.
 
 ---
 
+## Secrets & Environment Variables
+
+### Required Secrets
+
+Set these via `wrangler secret put` or in `.dev.vars` for local development:
+
+| Secret | Description |
+|--------|-------------|
+| `OTP_ENCRYPTION_KEY` | 256-bit hex key (64 characters) for AES-GCM encryption of TOTP secrets. Generate with: `openssl rand -hex 32` |
+
+Example `.dev.vars`:
+
+```ini
+OTP_ENCRYPTION_KEY=your-64-char-hex-key-here
+```
+
+After adding secrets, run `npx wrangler types` to update TypeScript type definitions.
+
+---
+
 ## Local Development
 
 ### Prerequisites

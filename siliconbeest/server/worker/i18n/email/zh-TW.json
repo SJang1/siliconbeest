@@ -57,5 +57,43 @@
 
   "warning_unsensitize_subject": "敏感媒體標記已移除",
   "warning_unsensitize_heading": "敏感媒體標記已移除",
-  "warning_unsensitize_description": "您的媒體的敏感內容標記已被移除。"
+  "warning_unsensitize_description": "您的媒體的敏感內容標記已被移除。",
+
+  "login_notification_subject": "新登入 — {title}",
+  "login_notification_heading": "偵測到新登入",
+  "login_notification_body": "您的帳戶偵測到新的登入。",
+  "login_notification_time": "時間",
+  "login_notification_ip": "IP 位址",
+  "login_notification_device": "裝置",
+  "login_notification_warning": "如果這不是您本人的操作，請立即變更密碼。",
+
+  "password_changed_subject": "密碼已變更 — {title}",
+  "password_changed_heading": "密碼變更完成",
+  "password_changed_body": "您的密碼已成功變更。",
+  "password_changed_sessions": "為了安全，所有其他活躍工作階段已被登出。",
+  "password_changed_warning": "如果您未進行此變更，請立即重設密碼。",
+
+  "username_reminder_subject": "使用者名稱提醒 — {title}",
+  "username_reminder_heading": "使用者名稱提醒",
+  "username_reminder_body": "您請求了與此電子郵件地址關聯的使用者名稱提醒。",
+  "username_reminder_your_username": "您的使用者名稱",
+  "username_reminder_your_handle": "您的完整標識",
+  "username_reminder_ignore": "如果您未請求此郵件，可以安全地忽略它。",
+
+  "admin_pending_subject": "新使用者等待審核: @{username}",
+  "admin_pending_heading": "新註冊待審核",
+  "admin_pending_body": "一位新使用者已註冊並等待審核：",
+  "admin_pending_username": "使用者名稱",
+  "admin_pending_email": "電子郵件",
+  "admin_pending_reason": "原因",
+  "admin_pending_review": "檢視待審帳戶",
+
+  "admin_report_subject": "新檢舉: @{target}",
+  "admin_report_heading": "收到新檢舉",
+  "admin_report_body": "收到一份新的檢舉：",
+  "admin_report_reporter": "檢舉者",
+  "admin_report_target": "被檢舉者",
+  "admin_report_category": "分類",
+  "admin_report_comment": "說明",
+  "admin_report_review": "檢視檢舉"
 }

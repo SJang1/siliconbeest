@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
@@ -10,14 +11,14 @@ import {
 	getConversationLastStatus,
 } from '../../../../services/conversation';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 // GET /api/v1/conversations — list DM conversations
 app.get('/', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const pag = parsePaginationParams({
     max_id: c.req.query('max_id'),
@@ -29,7 +30,7 @@ app.get('/', authRequired, async (c) => {
   const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 'ca.conversation_id');
 
   // Get conversation entries for the current user
-  const convRows = await listConversationEntries(c.env.DB, currentAccount.id, {
+  const convRows = await listConversationEntries(currentAccount.id, {
     paginationQuery: pag,
     whereClause,
     orderClause,
@@ -43,16 +44,16 @@ app.get('/', authRequired, async (c) => {
     const convId = conv.conversation_id as string;
 
     // Get other participants
-    const participantRows = await getConversationParticipants(c.env.DB, convId, currentAccount.id);
+    const participantRows = await getConversationParticipants(convId, currentAccount.id);
 
     const accounts = participantRows.map((row: any) =>
-      serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
     );
 
     // Get last status
     let lastStatus = null;
     if (conv.last_status_id) {
-      const statusRow = await getConversationLastStatus(c.env.DB, conv.last_status_id as string);
+      const statusRow = await getConversationLastStatus(conv.last_status_id as string);
 
       if (statusRow) {
         const accountRow: AccountRow = {
@@ -84,7 +85,7 @@ app.get('/', authRequired, async (c) => {
           emoji_tags: (statusRow.a_emoji_tags as string) || null,
         };
         lastStatus = serializeStatus(statusRow as unknown as StatusRow, {
-          account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+          account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
         });
       }
     }

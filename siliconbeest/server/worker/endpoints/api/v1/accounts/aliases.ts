@@ -12,18 +12,19 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { getFedifyContext } from '../../../../federation/helpers/send';
 import { getAliases, addAlias, removeAlias } from '../../../../services/account';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // ── GET /aliases ──
 
 app.get('/aliases', authRequired, async (c) => {
 	const accountId = c.get('currentUser')!.account_id;
-	const aliases = await getAliases(c.env.DB, accountId);
+	const aliases = await getAliases(accountId);
 	return c.json({ aliases });
 });
 
@@ -46,7 +47,7 @@ app.post('/aliases', authRequired, async (c) => {
 	} else {
 		// WebFinger resolve to get the actor URI via Fedify
 		const fed = c.get('federation');
-		const ctx = getFedifyContext(fed, c.env);
+		const ctx = getFedifyContext(fed);
 		const normalizedAlias = alias.replace(/^@/, '');
 		const wfResult = await ctx.lookupWebFinger(`acct:${normalizedAlias}`);
 		const selfLink = wfResult?.links?.find(
@@ -62,7 +63,7 @@ app.post('/aliases', authRequired, async (c) => {
 		actorUri = selfLink.href;
 	}
 
-	const aliases = await addAlias(c.env.DB, accountId, actorUri);
+	const aliases = await addAlias(accountId, actorUri);
 	return c.json({ aliases });
 });
 
@@ -76,7 +77,7 @@ app.delete('/aliases', authRequired, async (c) => {
 		return c.json({ error: 'Missing alias parameter' }, 422);
 	}
 
-	const aliases = await removeAlias(c.env.DB, accountId, body.alias.trim());
+	const aliases = await removeAlias(accountId, body.alias.trim());
 	return c.json({ aliases });
 });
 

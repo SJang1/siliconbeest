@@ -9,13 +9,12 @@
  * cleaned up from the database.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { SendWebPushMessage } from '../shared/types/queue';
 import { sendPushNotification } from '../shared/webpush';
 
 export async function handleSendWebPush(
   msg: SendWebPushMessage,
-  env: Env,
 ): Promise<void> {
   const { notificationId, userId } = msg;
 

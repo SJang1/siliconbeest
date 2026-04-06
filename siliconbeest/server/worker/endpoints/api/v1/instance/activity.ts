@@ -11,10 +11,11 @@
  *  - registrations: number of new user registrations that week
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -42,7 +43,7 @@ app.get('/', async (c) => {
     const weekEndIso = weekEnd.toISOString();
     const weekEpoch = Math.floor(weekStart.getTime() / 1000).toString();
 
-    const statusCount = await c.env.DB.prepare(
+    const statusCount = await env.DB.prepare(
       `SELECT COUNT(*) AS cnt FROM statuses
        WHERE local = 1 AND deleted_at IS NULL
        AND created_at >= ?1 AND created_at < ?2`,
@@ -50,14 +51,14 @@ app.get('/', async (c) => {
       .bind(weekStartIso, weekEndIso)
       .first<{ cnt: number }>();
 
-    const loginCount = await c.env.DB.prepare(
+    const loginCount = await env.DB.prepare(
       `SELECT COUNT(DISTINCT id) AS cnt FROM users
        WHERE current_sign_in_at >= ?1 AND current_sign_in_at < ?2`,
     )
       .bind(weekStartIso, weekEndIso)
       .first<{ cnt: number }>();
 
-    const registrationCount = await c.env.DB.prepare(
+    const registrationCount = await env.DB.prepare(
       `SELECT COUNT(*) AS cnt FROM users
        WHERE created_at >= ?1 AND created_at < ?2`,
     )

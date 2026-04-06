@@ -1,9 +1,9 @@
 import { createMiddleware } from 'hono/factory';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 import { resolveToken, type ResolvedToken } from '../services/auth';
 import { sha256 } from '../utils/crypto';
 
-type MiddlewareEnv = { Bindings: Env; Variables: AppVariables };
+type MiddlewareEnv = { Variables: AppVariables };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,7 +36,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
   const token = extractBearerToken(c.req.header('Authorization'));
   if (token) {
     const tokenHash = await sha256(token);
-    const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash, token);
+    const payload = await resolveToken(tokenHash, token);
     if (payload) {
       c.set('currentUser', payload.user);
       c.set('currentAccount', payload.account);
@@ -66,7 +66,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   }
 
   const tokenHash = await sha256(token);
-  const payload = await resolveToken(c.env.DB, c.env.CACHE, tokenHash, token);
+  const payload = await resolveToken(tokenHash, token);
   if (!payload) {
     return c.json(
       { error: 'The access token is invalid' },

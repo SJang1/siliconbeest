@@ -1,8 +1,9 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -15,9 +16,9 @@ const app = new Hono<HonoEnv>();
  */
 app.get('/:id', async (c) => {
 	const id = c.req.param('id');
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await c.env.DB.prepare(
+	const row = await env.DB.prepare(
 		`SELECT r.*,
 			a1.username AS reporter_username, a1.domain AS reporter_domain,
 			a1.display_name AS reporter_display_name, a1.avatar_url AS reporter_avatar_url,
@@ -52,7 +53,7 @@ app.get('/:id', async (c) => {
 			if (statusIds.length > 0) {
 				// Build placeholders for IN clause
 				const placeholders = statusIds.map((_, i) => `?${i + 1}`).join(',');
-				const { results: statusRows } = await c.env.DB.prepare(
+				const { results: statusRows } = await env.DB.prepare(
 					`SELECT s.*, a.username AS author_username, a.domain AS author_domain,
 						a.display_name AS author_display_name, a.avatar_url AS author_avatar_url,
 						a.url AS author_url, a.uri AS author_uri
@@ -68,7 +69,7 @@ app.get('/:id', async (c) => {
 				let mediaMap: Record<string, Record<string, unknown>[]> = {};
 				if (statusIdSet.length > 0) {
 					const mediaPlaceholders = statusIdSet.map((_, i) => `?${i + 1}`).join(',');
-					const { results: mediaRows } = await c.env.DB.prepare(
+					const { results: mediaRows } = await env.DB.prepare(
 						`SELECT * FROM media_attachments WHERE status_id IN (${mediaPlaceholders})`,
 					)
 						.bind(...statusIdSet)

@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { serializeAccount, serializeNotification, ensureISO8601 } from '../../../../utils/mastodonSerializer';
@@ -8,14 +9,14 @@ import type { Status } from '../../../../types/mastodon';
 import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import { getNotification } from '../../../../services/notification';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const id = c.req.param('id');
 
-  const row = await getNotification(c.env.DB, id, account.id);
+  const row = await getNotification(id, account.id);
 
   if (!row) {
     return c.json({ error: 'Record not found' }, 404);
@@ -80,7 +81,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   // Fetch status if notification has one
   let statusObj: Status | null = null;
   if (row.status_id) {
-    const sr = await c.env.DB.prepare(
+    const sr = await env.DB.prepare(
       `SELECT s.id, s.uri, s.url, s.content, s.visibility, s.sensitive,
               s.content_warning, s.language, s.created_at, s.in_reply_to_id,
               s.in_reply_to_account_id, s.reblogs_count, s.favourites_count,
@@ -100,7 +101,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
     ).bind(row.status_id).first<StatusWithAccountRow>();
 
     if (sr) {
-      const enrichments = await enrichStatuses(c.env.DB, domain, [sr.id], account.id, c.env.CACHE);
+      const enrichments = await enrichStatuses(domain, [sr.id], account.id, env.CACHE);
       const e = enrichments.get(sr.id);
 
       const statusAccountRow: AccountRow = {
@@ -148,26 +149,26 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+        account: serializeAccount(statusAccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       } as Status;
     }
   }
 
   const notif = serializeNotification(notifRow, {
-    account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+    account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
     status: statusObj,
   });
   // Attach custom emoji URL for emoji_reaction notifications
   if (notifRow.type === 'emoji_reaction' && notifRow.emoji?.startsWith(':') && notifRow.emoji?.endsWith(':')) {
     const sc = notifRow.emoji.slice(1, -1);
-    const er = await c.env.DB.prepare(
+    const er = await env.DB.prepare(
       'SELECT domain, image_key FROM custom_emojis WHERE shortcode = ?1 LIMIT 1',
     ).bind(sc).first<{ domain: string | null; image_key: string }>();
     if (er) {
-      const isLocal = !er.domain || er.domain === c.env.INSTANCE_DOMAIN;
+      const isLocal = !er.domain || er.domain === env.INSTANCE_DOMAIN;
       (notif as unknown as Record<string, unknown>).emoji_url = isLocal
-        ? `https://${c.env.INSTANCE_DOMAIN}/media/${er.image_key}`
-        : `https://${c.env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(er.image_key)}`;
+        ? `https://${env.INSTANCE_DOMAIN}/media/${er.image_key}`
+        : `https://${env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(er.image_key)}`;
     }
   }
   return c.json(notif);

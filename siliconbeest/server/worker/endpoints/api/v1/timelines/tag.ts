@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authOptional } from '../../../../middleware/auth';
 import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
@@ -7,7 +8,7 @@ import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import { getTagTimeline } from '../../../../services/timeline';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/:tag', authOptional, async (c) => {
   const tagName = c.req.param('tag').toLowerCase();
@@ -22,7 +23,7 @@ app.get('/:tag', authOptional, async (c) => {
   const local = c.req.query('local') === 'true';
   const onlyMedia = c.req.query('only_media') === 'true';
 
-  const allRows = await getTagTimeline(c.env.DB, tagName, {
+  const allRows = await getTagTimeline(tagName, {
     maxId: pag.maxId,
     sinceId: pag.sinceId,
     minId: pag.minId,
@@ -33,7 +34,7 @@ app.get('/:tag', authOptional, async (c) => {
 
   const statusIds = allRows.map((r) => r.id as string);
   const currentAccount = c.get('currentAccount');
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null, c.env.CACHE);
+  const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null, env.CACHE);
 
   const statuses = allRows.map((row: any) => {
     const accountRow: AccountRow = {
@@ -51,7 +52,7 @@ app.get('/:tag', authOptional, async (c) => {
     };
     const e = enrichments.get(row.id);
     return serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,
@@ -64,7 +65,7 @@ app.get('/:tag', authOptional, async (c) => {
 
   if (pag.minId) statuses.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/timelines/tag/${encodeURIComponent(tagName)}`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/timelines/tag/${encodeURIComponent(tagName)}`;
   const link = buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

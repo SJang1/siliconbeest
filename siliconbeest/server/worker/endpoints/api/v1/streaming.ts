@@ -11,8 +11,9 @@
  *   access_token — alternative to Authorization header (common for WS clients)
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 
 const CACHE_TTL_SECONDS = 300;
 
@@ -35,18 +36,16 @@ interface TokenPayload {
 
 async function resolveToken(
   token: string,
-  db: D1Database,
-  cache: KVNamespace,
 ): Promise<TokenPayload | null> {
   const hash = await sha256(token);
   const cacheKey = `token:${hash}`;
 
   // 1. KV cache lookup
-  const cached = await cache.get(cacheKey, 'json');
+  const cached = await env.CACHE.get(cacheKey, 'json');
   if (cached) return cached as TokenPayload;
 
   // 2. D1 fallback
-  const row = await db
+  const row = await env.DB
     .prepare(
       `SELECT
          u.id       AS user_id,
@@ -82,7 +81,7 @@ async function resolveToken(
   };
 
   // 3. Populate cache
-  await cache.put(cacheKey, JSON.stringify(payload), {
+  await env.CACHE.put(cacheKey, JSON.stringify(payload), {
     expirationTtl: CACHE_TTL_SECONDS,
   });
 
@@ -93,7 +92,7 @@ async function resolveToken(
 // Route
 // ---------------------------------------------------------------------------
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', async (c) => {
   // 1. Require WebSocket upgrade
@@ -114,7 +113,7 @@ app.get('/', async (c) => {
   }
 
   // 3. Resolve token to user
-  const payload = await resolveToken(token, c.env.DB, c.env.CACHE);
+  const payload = await resolveToken(token);
   if (!payload) {
     return c.json({ error: 'The access token is invalid' }, 401);
   }
@@ -127,8 +126,8 @@ app.get('/', async (c) => {
   const doName = (stream === 'public' || stream === 'public:local')
     ? '__public__'
     : userId;
-  const doId = c.env.STREAMING_DO.idFromName(doName);
-  const doStub = c.env.STREAMING_DO.get(doId);
+  const doId = env.STREAMING_DO.idFromName(doName);
+  const doStub = env.STREAMING_DO.get(doId);
 
   const doUrl = new URL(c.req.url);
   doUrl.pathname = '/';

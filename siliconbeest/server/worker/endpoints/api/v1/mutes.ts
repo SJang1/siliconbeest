@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { requireScope } from '../../../middleware/scopeCheck';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
@@ -10,7 +11,7 @@ interface MuteJoinRow extends AccountRow {
   m_id: string;
 }
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
   const account = c.get('currentAccount')!;
@@ -42,20 +43,20 @@ app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<MuteJoinRow>();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all<MuteJoinRow>();
 
   // Build link header using mute row IDs
   const paginationItems = (results ?? []).map((row) => ({ id: row.m_id }));
   if (pag.minId) paginationItems.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/mutes`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/mutes`;
   const link = buildLinkHeader(baseUrl, paginationItems, limitValue);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 
   // Restore actual account IDs in the response
   const serialized = (results ?? []).map((row) => {
-    return serializeAccount(row, { instanceDomain: c.env.INSTANCE_DOMAIN });
+    return serializeAccount(row, { instanceDomain: env.INSTANCE_DOMAIN });
   });
   if (pag.minId) serialized.reverse();
 

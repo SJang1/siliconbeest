@@ -1,9 +1,10 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 import { authOptional, authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -11,7 +12,7 @@ const app = new Hono<HonoEnv>();
 app.get('/', authOptional, async (c) => {
   const currentAccount = c.get('currentAccount');
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT * FROM announcements
      WHERE published_at IS NOT NULL
      ORDER BY created_at DESC`,
@@ -20,7 +21,7 @@ app.get('/', authOptional, async (c) => {
   // Get dismissed announcement IDs for the current user (if authenticated)
   let dismissedIds = new Set<string>();
   if (currentAccount) {
-    const { results: dismissedRows } = await c.env.DB.prepare(
+    const { results: dismissedRows } = await env.DB.prepare(
       'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
     )
       .bind(currentAccount.id)
@@ -55,7 +56,7 @@ app.post('/:id/dismiss', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const announcementId = c.req.param('id');
 
-  const announcement = await c.env.DB.prepare(
+  const announcement = await env.DB.prepare(
     'SELECT id FROM announcements WHERE id = ?1 AND published_at IS NOT NULL',
   )
     .bind(announcementId)
@@ -65,7 +66,7 @@ app.post('/:id/dismiss', authRequired, async (c) => {
     throw new AppError(404, 'Record not found');
   }
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     'INSERT OR IGNORE INTO announcement_dismissals (announcement_id, account_id) VALUES (?1, ?2)',
   )
     .bind(announcementId, currentAccount.id)

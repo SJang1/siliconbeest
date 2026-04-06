@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { votePoll } from '../../../../services/status';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -25,7 +25,7 @@ app.post('/:id/votes', authRequired, async (c) => {
     throw new AppError(422, 'Validation failed', 'choices is required');
   }
 
-  const { poll } = await votePoll(c.env.DB, currentAccount.id, pollId, choices);
+  const { poll } = await votePoll(currentAccount.id, pollId, choices);
 
   return c.json(poll);
 });

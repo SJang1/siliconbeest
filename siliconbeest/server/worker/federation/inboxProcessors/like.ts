@@ -6,7 +6,6 @@
  * a notification for the status author.
  */
 
-import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { processEmojiReact } from './emojiReact';
 import { BaseProcessor } from './BaseProcessor';
@@ -16,7 +15,7 @@ class LikeProcessor extends BaseProcessor {
 		// Check if this is actually an emoji reaction (Misskey-compatible)
 		const anyActivity = activity as APActivity & Record<string, unknown>;
 		if (anyActivity._misskey_reaction || anyActivity.content) {
-			return processEmojiReact(anyActivity, '', this.env);
+			return processEmojiReact(anyActivity, '');
 		}
 
 		const statusUri = this.extractObjectUri(activity);
@@ -56,7 +55,6 @@ class LikeProcessor extends BaseProcessor {
 export async function processLike(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new LikeProcessor(env).process(activity);
+	await new LikeProcessor().process(activity);
 }

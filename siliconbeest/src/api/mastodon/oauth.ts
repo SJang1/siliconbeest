@@ -53,10 +53,18 @@ export function revokeToken(params: {
 }
 
 // Direct login endpoint (non-standard, for the built-in frontend)
-export function login(email: string, password: string, turnstile_token?: string) {
+export function login(username: string, password: string, turnstile_token?: string) {
   return apiFetch<Token>('/v1/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password, turnstile_token }),
+    body: JSON.stringify({ username, password, turnstile_token }),
+  });
+}
+
+// Find username by email
+export function findUsername(email: string) {
+  return apiFetch<{ message: string }>('/v1/auth/find_username', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
   });
 }
 

@@ -6,15 +6,15 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { getPeers } from '../../../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 app.get('/', async (c) => {
-  const domains = await getPeers(c.env.DB);
+  const domains = await getPeers();
   return c.json(domains);
 });
 

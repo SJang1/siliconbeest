@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Follow = {
@@ -22,10 +23,9 @@ export type CreateFollowInput = {
 };
 
 export const findById = async (
-	db: D1Database,
 	id: string,
 ): Promise<Follow | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM follows WHERE id = ?')
 		.bind(id)
 		.first<Follow>();
@@ -33,11 +33,10 @@ export const findById = async (
 };
 
 export const findByAccountAndTarget = async (
-	db: D1Database,
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Follow | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM follows WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Follow>();
@@ -45,7 +44,6 @@ export const findByAccountAndTarget = async (
 };
 
 export const findFollowers = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 40,
 	maxId?: string,
@@ -57,7 +55,7 @@ export const findFollowers = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM follows
 			 WHERE ${where}
@@ -69,7 +67,6 @@ export const findFollowers = async (
 };
 
 export const findFollowing = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 40,
 	maxId?: string,
@@ -81,7 +78,7 @@ export const findFollowing = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM follows
 			 WHERE ${where}
@@ -93,7 +90,6 @@ export const findFollowing = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateFollowInput,
 ): Promise<Follow> => {
 	const now = new Date().toISOString();
@@ -110,7 +106,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO follows (
 				id, account_id, target_account_id, uri,
@@ -128,20 +124,18 @@ export const create = async (
 };
 
 export const deleteById = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM follows WHERE id = ?')
 		.bind(id)
 		.run();
 };
 
 export const countFollowers = async (
-	db: D1Database,
 	accountId: string,
 ): Promise<number> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT COUNT(*) as count FROM follows WHERE target_account_id = ?')
 		.bind(accountId)
 		.first<{ count: number }>();
@@ -149,10 +143,9 @@ export const countFollowers = async (
 };
 
 export const countFollowing = async (
-	db: D1Database,
 	accountId: string,
 ): Promise<number> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT COUNT(*) as count FROM follows WHERE account_id = ?')
 		.bind(accountId)
 		.first<{ count: number }>();
@@ -160,10 +153,9 @@ export const countFollowing = async (
 };
 
 export const findRemoteFollowerInboxes = async (
-	db: D1Database,
 	accountId: string,
 ): Promise<string[]> => {
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT DISTINCT a.uri FROM follows f
 			 JOIN accounts a ON a.id = f.account_id

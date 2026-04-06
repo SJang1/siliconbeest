@@ -1,7 +1,8 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 /**
  * GET /api/v1/trends/tags — Return trending tags.
@@ -12,9 +13,9 @@ app.get('/', async (c) => {
   const limit = Math.min(Math.max(limitRaw, 1), 20);
   const offsetRaw = parseInt(c.req.query('offset') ?? '0', 10);
   const offset = Math.max(offsetRaw, 0);
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT t.*, COUNT(st.tag_id) as uses
     FROM tags t
     JOIN status_tags st ON st.tag_id = t.id

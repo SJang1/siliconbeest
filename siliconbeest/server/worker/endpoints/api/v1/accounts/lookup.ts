@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { getFedifyContext } from '../../../../federation/helpers/send';
 import { isActor } from '@fedify/fedify/vocab';
 import { getAccountByUsername } from '../../../../services/account';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function safeJsonParse<T>(val: string | null, fallback: T): T {
   if (!val) return fallback;
@@ -16,7 +17,7 @@ const app = new Hono<HonoEnv>();
 
 app.get('/lookup', async (c) => {
   const acct = c.req.query('acct');
-  const instanceDomain = c.env.INSTANCE_DOMAIN;
+  const instanceDomain = env.INSTANCE_DOMAIN;
 
   if (!acct) {
     throw new AppError(400, 'Validation failed', 'acct is required');
@@ -31,10 +32,10 @@ app.get('/lookup', async (c) => {
   let row;
   if (!acctDomain || acctDomain === instanceDomain) {
     // Local account
-    row = await getAccountByUsername(c.env.DB, username);
+    row = await getAccountByUsername(username);
   } else {
     // Remote account — check if we have it cached
-    row = await getAccountByUsername(c.env.DB, username, acctDomain);
+    row = await getAccountByUsername(username, acctDomain);
   }
 
   // If remote account not in DB, try WebFinger + Fedify lookupObject
@@ -46,7 +47,7 @@ app.get('/lookup', async (c) => {
         console.error('[lookup] Federation not available on context');
         throw new Error('Federation not available');
       }
-      const ctx = getFedifyContext(fed, c.env);
+      const ctx = getFedifyContext(fed);
       console.log(`[lookup] Looking up WebFinger for acct:${username}@${acctDomain}`);
       const wfResult = await ctx.lookupWebFinger(`acct:${username}@${acctDomain}`);
       console.log(`[lookup] WebFinger result:`, wfResult ? 'found' : 'null');
@@ -60,7 +61,7 @@ app.get('/lookup', async (c) => {
       console.log(`[lookup] selfLink:`, selfLink?.href || 'not found');
       if (selfLink?.href) {
         console.log(`[lookup] Looking up actor object: ${selfLink.href}`);
-        const localAcct = await c.env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
+        const localAcct = await env.DB.prepare("SELECT username FROM accounts WHERE domain IS NULL LIMIT 1").first<{ username: string }>();
         const docLoader = await ctx.getDocumentLoader({ identifier: localAcct?.username || 'admin' });
         const actorObject = await ctx.lookupObject(selfLink.href, { documentLoader: docLoader });
         console.log(`[lookup] lookupObject result:`, actorObject ? `${actorObject.constructor.name} id=${actorObject.id}` : 'null');
@@ -77,7 +78,7 @@ app.get('/lookup', async (c) => {
           const inboxUrl = actorObject.inboxId?.href || '';
           const endpointsObj = actorObject.endpoints;
           const sharedInboxUrl = endpointsObj?.sharedInbox?.href || '';
-          await c.env.DB.prepare(
+          await env.DB.prepare(
             `INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url,
              avatar_url, header_url, locked, bot, discoverable, inbox_url, shared_inbox_url,
              followers_count, following_count, statuses_count, created_at, updated_at)
@@ -95,7 +96,7 @@ app.get('/lookup', async (c) => {
             0, 0, 0, now,
           ).run();
 
-          row = await c.env.DB.prepare(
+          row = await env.DB.prepare(
             'SELECT * FROM accounts WHERE username = ?1 AND domain = ?2',
           ).bind(preferredUsername, acctDomain).first();
         }

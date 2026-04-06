@@ -5,7 +5,7 @@
  * content or accounts on this instance.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
 import { BaseProcessor } from './BaseProcessor';
@@ -63,7 +63,7 @@ class FlagProcessor extends BaseProcessor {
 		const now = new Date().toISOString();
 		const reportId = generateUlid();
 
-		await this.env.DB.prepare(
+		await env.DB.prepare(
 			`INSERT INTO reports
 			 (id, account_id, target_account_id, status_ids, comment, category, forwarded, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, ?4, ?5, 'other', 1, ?6, ?7)`,
@@ -80,7 +80,6 @@ class FlagProcessor extends BaseProcessor {
 export async function processFlag(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new FlagProcessor(env).process(activity);
+	await new FlagProcessor().process(activity);
 }

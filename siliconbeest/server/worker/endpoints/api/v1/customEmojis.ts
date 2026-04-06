@@ -1,16 +1,17 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 /**
  * GET /api/v1/custom_emojis — Return all visible custom emojis.
  * Public endpoint, no auth required.
  */
 app.get('/', async (c) => {
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT * FROM custom_emojis
      WHERE visible_in_picker = 1 AND (domain IS NULL OR domain = ?1)
      ORDER BY category ASC, shortcode ASC`,

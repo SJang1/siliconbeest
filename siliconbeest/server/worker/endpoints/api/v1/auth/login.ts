@@ -2,38 +2,36 @@
  * Direct login endpoint for the built-in frontend.
  * POST /api/v1/auth/login
  *
- * This is a non-standard convenience endpoint that combines
- * OAuth app creation + authorization + token exchange into one step.
- * Third-party apps should use the standard OAuth 2.0 flow instead.
- *
- * When the user has TOTP 2FA enabled, this endpoint returns an
- * `mfa_required` challenge instead of an access token. The client
- * must then call POST /api/v1/auth/mfa/challenge with the temporary
- * mfa_token and the TOTP code.
+ * Accepts either username or email as the identifier.
  */
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { generateToken } from '../../../../utils/crypto';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 import {
-	verifyPassword,
+	verifyPasswordByUsernameOrEmail,
 	getOrCreateInternalApp,
 	createAccessToken,
 	updateSignInTracking,
 } from '../../../../services/auth';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string; password?: string; turnstile_token?: string }>().catch((): { email?: string; password?: string; turnstile_token?: string } => ({}));
-	const { email, password } = body;
+	const body = await c.req.json<{ username?: string; email?: string; password?: string; turnstile_token?: string }>()
+		.catch((): { username?: string; email?: string; password?: string; turnstile_token?: string } => ({}));
 
-	if (!email || !password) {
-		return c.json({ error: 'Email and password are required' }, 422);
+	// Accept "username" or fall back to legacy "email" field for backwards compatibility
+	const identifier = body.username || body.email;
+	const { password } = body;
+
+	if (!identifier || !password) {
+		return c.json({ error: 'Username and password are required' }, 422);
 	}
 
 	// Turnstile CAPTCHA verification (if enabled)
-	const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+	const turnstile = await getTurnstileSettings();
 	if (turnstile.enabled && turnstile.secretKey) {
 		if (!body.turnstile_token) {
 			return c.json({ error: 'CAPTCHA verification failed. Please try again.' }, 422);
@@ -45,11 +43,9 @@ app.post('/', async (c) => {
 		}
 	}
 
-	// Verify email/password via auth service
-	const result = await verifyPassword(c.env.DB, email, password);
-
+	const result = await verifyPasswordByUsernameOrEmail(identifier, password);
 	if (!result) {
-		return c.json({ error: 'Invalid email or password' }, 401);
+		return c.json({ error: 'Invalid username or password' }, 401);
 	}
 
 	const { user } = result;
@@ -57,31 +53,26 @@ app.post('/', async (c) => {
 	if (!user.approved) {
 		return c.json({ error: 'Your account is pending approval' }, 403);
 	}
-
 	if (!user.confirmed_at) {
 		return c.json({ error: 'Email not confirmed', error_description: 'Please confirm your email address' }, 403);
 	}
 
-	// 2FA challenge: if TOTP is enabled, return a temporary mfa_token
+	// 2FA challenge
 	if (user.otp_enabled) {
 		const mfaToken = generateToken(64);
-		// Store in KV with 5-minute TTL: mfa:<token> → user_id
-		await c.env.CACHE.put(`mfa:${mfaToken}`, user.id, { expirationTtl: 300 });
-
-		return c.json({
-			error: 'mfa_required',
-			mfa_token: mfaToken,
-			supported_challenge_types: ['totp'],
-		}, 403);
+		await env.CACHE.put(`mfa:${mfaToken}`, user.id, { expirationTtl: 300 });
+		return c.json({ error: 'mfa_required', mfa_token: mfaToken, supported_challenge_types: ['totp'] }, 403);
 	}
 
-	// No 2FA — issue access token directly
-	const appRecord = await getOrCreateInternalApp(c.env.DB);
-	const { tokenValue, createdAt } = await createAccessToken(c.env.DB, appRecord.id, user.id);
-
-	// Update sign-in tracking
+	// Issue access token (includes login notification email)
+	const appRecord = await getOrCreateInternalApp();
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
-	await updateSignInTracking(c.env.DB, user.id, ip);
+	const userAgent = c.req.header('User-Agent') || '';
+	const { tokenValue, createdAt } = await createAccessToken(appRecord.id, user.id, {
+		ip, userAgent, email: user.email, locale: user.locale,
+	});
+
+	await updateSignInTracking(user.id, ip);
 
 	return c.json({
 		access_token: tokenValue,

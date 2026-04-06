@@ -33,7 +33,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
  * Get a translated email string for the given locale and key.
  * Falls back to English if the locale or key is missing.
  */
-function t(locale: string, key: string, vars?: Record<string, string>): string {
+export function t(locale: string, key: string, vars?: Record<string, string>): string {
 	const messages = locales[locale] || locales.en;
 	const raw = messages[key] ?? locales.en[key] ?? key;
 	return vars ? interpolate(raw, vars) : raw;

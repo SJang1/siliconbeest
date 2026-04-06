@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 
 import listApp from './list';
 import readApp from './read';
 import deleteApp from './delete';
 
-const conversations = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const conversations = new Hono<{ Variables: AppVariables }>();
 
 // GET /api/v1/conversations
 conversations.route('/', listApp);

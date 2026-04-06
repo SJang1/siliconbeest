@@ -5,9 +5,9 @@
  * Announce, or Block by the same actor.
  */
 
-import type { Env } from '../../env';
 import type { APActivity, APObject } from '../../types/activitypub';
 import { BaseProcessor } from './BaseProcessor';
+import { env } from 'cloudflare:workers';
 
 /**
  * Determine the type and target of the activity being undone.
@@ -70,13 +70,13 @@ class UndoProcessor extends BaseProcessor {
 				break;
 			default:
 				if (activityUri) {
-					const followResult = await this.env.DB.prepare(
+					const followResult = await env.DB.prepare(
 						`DELETE FROM follows WHERE uri = ?1 AND account_id = ?2`,
 					)
 						.bind(activityUri, actorAccount.id)
 						.run();
 					if ((followResult.meta?.changes ?? 0) > 0) return;
-					await this.env.DB.prepare(
+					await env.DB.prepare(
 						`DELETE FROM follow_requests WHERE uri = ?1 AND account_id = ?2`,
 					)
 						.bind(activityUri, actorAccount.id)
@@ -102,7 +102,7 @@ class UndoProcessor extends BaseProcessor {
 		let deleted = false;
 
 		if (followUri) {
-			const result = await this.env.DB.prepare(
+			const result = await env.DB.prepare(
 				`DELETE FROM follows WHERE uri = ?1 AND account_id = ?2`,
 			)
 				.bind(followUri, actorAccountId)
@@ -111,7 +111,7 @@ class UndoProcessor extends BaseProcessor {
 		}
 
 		if (!deleted && targetAccountId) {
-			const result = await this.env.DB.prepare(
+			const result = await env.DB.prepare(
 				`DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2`,
 			)
 				.bind(actorAccountId, targetAccountId)
@@ -125,7 +125,7 @@ class UndoProcessor extends BaseProcessor {
 		}
 
 		if (targetAccountId) {
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2`,
 			)
 				.bind(actorAccountId, targetAccountId)
@@ -141,7 +141,7 @@ class UndoProcessor extends BaseProcessor {
 		let statusId: string | null = null;
 
 		if (likeUri) {
-			const fav = await this.env.DB.prepare(
+			const fav = await env.DB.prepare(
 				`SELECT id, status_id FROM favourites WHERE uri = ?1 AND account_id = ?2 LIMIT 1`,
 			)
 				.bind(likeUri, actorAccountId)
@@ -179,7 +179,7 @@ class UndoProcessor extends BaseProcessor {
 		if (!originalStatus) return;
 
 		// Find and soft-delete the reblog
-		const reblog = await this.env.DB.prepare(
+		const reblog = await env.DB.prepare(
 			`SELECT id FROM statuses
 			 WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL
 			 LIMIT 1`,
@@ -190,7 +190,7 @@ class UndoProcessor extends BaseProcessor {
 		if (reblog) {
 			await this.statusRepo.delete(reblog.id);
 
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				`DELETE FROM home_timeline_entries WHERE status_id = ?1`,
 			)
 				.bind(reblog.id)
@@ -213,7 +213,7 @@ class UndoProcessor extends BaseProcessor {
 		const status = await this.statusRepo.findByUri(statusUri);
 		if (!status) return;
 
-		await this.env.DB.prepare(
+		await env.DB.prepare(
 			`DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3`,
 		)
 			.bind(actorAccountId, status.id, emoji)
@@ -232,7 +232,7 @@ class UndoProcessor extends BaseProcessor {
 		const targetAccount = await this.findAccountByUri(targetUri);
 		if (!targetAccount) return;
 
-		await this.env.DB.prepare(
+		await env.DB.prepare(
 			`DELETE FROM blocks WHERE account_id = ?1 AND target_account_id = ?2`,
 		)
 			.bind(actorAccountId, targetAccount.id)
@@ -243,7 +243,6 @@ class UndoProcessor extends BaseProcessor {
 export async function processUndo(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new UndoProcessor(env).process(activity);
+	await new UndoProcessor().process(activity);
 }

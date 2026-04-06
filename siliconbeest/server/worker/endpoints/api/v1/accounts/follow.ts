@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { sendToRecipient } from '../../../../federation/helpers/send';
 import { Follow } from '@fedify/fedify/vocab';
@@ -16,13 +17,12 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
   const targetId = c.req.param('id');
   const currentUser = c.get('currentUser')!;
   const currentAccountId = currentUser.account_id;
-  const db = c.env.DB;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const target = await db.prepare('SELECT id, username, domain, uri, inbox_url, shared_inbox_url, locked, manually_approves_followers FROM accounts WHERE id = ?1').bind(targetId).first();
+  const target = await env.DB.prepare('SELECT id, username, domain, uri, inbox_url, shared_inbox_url, locked, manually_approves_followers FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
-  const result = await createFollow(db, domain, currentAccountId, {
+  const result = await createFollow(domain, currentAccountId, {
     id: target.id as string,
     domain: target.domain as string | null,
     locked: target.locked as number,
@@ -31,12 +31,12 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
 
   // Existing follow or existing request — return current relationship
   if (result.uri === '') {
-    return c.json(await getRelationship(db, currentAccountId, targetId));
+    return c.json(await getRelationship(currentAccountId, targetId));
   }
 
   // Federation & notifications for new follow requests
   if (result.type === 'follow_request') {
-    const currentAccount = await db.prepare('SELECT id, username, uri FROM accounts WHERE id = ?1').bind(currentAccountId).first();
+    const currentAccount = await env.DB.prepare('SELECT id, username, uri FROM accounts WHERE id = ?1').bind(currentAccountId).first();
     const actorUri = currentAccount?.uri as string || `https://${domain}/users/${currentAccount?.username}`;
     const targetUri = target.uri as string;
     const isRemote = !!(target.domain);
@@ -49,10 +49,10 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
 
     if (isRemote) {
       const fed = c.get('federation');
-      await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, follow);
+      await sendToRecipient(fed, currentAccount?.username as string, targetUri, follow);
     } else {
       // Local locked account: create notification for target
-      await c.env.QUEUE_INTERNAL.send({
+      await env.QUEUE_INTERNAL.send({
         type: 'create_notification',
         recipientAccountId: targetId,
         senderAccountId: currentAccountId,
@@ -61,7 +61,7 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
     }
   } else {
     // Local auto-accept: send notification
-    await c.env.QUEUE_INTERNAL.send({
+    await env.QUEUE_INTERNAL.send({
       type: 'create_notification',
       recipientAccountId: targetId,
       senderAccountId: currentAccountId,
@@ -69,7 +69,7 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
     });
   }
 
-  return c.json(await getRelationship(db, currentAccountId, targetId));
+  return c.json(await getRelationship(currentAccountId, targetId));
 });
 
 export default app;

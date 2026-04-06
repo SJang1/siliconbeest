@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { requireScope } from '../../../middleware/scopeCheck';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
 import type { AccountRow } from '../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:blocks'), async (c) => {
   const account = c.get('currentAccount')!;
@@ -38,15 +39,15 @@ app.get('/', authRequired, requireScope('read:blocks'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
 
   const serialized = (results ?? []).map((row: any) => {
-    return serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
+    return serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN });
   });
 
   if (pag.minId) serialized.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/blocks`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/blocks`;
   const link = buildLinkHeader(baseUrl, serialized, limitValue);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

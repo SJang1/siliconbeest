@@ -13,7 +13,6 @@
 | `siliconbeest-worker` (API, zone routes 14개) | 하나의 `siliconbeest` Worker |
 | `siliconbeest-vue` (SPA, custom_domain) | (통합됨) |
 | `API_WORKER` service binding | 직접 함수 호출 |
-| `c.env.VAPID_PUBLIC_KEY` (env secret) | DB settings 조회 (`getVapidPublicKey()`) |
 
 ### 디렉토리 변경
 ```

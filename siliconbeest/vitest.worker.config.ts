@@ -20,7 +20,7 @@ export default defineConfig({
           INSTANCE_DOMAIN: 'test.siliconbeest.local',
           INSTANCE_TITLE: 'SiliconBeest Test',
           REGISTRATION_MODE: 'open',
-          OTP_ENCRYPTION_KEY: 'test-otp-key-32-bytes-long-xxxxx',
+          OTP_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         },
       },
     }),

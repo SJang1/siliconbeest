@@ -9,6 +9,7 @@ import {
   base64urlEncode,
   base64urlDecode,
 } from '@/api/mastodon/webauthn';
+import { setOnUnauthorized } from '@/api/client';
 import { useTimelinesStore } from './timelines';
 import { useNotificationsStore } from './notifications';
 
@@ -55,11 +56,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(email: string, password: string, turnstile_token?: string) {
+  async function login(username: string, password: string, turnstile_token?: string) {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await apiLogin(email, password, turnstile_token);
+      const { data } = await apiLogin(username, password, turnstile_token);
       setToken(data.access_token);
       await fetchCurrentUser();
     } catch (e) {
@@ -156,6 +157,19 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false;
     }
   }
+
+  // Register global 401 handler — auto-logout when session is expired/revoked
+  setOnUnauthorized(() => {
+    clearToken();
+    const timelinesStore = useTimelinesStore();
+    const notificationsStore = useNotificationsStore();
+    timelinesStore.disconnectStream();
+    notificationsStore.disconnectStream();
+    // Redirect to login if not already there
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  });
 
   async function logout() {
     // 1. Revoke token on server (best-effort — don't block on failure)

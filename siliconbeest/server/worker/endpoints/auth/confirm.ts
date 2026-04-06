@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../types';
+import { getInstanceTitle } from '../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -37,8 +39,8 @@ ${body}
 
 app.get('/', async (c) => {
 	const token = c.req.query('token');
-	const domain = c.env.INSTANCE_DOMAIN;
-	const title = c.env.INSTANCE_TITLE || 'SiliconBeest';
+	const domain = env.INSTANCE_DOMAIN;
+	const title = await getInstanceTitle();
 
 	if (!token) {
 		return c.html(renderPage(`Error - ${title}`,
@@ -47,7 +49,7 @@ app.get('/', async (c) => {
 	}
 
 	// Look up token in KV
-	const data = await c.env.CACHE.get('email_confirm:' + token, 'json') as { userId: string; email: string } | null;
+	const data = await env.CACHE.get('email_confirm:' + token, 'json') as { userId: string; email: string } | null;
 
 	if (!data) {
 		return c.html(renderPage(`Error - ${title}`,
@@ -57,10 +59,10 @@ app.get('/', async (c) => {
 
 	// Confirm the user
 	const now = new Date().toISOString();
-	await c.env.DB.prepare('UPDATE users SET confirmed_at = ?1, confirmation_token = NULL WHERE id = ?2').bind(now, data.userId).run();
+	await env.DB.prepare('UPDATE users SET confirmed_at = ?1, confirmation_token = NULL WHERE id = ?2').bind(now, data.userId).run();
 
 	// Delete the KV entry
-	await c.env.CACHE.delete('email_confirm:' + token);
+	await env.CACHE.delete('email_confirm:' + token);
 
 	return c.html(renderPage(`Email Confirmed - ${title}`,
 		`<h1 class="success">Email Confirmed!</h1>

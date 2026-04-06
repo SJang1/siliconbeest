@@ -7,11 +7,11 @@
  * local users who interacted with the post.
  */
 
-import type { Env } from '../../env';
 import type { APActivity, APObject, APActor } from '../../types/activitypub';
 import type { UpdateAccountInput } from '../../repositories/account';
 import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
+import { env } from 'cloudflare:workers';
 
 class UpdateProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
@@ -97,7 +97,7 @@ class UpdateProcessor extends BaseProcessor {
 			});
 
 			// Notify local users who interacted with this status
-			const interactedUsers = await this.env.DB.prepare(
+			const interactedUsers = await env.DB.prepare(
 				`SELECT DISTINCT account_id FROM (
 					SELECT account_id FROM favourites WHERE status_id = ?1
 					UNION
@@ -123,7 +123,6 @@ class UpdateProcessor extends BaseProcessor {
 export async function processUpdate(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new UpdateProcessor(env).process(activity);
+	await new UpdateProcessor().process(activity);
 }

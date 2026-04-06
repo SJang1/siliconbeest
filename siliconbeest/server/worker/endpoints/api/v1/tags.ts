@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired, authOptional } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import type { TagRow } from '../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function serializeTagResponse(row: TagRow, domain: string, following?: boolean) {
   return {
@@ -21,10 +22,10 @@ const app = new Hono<HonoEnv>();
 // GET /api/v1/tags/:id — get tag info
 app.get('/:id', authOptional, async (c) => {
   const currentAccount = c.get('currentAccount');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await c.env.DB.prepare(
+  const tag = await env.DB.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -36,7 +37,7 @@ app.get('/:id', authOptional, async (c) => {
 
   let following = false;
   if (currentAccount) {
-    const tf = await c.env.DB.prepare(
+    const tf = await env.DB.prepare(
       'SELECT id FROM tag_follows WHERE account_id = ?1 AND tag_id = ?2',
     )
       .bind(currentAccount.id, tag.id)
@@ -50,10 +51,10 @@ app.get('/:id', authOptional, async (c) => {
 // POST /api/v1/tags/:id/follow — follow tag
 app.post('/:id/follow', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await c.env.DB.prepare(
+  const tag = await env.DB.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -64,7 +65,7 @@ app.post('/:id/follow', authRequired, async (c) => {
   }
 
   // Check if already following
-  const existing = await c.env.DB.prepare(
+  const existing = await env.DB.prepare(
     'SELECT id FROM tag_follows WHERE account_id = ?1 AND tag_id = ?2',
   )
     .bind(currentAccount.id, tag.id)
@@ -73,7 +74,7 @@ app.post('/:id/follow', authRequired, async (c) => {
   if (!existing) {
     const followId = generateUlid();
     const now = new Date().toISOString();
-    await c.env.DB.prepare(
+    await env.DB.prepare(
       'INSERT INTO tag_follows (id, account_id, tag_id, created_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(followId, currentAccount.id, tag.id, now)
@@ -86,10 +87,10 @@ app.post('/:id/follow', authRequired, async (c) => {
 // POST /api/v1/tags/:id/unfollow — unfollow tag
 app.post('/:id/unfollow', authRequired, async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await c.env.DB.prepare(
+  const tag = await env.DB.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -99,7 +100,7 @@ app.post('/:id/unfollow', authRequired, async (c) => {
     throw new AppError(404, 'Record not found');
   }
 
-  await c.env.DB.prepare(
+  await env.DB.prepare(
     'DELETE FROM tag_follows WHERE account_id = ?1 AND tag_id = ?2',
   )
     .bind(currentAccount.id, tag.id)

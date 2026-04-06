@@ -6,7 +6,7 @@
  * mentions, and fans out to local followers' timelines.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity, APObject, APTag, APNote } from '../../types/activitypub';
 import type { StatusWithJoinedAccountRow } from '../../types/db';
 import { generateUlid } from '../../utils/ulid';
@@ -67,7 +67,7 @@ class CreateProcessor extends BaseProcessor {
 		let inReplyToAccountId: string | null = null;
 		let conversationId: string | null = null;
 		if (note.inReplyTo) {
-			const parentStatus = await this.env.DB.prepare(
+			const parentStatus = await env.DB.prepare(
 				`SELECT id, account_id, conversation_id FROM statuses WHERE uri = ?1 LIMIT 1`,
 			)
 				.bind(note.inReplyTo)
@@ -83,17 +83,17 @@ class CreateProcessor extends BaseProcessor {
 		// Try to resolve conversation from AP conversation field
 		const apNote = note as APNote;
 		if (!conversationId && apNote.conversation) {
-			const existingConv = await this.env.DB.prepare(
+			const existingConv = await env.DB.prepare(
 				'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
 			).bind(apNote.conversation).first<{ id: string }>();
 			if (existingConv) {
 				conversationId = existingConv.id;
 			} else {
 				conversationId = generateUlid();
-				await this.env.DB.prepare(
+				await env.DB.prepare(
 					'INSERT OR IGNORE INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)',
 				).bind(conversationId, apNote.conversation, now).run();
-				const inserted = await this.env.DB.prepare(
+				const inserted = await env.DB.prepare(
 					'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
 				).bind(apNote.conversation).first<{ id: string }>();
 				if (inserted) conversationId = inserted.id;
@@ -102,7 +102,7 @@ class CreateProcessor extends BaseProcessor {
 
 		if (!conversationId) {
 			conversationId = generateUlid();
-			await this.env.DB.prepare(
+			await env.DB.prepare(
 				'INSERT OR IGNORE INTO conversations (id, created_at, updated_at) VALUES (?1, ?2, ?2)',
 			).bind(conversationId, now).run();
 		}
@@ -134,7 +134,7 @@ class CreateProcessor extends BaseProcessor {
 		const emojiTagsJson = emojiTagsForDb.length > 0 ? JSON.stringify(emojiTagsForDb) : null;
 
 		// Insert the status
-		await this.env.DB.prepare(
+		await env.DB.prepare(
 			`INSERT INTO statuses
 			 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
 			  content, content_warning, visibility, sensitive, language,
@@ -168,7 +168,7 @@ class CreateProcessor extends BaseProcessor {
 
 		// Fan out to local followers' home timelines
 		if (visibility !== 'direct') {
-			await this.env.QUEUE_INTERNAL.send({
+			await env.QUEUE_INTERNAL.send({
 				type: 'timeline_fanout',
 				statusId,
 				accountId: authorAccountId,
@@ -213,7 +213,7 @@ class CreateProcessor extends BaseProcessor {
 			else type = 'image';
 
 			try {
-				await this.env.DB.prepare(
+				await env.DB.prepare(
 					`INSERT OR IGNORE INTO media_attachments
 					 (id, status_id, account_id, type, remote_url, file_key, file_content_type, description, width, height, blurhash, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)`,
@@ -242,7 +242,7 @@ class CreateProcessor extends BaseProcessor {
 			const mentionedAccount = await this.findLocalAccountByUri(mention.href);
 			if (mentionedAccount) {
 				try {
-					await this.env.DB.prepare(
+					await env.DB.prepare(
 						`INSERT INTO mentions (id, status_id, account_id, created_at)
 						 VALUES (?1, ?2, ?3, ?4)`,
 					)
@@ -267,18 +267,18 @@ class CreateProcessor extends BaseProcessor {
 			const tagName = ((ht.name as string) || '').replace(/^#/, '').toLowerCase();
 			if (!tagName) continue;
 			try {
-				const existing = await this.env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
+				const existing = await env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
 				let tagId: string;
 				if (existing) {
 					tagId = existing.id;
-					await this.env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
+					await env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
 				} else {
 					tagId = generateUlid();
-					await this.env.DB.prepare(
+					await env.DB.prepare(
 						'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
 					).bind(tagId, tagName, tagName, now).run();
 				}
-				await this.env.DB.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
+				await env.DB.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
 			} catch {
 				// ignore duplicates
 			}
@@ -301,7 +301,7 @@ class CreateProcessor extends BaseProcessor {
 			const emojiDomain = actorServerDomain;
 			if (!emojiDomain) continue;
 			try {
-				const result = await this.env.DB.prepare(
+				const result = await env.DB.prepare(
 					`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
 					 ON CONFLICT(shortcode, domain) DO UPDATE SET image_key = excluded.image_key, updated_at = excluded.updated_at`,
@@ -317,8 +317,8 @@ class CreateProcessor extends BaseProcessor {
 		// Notify streaming about new emojis
 		if (newEmojis.length > 0) {
 			try {
-				const doId = this.env.STREAMING_DO.idFromName('__public__');
-				const doStub = this.env.STREAMING_DO.get(doId);
+				const doId = (env as Record<string, any>).STREAMING_DO?.idFromName('__public__');
+				const doStub = (env as Record<string, any>).STREAMING_DO?.get(doId);
 				await doStub.fetch('https://streaming/event', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -340,7 +340,7 @@ class CreateProcessor extends BaseProcessor {
 		now: string,
 	): Promise<void> {
 		interface LocalMentionRow { account_id: string }
-		const { results: localMentions } = await this.env.DB.prepare(
+		const { results: localMentions } = await env.DB.prepare(
 			`SELECT m.account_id FROM mentions m
 			 JOIN accounts a ON a.id = m.account_id
 			 WHERE m.status_id = ?1 AND a.domain IS NULL`,
@@ -349,15 +349,15 @@ class CreateProcessor extends BaseProcessor {
 		if (!localMentions || localMentions.length === 0) return;
 
 		const stmts = localMentions.map((m) =>
-			this.env.DB.prepare(
+			env.DB.prepare(
 				'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
 			).bind(statusId, m.account_id, now),
 		);
-		await this.env.DB.batch(stmts);
+		await env.DB.batch(stmts);
 
 		// Send streaming event for DM
 		try {
-			const dmStatusRow = await this.env.DB.prepare(
+			const dmStatusRow = await env.DB.prepare(
 				`SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
 				        a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
 				        a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
@@ -397,11 +397,11 @@ class CreateProcessor extends BaseProcessor {
 				});
 
 				for (const m of localMentions) {
-					const userRow = await this.env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
+					const userRow = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
 					if (userRow) {
 						try {
-							const doId = this.env.STREAMING_DO.idFromName(userRow.id);
-							const stub = this.env.STREAMING_DO.get(doId);
+							const doId = (env as Record<string, any>).STREAMING_DO?.idFromName(userRow.id);
+							const stub = (env as Record<string, any>).STREAMING_DO?.get(doId);
 							await stub.fetch('https://streaming/event', {
 								method: 'POST',
 								headers: { 'Content-Type': 'application/json' },
@@ -418,7 +418,6 @@ class CreateProcessor extends BaseProcessor {
 export async function processCreate(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new CreateProcessor(env).process(activity);
+	await new CreateProcessor().process(activity);
 }

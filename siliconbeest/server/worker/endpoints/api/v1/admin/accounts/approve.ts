@@ -1,11 +1,12 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendWelcome } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
 import { getAccountWithUser, approveAccount } from '../../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -14,20 +15,20 @@ const app = new Hono<HonoEnv>();
  */
 app.post('/:id/approve', async (c) => {
 	const id = c.req.param('id');
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 
-	const { account, user } = await getAccountWithUser(c.env.DB, id);
+	const { account, user } = await getAccountWithUser(id);
 
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
 	if (!user.confirmed_at) throw new AppError(422, 'User has not confirmed their email address');
 
 	// Approve
-	await approveAccount(c.env.DB, id);
+	await approveAccount(id);
 
 	// Send welcome email in user's locale (best-effort — never block approval)
 	if (user.email) {
 		try {
-			await sendWelcome(c.env, user.email as string, account.username as string, sanitizeLocale(user.locale as string | null));
+			await sendWelcome(user.email as string, account.username as string, sanitizeLocale(user.locale as string | null));
 		} catch { /* email queue failure should not block approval */ }
 	}
 

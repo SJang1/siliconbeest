@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 
-type MiddlewareEnv = { Bindings: Env; Variables: AppVariables };
+type MiddlewareEnv = { Variables: AppVariables };
 
 const AP_CONTENT_TYPES = [
   'application/activity+json',

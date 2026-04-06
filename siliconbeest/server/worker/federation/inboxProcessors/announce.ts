@@ -5,15 +5,14 @@
  * increments reblogs_count on the original, creates a notification
  * for the original author, and fans out to local followers.
  */
-
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import { BaseProcessor } from './BaseProcessor';
 
 class AnnounceProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
 		// Relay Announce handling
-		const relay = await this.env.DB.prepare(
+		const relay = await env.DB.prepare(
 			"SELECT id FROM relays WHERE actor_uri = ?1 AND state = 'accepted'",
 		)
 			.bind(String(activity.actor))
@@ -22,7 +21,7 @@ class AnnounceProcessor extends BaseProcessor {
 		if (relay) {
 			const objectUri = this.extractObjectUri(activity);
 			if (objectUri) {
-				await this.env.QUEUE_FEDERATION.send({
+				await env.QUEUE_FEDERATION.send({
 					type: 'fetch_remote_status',
 					statusUri: objectUri,
 				});
@@ -49,7 +48,7 @@ class AnnounceProcessor extends BaseProcessor {
 		}
 
 		// Check for duplicate reblog
-		const existingReblog = await this.env.DB.prepare(
+		const existingReblog = await env.DB.prepare(
 			`SELECT id FROM statuses
 			 WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL
 			 LIMIT 1`,
@@ -72,7 +71,7 @@ class AnnounceProcessor extends BaseProcessor {
 		await this.statusRepo.incrementCount(originalStatus.id, 'reblogs_count');
 		await this.notifyIfLocal('reblog', originalStatus.account_id, boosterAccountId, originalStatus.id);
 
-		await this.env.QUEUE_INTERNAL.send({
+		await env.QUEUE_INTERNAL.send({
 			type: 'timeline_fanout',
 			statusId: reblog.id,
 			accountId: boosterAccountId,
@@ -83,7 +82,6 @@ class AnnounceProcessor extends BaseProcessor {
 export async function processAnnounce(
 	activity: APActivity,
 	_localAccountId: string,
-	env: Env,
 ): Promise<void> {
-	await new AnnounceProcessor(env).process(activity);
+	await new AnnounceProcessor().process(activity);
 }

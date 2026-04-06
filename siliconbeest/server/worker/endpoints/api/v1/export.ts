@@ -5,8 +5,9 @@
  * All routes require authentication and return text/csv with UTF-8 BOM.
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import {
 	getFollowingForExport,
@@ -17,7 +18,7 @@ import {
 	getListsForExport,
 } from '../../../services/account';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -49,7 +50,7 @@ function csvResponse(body: string): Response {
 
 app.get('/following.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getFollowingForExport(c.env.DB, account.id);
+  const results = await getFollowingForExport(account.id);
   const rows = results.map((r) => `${formatAcct(r.username, r.domain)},true`);
   return csvResponse(`Account address,Show boosts\n${rows.join('\n')}\n`);
 });
@@ -60,7 +61,7 @@ app.get('/following.csv', authRequired, async (c) => {
 
 app.get('/followers.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getFollowersForExport(c.env.DB, account.id);
+  const results = await getFollowersForExport(account.id);
   const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
@@ -71,7 +72,7 @@ app.get('/followers.csv', authRequired, async (c) => {
 
 app.get('/blocks.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getBlocksForExport(c.env.DB, account.id);
+  const results = await getBlocksForExport(account.id);
   const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
@@ -82,7 +83,7 @@ app.get('/blocks.csv', authRequired, async (c) => {
 
 app.get('/mutes.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getMutesForExport(c.env.DB, account.id);
+  const results = await getMutesForExport(account.id);
   const rows = results.map((r) => formatAcct(r.username, r.domain));
   return csvResponse(`Account address\n${rows.join('\n')}\n`);
 });
@@ -93,7 +94,7 @@ app.get('/mutes.csv', authRequired, async (c) => {
 
 app.get('/bookmarks.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getBookmarksForExport(c.env.DB, account.id);
+  const results = await getBookmarksForExport(account.id);
   return csvResponse(`${results.join('\n')}\n`);
 });
 
@@ -103,7 +104,7 @@ app.get('/bookmarks.csv', authRequired, async (c) => {
 
 app.get('/lists.csv', authRequired, async (c) => {
   const account = c.get('currentAccount')!;
-  const results = await getListsForExport(c.env.DB, account.id);
+  const results = await getListsForExport(account.id);
   const rows = results.map((r) => `${r.title},${formatAcct(r.username, r.domain)}`);
   return csvResponse(`List name,Account address\n${rows.join('\n')}\n`);
 });

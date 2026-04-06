@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
@@ -14,7 +14,7 @@ import {
   deleteFilterKeyword,
 } from '../../../../services/filter';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const VALID_CONTEXTS = ['home', 'notifications', 'public', 'thread', 'account'];
 const VALID_ACTIONS = ['warn', 'hide'];
@@ -27,7 +27,7 @@ const app = new Hono<HonoEnv>();
 
 app.get('/', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
-  const result = await listFilters(c.env.DB, currentUser.id);
+  const result = await listFilters(currentUser.id);
   return c.json(result);
 });
 
@@ -70,7 +70,7 @@ app.post('/', authRequired, requireScope('write:filters'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Invalid filter_action');
   }
 
-  const result = await createFilter(c.env.DB, currentUser.id, {
+  const result = await createFilter(currentUser.id, {
     title: body.title,
     context: body.context,
     filter_action: filterAction,
@@ -87,7 +87,7 @@ app.post('/', authRequired, requireScope('write:filters'), async (c) => {
 app.get('/:id', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
-  const result = await getFilter(c.env.DB, filterId, currentUser.id);
+  const result = await getFilter(filterId, currentUser.id);
   return c.json(result);
 });
 
@@ -112,7 +112,7 @@ app.put('/:id', authRequired, requireScope('write:filters'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const result = await updateFilter(c.env.DB, filterId, currentUser.id, body);
+  const result = await updateFilter(filterId, currentUser.id, body);
   return c.json(result);
 });
 
@@ -123,7 +123,7 @@ app.put('/:id', authRequired, requireScope('write:filters'), async (c) => {
 app.delete('/:id', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
-  await deleteFilter(c.env.DB, filterId, currentUser.id);
+  await deleteFilter(filterId, currentUser.id);
   return c.json({}, 200);
 });
 
@@ -146,7 +146,7 @@ app.post('/:id/keywords', authRequired, requireScope('write:filters'), async (c)
     throw new AppError(422, 'Validation failed', 'keyword is required');
   }
 
-  const result = await addFilterKeyword(c.env.DB, filterId, currentUser.id, body.keyword, !!body.whole_word);
+  const result = await addFilterKeyword(filterId, currentUser.id, body.keyword, !!body.whole_word);
   return c.json(result);
 });
 
@@ -157,7 +157,7 @@ app.post('/:id/keywords', authRequired, requireScope('write:filters'), async (c)
 app.get('/:id/keywords', authRequired, requireScope('read:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
-  const result = await listFilterKeywords(c.env.DB, filterId, currentUser.id);
+  const result = await listFilterKeywords(filterId, currentUser.id);
   return c.json(result);
 });
 
@@ -169,7 +169,7 @@ app.delete('/:id/keywords/:keyword_id', authRequired, requireScope('write:filter
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
   const keywordId = c.req.param('keyword_id');
-  await deleteFilterKeyword(c.env.DB, filterId, keywordId, currentUser.id);
+  await deleteFilterKeyword(filterId, keywordId, currentUser.id);
   return c.json({}, 200);
 });
 

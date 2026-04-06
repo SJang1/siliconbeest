@@ -1,9 +1,9 @@
 /* oxlint-disable fp/no-classes, fp/no-class-inheritance, fp/no-this-expressions */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 
-type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
+type AppContext = Context<{ Variables: AppVariables }>;
 
 // ---------------------------------------------------------------------------
 // Custom error class

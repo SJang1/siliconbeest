@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { serializeList, serializeAccount } from '../utils/mastodonSerializer';
 import { AppError } from '../middleware/errorHandler';
@@ -7,8 +8,8 @@ import type { ListRow, AccountRow } from '../types/db';
 // listLists
 // ----------------------------------------------------------------
 
-export async function listLists(db: D1Database, accountId: string) {
-  const { results } = await db
+export async function listLists(accountId: string) {
+  const { results } = await env.DB
     .prepare('SELECT * FROM lists WHERE account_id = ?1 ORDER BY created_at ASC')
     .bind(accountId)
     .all();
@@ -20,8 +21,8 @@ export async function listLists(db: D1Database, accountId: string) {
 // getList
 // ----------------------------------------------------------------
 
-export async function getList(db: D1Database, listId: string, accountId: string) {
-  const row = await db
+export async function getList(listId: string, accountId: string) {
+  const row = await env.DB
     .prepare('SELECT * FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first<ListRow>();
@@ -38,7 +39,6 @@ export async function getList(db: D1Database, listId: string, accountId: string)
 // ----------------------------------------------------------------
 
 export async function createList(
-  db: D1Database,
   accountId: string,
   title: string,
   repliesPolicy?: string,
@@ -49,7 +49,7 @@ export async function createList(
   const policy = repliesPolicy || 'list';
   const excl = exclusive ? 1 : 0;
 
-  await db
+  await env.DB
     .prepare(
       `INSERT INTO lists (id, account_id, title, replies_policy, exclusive, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
@@ -75,8 +75,8 @@ export interface UpdateListData {
   exclusive?: boolean;
 }
 
-export async function updateList(db: D1Database, listId: string, accountId: string, data: UpdateListData) {
-  const existing = await db
+export async function updateList(listId: string, accountId: string, data: UpdateListData) {
+  const existing = await env.DB
     .prepare('SELECT * FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first<ListRow>();
@@ -90,7 +90,7 @@ export async function updateList(db: D1Database, listId: string, accountId: stri
   const repliesPolicy = data.replies_policy ?? existing.replies_policy;
   const exclusive = data.exclusive !== undefined ? (data.exclusive ? 1 : 0) : existing.exclusive;
 
-  await db
+  await env.DB
     .prepare('UPDATE lists SET title = ?1, replies_policy = ?2, exclusive = ?3, updated_at = ?4 WHERE id = ?5')
     .bind(title, repliesPolicy, exclusive, now, listId)
     .run();
@@ -107,8 +107,8 @@ export async function updateList(db: D1Database, listId: string, accountId: stri
 // deleteList
 // ----------------------------------------------------------------
 
-export async function deleteList(db: D1Database, listId: string, accountId: string): Promise<void> {
-  const existing = await db
+export async function deleteList(listId: string, accountId: string): Promise<void> {
+  const existing = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -117,9 +117,9 @@ export async function deleteList(db: D1Database, listId: string, accountId: stri
     throw new AppError(404, 'Record not found');
   }
 
-  await db.batch([
-    db.prepare('DELETE FROM list_accounts WHERE list_id = ?1').bind(listId),
-    db.prepare('DELETE FROM lists WHERE id = ?1').bind(listId),
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM list_accounts WHERE list_id = ?1').bind(listId),
+    env.DB.prepare('DELETE FROM lists WHERE id = ?1').bind(listId),
   ]);
 }
 
@@ -127,8 +127,8 @@ export async function deleteList(db: D1Database, listId: string, accountId: stri
 // getListMembers
 // ----------------------------------------------------------------
 
-export async function getListMembers(db: D1Database, listId: string, accountId: string, instanceDomain: string) {
-  const list = await db
+export async function getListMembers(listId: string, accountId: string, instanceDomain: string) {
+  const list = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -137,7 +137,7 @@ export async function getListMembers(db: D1Database, listId: string, accountId: 
     throw new AppError(404, 'Record not found');
   }
 
-  const { results } = await db
+  const { results } = await env.DB
     .prepare(
       `SELECT a.*
        FROM list_accounts la
@@ -155,12 +155,11 @@ export async function getListMembers(db: D1Database, listId: string, accountId: 
 // ----------------------------------------------------------------
 
 export async function addListMembers(
-  db: D1Database,
   listId: string,
   accountId: string,
   memberAccountIds: string[],
 ): Promise<void> {
-  const list = await db
+  const list = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -172,13 +171,13 @@ export async function addListMembers(
   const stmts: D1PreparedStatement[] = [];
   for (const memberId of memberAccountIds) {
     stmts.push(
-      db.prepare(
+      env.DB.prepare(
         'INSERT OR IGNORE INTO list_accounts (list_id, account_id, follow_id) VALUES (?1, ?2, NULL)',
       ).bind(listId, memberId),
     );
   }
 
-  await db.batch(stmts);
+  await env.DB.batch(stmts);
 }
 
 // ----------------------------------------------------------------
@@ -186,12 +185,11 @@ export async function addListMembers(
 // ----------------------------------------------------------------
 
 export async function removeListMembers(
-  db: D1Database,
   listId: string,
   accountId: string,
   memberAccountIds: string[],
 ): Promise<void> {
-  const list = await db
+  const list = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -203,11 +201,11 @@ export async function removeListMembers(
   const stmts: D1PreparedStatement[] = [];
   for (const memberId of memberAccountIds) {
     stmts.push(
-      db.prepare(
+      env.DB.prepare(
         'DELETE FROM list_accounts WHERE list_id = ?1 AND account_id = ?2',
       ).bind(listId, memberId),
     );
   }
 
-  await db.batch(stmts);
+  await env.DB.batch(stmts);
 }

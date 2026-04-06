@@ -5,7 +5,7 @@
  * and updates the media_attachments row.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { ProcessMediaMessage } from '../shared/types/queue';
 import { measureAsync, measureSync, PerfTimer } from '../observability/performance';
 
@@ -117,7 +117,6 @@ function extractDimensions(
 
 export async function handleProcessMedia(
   msg: ProcessMediaMessage,
-  env: Env,
 ): Promise<void> {
   const { mediaAttachmentId, accountId } = msg;
   const timer = new PerfTimer('processMedia.total', { mediaAttachmentId });

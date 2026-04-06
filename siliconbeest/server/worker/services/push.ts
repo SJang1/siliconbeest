@@ -4,6 +4,8 @@
  * Pure DB operations for Web Push subscription management.
  */
 
+import { env } from 'cloudflare:workers';
+
 // ----------------------------------------------------------------
 // Types
 // ----------------------------------------------------------------
@@ -26,7 +28,6 @@ export interface PushAlerts {
 // ----------------------------------------------------------------
 
 export async function createPushSubscription(
-	db: D1Database,
 	opts: {
 		id: string;
 		userId: string;
@@ -38,11 +39,11 @@ export async function createPushSubscription(
 		policy: string;
 	},
 ): Promise<void> {
-	await db.batch([
-		db.prepare(
+	await env.DB.batch([
+		env.DB.prepare(
 			'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
 		).bind(opts.tokenId),
-		db.prepare(
+		env.DB.prepare(
 			`INSERT INTO web_push_subscriptions
 			   (id, user_id, access_token_id, endpoint, key_p256dh, key_auth,
 			    alert_mention, alert_follow, alert_favourite, alert_reblog,
@@ -63,10 +64,9 @@ export async function createPushSubscription(
 // ----------------------------------------------------------------
 
 export async function getPushSubscription(
-	db: D1Database,
 	tokenId: string,
 ): Promise<Record<string, unknown> | null> {
-	return db.prepare(
+	return env.DB.prepare(
 		`SELECT id, endpoint, policy, created_at, updated_at,
 		        alert_mention, alert_follow, alert_favourite, alert_reblog,
 		        alert_poll, alert_status, alert_update, alert_follow_request,
@@ -82,7 +82,6 @@ export async function getPushSubscription(
 // ----------------------------------------------------------------
 
 export async function updatePushSubscription(
-	db: D1Database,
 	subscriptionId: string,
 	updates: { sets: string[]; params: unknown[] },
 ): Promise<Record<string, unknown>> {
@@ -90,11 +89,11 @@ export async function updatePushSubscription(
 	const params = [...updates.params, subscriptionId];
 	const paramIdx = params.length;
 
-	await db.prepare(
+	await env.DB.prepare(
 		`UPDATE web_push_subscriptions SET ${sets.join(', ')} WHERE id = ?${paramIdx}`,
 	).bind(...params).run();
 
-	const row = await db.prepare(
+	const row = await env.DB.prepare(
 		`SELECT id, endpoint, policy,
 		        alert_mention, alert_follow, alert_favourite, alert_reblog,
 		        alert_poll, alert_status, alert_update, alert_follow_request,
@@ -110,10 +109,9 @@ export async function updatePushSubscription(
 // ----------------------------------------------------------------
 
 export async function deletePushSubscription(
-	db: D1Database,
 	tokenId: string,
 ): Promise<void> {
-	await db.prepare(
+	await env.DB.prepare(
 		'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
 	).bind(tokenId).run();
 }

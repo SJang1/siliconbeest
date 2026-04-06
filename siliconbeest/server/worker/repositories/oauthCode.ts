@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type OAuthAuthorizationCode = {
@@ -26,10 +27,9 @@ export type CreateOAuthCodeInput = {
 };
 
 export const findByCode = async (
-	db: D1Database,
 	code: string,
 ): Promise<OAuthAuthorizationCode | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM oauth_authorization_codes WHERE code = ? AND used_at IS NULL')
 		.bind(code)
 		.first<OAuthAuthorizationCode>();
@@ -37,7 +37,6 @@ export const findByCode = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateOAuthCodeInput,
 ): Promise<OAuthAuthorizationCode> => {
 	const now = new Date().toISOString();
@@ -56,7 +55,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO oauth_authorization_codes (
 				id, code, application_id, user_id, redirect_uri, scopes,
@@ -75,11 +74,10 @@ export const create = async (
 };
 
 export const markUsed = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare('UPDATE oauth_authorization_codes SET used_at = ? WHERE id = ?')
 		.bind(now, id)
 		.run();

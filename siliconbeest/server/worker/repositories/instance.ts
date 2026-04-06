@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Instance = {
@@ -26,10 +27,9 @@ export type UpsertInstanceInput = {
 };
 
 export const findByDomain = async (
-	db: D1Database,
 	domain: string,
 ): Promise<Instance | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM instances WHERE domain = ?')
 		.bind(domain)
 		.first<Instance>();
@@ -37,25 +37,24 @@ export const findByDomain = async (
 };
 
 export const upsert = async (
-	db: D1Database,
 	domain: string,
 	data: UpsertInstanceInput,
 ): Promise<Instance> => {
 	const now = new Date().toISOString();
-	const existing = await findByDomain(db, domain);
+	const existing = await findByDomain(domain);
 
 	if (existing) {
 		const entries = Object.entries(data).filter(([, value]) => value !== undefined);
 		const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 		const values = [...entries.map(([, value]) => value), now, existing.id];
 
-		await db
+		await env.DB
 			.prepare(`UPDATE instances SET ${fields.join(', ')} WHERE id = ?`)
 			.bind(...values)
 			.run();
 
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		return (await findByDomain(db, domain))!;
+		return (await findByDomain(domain))!;
 	}
 
 	const id = generateUlid();
@@ -75,7 +74,7 @@ export const upsert = async (
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO instances (
 				id, domain, software_name, software_version, title, description,
@@ -96,11 +95,10 @@ export const upsert = async (
 };
 
 export const updateFailure = async (
-	db: D1Database,
 	domain: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare(
 			`UPDATE instances SET
 				last_failed_at = ?,
@@ -113,11 +111,10 @@ export const updateFailure = async (
 };
 
 export const updateSuccess = async (
-	db: D1Database,
 	domain: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await db
+	await env.DB
 		.prepare(
 			`UPDATE instances SET
 				last_successful_at = ?,

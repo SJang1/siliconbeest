@@ -9,7 +9,7 @@
  * are detected and routed to federation.processQueuedTask().
  */
 
-import type { Env } from './env';
+import { env } from 'cloudflare:workers';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
@@ -38,8 +38,8 @@ import { handleImportItem } from './handlers/importItem';
 // ---------------------------------------------------------------------------
 let fedInitialized = false;
 
-function ensureFedInitialized(env: Env) {
-  const fed = createFed(env);
+function ensureFedInitialized() {
+  const fed = createFed();
   if (!fedInitialized) {
     setupActorDispatcher(fed);
     setupConsumerInboxListeners(fed);
@@ -112,8 +112,9 @@ export default {
         // ---- Fedify queued tasks (from WorkersMessageQueue / sendActivity) ----
         if (isFedifyMessage(body)) {
           try {
-            const fed = ensureFedInitialized(env);
+            const fed = ensureFedInitialized();
 
+            // @ts-expect-error — @fedify/cfworkers uses experimental workers-types internally
             const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
             const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
             console.log('[queue] processMessage result:', JSON.stringify({
@@ -162,37 +163,37 @@ export default {
           async () => {
             switch (legacyMsg.type) {
               case 'deliver_activity':
-                await handleDeliverActivity(legacyMsg, env);
+                await handleDeliverActivity(legacyMsg);
                 break;
               case 'deliver_activity_fanout':
-                await handleDeliverActivityFanout(legacyMsg, env);
+                await handleDeliverActivityFanout(legacyMsg);
                 break;
               case 'timeline_fanout':
-                await handleTimelineFanout(legacyMsg, env);
+                await handleTimelineFanout(legacyMsg);
                 break;
               case 'create_notification':
-                await handleCreateNotification(legacyMsg, env);
+                await handleCreateNotification(legacyMsg);
                 break;
               case 'process_media':
-                await handleProcessMedia(legacyMsg, env);
+                await handleProcessMedia(legacyMsg);
                 break;
               case 'fetch_remote_account':
-                await handleFetchRemoteAccount(legacyMsg, env);
+                await handleFetchRemoteAccount(legacyMsg);
                 break;
               case 'fetch_remote_status':
-                await handleFetchRemoteStatus(legacyMsg, env);
+                await handleFetchRemoteStatus(legacyMsg);
                 break;
               case 'send_web_push':
-                await handleSendWebPush(legacyMsg, env);
+                await handleSendWebPush(legacyMsg);
                 break;
               case 'fetch_preview_card':
-                await handleFetchPreviewCard(legacyMsg, env);
+                await handleFetchPreviewCard(legacyMsg);
                 break;
               case 'forward_activity':
-                await handleForwardActivity(legacyMsg, env);
+                await handleForwardActivity(legacyMsg);
                 break;
               case 'import_item':
-                await handleImportItem(legacyMsg, env);
+                await handleImportItem(legacyMsg);
                 break;
               default:
                 console.warn('Unknown message type:', (legacyMsg as { type: string }).type);

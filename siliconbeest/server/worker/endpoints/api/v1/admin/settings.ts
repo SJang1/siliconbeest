@@ -1,9 +1,10 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { getAllSettings, setSettings, setSetting } from '../../../../services/instance';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -13,7 +14,7 @@ app.use('*', authRequired, adminRequired);
  * GET /api/v1/admin/settings — get all instance settings.
  */
 app.get('/', async (c) => {
-	const settings = await getAllSettings(c.env.DB);
+	const settings = await getAllSettings();
 	return c.json(settings);
 });
 
@@ -22,10 +23,10 @@ app.get('/', async (c) => {
  */
 app.patch('/', async (c) => {
 	const body = await c.req.json<Record<string, string>>();
-	await setSettings(c.env.DB, body);
+	await setSettings(body);
 
 	// Return the full settings after update
-	const settings = await getAllSettings(c.env.DB);
+	const settings = await getAllSettings();
 	return c.json(settings);
 });
 
@@ -38,15 +39,15 @@ app.post('/thumbnail', async (c) => {
 	if (!file) return c.json({ error: 'file is required' }, 422);
 
 	const buffer = await file.arrayBuffer();
-	await c.env.MEDIA_BUCKET.put('instance/thumbnail.png', buffer, {
+	await env.MEDIA_BUCKET.put('instance/thumbnail.png', buffer, {
 		httpMetadata: { contentType: file.type || 'image/png' },
 	});
 
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 	const url = `https://${domain}/thumbnail.png`;
 
 	// Also save in settings
-	await setSetting(c.env.DB, 'thumbnail_url', url);
+	await setSetting('thumbnail_url', url);
 
 	return c.json({ url });
 });
@@ -61,14 +62,14 @@ app.post('/favicon', async (c) => {
 
 	const buffer = await file.arrayBuffer();
 	// Store as both favicon.ico and the original format
-	await c.env.MEDIA_BUCKET.put('instance/favicon.ico', buffer, {
+	await env.MEDIA_BUCKET.put('instance/favicon.ico', buffer, {
 		httpMetadata: { contentType: file.type || 'image/x-icon' },
 	});
 
-	const domain = c.env.INSTANCE_DOMAIN;
+	const domain = env.INSTANCE_DOMAIN;
 	const url = `https://${domain}/favicon.ico`;
 
-	await setSetting(c.env.DB, 'favicon_url', url);
+	await setSetting('favicon_url', url);
 
 	return c.json({ url });
 });

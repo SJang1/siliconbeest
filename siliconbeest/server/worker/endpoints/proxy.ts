@@ -24,10 +24,11 @@
  */
 
 import { Hono } from 'hono';
+import { env } from 'cloudflare:workers';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -206,7 +207,7 @@ app.get('/', async (c) => {
     originResponse = await fetch(remoteUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'SiliconBeest/1.0 (+https://' + c.env.INSTANCE_DOMAIN + '/)',
+        'User-Agent': 'SiliconBeest/1.0 (+https://' + env.INSTANCE_DOMAIN + '/)',
         Accept: 'image/*,video/*,audio/*,*/*',
       },
       redirect: 'follow',

@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../types';
 import { verifyPassword } from '../../utils/crypto';
 import { generateToken } from '../../utils/crypto';
 import { createAuthorizationCode } from '../../services/oauth';
+import { getInstanceTitle } from '../../services/instance';
 import { verifyTurnstile, getTurnstileSettings } from '../../utils/turnstile';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // ---------------------------------------------------------------------------
 // HTML templates
@@ -184,15 +186,15 @@ async function resolveBearer(c: any): Promise<string | null> {
 	const cacheKey = `token:${hash}`;
 
 	// KV cache
-	const cached = await c.env.CACHE.get(cacheKey, 'json');
+	const cached = await env.CACHE.get(cacheKey, 'json');
 	if (cached) return (cached as { user?: { id?: string } }).user?.id ?? null;
 
 	// D1 fallback (token_hash first, then legacy plaintext)
-	let row = await c.env.DB.prepare(
+	let row = await env.DB.prepare(
 		'SELECT t.user_id FROM oauth_access_tokens t WHERE t.token_hash = ?1 AND t.revoked_at IS NULL LIMIT 1',
 	).bind(hash).first();
 	if (!row) {
-		row = await c.env.DB.prepare(
+		row = await env.DB.prepare(
 			'SELECT t.user_id FROM oauth_access_tokens t WHERE t.token = ?1 AND t.revoked_at IS NULL LIMIT 1',
 		).bind(token).first();
 	}
@@ -223,7 +225,7 @@ app.get('/', async (c) => {
 				state,
 				responseType,
 				error: errorMsg,
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 			}),
 		);
 	}
@@ -232,7 +234,7 @@ app.get('/', async (c) => {
 	const accept = c.req.header('Accept') ?? '';
 	if (accept.includes('application/json')) {
 		// Validate app
-		const oauthApp = await c.env.DB.prepare(
+		const oauthApp = await env.DB.prepare(
 			'SELECT id, name, website, scopes, redirect_uri FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 		).bind(clientId).first();
 
@@ -271,7 +273,7 @@ app.get('/', async (c) => {
 	}
 
 	// User is authenticated — validate the app and auto-approve
-	const oauthApp = await c.env.DB.prepare(
+	const oauthApp = await env.DB.prepare(
 		'SELECT id FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 	).bind(clientId).first();
 
@@ -318,7 +320,7 @@ app.post('/', async (c) => {
 	}
 
 	// Validate the OAuth application exists
-	const oauthApp = await c.env.DB.prepare(
+	const oauthApp = await env.DB.prepare(
 		`SELECT id, redirect_uri, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
 	)
 		.bind(clientId)
@@ -334,7 +336,7 @@ app.post('/', async (c) => {
 				state,
 				responseType,
 				error: 'Unknown application',
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 			}),
 			400,
 		);
@@ -357,7 +359,7 @@ app.post('/', async (c) => {
 		// Approve: issue authorization code via service
 		if (isJson) {
 			const code = await createAuthorizationCode(
-				c.env.DB, oauthApp.id as string, userId, redirectUri, scope,
+				oauthApp.id as string, userId, redirectUri, scope,
 			);
 			const url = new URL(redirectUri);
 			url.searchParams.set('code', code);
@@ -382,9 +384,9 @@ app.post('/', async (c) => {
 		// Look up user from the access token
 		const tokenHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passkeyToken)))).map(b => b.toString(16).padStart(2, '0')).join('');
 		const cacheKey = `token:${tokenHash}`;
-		let tokenPayload = await c.env.CACHE.get(cacheKey, 'json') as { user: { id: string; account_id: string } } | null;
+		let tokenPayload = await env.CACHE.get(cacheKey, 'json') as { user: { id: string; account_id: string } } | null;
 		if (!tokenPayload) {
-			const tokenRow = await c.env.DB.prepare(
+			const tokenRow = await env.DB.prepare(
 				`SELECT t.user_id, u.account_id FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?1 AND t.revoked_at IS NULL LIMIT 1`,
 			).bind(tokenHash).first<{ user_id: string; account_id: string }>();
 			if (tokenRow) tokenPayload = { user: { id: tokenRow.user_id, account_id: tokenRow.account_id } };
@@ -392,7 +394,7 @@ app.post('/', async (c) => {
 		if (tokenPayload) {
 			// Issue authorization code via service
 			const codeValue = await createAuthorizationCode(
-				c.env.DB, oauthApp.id as string, tokenPayload.user.id, redirectUri, scope,
+				oauthApp.id as string, tokenPayload.user.id, redirectUri, scope,
 			);
 			const sep = redirectUri.includes('?') ? '&' : '?';
 			return c.redirect(`${redirectUri}${sep}code=${codeValue}${state ? '&state=' + encodeURIComponent(state) : ''}`);
@@ -407,7 +409,7 @@ app.post('/', async (c) => {
 
 	if (sessionToken && otpCode) {
 		// Look up pending session
-		const sessionData = await c.env.SESSIONS.get(`oauth_session:${sessionToken}`, 'json') as {
+		const sessionData = await env.SESSIONS.get(`oauth_session:${sessionToken}`, 'json') as {
 			userId: string;
 		} | null;
 
@@ -420,14 +422,14 @@ app.post('/', async (c) => {
 					state,
 					responseType,
 					error: 'Session expired. Please sign in again.',
-					instanceTitle: c.env.INSTANCE_TITLE,
+					instanceTitle: await getInstanceTitle(),
 				}),
 				400,
 			);
 		}
 
 		// Verify TOTP code
-		const user2fa = await c.env.DB.prepare(
+		const user2fa = await env.DB.prepare(
 			`SELECT otp_secret FROM users WHERE id = ?1 AND otp_enabled = 1 LIMIT 1`,
 		)
 			.bind(sessionData.userId)
@@ -443,7 +445,7 @@ app.post('/', async (c) => {
 					state,
 					responseType,
 					error: 'Two-factor authentication error',
-					instanceTitle: c.env.INSTANCE_TITLE,
+					instanceTitle: await getInstanceTitle(),
 				}),
 				400,
 			);
@@ -461,14 +463,14 @@ app.post('/', async (c) => {
 					state,
 					responseType,
 					error: 'Invalid two-factor code',
-					instanceTitle: c.env.INSTANCE_TITLE,
+					instanceTitle: await getInstanceTitle(),
 				}),
 				400,
 			);
 		}
 
 		// Clean up session
-		await c.env.SESSIONS.delete(`oauth_session:${sessionToken}`);
+		await env.SESSIONS.delete(`oauth_session:${sessionToken}`);
 
 		// Issue authorization code
 		return await issueAuthorizationCode(c, {
@@ -483,7 +485,7 @@ app.post('/', async (c) => {
 	// ---------------------------------------------------------------------------
 	// Turnstile CAPTCHA verification (if enabled)
 	// ---------------------------------------------------------------------------
-	const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+	const turnstile = await getTurnstileSettings();
 
 	// ---------------------------------------------------------------------------
 	// Email/password login
@@ -500,7 +502,7 @@ app.post('/', async (c) => {
 				state,
 				responseType,
 				error: 'Email and password are required',
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
@@ -519,7 +521,7 @@ app.post('/', async (c) => {
 					state,
 					responseType,
 					error: 'CAPTCHA verification failed. Please try again.',
-					instanceTitle: c.env.INSTANCE_TITLE,
+					instanceTitle: await getInstanceTitle(),
 					turnstileSiteKey: turnstile.siteKey,
 				}),
 				422,
@@ -536,7 +538,7 @@ app.post('/', async (c) => {
 					state,
 					responseType,
 					error: 'CAPTCHA verification failed. Please try again.',
-					instanceTitle: c.env.INSTANCE_TITLE,
+					instanceTitle: await getInstanceTitle(),
 					turnstileSiteKey: turnstile.siteKey,
 				}),
 				422,
@@ -545,7 +547,7 @@ app.post('/', async (c) => {
 	}
 
 	// Look up user
-	const user = await c.env.DB.prepare(
+	const user = await env.DB.prepare(
 		`SELECT id, encrypted_password, otp_enabled, confirmed_at FROM users WHERE email = ?1 LIMIT 1`,
 	)
 		.bind(email.toLowerCase())
@@ -560,7 +562,7 @@ app.post('/', async (c) => {
 				state,
 				responseType,
 				error: 'Invalid email or password',
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
@@ -578,7 +580,7 @@ app.post('/', async (c) => {
 				state,
 				responseType,
 				error: 'Invalid email or password',
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
@@ -595,7 +597,7 @@ app.post('/', async (c) => {
 				state,
 				responseType,
 				error: 'Please confirm your email address before signing in',
-				instanceTitle: c.env.INSTANCE_TITLE,
+				instanceTitle: await getInstanceTitle(),
 				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			403,
@@ -605,7 +607,7 @@ app.post('/', async (c) => {
 	// Check if 2FA is required
 	if (user.otp_enabled) {
 		const sessionTok = generateToken(64);
-		await c.env.SESSIONS.put(
+		await env.SESSIONS.put(
 			`oauth_session:${sessionTok}`,
 			JSON.stringify({ userId: user.id }),
 			{ expirationTtl: 300 }, // 5 minutes
@@ -648,7 +650,6 @@ async function issueAuthorizationCode(
 	},
 ) {
 	const code = await createAuthorizationCode(
-		c.env.DB,
 		opts.applicationId,
 		opts.userId,
 		opts.redirectUri,

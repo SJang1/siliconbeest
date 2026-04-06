@@ -1,7 +1,8 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -128,8 +129,8 @@ app.get('/', async (c) => {
 	`;
 	bindings.push(limit);
 
-	const { results } = await c.env.DB.prepare(sql).bind(...bindings).all();
-	const domain = c.env.INSTANCE_DOMAIN;
+	const { results } = await env.DB.prepare(sql).bind(...bindings).all();
+	const domain = env.INSTANCE_DOMAIN;
 
 	const accounts = (results || []).map((row) => formatAdminAccount(row, domain));
 

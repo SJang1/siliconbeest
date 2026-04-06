@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Mention = {
@@ -15,10 +16,9 @@ export type CreateMentionInput = {
 };
 
 export const findByStatusId = async (
-	db: D1Database,
 	statusId: string,
 ): Promise<Mention[]> => {
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare('SELECT * FROM mentions WHERE status_id = ? ORDER BY created_at ASC')
 		.bind(statusId)
 		.all<Mention>();
@@ -26,7 +26,6 @@ export const findByStatusId = async (
 };
 
 export const findByAccountId = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 20,
 	maxId?: string,
@@ -38,7 +37,7 @@ export const findByAccountId = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM mentions
 			 WHERE ${where}
@@ -50,7 +49,6 @@ export const findByAccountId = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateMentionInput,
 ): Promise<Mention> => {
 	const now = new Date().toISOString();
@@ -63,7 +61,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			'INSERT OR IGNORE INTO mentions (id, status_id, account_id, silent, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -74,7 +72,6 @@ export const create = async (
 };
 
 export const createBatch = async (
-	db: D1Database,
 	mentions: CreateMentionInput[],
 ): Promise<void> => {
 	if (mentions.length === 0) return;
@@ -82,12 +79,12 @@ export const createBatch = async (
 
 	const stmts = mentions.map((input) => {
 		const id = generateUlid();
-		return db
+		return env.DB
 			.prepare(
 				'INSERT OR IGNORE INTO mentions (id, status_id, account_id, silent, created_at) VALUES (?, ?, ?, ?, ?)'
 			)
 			.bind(id, input.status_id, input.account_id, input.silent ?? 0, now);
 	});
 
-	await db.batch(stmts);
+	await env.DB.batch(stmts);
 };

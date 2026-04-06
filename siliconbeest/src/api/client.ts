@@ -1,5 +1,12 @@
 const API_BASE = '/api';
 
+// Callback for handling 401 responses globally (set by auth store on init)
+let onUnauthorized: (() => void) | null = null;
+
+export function setOnUnauthorized(cb: () => void) {
+  onUnauthorized = cb;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -49,6 +56,10 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
+    // Auto-logout on 401 for authenticated requests
+    if (res.status === 401 && opts?.token && onUnauthorized) {
+      onUnauthorized();
+    }
     const err = await res.json().catch(() => ({
       error: res.statusText,
     }));
@@ -77,6 +88,9 @@ export async function apiFetchFormData<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && opts?.token && onUnauthorized) {
+      onUnauthorized();
+    }
     const err = await res.json().catch(() => ({
       error: res.statusText,
     }));

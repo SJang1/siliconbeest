@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import {
@@ -10,7 +11,7 @@ import {
 	deleteDomainBlock,
 } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -21,7 +22,7 @@ app.use('*', authRequired, adminRequired);
  */
 app.get('/', async (c) => {
 	const limit = Math.min(parseInt(c.req.query('limit') || '40', 10), 200);
-	const results = await listDomainBlocks(c.env.DB, limit);
+	const results = await listDomainBlocks(limit);
 	return c.json(results.map(formatDomainBlock));
 });
 
@@ -29,7 +30,7 @@ app.get('/', async (c) => {
  * GET /api/v1/admin/domain_blocks/:id — fetch single domain block.
  */
 app.get('/:id', async (c) => {
-	const row = await getDomainBlock(c.env.DB, c.req.param('id'));
+	const row = await getDomainBlock(c.req.param('id'));
 	return c.json(formatDomainBlock(row));
 });
 
@@ -49,10 +50,10 @@ app.post('/', async (c) => {
 
 	if (!body.domain) throw new AppError(422, 'domain is required');
 
-	const row = await createDomainBlock(c.env.DB, body);
+	const row = await createDomainBlock(body);
 
 	// Invalidate domain block cache
-	await c.env.CACHE.delete(`domblk:${body.domain.toLowerCase()}`);
+	await env.CACHE.delete(`domblk:${body.domain.toLowerCase()}`);
 
 	return c.json(formatDomainBlock(row), 200);
 });
@@ -71,10 +72,10 @@ app.put('/:id', async (c) => {
 		obfuscate?: boolean;
 	}>();
 
-	const { row, domain } = await updateDomainBlock(c.env.DB, id, body);
+	const { row, domain } = await updateDomainBlock(id, body);
 
 	// Invalidate domain block cache
-	await c.env.CACHE.delete(`domblk:${domain.toLowerCase()}`);
+	await env.CACHE.delete(`domblk:${domain.toLowerCase()}`);
 
 	return c.json(formatDomainBlock(row));
 });
@@ -83,9 +84,9 @@ app.put('/:id', async (c) => {
  * DELETE /api/v1/admin/domain_blocks/:id — remove a domain block.
  */
 app.delete('/:id', async (c) => {
-	const domain = await deleteDomainBlock(c.env.DB, c.req.param('id'));
+	const domain = await deleteDomainBlock(c.req.param('id'));
 	// Invalidate domain block cache
-	await c.env.CACHE.delete(`domblk:${domain.toLowerCase()}`);
+	await env.CACHE.delete(`domblk:${domain.toLowerCase()}`);
 	return c.json({}, 200);
 });
 

@@ -33,6 +33,8 @@ import {
   importEd25519PrivateKey,
 } from '../../../../../packages/shared/crypto/keys';
 import { encodeEd25519PublicKeyMultibase, generateEd25519KeyPair } from '../../utils/crypto';
+import { getInstanceTitle } from '../../services/instance';
+import { env } from 'cloudflare:workers';
 
 /** Profile metadata field as stored in accounts.fields JSON column. */
 interface ProfileField {
@@ -57,12 +59,11 @@ function extractEmojiShortcodes(text: string): string[] {
 export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
   fed
     .setActorDispatcher('/users/{identifier}', async (ctx, identifier) => {
-      const env = ctx.data.env;
       const domain = env.INSTANCE_DOMAIN;
 
       // ---- Instance actor (special case) ----
       if (identifier === '__instance__') {
-        return buildInstanceActor(env, domain);
+        return buildInstanceActor(domain);
       }
 
       // ---- Regular user actors ----
@@ -243,7 +244,6 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       return actor;
     })
     .setKeyPairsDispatcher(async (ctx, identifier) => {
-      const env = ctx.data.env;
       const domain = env.INSTANCE_DOMAIN;
 
       // Determine the account_id to look up
@@ -301,7 +301,6 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
 
   // Add custom WebFinger links (profile-page, subscribe template)
   fed.setWebFingerLinksDispatcher(async (ctx, resource): Promise<readonly WebFingerLink[]> => {
-    const env = ctx.data.env;
     const domain = env.INSTANCE_DOMAIN;
 
     // Parse the acct: URI to get the username
@@ -335,7 +334,6 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
  * Build the instance-level Application actor.
  */
 async function buildInstanceActor(
-  env: { DB: D1Database; INSTANCE_DOMAIN: string; INSTANCE_TITLE: string },
   domain: string,
 ): Promise<Application | null> {
   // Look up existing instance actor key
@@ -364,7 +362,7 @@ async function buildInstanceActor(
   return new Application({
     id: new URL(actorId),
     preferredUsername: domain,
-    name: env.INSTANCE_TITLE || 'SiliconBeest',
+    name: await getInstanceTitle(),
     summary: `Instance actor for ${domain}`,
     inbox: new URL(`https://${domain}/inbox`),
     outbox: new URL(`https://${domain}/outbox`),

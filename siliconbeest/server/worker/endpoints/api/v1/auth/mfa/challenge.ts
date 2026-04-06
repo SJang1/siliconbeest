@@ -1,13 +1,10 @@
 /**
  * MFA challenge verification endpoint.
  * POST /api/v1/auth/mfa/challenge
- *
- * After a login attempt returns `mfa_required`, the client sends
- * the temporary `mfa_token` and the user's TOTP `code` (or a backup code)
- * to this endpoint to complete authentication.
  */
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../../types';
 import { decryptAESGCM } from '../../../../../utils/crypto';
 import { verifyTOTP, hashBackupCode } from '../../../../../utils/totp';
 import { AppError } from '../../../../../middleware/errorHandler';
@@ -18,7 +15,7 @@ import {
 } from '../../../../../services/auth';
 import type { UserRow } from '../../../../../types/db';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.post('/', async (c) => {
 	const body = await c.req.json<{ mfa_token?: string; code?: string }>().catch(
@@ -31,50 +28,43 @@ app.post('/', async (c) => {
 		throw new AppError(422, 'mfa_token and code are required');
 	}
 
-	// Validate the mfa_token from KV
 	const kvKey = `mfa:${mfa_token}`;
-	const userId = await c.env.CACHE.get(kvKey);
+	const userId = await env.CACHE.get(kvKey);
 
 	if (!userId) {
 		throw new AppError(401, 'MFA token is invalid or expired');
 	}
 
-	// Look up user
-	const user = await c.env.DB.prepare(
-		'SELECT id, otp_enabled, otp_secret, otp_backup_codes FROM users WHERE id = ?1 LIMIT 1',
-	).bind(userId).first<Pick<UserRow, 'id' | 'otp_enabled' | 'otp_secret' | 'otp_backup_codes'>>();
+	const user = await env.DB.prepare(
+		'SELECT id, email, locale, otp_enabled, otp_secret, otp_backup_codes FROM users WHERE id = ?1 LIMIT 1',
+	).bind(userId).first<Pick<UserRow, 'id' | 'otp_enabled' | 'otp_secret' | 'otp_backup_codes'> & { email: string; locale: string }>();
 
 	if (!user || !user.otp_enabled || !user.otp_secret) {
-		// Clean up the KV entry
-		await c.env.CACHE.delete(kvKey);
+		await env.CACHE.delete(kvKey);
 		throw new AppError(401, 'MFA is not configured for this account');
 	}
 
-	// Decrypt the OTP secret
-	const otpSecret = await decryptAESGCM(user.otp_secret, c.env.OTP_ENCRYPTION_KEY);
-
-	// Try TOTP verification first
+	const otpSecret = await decryptAESGCM(user.otp_secret, env.OTP_ENCRYPTION_KEY);
 	const totpValid = await verifyTOTP(code, otpSecret);
 
 	if (!totpValid) {
-		// Try backup codes
-		const backupCodeUsed = await tryBackupCode(c.env.DB, user, code);
-
+		const backupCodeUsed = await tryBackupCode(user, code);
 		if (!backupCodeUsed) {
 			throw new AppError(401, 'Invalid MFA code');
 		}
 	}
 
-	// Success — delete the MFA token to prevent replay
-	await c.env.CACHE.delete(kvKey);
+	await env.CACHE.delete(kvKey);
 
-	// Issue access token
-	const appRecord = await getOrCreateInternalApp(c.env.DB);
-	const { tokenValue, createdAt } = await createAccessToken(c.env.DB, appRecord.id, user.id);
-
-	// Update sign-in tracking
+	// Issue access token (includes login notification email)
+	const appRecord = await getOrCreateInternalApp();
 	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
-	await updateSignInTracking(c.env.DB, user.id, ip);
+	const userAgent = c.req.header('User-Agent') || '';
+	const { tokenValue, createdAt } = await createAccessToken(appRecord.id, user.id, {
+		ip, userAgent, email: user.email, locale: user.locale,
+	});
+
+	await updateSignInTracking(user.id, ip);
 
 	return c.json({
 		access_token: tokenValue,
@@ -84,18 +74,11 @@ app.post('/', async (c) => {
 	});
 });
 
-/**
- * Check if the provided code matches any of the user's backup codes.
- * If it matches, remove the used backup code from the user record.
- */
 async function tryBackupCode(
-	db: D1Database,
 	user: Pick<UserRow, 'id' | 'otp_backup_codes'>,
 	code: string,
 ): Promise<boolean> {
-	if (!user.otp_backup_codes) {
-		return false;
-	}
+	if (!user.otp_backup_codes) return false;
 
 	let storedHashes: string[];
 	try {
@@ -104,24 +87,16 @@ async function tryBackupCode(
 		return false;
 	}
 
-	if (!Array.isArray(storedHashes) || storedHashes.length === 0) {
-		return false;
-	}
+	if (!Array.isArray(storedHashes) || storedHashes.length === 0) return false;
 
 	const codeHash = await hashBackupCode(code);
 	const matchIndex = storedHashes.indexOf(codeHash);
+	if (matchIndex === -1) return false;
 
-	if (matchIndex === -1) {
-		return false;
-	}
-
-	// Remove the used backup code
 	storedHashes.splice(matchIndex, 1);
-	const updatedCodes = JSON.stringify(storedHashes);
-
-	await db.prepare(
+	await env.DB.prepare(
 		'UPDATE users SET otp_backup_codes = ?1, updated_at = ?2 WHERE id = ?3',
-	).bind(updatedCodes, new Date().toISOString(), user.id).run();
+	).bind(JSON.stringify(storedHashes), new Date().toISOString(), user.id).run();
 
 	return true;
 }

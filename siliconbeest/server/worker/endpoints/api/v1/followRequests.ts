@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { requireScope } from '../../../middleware/scopeCheck';
 import { generateUlid } from '../../../utils/ulid';
@@ -10,14 +11,14 @@ import { sendToRecipient } from '../../../federation/helpers/send';
 import { Accept, Reject, Follow } from '@fedify/fedify/vocab';
 import type { AccountRow } from '../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 // GET /api/v1/follow_requests — list pending follow requests
 app.get('/', authRequired, requireScope('read:follows'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const pag = parsePaginationParams({
     max_id: c.req.query('max_id'),
@@ -46,10 +47,10 @@ app.get('/', authRequired, requireScope('read:follows'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) => {
-    return serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
+    return serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN });
   });
 
   if (pag.minId) accounts.reverse();
@@ -65,15 +66,15 @@ app.get('/', authRequired, requireScope('read:follows'), async (c) => {
 // POST /api/v1/follow_requests/:id/authorize — accept follow request
 app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const requestAccountId = c.req.param('id');
 
   const { followRequest: fr } = await acceptFollowRequest(
-    c.env.DB, domain, requestAccountId, currentAccount.id,
+    domain, requestAccountId, currentAccount.id,
   );
 
   // Create follow notification for the requester (they now have a new follower relationship accepted)
-  await c.env.QUEUE_INTERNAL.send({
+  await env.QUEUE_INTERNAL.send({
     type: 'create_notification',
     recipientAccountId: requestAccountId,
     senderAccountId: currentAccount.id,
@@ -81,7 +82,7 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   });
 
   // AP: Send Accept(Follow) to the remote server
-  const remoteAccount = await c.env.DB.prepare(
+  const remoteAccount = await env.DB.prepare(
     'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
@@ -99,7 +100,7 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
       tos: [new URL(remoteAccount.uri)],
     });
     const fed = c.get('federation');
-    await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount.uri, accept);
+    await sendToRecipient(fed, currentAccount.username, remoteAccount.uri, accept);
   }
 
   return c.json({
@@ -127,16 +128,16 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
   const requestAccountId = c.req.param('id');
 
   const { followRequest: fr } = await rejectFollowRequest(
-    c.env.DB, requestAccountId, currentAccount.id,
+    requestAccountId, currentAccount.id,
   );
 
   // AP: Send Reject(Follow) to the remote server
-  const remoteAccount2 = await c.env.DB.prepare(
+  const remoteAccount2 = await env.DB.prepare(
     'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
   if (remoteAccount2?.domain) {
-    const domain = c.env.INSTANCE_DOMAIN;
+    const domain = env.INSTANCE_DOMAIN;
     const myUri = `https://${domain}/users/${currentAccount.username}`;
     const originalFollow = new Follow({
       id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
@@ -150,7 +151,7 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
       tos: [new URL(remoteAccount2.uri)],
     });
     const fed = c.get('federation');
-    await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount2.uri, reject);
+    await sendToRecipient(fed, currentAccount.username, remoteAccount2.uri, reject);
   }
 
   return c.json({

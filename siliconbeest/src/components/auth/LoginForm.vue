@@ -6,7 +6,7 @@ import { useTurnstile } from '@/composables/useTurnstile'
 const { t } = useI18n()
 const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -38,14 +38,14 @@ watch(turnstileEnabled, (enabled) => {
 })
 
 async function handleSubmit() {
-  if (!email.value || !password.value) return
+  if (!username.value || !password.value) return
   if (turnstileEnabled.value && !turnstileToken.value) {
     error.value = t('turnstile.verification_failed')
     return
   }
   loading.value = true
   error.value = ''
-  emit('submit', { email: email.value, password: password.value, turnstile_token: turnstileToken.value })
+  emit('submit', { username: username.value, password: password.value, turnstile_token: turnstileToken.value })
 }
 
 function handlePasskeyLogin() {
@@ -64,18 +64,18 @@ function handlePasskeyLogin() {
       {{ error || props.serverError }}
     </div>
 
-    <!-- Email -->
+    <!-- Username -->
     <div>
-      <label for="login-email" class="block text-sm font-medium mb-1">{{ t('auth.email') }}</label>
+      <label for="login-username" class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
       <input
-        id="login-email"
-        name="email"
-        v-model="email"
-        type="email"
+        id="login-username"
+        name="username"
+        v-model="username"
+        type="text"
         required
         autocomplete="username"
         class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        :placeholder="t('auth.email_placeholder')"
+        :placeholder="t('auth.username_placeholder')"
       />
     </div>
 
@@ -94,9 +94,12 @@ function handlePasskeyLogin() {
       />
     </div>
 
-    <!-- Forgot password -->
-    <div class="text-right">
-      <router-link to="/auth/forgot-password" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+    <!-- Forgot password / Find username -->
+    <div class="flex justify-between text-sm">
+      <router-link to="/auth/find-username" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+        {{ t('auth.find_username') }}
+      </router-link>
+      <router-link to="/auth/forgot-password" class="text-indigo-600 dark:text-indigo-400 hover:underline">
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>

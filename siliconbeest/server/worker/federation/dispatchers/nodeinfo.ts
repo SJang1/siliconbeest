@@ -12,6 +12,8 @@
 import type { Federation, NodeInfo } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
 import { SILICONBEEST_VERSION } from '../../version';
+import { getInstanceTitle } from '../../services/instance';
+import { env } from 'cloudflare:workers';
 
 const STATS_CACHE_KEY = 'nodeinfo:stats:fedify';
 const STATS_CACHE_TTL = 3600; // 1 hour
@@ -26,15 +28,15 @@ interface NodeInfoStats {
 /**
  * Query usage statistics from D1, with KV caching.
  */
-async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoStats> {
-  const cached = await cache.get(STATS_CACHE_KEY, 'json');
+async function getStats(): Promise<NodeInfoStats> {
+  const cached = await env.CACHE.get(STATS_CACHE_KEY, 'json');
   if (cached) return cached as NodeInfoStats;
 
   const [usersResult, statusesResult, domainsResult, commentsResult] = await Promise.all([
-    db.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
-    db.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
-    db.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
-    db.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL AND local = 1 AND reply = 1`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
+    env.DB.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL AND local = 1 AND reply = 1`).first(),
   ]);
 
   const stats: NodeInfoStats = {
@@ -44,7 +46,7 @@ async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoSta
     localComments: (commentsResult?.cnt as number) ?? 0,
   };
 
-  await cache.put(STATS_CACHE_KEY, JSON.stringify(stats), {
+  await env.CACHE.put(STATS_CACHE_KEY, JSON.stringify(stats), {
     expirationTtl: STATS_CACHE_TTL,
   });
 
@@ -55,10 +57,9 @@ async function getStats(db: D1Database, cache: KVNamespace): Promise<NodeInfoSta
  * Register the NodeInfo dispatcher on the given Federation instance.
  */
 export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): void {
-  fed.setNodeInfoDispatcher('/nodeinfo/2.1', async (ctx): Promise<NodeInfo> => {
-    const env = ctx.data.env;
-    const stats = await getStats(env.DB, env.CACHE);
-    const registrationOpen = env.REGISTRATION_MODE === 'open';
+  fed.setNodeInfoDispatcher('/nodeinfo/2.1', async (): Promise<NodeInfo> => {
+    const stats = await getStats();
+    const registrationOpen = (env.REGISTRATION_MODE as string) === 'open';
 
     return {
       software: {
@@ -79,7 +80,7 @@ export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): voi
         localComments: stats.localComments,
       },
       metadata: {
-        nodeName: env.INSTANCE_TITLE || 'SiliconBeest',
+        nodeName: await getInstanceTitle(),
         nodeDescription: `A SiliconBeest instance at ${env.INSTANCE_DOMAIN}`,
       },
     };

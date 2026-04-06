@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Temporal } from '@js-temporal/polyfill';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { sendToFollowers } from '../../../../federation/helpers/send';
@@ -8,21 +9,21 @@ import { Delete as APDelete, Tombstone } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import { deleteStatus } from '../../../../services/status';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const { status: row } = await deleteStatus(c.env.DB, statusId, currentAccountId);
+  const { status: row } = await deleteStatus(statusId, currentAccountId);
 
   // Federation: deliver Delete(Note) to followers if status is local
   if (row.local === 1) {
     try {
-      const account = await c.env.DB.prepare(
+      const account = await env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (account) {
@@ -34,7 +35,7 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
           published: Temporal.Now.instant(),
         });
         const fed = c.get('federation');
-        await sendToFollowers(fed, c.env, account.username as string, del);
+        await sendToFollowers(fed, account.username as string, del);
       }
     } catch (e) {
       console.error('Federation delivery failed for status delete:', e);
@@ -44,8 +45,8 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   // Broadcast delete event via streaming to all connected clients
   try {
     // Send to public streams
-    const doId = c.env.STREAMING_DO.idFromName('__public__');
-    const stub = c.env.STREAMING_DO.get(doId);
+    const doId = env.STREAMING_DO.idFromName('__public__');
+    const stub = env.STREAMING_DO.get(doId);
     await stub.fetch(new Request('http://internal/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,8 +59,8 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
 
     // Send to the author's user stream
     const user = c.get('currentUser')!;
-    const userDoId = c.env.STREAMING_DO.idFromName(user.id);
-    const userStub = c.env.STREAMING_DO.get(userDoId);
+    const userDoId = env.STREAMING_DO.idFromName(user.id);
+    const userStub = env.STREAMING_DO.get(userDoId);
     await userStub.fetch(new Request('http://internal/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

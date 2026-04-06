@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type HomeTimelineEntry = {
@@ -8,7 +9,6 @@ export type HomeTimelineEntry = {
 };
 
 export const findByAccount = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 20,
 	maxId?: string,
@@ -22,7 +22,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM home_timeline_entries
 			 WHERE ${where}
@@ -34,7 +34,6 @@ export const findByAccount = async (
 };
 
 export const insert = async (
-	db: D1Database,
 	accountId: string,
 	statusId: string,
 ): Promise<HomeTimelineEntry> => {
@@ -47,7 +46,7 @@ export const insert = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at)
 			 VALUES (?, ?, ?, ?)`
@@ -59,7 +58,6 @@ export const insert = async (
 };
 
 export const insertBatch = async (
-	db: D1Database,
 	accountId: string,
 	statusIds: string[],
 ): Promise<void> => {
@@ -68,7 +66,7 @@ export const insertBatch = async (
 
 	const stmts = statusIds.map((statusId) => {
 		const id = generateUlid();
-		return db
+		return env.DB
 			.prepare(
 				`INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at)
 				 VALUES (?, ?, ?, ?)`
@@ -76,24 +74,22 @@ export const insertBatch = async (
 			.bind(id, accountId, statusId, now);
 	});
 
-	await db.batch(stmts);
+	await env.DB.batch(stmts);
 };
 
 export const deleteByStatus = async (
-	db: D1Database,
 	statusId: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM home_timeline_entries WHERE status_id = ?')
 		.bind(statusId)
 		.run();
 };
 
 export const deleteByAccount = async (
-	db: D1Database,
 	accountId: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM home_timeline_entries WHERE account_id = ?')
 		.bind(accountId)
 		.run();

@@ -12,10 +12,10 @@ const auth = useAuthStore()
 const error = ref('')
 const loginFormRef = ref<InstanceType<typeof LoginForm> | null>(null)
 
-async function handleLogin(credentials: { email: string; password: string; turnstile_token?: string }) {
+async function handleLogin(credentials: { username: string; password: string; turnstile_token?: string }) {
   error.value = ''
   try {
-    await auth.login(credentials.email, credentials.password, credentials.turnstile_token)
+    await auth.login(credentials.username, credentials.password, credentials.turnstile_token)
     const redirect = (route.query.redirect as string) || '/home'
     router.push(redirect)
   } catch (e: any) {

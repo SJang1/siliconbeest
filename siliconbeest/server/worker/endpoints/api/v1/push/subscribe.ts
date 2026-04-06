@@ -5,14 +5,15 @@
  * Creating a new subscription replaces any existing one for that token.
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
 import { createPushSubscription } from '../../../../services/push';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 function toBool(value: unknown): number {
   return value === true || value === 'true' || value === '1' ? 1 : 0;
@@ -91,7 +92,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
 
   const id = crypto.randomUUID();
 
-  await createPushSubscription(c.env.DB, {
+  await createPushSubscription({
     id,
     userId: user.id,
     tokenId,
@@ -132,7 +133,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
       endpoint,
       alerts,
       policy,
-      server_key: await getVapidPublicKey(c.env.DB),
+      server_key: await getVapidPublicKey(),
     },
     200,
   );

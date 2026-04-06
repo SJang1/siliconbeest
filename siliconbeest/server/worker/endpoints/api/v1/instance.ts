@@ -1,38 +1,39 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { getVapidPublicKey } from '../../../utils/vapid';
 import { MASTODON_V1_VERSION } from '../../../version';
-import { getSettings, getRules, getStats, getContactAccount } from '../../../services/instance';
+import { getSettings, getInstanceTitle, getRules, getStats, getContactAccount } from '../../../services/instance';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 /**
  * GET /api/v1/instance — Mastodon v1 instance info
  * Required by most third-party Mastodon clients (Ivory, Ice Cubes, Megalodon, etc.)
  */
 app.get('/', async (c) => {
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const dbSettings = await getSettings(c.env.DB, [
-    'site_title', 'site_description', 'registration_mode', 'registration_message',
+  const dbSettings = await getSettings([
+    'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'web_push_enabled',
   ]);
 
-  const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
+  const title = await getInstanceTitle();
   const description = dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`;
-  const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
+  const registrationMode = dbSettings.registration_mode || env.REGISTRATION_MODE || 'none';
 
   // Stats + rules (parallel)
   const [stats, ruleRows] = await Promise.all([
-    getStats(c.env.DB),
-    getRules(c.env.DB),
+    getStats(),
+    getRules(),
   ]);
   const rules = ruleRows.map((r) => ({ id: r.id, text: r.text }));
 
   // Contact account (admin)
   let contactAccount = null;
   const contactUsername = dbSettings.site_contact_username || 'admin';
-  const adminRow = await getContactAccount(c.env.DB, contactUsername);
+  const adminRow = await getContactAccount(contactUsername);
 
   if (adminRow) {
     contactAccount = {
@@ -110,7 +111,7 @@ app.get('/', async (c) => {
     contact_account: contactAccount,
     rules,
     push_enabled: dbSettings.web_push_enabled === '1',
-    vapid_key: (await getVapidPublicKey(c.env.DB)) || null,
+    vapid_key: (await getVapidPublicKey()) || null,
   });
 });
 

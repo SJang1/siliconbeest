@@ -57,5 +57,43 @@
 
   "warning_unsensitize_subject": "敏感媒体标记已移除",
   "warning_unsensitize_heading": "敏感媒体标记已移除",
-  "warning_unsensitize_description": "您的媒体的敏感内容标记已被移除。"
+  "warning_unsensitize_description": "您的媒体的敏感内容标记已被移除。",
+
+  "login_notification_subject": "新登录 — {title}",
+  "login_notification_heading": "检测到新登录",
+  "login_notification_body": "您的账户检测到新的登录。",
+  "login_notification_time": "时间",
+  "login_notification_ip": "IP 地址",
+  "login_notification_device": "设备",
+  "login_notification_warning": "如果这不是您本人操作，请立即更改密码。",
+
+  "password_changed_subject": "密码已更改 — {title}",
+  "password_changed_heading": "密码更改成功",
+  "password_changed_body": "您的密码已成功更改。",
+  "password_changed_sessions": "为了安全，所有其他活跃会话已被注销。",
+  "password_changed_warning": "如果您没有进行此更改，请立即重置密码。",
+
+  "username_reminder_subject": "用户名提醒 — {title}",
+  "username_reminder_heading": "用户名提醒",
+  "username_reminder_body": "您请求了与此邮箱地址关联的用户名提醒。",
+  "username_reminder_your_username": "您的用户名",
+  "username_reminder_your_handle": "您的完整标识",
+  "username_reminder_ignore": "如果您未请求此邮件，可以安全地忽略它。",
+
+  "admin_pending_subject": "新用户等待审批: @{username}",
+  "admin_pending_heading": "新注册待审批",
+  "admin_pending_body": "一位新用户已注册并等待审批：",
+  "admin_pending_username": "用户名",
+  "admin_pending_email": "邮箱",
+  "admin_pending_reason": "理由",
+  "admin_pending_review": "查看待审账户",
+
+  "admin_report_subject": "新举报: @{target}",
+  "admin_report_heading": "收到新举报",
+  "admin_report_body": "收到一份新的举报：",
+  "admin_report_reporter": "举报者",
+  "admin_report_target": "被举报者",
+  "admin_report_category": "分类",
+  "admin_report_comment": "说明",
+  "admin_report_review": "查看举报"
 }

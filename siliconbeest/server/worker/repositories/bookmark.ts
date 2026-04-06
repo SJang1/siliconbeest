@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Bookmark = {
@@ -13,11 +14,10 @@ export type CreateBookmarkInput = {
 };
 
 export const findByAccountAndStatus = async (
-	db: D1Database,
 	accountId: string,
 	statusId: string,
 ): Promise<Bookmark | null> => {
-	const result = await db
+	const result = await env.DB
 		.prepare('SELECT * FROM bookmarks WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.first<Bookmark>();
@@ -25,7 +25,6 @@ export const findByAccountAndStatus = async (
 };
 
 export const findByAccount = async (
-	db: D1Database,
 	accountId: string,
 	limit: number = 20,
 	maxId?: string,
@@ -37,7 +36,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await db
+	const { results } = await env.DB
 		.prepare(
 			`SELECT * FROM bookmarks
 			 WHERE ${where}
@@ -49,7 +48,6 @@ export const findByAccount = async (
 };
 
 export const create = async (
-	db: D1Database,
 	input: CreateBookmarkInput,
 ): Promise<Bookmark> => {
 	const now = new Date().toISOString();
@@ -61,7 +59,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			'INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?, ?, ?, ?)'
 		)
@@ -72,10 +70,9 @@ export const create = async (
 };
 
 export const deleteById = async (
-	db: D1Database,
 	id: string,
 ): Promise<void> => {
-	await db
+	await env.DB
 		.prepare('DELETE FROM bookmarks WHERE id = ?')
 		.bind(id)
 		.run();

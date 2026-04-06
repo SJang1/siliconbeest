@@ -6,12 +6,11 @@
  * and enqueues individual deliver_activity messages for each unique inbox.
  */
 
-import type { Env } from '../env';
+import { env } from 'cloudflare:workers';
 import type { DeliverActivityFanoutMessage, DeliverActivityMessage } from '../shared/types/queue';
 
 export async function handleDeliverActivityFanout(
   msg: DeliverActivityFanoutMessage,
-  env: Env,
 ): Promise<void> {
   const { activity, actorAccountId } = msg;
 

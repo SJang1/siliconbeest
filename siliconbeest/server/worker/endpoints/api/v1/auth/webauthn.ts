@@ -9,10 +9,12 @@
  * DELETE /credentials/:id    — delete a passkey (authRequired)
  */
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { generateUlid } from '../../../../utils/ulid';
 import { generateSecureRandom } from '../../../../utils/crypto';
+import { getInstanceTitle } from '../../../../services/instance';
 import { decodeCBOR } from '../../../../utils/cbor';
 import {
 	base64urlEncode,
@@ -35,22 +37,22 @@ import {
 	getWebAuthnCredentialsByEmail,
 } from '../../../../services/auth';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getOrigin(env: Env): string {
+function getOrigin(): string {
 	return `https://${env.INSTANCE_DOMAIN}`;
 }
 
-function getRpId(env: Env): string {
+function getRpId(): string {
 	return env.INSTANCE_DOMAIN;
 }
 
-function getRpName(env: Env): string {
-	return env.INSTANCE_TITLE || 'SiliconBeest';
+async function getRpName(): Promise<string> {
+	return getInstanceTitle();
 }
 
 // ---------------------------------------------------------------------------
@@ -65,14 +67,14 @@ app.post('/register/options', authRequired, async (c) => {
 	const challengeB64 = base64urlEncode(challenge);
 
 	// Store challenge in KV with 5-minute TTL
-	await c.env.CACHE.put(
+	await env.CACHE.put(
 		`webauthn_challenge:${challengeB64}`,
 		JSON.stringify({ userId: user.id, type: 'register' }),
 		{ expirationTtl: 300 },
 	);
 
 	// Query existing credentials for excludeCredentials
-	const existing = await getWebAuthnCredentials(c.env.DB, user.id);
+	const existing = await getWebAuthnCredentials(user.id);
 
 	const excludeCredentials = existing.map((cred) => ({
 		type: 'public-key' as const,
@@ -85,8 +87,8 @@ app.post('/register/options', authRequired, async (c) => {
 
 	return c.json({
 		rp: {
-			id: getRpId(c.env),
-			name: getRpName(c.env),
+			id: getRpId(),
+			name: await getRpName(),
 		},
 		user: {
 			id: base64urlEncode(new TextEncoder().encode(user.id)),
@@ -140,13 +142,13 @@ app.post('/register/verify', authRequired, async (c) => {
 		return c.json({ error: 'Invalid clientData type' }, 400);
 	}
 
-	if (clientData.origin !== getOrigin(c.env)) {
+	if (clientData.origin !== getOrigin()) {
 		return c.json({ error: 'Invalid origin' }, 400);
 	}
 
 	// 2. Verify challenge from KV
 	const challengeKey = `webauthn_challenge:${clientData.challenge}`;
-	const challengeData = await c.env.CACHE.get(challengeKey, 'json') as {
+	const challengeData = await env.CACHE.get(challengeKey, 'json') as {
 		userId: string;
 		type: string;
 	} | null;
@@ -156,7 +158,7 @@ app.post('/register/verify', authRequired, async (c) => {
 	}
 
 	// Delete challenge to prevent replay
-	await c.env.CACHE.delete(challengeKey);
+	await env.CACHE.delete(challengeKey);
 
 	// 3. Decode attestationObject (CBOR)
 	const attestationObjectBytes = base64urlDecode(body.response.attestationObject);
@@ -172,7 +174,7 @@ app.post('/register/verify', authRequired, async (c) => {
 
 	// 5. Verify RP ID hash = SHA-256(INSTANCE_DOMAIN)
 	const rpIdHash = new Uint8Array(
-		await crypto.subtle.digest('SHA-256', new TextEncoder().encode(getRpId(c.env))),
+		await crypto.subtle.digest('SHA-256', new TextEncoder().encode(getRpId())),
 	);
 	if (!arrayEqual(parsed.rpIdHash, rpIdHash)) {
 		return c.json({ error: 'RP ID hash mismatch' }, 400);
@@ -209,7 +211,7 @@ app.post('/register/verify', authRequired, async (c) => {
 	// 12. Store credential in DB
 	const id = generateUlid();
 
-	await storeWebAuthnCredential(c.env.DB, {
+	await storeWebAuthnCredential({
 		id,
 		userId: user.id,
 		credentialId: credentialIdB64,
@@ -252,7 +254,7 @@ app.post('/authenticate/options', async (c) => {
 		kvPayload.email = body.email.toLowerCase().trim();
 	}
 
-	await c.env.CACHE.put(
+	await env.CACHE.put(
 		`webauthn_challenge:${challengeB64}`,
 		JSON.stringify(kvPayload),
 		{ expirationTtl: 300 },
@@ -262,7 +264,7 @@ app.post('/authenticate/options', async (c) => {
 	let allowCredentials: Array<{ type: string; id: string; transports?: string[] }> | undefined;
 
 	if (body.email) {
-		const creds = await getWebAuthnCredentialsByEmail(c.env.DB, body.email);
+		const creds = await getWebAuthnCredentialsByEmail(body.email);
 
 		if (creds.length > 0) {
 			allowCredentials = creds.map((cred) => ({
@@ -276,7 +278,7 @@ app.post('/authenticate/options', async (c) => {
 	return c.json({
 		challenge: challengeB64,
 		timeout: 300000,
-		rpId: getRpId(c.env),
+		rpId: getRpId(),
 		userVerification: 'preferred',
 		...(allowCredentials ? { allowCredentials } : {}),
 	});
@@ -312,13 +314,13 @@ app.post('/authenticate/verify', async (c) => {
 		return c.json({ error: 'Invalid clientData type' }, 400);
 	}
 
-	if (clientData.origin !== getOrigin(c.env)) {
+	if (clientData.origin !== getOrigin()) {
 		return c.json({ error: 'Invalid origin' }, 400);
 	}
 
 	// 2. Verify challenge from KV
 	const challengeKey = `webauthn_challenge:${clientData.challenge}`;
-	const challengeData = await c.env.CACHE.get(challengeKey, 'json') as {
+	const challengeData = await env.CACHE.get(challengeKey, 'json') as {
 		type: string;
 		email?: string;
 	} | null;
@@ -328,11 +330,11 @@ app.post('/authenticate/verify', async (c) => {
 	}
 
 	// Delete challenge to prevent replay
-	await c.env.CACHE.delete(challengeKey);
+	await env.CACHE.delete(challengeKey);
 
 	// 3. Look up credential by credential_id
 	const credentialIdB64 = body.id;
-	const credRow = await getWebAuthnCredentialByCredentialId(c.env.DB, credentialIdB64);
+	const credRow = await getWebAuthnCredentialByCredentialId(credentialIdB64);
 
 	if (!credRow) {
 		return c.json({ error: 'Credential not found' }, 400);
@@ -344,7 +346,7 @@ app.post('/authenticate/verify', async (c) => {
 
 	// 5. Verify RP ID hash
 	const rpIdHash = new Uint8Array(
-		await crypto.subtle.digest('SHA-256', new TextEncoder().encode(getRpId(c.env))),
+		await crypto.subtle.digest('SHA-256', new TextEncoder().encode(getRpId())),
 	);
 	if (!arrayEqual(parsed.rpIdHash, rpIdHash)) {
 		return c.json({ error: 'RP ID hash mismatch' }, 400);
@@ -391,10 +393,10 @@ app.post('/authenticate/verify', async (c) => {
 	}
 
 	// 11. Update counter and last_used_at
-	await updateWebAuthnCredentialCounter(c.env.DB, credRow.id, parsed.signCount);
+	await updateWebAuthnCredentialCounter(credRow.id, parsed.signCount);
 
 	// 12. Check user status
-	const user = await getUserForWebAuthn(c.env.DB, credRow.user_id);
+	const user = await getUserForWebAuthn(credRow.user_id);
 
 	if (!user) {
 		return c.json({ error: 'User not found' }, 400);
@@ -412,13 +414,16 @@ app.post('/authenticate/verify', async (c) => {
 		return c.json({ error: 'Your email has not been confirmed' }, 403);
 	}
 
-	// 13. Create OAuth access token (same pattern as login.ts)
-	const appRecord = await getOrCreateInternalApp(c.env.DB);
-	const { tokenValue, createdAt } = await createAccessToken(c.env.DB, appRecord.id, user.id);
+	// 13. Create OAuth access token (includes login notification email)
+	const appRecord = await getOrCreateInternalApp();
+	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
+	const userAgent = c.req.header('User-Agent') || '';
+	const { tokenValue, createdAt } = await createAccessToken(appRecord.id, user.id, {
+		ip, userAgent, email: user.email, locale: user.locale,
+	});
 
 	// 14. Update sign-in tracking
-	const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
-	await updateSignInTracking(c.env.DB, user.id, ip);
+	await updateSignInTracking(user.id, ip);
 
 	return c.json({
 		access_token: tokenValue,
@@ -439,7 +444,7 @@ app.post('/authenticate/verify', async (c) => {
 app.get('/credentials', authRequired, async (c) => {
 	const user = c.get('currentUser')!;
 
-	const credentials = await listWebAuthnCredentials(c.env.DB, user.id);
+	const credentials = await listWebAuthnCredentials(user.id);
 
 	return c.json(
 		credentials.map((row) => ({
@@ -463,7 +468,7 @@ app.delete('/credentials/:id', authRequired, async (c) => {
 	const user = c.get('currentUser')!;
 	const credId = c.req.param('id');
 
-	const changes = await deleteWebAuthnCredential(c.env.DB, credId, user.id);
+	const changes = await deleteWebAuthnCredential(credId, user.id);
 
 	if (!changes || changes === 0) {
 		return c.json({ error: 'Credential not found' }, 404);

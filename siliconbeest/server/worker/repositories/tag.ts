@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export type Tag = {
@@ -12,17 +13,17 @@ export type Tag = {
 	updated_at: string;
 };
 
-export const findByName = async (db: D1Database, name: string): Promise<Tag | null> => {
-	const result = await db
+export const findByName = async (name: string): Promise<Tag | null> => {
+	const result = await env.DB
 		.prepare('SELECT * FROM tags WHERE name = ?')
 		.bind(name.toLowerCase())
 		.first<Tag>();
 	return result ?? null;
 };
 
-export const findOrCreate = async (db: D1Database, name: string): Promise<Tag> => {
+export const findOrCreate = async (name: string): Promise<Tag> => {
 	const normalizedName = name.toLowerCase();
-	const existing = await findByName(db, normalizedName);
+	const existing = await findByName(normalizedName);
 	if (existing) return existing;
 
 	const now = new Date().toISOString();
@@ -39,7 +40,7 @@ export const findOrCreate = async (db: D1Database, name: string): Promise<Tag> =
 		updated_at: now,
 	};
 
-	await db
+	await env.DB
 		.prepare(
 			`INSERT INTO tags (id, name, display_name, usable, trendable, listable, last_status_at, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -54,8 +55,8 @@ export const findOrCreate = async (db: D1Database, name: string): Promise<Tag> =
 	return tag;
 };
 
-export const findByStatusId = async (db: D1Database, statusId: string): Promise<Tag[]> => {
-	const { results } = await db
+export const findByStatusId = async (statusId: string): Promise<Tag[]> => {
+	const { results } = await env.DB
 		.prepare(
 			`SELECT t.* FROM tags t
 			 JOIN status_tags st ON st.tag_id = t.id
@@ -67,14 +68,14 @@ export const findByStatusId = async (db: D1Database, statusId: string): Promise<
 	return results;
 };
 
-export const addToStatus = async (db: D1Database, statusId: string, tagIds: string[]): Promise<void> => {
+export const addToStatus = async (statusId: string, tagIds: string[]): Promise<void> => {
 	if (tagIds.length === 0) return;
 
 	const stmts = tagIds.map((tagId) =>
-		db
+		env.DB
 			.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?, ?)')
 			.bind(statusId, tagId)
 	);
 
-	await db.batch(stmts);
+	await env.DB.batch(stmts);
 };

@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function safeJsonParse<T>(val: string | null, fallback: T): T {
   if (!val) return fallback;
@@ -15,10 +16,10 @@ const app = new Hono<HonoEnv>();
 
 app.get('/verify_credentials', authRequired, requireScope('read:accounts'), async (c) => {
   const user = c.get('currentUser')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const row = await c.env.DB.prepare(
-    `SELECT a.*, u.locale, u.role, u.default_privacy
+  const row = await env.DB.prepare(
+    `SELECT a.*, u.locale, u.role, u.default_privacy, u.otp_enabled
      FROM accounts a
      JOIN users u ON u.account_id = a.id
      WHERE a.id = ?1`,
@@ -65,6 +66,7 @@ app.get('/verify_credentials', authRequired, requireScope('read:accounts'), asyn
       permissions: row.role === 'admin' ? '1' : '0',
       highlighted: row.role === 'admin',
     },
+    otp_enabled: !!(row.otp_enabled),
   });
 });
 

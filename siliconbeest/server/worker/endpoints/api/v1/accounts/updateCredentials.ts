@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { isValidLocale } from '../../../../utils/locales';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 function parseFields(raw: string | null): Array<{ name: string; value: string; verified_at: string | null }> {
   if (!raw) return [];
@@ -16,7 +17,7 @@ const app = new Hono<HonoEnv>();
 
 app.patch('/update_credentials', authRequired, requireScope('write:accounts'), async (c) => {
   const currentUser = c.get('currentUser')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   let body: Record<string, unknown> = {};
   let avatarFile: File | null = null;
@@ -51,7 +52,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   if (avatarFile) {
     const ext = avatarFile.name.split('.').pop() || 'png';
     const key = `avatars/${currentUser.account_id}.${ext}`;
-    await c.env.MEDIA_BUCKET.put(key, avatarFile.stream(), {
+    await env.MEDIA_BUCKET.put(key, avatarFile.stream(), {
       httpMetadata: { contentType: avatarFile.type },
     });
     const avatarUrl = `https://${domain}/media/${key}`;
@@ -65,7 +66,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   if (headerFile) {
     const ext = headerFile.name.split('.').pop() || 'png';
     const key = `headers/${currentUser.account_id}.${ext}`;
-    await c.env.MEDIA_BUCKET.put(key, headerFile.stream(), {
+    await env.MEDIA_BUCKET.put(key, headerFile.stream(), {
       httpMetadata: { contentType: headerFile.type },
     });
     const headerUrl = `https://${domain}/media/${key}`;
@@ -154,7 +155,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
 
   if (updates.length > 1) {
     const sql = `UPDATE accounts SET ${updates.join(', ')} WHERE id = ?${paramIdx}`;
-    await c.env.DB.prepare(sql).bind(...params).run();
+    await env.DB.prepare(sql).bind(...params).run();
   }
 
   // Handle default language update (source[language] or source.language)
@@ -163,7 +164,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     sourceLanguage = (body.source as Record<string, unknown>).language;
   }
   if (typeof sourceLanguage === 'string' && isValidLocale(sourceLanguage)) {
-    await c.env.DB.prepare(
+    await env.DB.prepare(
       'UPDATE users SET locale = ?1, updated_at = ?2 WHERE account_id = ?3',
     ).bind(sourceLanguage, now, currentUser.account_id).run();
   }
@@ -175,13 +176,13 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     sourcePrivacy = (body.source as Record<string, unknown>).privacy;
   }
   if (typeof sourcePrivacy === 'string' && validPrivacy.includes(sourcePrivacy)) {
-    await c.env.DB.prepare(
+    await env.DB.prepare(
       'UPDATE users SET default_privacy = ?1, updated_at = ?2 WHERE account_id = ?3',
     ).bind(sourcePrivacy, now, currentUser.account_id).run();
   }
 
   // Fetch updated account
-  const row = await c.env.DB.prepare(
+  const row = await env.DB.prepare(
     `SELECT a.*, u.locale, u.role, u.default_privacy
      FROM accounts a
      JOIN users u ON u.account_id = a.id

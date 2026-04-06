@@ -60,11 +60,11 @@ describe('Activity Idempotency (DB-based)', () => {
 		};
 
 		// First call should succeed
-		await processLike(activity, localUser.accountId, env);
+		await processLike(activity, localUser.accountId);
 
 		// Second call with same activity should not throw (duplicate handled by DB)
 		await expect(
-			processLike(activity, localUser.accountId, env),
+			processLike(activity, localUser.accountId),
 		).resolves.not.toThrow();
 	});
 
@@ -81,7 +81,7 @@ describe('Activity Idempotency (DB-based)', () => {
 			};
 
 			await expect(
-				processLike(activity, localUser.accountId, env),
+				processLike(activity, localUser.accountId),
 			).resolves.not.toThrow();
 		}
 	});
@@ -96,11 +96,11 @@ describe('Activity Idempotency (DB-based)', () => {
 		};
 
 		// First call should succeed
-		await processFollow(activity, localUser.accountId, env);
+		await processFollow(activity, localUser.accountId);
 
 		// Second call with same activity should not throw
 		await expect(
-			processFollow(activity, localUser.accountId, env),
+			processFollow(activity, localUser.accountId),
 		).resolves.not.toThrow();
 	});
 });

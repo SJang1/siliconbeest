@@ -1,31 +1,32 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { getTurnstileSettings } from '../../../utils/turnstile';
 import { MASTODON_V2_VERSION } from '../../../version';
-import { getSettings, getRules, getStats } from '../../../services/instance';
+import { getSettings, getInstanceTitle, getRules, getStats } from '../../../services/instance';
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', async (c) => {
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   // Read settings from DB first, fall back to env vars
-  const dbSettings = await getSettings(c.env.DB, [
-    'site_title', 'site_description', 'registration_mode', 'registration_message',
+  const dbSettings = await getSettings([
+    'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'site_landing_markdown',
     'terms_of_service', 'privacy_policy',
   ]);
 
   // Turnstile settings (cached in KV)
-  const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+  const turnstile = await getTurnstileSettings();
 
-  const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
-  const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
+  const title = await getInstanceTitle();
+  const registrationMode = dbSettings.registration_mode || env.REGISTRATION_MODE || 'none';
 
   // Usage stats + rules (parallel)
   const [stats, ruleRows] = await Promise.all([
-    getStats(c.env.DB),
-    getRules(c.env.DB),
+    getStats(),
+    getRules(),
   ]);
 
   const rules = ruleRows.map((r) => ({

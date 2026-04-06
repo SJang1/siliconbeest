@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
+import { env } from 'cloudflare:workers';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
@@ -20,14 +21,14 @@ import { generateUlid } from '../../../../utils/ulid';
 import type { StatusWithJoinedAccountRow, MediaAttachmentRow } from '../../../../types/db';
 import { createStatus } from '../../../../services/status';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const currentAccount = c.get('currentAccount')!;
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   let body: {
     status?: string;
@@ -57,7 +58,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   // ============================================================
   // Call service to handle all DB operations
   // ============================================================
-  const result = await createStatus(c.env.DB, domain, currentUser.account_id, currentAccount.username, {
+  const result = await createStatus(domain, currentUser.account_id, currentAccount.username, {
     text: statusText,
     visibility: body.visibility,
     sensitive: body.sensitive,
@@ -85,7 +86,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   // Enqueue timeline fanout to followers (skip for DMs — handled after mentions are resolved)
   if (visibility !== 'direct') {
     try {
-      await c.env.QUEUE_INTERNAL.send({
+      await env.QUEUE_INTERNAL.send({
         type: 'timeline_fanout',
         statusId,
         accountId: currentUser.account_id,
@@ -99,7 +100,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   try {
     const urlMatch = statusText.match(/https?:\/\/[^\s<>"')\]]+/i);
     if (urlMatch) {
-      await c.env.QUEUE_INTERNAL.send({
+      await env.QUEUE_INTERNAL.send({
         type: 'fetch_preview_card',
         statusId,
         url: urlMatch[0],
@@ -146,7 +147,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       const conditions = remoteMentions.map(() => `(username = ? AND domain = ?)`).join(' OR ');
       const values = remoteMentions.flatMap(m => [m.username, m.domain!]);
       const query = `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE ${conditions}`;
-      const existingRemoteAccounts = await c.env.DB.prepare(query)
+      const existingRemoteAccounts = await env.DB.prepare(query)
         .bind(...values)
         .all<Record<string, unknown>>();
 
@@ -163,7 +164,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       if (!accountRow) {
         try {
           const fed = c.get('federation');
-          const ctx = getFedifyContext(fed, c.env);
+          const ctx = getFedifyContext(fed);
           const wfResult = await ctx.lookupWebFinger(`acct:${mention.username}@${mention.domain}`);
           if (wfResult) {
             // Extract actor URI from self link
@@ -176,9 +177,9 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
             );
             if (selfLink?.href) {
               // resolveRemoteAccount will fetch the actor doc and upsert
-              const accountId = await resolveRemoteAccount(selfLink.href, c.env);
+              const accountId = await resolveRemoteAccount(selfLink.href);
               if (accountId) {
-                accountRow = await c.env.DB.prepare(
+                accountRow = await env.DB.prepare(
                   'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE id = ?1',
                 ).bind(accountId).first();
               }
@@ -229,12 +230,12 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
         values.push(...mention);
       });
-      await c.env.DB.prepare(query).bind(...values).run();
+      await env.DB.prepare(query).bind(...values).run();
     }
 
     // Batch queue all notifications (fire and forget, don't block)
     for (const notification of notificationsToQueue) {
-      await c.env.QUEUE_INTERNAL.send({
+      await env.QUEUE_INTERNAL.send({
         type: 'create_notification',
         recipientAccountId: notification.recipientAccountId,
         senderAccountId: currentUser.account_id,
@@ -263,7 +264,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
   // Update DB content if changed
   if (fixedContent !== content) {
-    await c.env.DB.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
+    await env.DB.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
   }
 
   // ============================================================
@@ -272,24 +273,24 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   if (visibility === 'direct') {
     try {
       const dmTimelineStmts = [
-        c.env.DB.prepare(
+        env.DB.prepare(
           'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
         ).bind(statusId, currentUser.account_id, now),
       ];
       for (const rm of resolvedMentions) {
         if (!rm.mentionDomain) {
           dmTimelineStmts.push(
-            c.env.DB.prepare(
+            env.DB.prepare(
               'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
             ).bind(statusId, rm.account_id, now),
           );
         }
       }
-      await c.env.DB.batch(dmTimelineStmts);
+      await env.DB.batch(dmTimelineStmts);
 
       // Streaming: fetch full status from DB for accurate payload
       const { sendStreamEvent } = await import('../../../../services/streaming');
-      const dmRow = await c.env.DB.prepare(
+      const dmRow = await env.DB.prepare(
         `SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
                 a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
                 a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
@@ -301,7 +302,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       ).bind(statusId).first<StatusWithJoinedAccountRow>();
 
       if (dmRow) {
-        const { results: dmMedia } = await c.env.DB.prepare(
+        const { results: dmMedia } = await env.DB.prepare(
           'SELECT id, type, file_key, description, blurhash, width, height FROM media_attachments WHERE status_id = ?1',
         ).bind(statusId).all<Pick<MediaAttachmentRow, 'id' | 'type' | 'file_key' | 'description' | 'blurhash' | 'width' | 'height'>>();
         const mediaArr = (dmMedia ?? []).map((m) => {
@@ -335,12 +336,12 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         });
 
         // Stream to author
-        try { await sendStreamEvent(c.env.STREAMING_DO, currentUser.id, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {}
+        try { await sendStreamEvent(currentUser.id, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {}
         // Stream to mentioned local users
         for (const rm of resolvedMentions) {
           if (!rm.mentionDomain) {
-            const mUser = await c.env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(rm.account_id).first();
-            if (mUser) { try { await sendStreamEvent(c.env.STREAMING_DO, mUser.id as string, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {} }
+            const mUser = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(rm.account_id).first();
+            if (mUser) { try { await sendStreamEvent(mUser.id as string, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {} }
           }
         }
       }
@@ -387,7 +388,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     // -- Resolve inReplyTo URI --
     let replyTarget: URL | undefined;
     if (inReplyToId) {
-      const parentUri = await c.env.DB.prepare(
+      const parentUri = await env.DB.prepare(
         'SELECT uri FROM statuses WHERE id = ?1',
       ).bind(inReplyToId).first<{ uri: string }>();
       if (parentUri) {
@@ -412,7 +413,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     );
 
     // -- Build media attachments --
-    const { results: apMediaRows } = await c.env.DB.prepare(
+    const { results: apMediaRows } = await env.DB.prepare(
       'SELECT * FROM media_attachments WHERE status_id = ?1',
     ).bind(statusId).all();
     const mediaAttachmentObjects = (apMediaRows ?? []).map((m: any) => {
@@ -518,30 +519,30 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       if (rm.mentionDomain && rm.actor_uri) {
         if (!deliveredRecipients.has(rm.actor_uri)) {
           deliveredRecipients.add(rm.actor_uri);
-          await sendToRecipient(fed, c.env, currentAccount.username, rm.actor_uri, create);
+          await sendToRecipient(fed, currentAccount.username, rm.actor_uri, create);
         }
       }
     }
 
     if (visibility === 'public' || visibility === 'unlisted') {
       // Fanout to all followers
-      await sendToFollowers(fed, c.env, currentAccount.username, create);
+      await sendToFollowers(fed, currentAccount.username, create);
 
       // If this is a reply to a remote user, also deliver directly
       if (inReplyToAccountId) {
-        const parentAuthor = await c.env.DB.prepare(
+        const parentAuthor = await env.DB.prepare(
           'SELECT id, domain, uri FROM accounts WHERE id = ?1',
         ).bind(inReplyToAccountId).first();
         if (parentAuthor && parentAuthor.domain && parentAuthor.uri) {
           const parentActorUri = parentAuthor.uri as string;
           if (!deliveredRecipients.has(parentActorUri)) {
-            await sendToRecipient(fed, c.env, currentAccount.username, parentActorUri, create);
+            await sendToRecipient(fed, currentAccount.username, parentActorUri, create);
           }
         }
       }
     } else if (visibility === 'private') {
       // Private: send to followers only (no public fanout, but followers get it)
-      await sendToFollowers(fed, c.env, currentAccount.username, create);
+      await sendToFollowers(fed, currentAccount.username, create);
     }
     // For 'direct': only the mentioned recipients above get the delivery
   } catch (e) {
@@ -549,7 +550,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
 
   // Fetch full account data for response
-  const accountRow = await c.env.DB.prepare(
+  const accountRow = await env.DB.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
   ).bind(currentUser.account_id).first();
   if (!accountRow) throw new AppError(500, 'Account not found');
@@ -581,7 +582,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   };
 
   // Fetch media attachments for response
-  const { results: mediaResults } = await c.env.DB.prepare(
+  const { results: mediaResults } = await env.DB.prepare(
     'SELECT * FROM media_attachments WHERE status_id = ?1',
   ).bind(statusId).all();
 
@@ -600,7 +601,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   // FEP-e232: Resolve quoted status for API response
   let quoteStatus: Record<string, unknown> | null = null;
   if (quoteId) {
-    const quotedRow = await c.env.DB.prepare(
+    const quotedRow = await env.DB.prepare(
       `SELECT s.*, a.username AS account_username, a.domain AS account_domain,
         a.display_name AS account_display_name, a.note AS account_note,
         a.uri AS account_uri, a.url AS account_url,

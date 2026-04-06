@@ -1,8 +1,9 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../../env';
+import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -13,10 +14,10 @@ app.post('/:id/assign_to_self', async (c) => {
 	const id = c.req.param('id');
 	const currentUser = c.get('currentUser')!;
 
-	const row = await c.env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
+	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	await c.env.DB.prepare('UPDATE reports SET assigned_account_id = ?1 WHERE id = ?2')
+	await env.DB.prepare('UPDATE reports SET assigned_account_id = ?1 WHERE id = ?2')
 		.bind(currentUser.account_id, id)
 		.run();
 
@@ -46,10 +47,10 @@ app.post('/:id/assign_to_self', async (c) => {
 app.post('/:id/unassign', async (c) => {
 	const id = c.req.param('id');
 
-	const row = await c.env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
+	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	await c.env.DB.prepare('UPDATE reports SET assigned_account_id = NULL WHERE id = ?1').bind(id).run();
+	await env.DB.prepare('UPDATE reports SET assigned_account_id = NULL WHERE id = ?1').bind(id).run();
 
 	return c.json({
 		id: row.id as string,

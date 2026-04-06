@@ -12,7 +12,7 @@
  * so each processor only needs to implement step 4.
  */
 
-import type { Env } from '../../env';
+import { env } from 'cloudflare:workers';
 import type { APActivity } from '../../types/activitypub';
 import * as statusRepo from '../../repositories/status';
 import * as accountRepo from '../../repositories/account';
@@ -26,68 +26,62 @@ export type { Status } from '../../repositories/status';
 export type { Account } from '../../repositories/account';
 
 /**
- * Bound wrapper that exposes repo functions without requiring `db` on every call.
+ * Bound wrapper that exposes repo functions with a consistent object API.
  * Keeps the same API surface as the old class-based repositories so federation
  * processors don't need changes.
  */
-const bindStatusRepo = (db: D1Database) => ({
-	findById: (id: string) => statusRepo.findById(db, id),
-	findByUri: (uri: string) => statusRepo.findByUri(db, uri),
-	findByAccountId: (accountId: string, opts?: AccountStatusOptions) => statusRepo.findByAccountId(db, accountId, opts),
-	create: (input: CreateStatusInput) => statusRepo.create(db, input),
-	update: (id: string, input: Partial<Omit<Status, 'id' | 'created_at' | 'updated_at'>>) => statusRepo.update(db, id, input),
-	delete: (id: string) => statusRepo.deleteStatus(db, id),
-	updateCounts: (id: string, counts: { replies_count?: number; reblogs_count?: number; favourites_count?: number }) => statusRepo.updateCounts(db, id, counts),
-	incrementCount: (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count') => statusRepo.incrementCount(db, id, field),
-	decrementCount: (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count') => statusRepo.decrementCount(db, id, field),
-	softDeleteByAccount: (accountId: string) => statusRepo.softDeleteByAccount(db, accountId),
-	findByUriIncludeDeleted: (uri: string) => statusRepo.findByUriIncludeDeleted(db, uri),
-	findWithParent: (id: string) => statusRepo.findWithParent(db, id),
-	findContext: (statusId: string) => statusRepo.findContext(db, statusId),
-	findPublicTimeline: (opts?: TimelineOptions) => statusRepo.findPublicTimeline(db, opts),
-	findLocalTimeline: (opts?: TimelineOptions) => statusRepo.findLocalTimeline(db, opts),
-	findByTag: (tag: string, opts?: TimelineOptions) => statusRepo.findByTag(db, tag, opts),
-});
+const boundStatusRepo = {
+	findById: (id: string) => statusRepo.findById(id),
+	findByUri: (uri: string) => statusRepo.findByUri(uri),
+	findByAccountId: (accountId: string, opts?: AccountStatusOptions) => statusRepo.findByAccountId(accountId, opts),
+	create: (input: CreateStatusInput) => statusRepo.create(input),
+	update: (id: string, input: Partial<Omit<Status, 'id' | 'created_at' | 'updated_at'>>) => statusRepo.update(id, input),
+	delete: (id: string) => statusRepo.deleteStatus(id),
+	updateCounts: (id: string, counts: { replies_count?: number; reblogs_count?: number; favourites_count?: number }) => statusRepo.updateCounts(id, counts),
+	incrementCount: (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count') => statusRepo.incrementCount(id, field),
+	decrementCount: (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count') => statusRepo.decrementCount(id, field),
+	softDeleteByAccount: (accountId: string) => statusRepo.softDeleteByAccount(accountId),
+	findByUriIncludeDeleted: (uri: string) => statusRepo.findByUriIncludeDeleted(uri),
+	findWithParent: (id: string) => statusRepo.findWithParent(id),
+	findContext: (statusId: string) => statusRepo.findContext(statusId),
+	findPublicTimeline: (opts?: TimelineOptions) => statusRepo.findPublicTimeline(opts),
+	findLocalTimeline: (opts?: TimelineOptions) => statusRepo.findLocalTimeline(opts),
+	findByTag: (tag: string, opts?: TimelineOptions) => statusRepo.findByTag(tag, opts),
+};
 
-const bindAccountRepo = (db: D1Database) => ({
-	findById: (id: string) => accountRepo.findById(db, id),
-	findByUri: (uri: string) => accountRepo.findByUri(db, uri),
-	findByUsername: (username: string, domain?: string | null) => accountRepo.findByUsername(db, username, domain),
-	findByIds: (ids: string[]) => accountRepo.findByIds(db, ids),
-	create: (input: CreateAccountInput) => accountRepo.create(db, input),
-	update: (id: string, input: UpdateAccountInput) => accountRepo.update(db, id, input),
-	updateCounts: (id: string, counts: { statuses_count?: number; followers_count?: number; following_count?: number }) => accountRepo.updateCounts(db, id, counts),
-	search: (query: string, limit?: number, offset?: number) => accountRepo.search(db, query, limit, offset),
-	findLocalByUri: (uri: string) => accountRepo.findLocalByUri(db, uri),
-	isLocal: (id: string) => accountRepo.isLocal(db, id),
-	incrementCount: (id: string, field: 'followers_count' | 'following_count' | 'statuses_count') => accountRepo.incrementCount(db, id, field),
-	decrementCount: (id: string, field: 'followers_count' | 'following_count' | 'statuses_count') => accountRepo.decrementCount(db, id, field),
-	findLocalAccounts: (limit?: number, offset?: number) => accountRepo.findLocalAccounts(db, limit, offset),
-});
+const boundAccountRepo = {
+	findById: (id: string) => accountRepo.findById(id),
+	findByUri: (uri: string) => accountRepo.findByUri(uri),
+	findByUsername: (username: string, domain?: string | null) => accountRepo.findByUsername(username, domain),
+	findByIds: (ids: string[]) => accountRepo.findByIds(ids),
+	create: (input: CreateAccountInput) => accountRepo.create(input),
+	update: (id: string, input: UpdateAccountInput) => accountRepo.update(id, input),
+	updateCounts: (id: string, counts: { statuses_count?: number; followers_count?: number; following_count?: number }) => accountRepo.updateCounts(id, counts),
+	search: (query: string, limit?: number, offset?: number) => accountRepo.search(query, limit, offset),
+	findLocalByUri: (uri: string) => accountRepo.findLocalByUri(uri),
+	isLocal: (id: string) => accountRepo.isLocal(id),
+	incrementCount: (id: string, field: 'followers_count' | 'following_count' | 'statuses_count') => accountRepo.incrementCount(id, field),
+	decrementCount: (id: string, field: 'followers_count' | 'following_count' | 'statuses_count') => accountRepo.decrementCount(id, field),
+	findLocalAccounts: (limit?: number, offset?: number) => accountRepo.findLocalAccounts(limit, offset),
+};
 
-const bindFavouriteRepo = (db: D1Database) => ({
-	findByAccountAndStatus: (accountId: string, statusId: string) => favouriteRepo.findByAccountAndStatus(db, accountId, statusId),
-	findByAccount: (accountId: string, limit?: number, maxId?: string) => favouriteRepo.findByAccount(db, accountId, limit, maxId),
-	findByStatus: (statusId: string, limit?: number, maxId?: string) => favouriteRepo.findByStatus(db, statusId, limit, maxId),
-	create: (input: CreateFavouriteInput) => favouriteRepo.create(db, input),
-	delete: (id: string) => favouriteRepo.deleteById(db, id),
-	findByUri: (uri: string) => favouriteRepo.findByUri(db, uri),
-	deleteByAccountAndStatus: (accountId: string, statusId: string) => favouriteRepo.deleteByAccountAndStatus(db, accountId, statusId),
-	countByStatus: (statusId: string) => favouriteRepo.countByStatus(db, statusId),
-});
+const boundFavouriteRepo = {
+	findByAccountAndStatus: (accountId: string, statusId: string) => favouriteRepo.findByAccountAndStatus(accountId, statusId),
+	findByAccount: (accountId: string, limit?: number, maxId?: string) => favouriteRepo.findByAccount(accountId, limit, maxId),
+	findByStatus: (statusId: string, limit?: number, maxId?: string) => favouriteRepo.findByStatus(statusId, limit, maxId),
+	create: (input: CreateFavouriteInput) => favouriteRepo.create(input),
+	delete: (id: string) => favouriteRepo.deleteById(id),
+	findByUri: (uri: string) => favouriteRepo.findByUri(uri),
+	deleteByAccountAndStatus: (accountId: string, statusId: string) => favouriteRepo.deleteByAccountAndStatus(accountId, statusId),
+	countByStatus: (statusId: string) => favouriteRepo.countByStatus(statusId),
+};
 
 export abstract class BaseProcessor {
-	protected readonly statusRepo;
-	protected readonly accountRepo;
-	protected readonly favouriteRepo;
+	protected readonly statusRepo = boundStatusRepo;
+	protected readonly accountRepo = boundAccountRepo;
+	protected readonly favouriteRepo = boundFavouriteRepo;
 
-	constructor(
-		protected readonly env: Env,
-	) {
-		this.statusRepo = bindStatusRepo(env.DB);
-		this.accountRepo = bindAccountRepo(env.DB);
-		this.favouriteRepo = bindFavouriteRepo(env.DB);
-	}
+	constructor() {}
 
 	// ============================================================
 	// ENTITY RESOLUTION
@@ -110,7 +104,7 @@ export abstract class BaseProcessor {
 	}
 
 	protected async resolveActor(actorUri: string): Promise<string | null> {
-		return resolveRemoteAccount(actorUri, this.env);
+		return resolveRemoteAccount(actorUri);
 	}
 
 	protected async isLocal(accountId: string): Promise<boolean> {
@@ -127,7 +121,7 @@ export abstract class BaseProcessor {
 		senderAccountId: string,
 		statusId?: string,
 	): Promise<void> {
-		await this.env.QUEUE_INTERNAL.send({
+		await env.QUEUE_INTERNAL.send({
 			type: 'create_notification',
 			recipientAccountId,
 			senderAccountId,

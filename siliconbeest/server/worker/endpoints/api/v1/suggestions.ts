@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
 import type { AccountRow } from '../../../types/db';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -18,7 +19,7 @@ app.get('/', authRequired, async (c) => {
     80,
   );
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT a.*
      FROM accounts a
      WHERE a.domain IS NULL
@@ -39,7 +40,7 @@ app.get('/', authRequired, async (c) => {
 
   const suggestions = (results ?? []).map((row: any) => ({
     source: 'staff' as const,
-    account: serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+    account: serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
   }));
 
   return c.json(suggestions);

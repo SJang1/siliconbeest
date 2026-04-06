@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
@@ -12,7 +13,7 @@ import {
 	getCustomEmoji,
 } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -22,8 +23,8 @@ app.use('*', authRequired, adminRequired);
  * GET /api/v1/admin/custom_emojis — List all emojis (including hidden).
  */
 app.get('/', async (c) => {
-  const domain = c.env.INSTANCE_DOMAIN;
-  const results = await listCustomEmojis(c.env.DB, domain);
+  const domain = env.INSTANCE_DOMAIN;
+  const results = await listCustomEmojis(domain);
   return c.json(results.map((row: any) => formatEmoji(row, domain)));
 });
 
@@ -32,7 +33,7 @@ app.get('/', async (c) => {
  * Accepts multipart/form-data with fields: shortcode, image (file), category (optional).
  */
 app.post('/', async (c) => {
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
   const formData = await c.req.formData();
 
   const shortcode = formData.get('shortcode') as string | null;
@@ -52,7 +53,7 @@ app.post('/', async (c) => {
   }
 
   // Check for duplicate shortcode
-  const exists = await checkEmojiShortcodeExists(c.env.DB, shortcode, c.env.INSTANCE_DOMAIN);
+  const exists = await checkEmojiShortcodeExists(shortcode, env.INSTANCE_DOMAIN);
   if (exists) {
     throw new AppError(422, 'shortcode already exists');
   }
@@ -63,17 +64,17 @@ app.post('/', async (c) => {
   const imageKey = `emoji/${id}.${ext}`;
 
   const arrayBuffer = await imageFile.arrayBuffer();
-  await c.env.MEDIA_BUCKET.put(imageKey, arrayBuffer, {
+  await env.MEDIA_BUCKET.put(imageKey, arrayBuffer, {
     httpMetadata: {
       contentType: imageFile.type || 'image/png',
     },
   });
 
   // Insert into DB
-  const row = await createCustomEmoji(c.env.DB, {
+  const row = await createCustomEmoji({
     id,
     shortcode: shortcode.trim(),
-    domain: c.env.INSTANCE_DOMAIN,
+    domain: env.INSTANCE_DOMAIN,
     imageKey,
     category,
   });
@@ -86,14 +87,14 @@ app.post('/', async (c) => {
  */
 app.patch('/:id', async (c) => {
   const id = c.req.param('id');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
   const body = await c.req.json<{
     category?: string | null;
     visible_in_picker?: boolean;
   }>();
 
-  const row = await updateCustomEmoji(c.env.DB, id, body);
+  const row = await updateCustomEmoji(id, body);
   return c.json(formatEmoji(row, domain));
 });
 
@@ -103,11 +104,11 @@ app.patch('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
-  const imageKey = await deleteCustomEmoji(c.env.DB, id);
+  const imageKey = await deleteCustomEmoji(id);
 
   // Delete from R2
   if (imageKey) {
-    await c.env.MEDIA_BUCKET.delete(imageKey);
+    await env.MEDIA_BUCKET.delete(imageKey);
   }
 
   return c.json({}, 200);

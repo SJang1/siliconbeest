@@ -5,11 +5,12 @@
  * with global middleware and exports the Cloudflare Workers fetch handler.
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { federation } from '@fedify/hono';
 
-import type { Env, AppVariables } from './env';
+import type { AppVariables } from './types';
 import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
@@ -79,6 +80,11 @@ import passwords from './endpoints/api/v1/auth/passwords';
 import authLogin from './endpoints/api/v1/auth/login';
 import authWebauthn from './endpoints/api/v1/auth/webauthn';
 import mfaChallenge from './endpoints/api/v1/auth/mfa/challenge';
+import mfaSetup from './endpoints/api/v1/auth/mfa/setup';
+import mfaConfirm from './endpoints/api/v1/auth/mfa/confirm';
+import mfaDisable from './endpoints/api/v1/auth/mfa/disable';
+import authSessions from './endpoints/api/v1/auth/sessions';
+import findUsername from './endpoints/api/v1/auth/findUsername';
 import resendConfirmation from './endpoints/api/v1/auth/resendConfirmation';
 import emailConfirmPage from './endpoints/auth/confirm';
 
@@ -116,7 +122,7 @@ export { StreamingDO } from './durableObjects/streaming';
 // App
 // ---------------------------------------------------------------------------
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 // ---------------------------------------------------------------------------
 // Global middleware (order matters)
@@ -169,7 +175,7 @@ app.use('*', async (c, next) => {
   }
 
   // Get or create the cached Federation instance (once per isolate)
-  const fed = createFed(c.env);
+  const fed = createFed();
 
   // Register dispatchers/listeners ONCE
   if (!fedInitialized) {
@@ -189,7 +195,7 @@ app.use('*', async (c, next) => {
 
   const fedMiddleware = federation<FedifyContextData, typeof c>(
     fed,
-    (_ctx) => ({ env: c.env }),
+    (_ctx) => ({ env }),
   );
 
   return fedMiddleware(c, next);
@@ -227,7 +233,7 @@ app.get('/authorize_interaction', (c) => {
       // Extract username from path and build user@domain
       acct = `${match[1]}@${url.hostname}`;
     } else {
-      return c.redirect(`https://${c.env.INSTANCE_DOMAIN}${url.pathname}`, 302);
+      return c.redirect(`https://${env.INSTANCE_DOMAIN}${url.pathname}`, 302);
     }
   } catch {
     // Not a URL, continue with acct as-is
@@ -236,11 +242,11 @@ app.get('/authorize_interaction', (c) => {
   // If it looks like user@domain, redirect to /@user@domain profile page
   if (acct.includes('@')) {
     const atAcct = acct.startsWith('@') ? acct : `@${acct}`;
-    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/${atAcct}`, 302);
+    return c.redirect(`https://${env.INSTANCE_DOMAIN}/${atAcct}`, 302);
   }
 
   // Fallback to search
-  return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/search?q=${encodeURIComponent(uri)}`, 302);
+  return c.redirect(`https://${env.INSTANCE_DOMAIN}/search?q=${encodeURIComponent(uri)}`, 302);
 });
 
 // ---------------------------------------------------------------------------
@@ -301,8 +307,14 @@ app.route('/api/v1/auth/passwords', passwords);
 app.use('/api/v1/auth/login', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/login', authLogin);
 app.route('/api/v1/auth/webauthn', authWebauthn);
-app.use('/api/v1/auth/mfa/challenge', createRateLimit({ maxRequests: 10, windowMs: 5 * 60 * 1000, keyPrefix: 'mfa' }));
+app.use('/api/v1/auth/mfa/*', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/mfa/challenge', mfaChallenge);
+app.route('/api/v1/auth/mfa/setup', mfaSetup);
+app.route('/api/v1/auth/mfa/confirm', mfaConfirm);
+app.route('/api/v1/auth/mfa/disable', mfaDisable);
+app.route('/api/v1/auth/sessions', authSessions);
+app.use('/api/v1/auth/find_username', createRateLimit(RATE_LIMIT_AUTH));
+app.route('/api/v1/auth/find_username', findUsername);
 app.use('/api/v1/auth/resend_confirmation', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/resend_confirmation', resendConfirmation);
 app.route('/auth/confirm', emailConfirmPage);
@@ -335,9 +347,9 @@ app.route('/actor', apInstanceActor);
 app.get('/users/:identifier/statuses/:id/activity', async (c) => {
   const accept = c.req.header('Accept') || '';
   if (!accept.includes('activity+json') && !accept.includes('ld+json')) {
-    return c.redirect(`https://${c.env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
+    return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
   }
-  return handleActivityRequest(c.env, c.req.param('identifier'), c.req.param('id'));
+  return handleActivityRequest(c.req.param('identifier'), c.req.param('id'));
 });
 
 // ---------------------------------------------------------------------------
@@ -374,7 +386,7 @@ app.get('/default-header.svg', (c) => {
 
 app.get('/thumbnail.png', async (c) => {
   // Try R2 first
-  const obj = await c.env.MEDIA_BUCKET.get('instance/thumbnail.png');
+  const obj = await env.MEDIA_BUCKET.get('instance/thumbnail.png');
   if (obj) {
     return new Response(obj.body, {
       headers: {
@@ -398,7 +410,7 @@ app.get('/thumbnail.png', async (c) => {
 });
 
 app.get('/favicon.ico', async (c) => {
-  const obj = await c.env.MEDIA_BUCKET.get('instance/favicon.ico');
+  const obj = await env.MEDIA_BUCKET.get('instance/favicon.ico');
   if (obj) {
     return new Response(obj.body, {
       headers: {
@@ -408,7 +420,7 @@ app.get('/favicon.ico', async (c) => {
     });
   }
   // Also try thumbnail.png as favicon fallback
-  const thumb = await c.env.MEDIA_BUCKET.get('instance/thumbnail.png');
+  const thumb = await env.MEDIA_BUCKET.get('instance/thumbnail.png');
   if (thumb) {
     return new Response(thumb.body, {
       headers: {
@@ -437,7 +449,7 @@ app.post('/internal/stream-event', async (c) => {
   }>();
 
   const { sendStreamEvent } = await import('./services/streaming');
-  await sendStreamEvent(c.env.STREAMING_DO, body.userId, {
+  await sendStreamEvent(body.userId, {
     event: body.event,
     payload: body.payload,
     stream: body.stream,

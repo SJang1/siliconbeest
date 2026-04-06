@@ -1,9 +1,10 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminRequired } from '../../../../middleware/auth';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -40,7 +41,7 @@ app.post('/', async (c) => {
 
 	const startAt = body.start_at;
 	const endAt = body.end_at;
-	const db = c.env.DB;
+	const db = env.DB;
 
 	const measures = await Promise.all(
 		body.keys.map(async (key) => {

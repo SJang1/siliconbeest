@@ -1,6 +1,6 @@
 /* oxlint-disable fp/no-loop-statements, no-explicit-any */
 
-type D1Database = import('../env').Env['DB'];
+import { env } from 'cloudflare:workers';
 import { enrichStatuses } from './statusEnrichment';
 
 /**
@@ -9,7 +9,6 @@ import { enrichStatuses } from './statusEnrichment';
  * reblog_of_id -> serialized original status object.
  */
 export async function resolveReblogs(
-  db: D1Database,
   domain: string,
   rows: Record<string, unknown>[],
   currentAccountId: string | null,
@@ -24,7 +23,7 @@ export async function resolveReblogs(
   const unique = [...new Set(reblogOfIds)];
   const placeholders = unique.map(() => '?').join(',');
 
-  const { results } = await db.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT s.*,
       a.username AS account_username, a.domain AS account_domain,
       a.display_name AS account_display_name, a.note AS account_note,
@@ -40,7 +39,7 @@ export async function resolveReblogs(
     WHERE s.id IN (${placeholders}) AND s.deleted_at IS NULL`,
   ).bind(...unique).all();
 
-  const enrichments = await enrichStatuses(db, domain, unique, currentAccountId);
+  const enrichments = await enrichStatuses(domain, unique, currentAccountId);
   const map = new Map<string, any>();
 
   for (const r of (results ?? [])) {

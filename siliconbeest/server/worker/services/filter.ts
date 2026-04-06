@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { serializeFilter } from '../utils/mastodonSerializer';
 import { AppError } from '../middleware/errorHandler';
@@ -7,20 +8,20 @@ import type { FilterRow } from '../types/db';
 // fetchFilterWithKeywords (internal helper)
 // ----------------------------------------------------------------
 
-export async function fetchFilterWithKeywords(db: D1Database, filterId: string) {
-  const filter = await db
+export async function fetchFilterWithKeywords(filterId: string) {
+  const filter = await env.DB
     .prepare('SELECT * FROM filters WHERE id = ?1')
     .bind(filterId)
     .first<FilterRow>();
 
   if (!filter) return null;
 
-  const { results: keywords } = await db
+  const { results: keywords } = await env.DB
     .prepare('SELECT id, keyword, whole_word FROM filter_keywords WHERE filter_id = ?1')
     .bind(filterId)
     .all();
 
-  const { results: statuses } = await db
+  const { results: statuses } = await env.DB
     .prepare('SELECT id, status_id FROM filter_statuses WHERE filter_id = ?1')
     .bind(filterId)
     .all();
@@ -35,15 +36,15 @@ export async function fetchFilterWithKeywords(db: D1Database, filterId: string) 
 // listFilters
 // ----------------------------------------------------------------
 
-export async function listFilters(db: D1Database, userId: string) {
-  const { results: filters } = await db
+export async function listFilters(userId: string) {
+  const { results: filters } = await env.DB
     .prepare('SELECT * FROM filters WHERE user_id = ?1 ORDER BY created_at DESC')
     .bind(userId)
     .all();
 
   const serialized = [];
   for (const row of filters ?? []) {
-    const filter = await fetchFilterWithKeywords(db, row.id as string);
+    const filter = await fetchFilterWithKeywords(row.id as string);
     if (filter) serialized.push(filter);
   }
 
@@ -54,8 +55,8 @@ export async function listFilters(db: D1Database, userId: string) {
 // getFilter
 // ----------------------------------------------------------------
 
-export async function getFilter(db: D1Database, filterId: string, userId: string) {
-  const filter = await db
+export async function getFilter(filterId: string, userId: string) {
+  const filter = await env.DB
     .prepare('SELECT * FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first<FilterRow>();
@@ -64,7 +65,7 @@ export async function getFilter(db: D1Database, filterId: string, userId: string
     throw new AppError(404, 'Record not found');
   }
 
-  return fetchFilterWithKeywords(db, filterId);
+  return fetchFilterWithKeywords(filterId);
 }
 
 // ----------------------------------------------------------------
@@ -79,7 +80,7 @@ export interface CreateFilterData {
   keywords_attributes?: Array<{ keyword: string; whole_word?: boolean }>;
 }
 
-export async function createFilter(db: D1Database, userId: string, data: CreateFilterData) {
+export async function createFilter(userId: string, data: CreateFilterData) {
   const filterId = generateUlid();
   const now = new Date().toISOString();
   const filterAction = data.filter_action || 'warn';
@@ -90,7 +91,7 @@ export async function createFilter(db: D1Database, userId: string, data: CreateF
   }
 
   const stmts: D1PreparedStatement[] = [
-    db.prepare(
+    env.DB.prepare(
       `INSERT INTO filters (id, user_id, title, context, action, expires_at, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`,
     ).bind(filterId, userId, data.title, JSON.stringify(data.context), filterAction, expiresAt, now),
@@ -100,16 +101,16 @@ export async function createFilter(db: D1Database, userId: string, data: CreateF
     for (const kw of data.keywords_attributes) {
       const kwId = generateUlid();
       stmts.push(
-        db.prepare(
+        env.DB.prepare(
           'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
         ).bind(kwId, filterId, kw.keyword, kw.whole_word ? 1 : 0, now),
       );
     }
   }
 
-  await db.batch(stmts);
+  await env.DB.batch(stmts);
 
-  return fetchFilterWithKeywords(db, filterId);
+  return fetchFilterWithKeywords(filterId);
 }
 
 // ----------------------------------------------------------------
@@ -124,8 +125,8 @@ export interface UpdateFilterData {
   keywords_attributes?: Array<{ id?: string; keyword?: string; whole_word?: boolean; _destroy?: boolean }>;
 }
 
-export async function updateFilter(db: D1Database, filterId: string, userId: string, data: UpdateFilterData) {
-  const existing = await db
+export async function updateFilter(filterId: string, userId: string, data: UpdateFilterData) {
+  const existing = await env.DB
     .prepare('SELECT * FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first<FilterRow>();
@@ -148,7 +149,7 @@ export async function updateFilter(db: D1Database, filterId: string, userId: str
   }
 
   const stmts: D1PreparedStatement[] = [
-    db.prepare(
+    env.DB.prepare(
       'UPDATE filters SET title = ?1, context = ?2, action = ?3, expires_at = ?4, updated_at = ?5 WHERE id = ?6',
     ).bind(title, context, action, expiresAt, now, filterId),
   ];
@@ -157,12 +158,12 @@ export async function updateFilter(db: D1Database, filterId: string, userId: str
     for (const kw of data.keywords_attributes) {
       if (kw._destroy && kw.id) {
         stmts.push(
-          db.prepare('DELETE FROM filter_keywords WHERE id = ?1 AND filter_id = ?2').bind(kw.id, filterId),
+          env.DB.prepare('DELETE FROM filter_keywords WHERE id = ?1 AND filter_id = ?2').bind(kw.id, filterId),
         );
       } else if (kw.id) {
         if (kw.keyword !== undefined) {
           stmts.push(
-            db.prepare(
+            env.DB.prepare(
               'UPDATE filter_keywords SET keyword = ?1, whole_word = ?2, updated_at = ?3 WHERE id = ?4 AND filter_id = ?5',
             ).bind(kw.keyword, kw.whole_word ? 1 : 0, now, kw.id, filterId),
           );
@@ -170,7 +171,7 @@ export async function updateFilter(db: D1Database, filterId: string, userId: str
       } else if (kw.keyword) {
         const kwId = generateUlid();
         stmts.push(
-          db.prepare(
+          env.DB.prepare(
             'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
           ).bind(kwId, filterId, kw.keyword, kw.whole_word ? 1 : 0, now),
         );
@@ -178,17 +179,17 @@ export async function updateFilter(db: D1Database, filterId: string, userId: str
     }
   }
 
-  await db.batch(stmts);
+  await env.DB.batch(stmts);
 
-  return fetchFilterWithKeywords(db, filterId);
+  return fetchFilterWithKeywords(filterId);
 }
 
 // ----------------------------------------------------------------
 // deleteFilter
 // ----------------------------------------------------------------
 
-export async function deleteFilter(db: D1Database, filterId: string, userId: string): Promise<void> {
-  const existing = await db
+export async function deleteFilter(filterId: string, userId: string): Promise<void> {
+  const existing = await env.DB
     .prepare('SELECT id FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first();
@@ -197,10 +198,10 @@ export async function deleteFilter(db: D1Database, filterId: string, userId: str
     throw new AppError(404, 'Record not found');
   }
 
-  await db.batch([
-    db.prepare('DELETE FROM filter_keywords WHERE filter_id = ?1').bind(filterId),
-    db.prepare('DELETE FROM filter_statuses WHERE filter_id = ?1').bind(filterId),
-    db.prepare('DELETE FROM filters WHERE id = ?1').bind(filterId),
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM filter_keywords WHERE filter_id = ?1').bind(filterId),
+    env.DB.prepare('DELETE FROM filter_statuses WHERE filter_id = ?1').bind(filterId),
+    env.DB.prepare('DELETE FROM filters WHERE id = ?1').bind(filterId),
   ]);
 }
 
@@ -208,8 +209,8 @@ export async function deleteFilter(db: D1Database, filterId: string, userId: str
 // verifyFilterOwnership (internal helper for keyword endpoints)
 // ----------------------------------------------------------------
 
-export async function verifyFilterOwnership(db: D1Database, filterId: string, userId: string): Promise<void> {
-  const filter = await db
+export async function verifyFilterOwnership(filterId: string, userId: string): Promise<void> {
+  const filter = await env.DB
     .prepare('SELECT id FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first();
@@ -224,18 +225,17 @@ export async function verifyFilterOwnership(db: D1Database, filterId: string, us
 // ----------------------------------------------------------------
 
 export async function addFilterKeyword(
-  db: D1Database,
   filterId: string,
   userId: string,
   keyword: string,
   wholeWord: boolean,
 ) {
-  await verifyFilterOwnership(db, filterId, userId);
+  await verifyFilterOwnership(filterId, userId);
 
   const kwId = generateUlid();
   const now = new Date().toISOString();
 
-  await db
+  await env.DB
     .prepare(
       'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
     )
@@ -253,10 +253,10 @@ export async function addFilterKeyword(
 // listFilterKeywords
 // ----------------------------------------------------------------
 
-export async function listFilterKeywords(db: D1Database, filterId: string, userId: string) {
-  await verifyFilterOwnership(db, filterId, userId);
+export async function listFilterKeywords(filterId: string, userId: string) {
+  await verifyFilterOwnership(filterId, userId);
 
-  const { results } = await db
+  const { results } = await env.DB
     .prepare('SELECT * FROM filter_keywords WHERE filter_id = ?1 ORDER BY created_at ASC')
     .bind(filterId)
     .all();
@@ -273,14 +273,13 @@ export async function listFilterKeywords(db: D1Database, filterId: string, userI
 // ----------------------------------------------------------------
 
 export async function deleteFilterKeyword(
-  db: D1Database,
   filterId: string,
   keywordId: string,
   userId: string,
 ): Promise<void> {
-  await verifyFilterOwnership(db, filterId, userId);
+  await verifyFilterOwnership(filterId, userId);
 
-  const kw = await db
+  const kw = await env.DB
     .prepare('SELECT id FROM filter_keywords WHERE id = ?1 AND filter_id = ?2')
     .bind(keywordId, filterId)
     .first();
@@ -289,5 +288,5 @@ export async function deleteFilterKeyword(
     throw new AppError(404, 'Record not found');
   }
 
-  await db.prepare('DELETE FROM filter_keywords WHERE id = ?1').bind(keywordId).run();
+  await env.DB.prepare('DELETE FROM filter_keywords WHERE id = ?1').bind(keywordId).run();
 }

@@ -1,5 +1,6 @@
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { requireScope } from '../../../middleware/scopeCheck';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
@@ -34,7 +35,7 @@ interface FavouriteJoinRow extends StatusRow {
   a_emoji_tags: string | null;
 }
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
   const account = c.get('currentAccount')!;
@@ -76,10 +77,10 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all<FavouriteJoinRow>();
+  const { results } = await env.DB.prepare(sql).bind(...binds).all<FavouriteJoinRow>();
 
   const statusIds = (results ?? []).map((r) => r.id);
-  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id, c.env.CACHE);
+  const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, statusIds, account.id, env.CACHE);
 
   const statuses = (results ?? []).map((row) => {
     const accountRow: AccountRow = {
@@ -97,7 +98,7 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
     };
     const e = enrichments.get(row.id);
     const status = serializeStatus(row, {
-      account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
+      account: serializeAccount(accountRow, { instanceDomain: env.INSTANCE_DOMAIN }),
       favourited: true,
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
@@ -114,7 +115,7 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
 
   if (pag.minId) statuses.reverse();
 
-  const baseUrl = `https://${c.env.INSTANCE_DOMAIN}/api/v1/favourites`;
+  const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/favourites`;
   const link = buildLinkHeader(baseUrl, statuses, limitValue);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;

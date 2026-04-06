@@ -2,8 +2,9 @@
  * GET /api/v1/push/subscription — Get current push subscription
  */
 
+import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { getVapidPublicKey } from '../../../../utils/vapid';
@@ -24,12 +25,12 @@ function rowToAlerts(row: Record<string, unknown>): Record<string, boolean> {
   };
 }
 
-const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.get('/', authRequired, requireScope('push'), async (c) => {
   const tokenId = c.get('tokenId')!;
 
-  const row = await getPushSubscription(c.env.DB, tokenId);
+  const row = await getPushSubscription(tokenId);
 
   if (!row) {
     return c.json({ error: 'Record not found' }, 404);
@@ -40,7 +41,7 @@ app.get('/', authRequired, requireScope('push'), async (c) => {
     endpoint: row.endpoint,
     alerts: rowToAlerts(row),
     policy: row.policy,
-    server_key: await getVapidPublicKey(c.env.DB),
+    server_key: await getVapidPublicKey(),
   });
 });
 

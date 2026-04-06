@@ -9,11 +9,11 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import type { AppVariables } from '../../../../types';
 import { authRequired, adminRequired } from '../../../../middleware/auth';
 import { listInstances, getInstance, getFederationStats } from '../../../../services/admin';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -26,7 +26,7 @@ app.get('/instances', async (c) => {
   const offset = parseInt(c.req.query('offset') ?? '0', 10) || 0;
   const search = c.req.query('search') ?? '';
 
-  const results = await listInstances(c.env.DB, {
+  const results = await listInstances({
     limit,
     offset,
     search: search || undefined,
@@ -39,7 +39,7 @@ app.get('/instances', async (c) => {
 app.get('/instances/:domain', async (c) => {
   const domain = c.req.param('domain');
 
-  const instance = await getInstance(c.env.DB, domain);
+  const instance = await getInstance(domain);
 
   if (!instance) {
     return c.json({ error: 'Instance not found' }, 404);
@@ -50,7 +50,7 @@ app.get('/instances/:domain', async (c) => {
 
 // GET /stats — federation overview
 app.get('/stats', async (c) => {
-  const stats = await getFederationStats(c.env.DB);
+  const stats = await getFederationStats();
   return c.json(stats);
 });
 

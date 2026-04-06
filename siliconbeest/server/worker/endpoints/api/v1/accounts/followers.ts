@@ -1,17 +1,18 @@
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
 app.get('/:id/followers', async (c) => {
   const accountId = c.req.param('id');
-  const domain = c.env.INSTANCE_DOMAIN;
+  const domain = env.INSTANCE_DOMAIN;
 
-  const account = await c.env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
+  const account = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
   if (!account) throw new AppError(404, 'Record not found');
 
   const query = c.req.query();
@@ -42,7 +43,7 @@ app.get('/:id/followers', async (c) => {
   `;
   params.push(pag.limitValue);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await env.DB.prepare(sql).bind(...params).all();
 
   const accounts = (results as Record<string, unknown>[]).map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);

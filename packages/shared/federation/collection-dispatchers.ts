@@ -2,19 +2,12 @@
  * Shared Followers Collection Dispatcher
  *
  * Single definition of the followers collection dispatcher logic, shared
- * between the main worker and the queue consumer. Eliminates verbatim
- * duplication caused by the Fedify dual-package hazard.
+ * between the main worker and the queue consumer.
  *
- * The dual-package hazard: Fedify's dispatcher registration uses types from
- * its own node_modules. Since worker and consumer are separate Cloudflare
- * Workers with separate node_modules, we solve this by having each caller
- * pass their own Fedify instance — the shared code never imports
- * @fedify/fedify directly.
- *
- * This module has ZERO external dependencies — no @fedify/fedify imports.
- * Fedify's API shape is expressed via structural types, so TypeScript
- * resolves everything from the caller's node_modules.
+ * This module uses `import { env } from 'cloudflare:workers'` for DB access.
  */
+
+import { env } from 'cloudflare:workers';
 
 // ============================================================
 // STRUCTURAL TYPES (match Fedify's API without importing it)
@@ -31,7 +24,7 @@ interface FollowersDispatcherBuilder<TData> {
   setFirstCursor(handler: (ctx: CollectionContextLike<TData>, identifier: string) => Promise<string | null>): FollowersDispatcherBuilder<TData>;
 }
 
-/** Matches Fedify's Federation shape (only the followers dispatcher API). */
+/** Minimal shape of a Fedify Federation for the followers dispatcher. */
 interface FederationLike<TData> {
   setFollowersDispatcher(
     path: string,
@@ -40,35 +33,10 @@ interface FederationLike<TData> {
       identifier: string,
       cursor: string | null,
     ) => Promise<{
-      items: Array<{
-        id: URL;
-        inboxId: URL | null;
-        endpoints: { sharedInbox: URL } | null;
-      }>;
+      items: { id: URL; inboxId: URL | null; endpoints: { sharedInbox: URL } | null }[];
       nextCursor: string | null;
     } | null>,
   ): FollowersDispatcherBuilder<TData>;
-}
-
-/**
- * Minimal structural type for a D1 prepared statement result.
- * Avoids depending on @cloudflare/workers-types directly.
- */
-interface D1PreparedStatement {
-  bind(...values: unknown[]): D1PreparedStatement;
-  first<T = unknown>(colName?: string): Promise<T | null>;
-  all<T = unknown>(): Promise<{ results: T[] }>;
-  run(): Promise<{ meta?: { changes?: number } }>;
-}
-
-/** Minimal structural type for a D1 database. */
-interface D1Like {
-  prepare(query: string): D1PreparedStatement;
-}
-
-/** Minimal env shape required by the followers dispatcher. */
-interface DispatcherEnv {
-  DB: D1Like;
 }
 
 const FOLLOWERS_PAGE_SIZE = 40;
@@ -79,19 +47,15 @@ const FOLLOWERS_PAGE_SIZE = 40;
 
 /**
  * Register the followers collection dispatcher on a Fedify Federation instance.
- *
- * @param federation - Fedify Federation instance (from caller's node_modules)
  */
-export function setupFollowersDispatcher<TData extends { env: DispatcherEnv }>(
+export function setupFollowersDispatcher<TData>(
   federation: FederationLike<TData>,
 ): void {
   federation
     .setFollowersDispatcher(
       '/users/{identifier}/followers',
-      async (ctx, identifier, cursor) => {
-        const db = ctx.data.env.DB;
-
-        const account = await db
+      async (_ctx, identifier, cursor) => {
+        const account = await env.DB
           .prepare(
             `SELECT id, followers_count FROM accounts
              WHERE username = ?1 AND domain IS NULL
@@ -120,7 +84,7 @@ export function setupFollowersDispatcher<TData extends { env: DispatcherEnv }>(
         `;
         binds.push(FOLLOWERS_PAGE_SIZE + 1);
 
-        const { results } = await db
+        const { results } = await env.DB
           .prepare(sql)
           .bind(...binds)
           .all<{ follow_id: string; uri: string; inbox_url: string; shared_inbox_url: string | null }>();
@@ -145,9 +109,8 @@ export function setupFollowersDispatcher<TData extends { env: DispatcherEnv }>(
         };
       },
     )
-    .setCounter(async (ctx, identifier) => {
-      const db = ctx.data.env.DB;
-      const account = await db
+    .setCounter(async (_ctx, identifier) => {
+      const account = await env.DB
         .prepare(
           `SELECT followers_count FROM accounts
            WHERE username = ?1 AND domain IS NULL LIMIT 1`,

@@ -57,5 +57,43 @@
 
   "warning_unsensitize_subject": "Sensitive Media Flag Removed",
   "warning_unsensitize_heading": "Sensitive Media Flag Removed",
-  "warning_unsensitize_description": "The sensitive content flag on your media has been removed."
+  "warning_unsensitize_description": "The sensitive content flag on your media has been removed.",
+
+  "login_notification_subject": "New login to your account — {title}",
+  "login_notification_heading": "New Login Detected",
+  "login_notification_body": "A new login was detected on your account.",
+  "login_notification_time": "Time",
+  "login_notification_ip": "IP Address",
+  "login_notification_device": "Device",
+  "login_notification_warning": "If this was not you, please change your password immediately.",
+
+  "password_changed_subject": "Your password has been changed — {title}",
+  "password_changed_heading": "Password Changed",
+  "password_changed_body": "Your password was successfully changed.",
+  "password_changed_sessions": "All other active sessions have been logged out for your security.",
+  "password_changed_warning": "If you did not make this change, please reset your password immediately.",
+
+  "username_reminder_subject": "Your username reminder — {title}",
+  "username_reminder_heading": "Username Reminder",
+  "username_reminder_body": "You requested a reminder of the username associated with this email address.",
+  "username_reminder_your_username": "Your username is",
+  "username_reminder_your_handle": "Your full handle is",
+  "username_reminder_ignore": "If you did not request this, you can safely ignore this email.",
+
+  "admin_pending_subject": "New user pending approval: @{username}",
+  "admin_pending_heading": "New Registration Pending Approval",
+  "admin_pending_body": "A new user has registered and is waiting for approval:",
+  "admin_pending_username": "Username",
+  "admin_pending_email": "Email",
+  "admin_pending_reason": "Reason",
+  "admin_pending_review": "Review pending accounts",
+
+  "admin_report_subject": "New report: @{target}",
+  "admin_report_heading": "New Report Submitted",
+  "admin_report_body": "A new report has been filed:",
+  "admin_report_reporter": "Reporter",
+  "admin_report_target": "Target",
+  "admin_report_category": "Category",
+  "admin_report_comment": "Comment",
+  "admin_report_review": "Review reports"
 }

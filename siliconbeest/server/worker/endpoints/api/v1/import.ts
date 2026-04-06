@@ -6,11 +6,12 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, AppVariables } from '../../../env';
+import { env } from 'cloudflare:workers';
+import type { AppVariables } from '../../../types';
 import { authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
+type HonoEnv = { Variables: AppVariables };
 
 const app = new Hono<HonoEnv>();
 
@@ -68,7 +69,7 @@ app.post('/', authRequired, async (c) => {
   // Send in batches of 100 (Cloudflare queue batch limit)
   for (let i = 0; i < messages.length; i += 100) {
     const batch = messages.slice(i, i + 100);
-    await c.env.QUEUE_INTERNAL.sendBatch(batch);
+    await env.QUEUE_INTERNAL.sendBatch(batch);
   }
 
   return c.json({ imported: accts.length });

@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
-import type { Env, AppVariables } from '../env';
+import type { AppVariables } from '../types';
 
-type MiddlewareEnv = { Bindings: Env; Variables: AppVariables };
+type MiddlewareEnv = { Variables: AppVariables };
 
 /**
  * Generate a unique request ID (UUIDv4) for every incoming request.
