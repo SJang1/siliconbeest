@@ -46,7 +46,7 @@ export function createFed(
   cachedQueue = new CloudflareMessageQueue(new WorkersMessageQueue(env.QUEUE_FEDERATION));
 
   cachedFed = createFederation<FedifyContextData>({
-    kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
+    kv: new WorkersKvStore(env.FEDIFY_KV),
     queue: cachedQueue,
     userAgent: {
       software: 'SiliconBeest/1.0',

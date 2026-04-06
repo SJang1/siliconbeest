@@ -6,11 +6,11 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "run-p type-check \"build-only {@}\" --",
-		"preview": "npm run build && wrangler dev",
+		"preview": "pnpm run build && pnpm wrangler dev",
 		"build-only": "vite build",
 		"type-check": "vue-tsc --build",
-		"deploy": "npm run build && wrangler deploy",
-		"cf-typegen": "wrangler types",
+		"deploy": "pnpm run build && pnpm wrangler deploy",
+		"cf-typegen": "pnpm wrangler types",
 		"test": "vitest run --config vitest.config.ts && vitest run --config vitest.worker.config.ts",
 		"test:vue": "vitest run --config vitest.config.ts",
 		"test:worker": "vitest run --config vitest.worker.config.ts",
@@ -19,9 +19,12 @@
 		"lint:fix": "oxlint -c oxlint.config.ts --fix server/worker/services server/worker/repositories server/worker/middleware server/worker/utils server/worker/webpush server/worker/types && eslint --fix"
 	},
 	"dependencies": {
-		"@fedify/cfworkers": "^2.1.1",
-		"@fedify/fedify": "^2.1.1",
-		"@fedify/hono": "^2.1.1",
+		"@fedify/cfworkers": "^2.1.3",
+		"@fedify/fedify": "^2.1.3",
+		"@fedify/vocab": "^2.1.3",
+		"@fedify/webfinger": "^2.1.3",
+		"@js-temporal/polyfill": "^0.5.1",
+		"@fedify/hono": "^2.1.3",
 		"@headlessui/vue": "^1.7.23",
 		"@logtape/logtape": "^2.0.5",
 		"@sentry/vue": "^10.45.0",
@@ -40,7 +43,7 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.30.0",
-		"@cloudflare/vitest-pool-workers": "^0.13.3",
+		"@cloudflare/vitest-pool-workers": "^0.14.0",
 		"@eslint/js": "^10.0.1",
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.2.2",
@@ -64,7 +67,7 @@
 		"vite-plugin-vue-devtools": "^8.0.6",
 		"vitest": "^4.1.0",
 		"vue-tsc": "^3.2.5",
-		"wrangler": "^4.76.0"
+		"wrangler": "^4.80.0"
 	},
 	"engines": {
 		"node": "^20.19.0 || >=22.12.0"

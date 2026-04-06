@@ -45,7 +45,7 @@ git pull origin main
 ### 2. 의존성 설치
 ```bash
 cd siliconbeest
-npm install
+pnpm install
 ```
 
 ### 3. Secrets 설정 (새 Worker 이름이므로 필요)
@@ -53,7 +53,7 @@ npm install
 cd siliconbeest
 
 # OTP 암호화 키 (2FA용, 현재 미사용이면 더미 값 가능)
-openssl rand -hex 32 | npx wrangler secret put OTP_ENCRYPTION_KEY
+openssl rand -hex 32 | pnpm exec wrangler secret put OTP_ENCRYPTION_KEY
 # 또는 기존 값이 있으면 그 값을 입력
 
 # VAPID 키는 DB settings 테이블에서 조회하므로 env secret 불필요
@@ -62,8 +62,8 @@ openssl rand -hex 32 | npx wrangler secret put OTP_ENCRYPTION_KEY
 ### 4. 빌드 + 배포
 ```bash
 cd siliconbeest
-npm run build
-npx wrangler deploy
+pnpm run build
+pnpm exec wrangler deploy
 ```
 
 > **다운타임 0**: custom_domain이 zone routes보다 우선하므로 배포 즉시 모든 트래픽이 새 Worker로 전환됩니다.
@@ -87,23 +87,23 @@ curl -A "Twitterbot/1.0" https://YOUR_DOMAIN/@YOUR_USERNAME
 ```bash
 cd siliconbeest-queue-consumer
 # wrangler.jsonc의 services[0].service를 "siliconbeest"로 변경
-npx wrangler deploy
+pnpm exec wrangler deploy
 ```
 
 ### 7. 기존 Workers 삭제
 ```bash
 # 기존 Vue Worker 삭제 (이전 아키텍처에서 사용)
-npx wrangler delete -n siliconbeest-vue
+pnpm exec wrangler delete -n siliconbeest-vue
 
 # 기존 API Worker 삭제 (DO 세션 만료 후, 수 시간 대기)
-npx wrangler delete -n siliconbeest-worker
+pnpm exec wrangler delete -n siliconbeest-worker
 ```
 
 ## 롤백 절차
 
 문제 발생 시:
 1. 기존 `siliconbeest-worker`가 아직 존재하면 → zone routes가 여전히 유효
-2. 새 `siliconbeest` Worker 삭제: `npx wrangler delete -n siliconbeest`
+2. 새 `siliconbeest` Worker 삭제: `pnpm exec wrangler delete -n siliconbeest`
 3. custom_domain이 해제되면 기존 `siliconbeest-vue`의 custom_domain + zone routes로 복원
 
 ## 주의사항

@@ -1,5 +1,10 @@
 packages:
-  - 'siliconbeest'
-  - 'siliconbeest-queue-consumer'
-  - 'siliconbeest-email-sender'
-  - 'packages/*'
+  - siliconbeest
+  - siliconbeest-queue-consumer
+  - siliconbeest-email-sender
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

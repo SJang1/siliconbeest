@@ -13,6 +13,7 @@
  *   WORKER (service binding)
  */
 
+import type { KVNamespace as CfKVNamespace, Queue } from '@cloudflare/workers-types/experimental';
 import type { QueueMessage } from './queue';
 
 export interface BaseEnv {
@@ -24,7 +25,7 @@ export interface BaseEnv {
 
   // KV Namespaces
   CACHE: KVNamespace;
-  FEDIFY_KV: KVNamespace;
+  FEDIFY_KV: CfKVNamespace;
 
   // Queues (producer bindings)
   QUEUE_FEDERATION: Queue<QueueMessage>;

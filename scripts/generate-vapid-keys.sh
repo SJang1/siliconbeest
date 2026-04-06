@@ -106,7 +106,7 @@ if [[ "$STORE_IN_DB" == true ]]; then
   header "Storing VAPID Keys in D1 Database"
 
   if ! command -v wrangler &>/dev/null; then
-    error "wrangler CLI not found. Install with: npm i -g wrangler"
+    error "wrangler CLI not found. Install with: pnpm add -g wrangler"
     exit 1
   fi
 

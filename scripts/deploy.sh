@@ -51,7 +51,7 @@ done
 header "Checking Prerequisites"
 
 if ! command -v wrangler &>/dev/null; then
-  error "wrangler CLI is not installed. Install with: npm i -g wrangler"
+  error "wrangler CLI is not installed. Install with: pnpm add -g wrangler"
   exit 1
 fi
 success "wrangler found"
@@ -112,7 +112,7 @@ for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
-    (cd "$DIR" && npm install --silent)
+    (cd "$DIR" && pnpm install --silent)
     success "$DIRNAME dependencies installed"
   fi
 done
@@ -131,7 +131,7 @@ if [[ "$SKIP_MIGRATIONS" == false ]]; then
     info "[DRY RUN] Would apply D1 migrations to: $DB_NAME"
   else
     info "Applying pending migrations to remote D1 ($DB_NAME)..."
-    (cd "$MAIN_DIR" && wrangler d1 migrations apply "$DB_NAME" --remote)
+    (cd "$MAIN_DIR" && pnpm wrangler d1 migrations apply "$DB_NAME" --remote)
     success "Migrations applied"
   fi
 else
@@ -147,7 +147,7 @@ if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would build and deploy $MAIN_WORKER_NAME"
 else
   info "Building Vue frontend and deploying unified worker..."
-  (cd "$MAIN_DIR" && npm run build && wrangler deploy)
+  (cd "$MAIN_DIR" && pnpm run build && pnpm wrangler deploy)
   success "$MAIN_WORKER_NAME deployed"
 fi
 
@@ -160,7 +160,7 @@ if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy $CONSUMER_NAME"
 else
   info "Deploying queue consumer worker..."
-  (cd "$CONSUMER_DIR" && wrangler deploy)
+  (cd "$CONSUMER_DIR" && pnpm wrangler deploy)
   success "$CONSUMER_NAME deployed"
 fi
 
@@ -173,7 +173,7 @@ if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy $EMAIL_SENDER_NAME"
 else
   info "Deploying email sender worker..."
-  (cd "$EMAIL_DIR" && wrangler deploy)
+  (cd "$EMAIL_DIR" && pnpm wrangler deploy)
   success "$EMAIL_SENDER_NAME deployed"
 fi
 

@@ -92,7 +92,7 @@ for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
-    (cd "$DIR" && npm install --silent)
+    (cd "$DIR" && pnpm install --silent)
     success "$DIRNAME"
   fi
 done
@@ -103,15 +103,15 @@ done
 header "Step 2: Type Checking"
 
 info "Checking $MAIN_WORKER_NAME (Vue + Worker)..."
-(cd "$MAIN_DIR" && npx vue-tsc --noEmit)
+(cd "$MAIN_DIR" && pnpm exec vue-tsc --noEmit)
 success "$MAIN_WORKER_NAME: 0 errors"
 
 info "Checking $CONSUMER_NAME..."
-(cd "$CONSUMER_DIR" && npx -p typescript tsc --noEmit)
+(cd "$CONSUMER_DIR" && pnpm exec tsc --noEmit)
 success "$CONSUMER_NAME: 0 errors"
 
 info "Checking $EMAIL_SENDER_NAME..."
-(cd "$EMAIL_DIR" && npx -p typescript tsc --noEmit)
+(cd "$EMAIL_DIR" && pnpm exec tsc --noEmit)
 success "$EMAIL_SENDER_NAME: 0 errors"
 
 # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ if [[ "$SKIP_TESTS" == false ]]; then
   header "Step 3: Running Tests"
 
   info "Running tests (worker + Vue)..."
-  (cd "$MAIN_DIR" && npm test)
+  (cd "$MAIN_DIR" && pnpm test)
   success "All tests passed"
 else
   header "Step 3: Skipping tests (--skip-tests)"
@@ -170,15 +170,15 @@ if [[ "$DRY_RUN" == true ]]; then
   info "Run without --dry-run to actually deploy."
 else
   info "Building and deploying $MAIN_WORKER_NAME..."
-  (cd "$MAIN_DIR" && npm run build && wrangler deploy)
+  (cd "$MAIN_DIR" && pnpm run build && pnpm wrangler deploy)
   success "$MAIN_WORKER_NAME deployed"
 
   info "Deploying $CONSUMER_NAME..."
-  (cd "$CONSUMER_DIR" && wrangler deploy)
+  (cd "$CONSUMER_DIR" && pnpm wrangler deploy)
   success "$CONSUMER_NAME deployed"
 
   info "Deploying $EMAIL_SENDER_NAME..."
-  (cd "$EMAIL_DIR" && wrangler deploy)
+  (cd "$EMAIL_DIR" && pnpm wrangler deploy)
   success "$EMAIL_SENDER_NAME deployed"
 fi
 

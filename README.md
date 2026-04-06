@@ -157,7 +157,7 @@ A `packages/shared/` directory contains code shared between workers:
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 20
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.x (`npm i -g wrangler`)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.x (`pnpm add -g wrangler`)
 - A Cloudflare account with **Workers Paid plan** ($5/month)
 - A domain managed by Cloudflare (for custom domain deployment)
 
@@ -168,9 +168,7 @@ git clone https://github.com/SJang1/siliconbeest.git
 cd siliconbeest
 
 # Install dependencies for all sub-projects
-cd siliconbeest && npm install && cd ..
-cd siliconbeest-queue-consumer && npm install && cd ..
-cd siliconbeest-email-sender && npm install && cd ..
+pnpm install
 ```
 
 ### 2. Interactive Setup
@@ -284,13 +282,13 @@ See each sub-project README for details:
 cd siliconbeest
 
 # API worker tests (55 test files, 805 tests)
-npx vitest run --config vitest.worker.config.ts
+pnpm exec vitest run --config vitest.worker.config.ts
 
 # Vue frontend tests (11 test files)
-npx vitest run
+pnpm exec vitest run
 
 # Both suites
-npx vitest run --config vitest.worker.config.ts && npx vitest run
+pnpm exec vitest run --config vitest.worker.config.ts && pnpm exec vitest run
 ```
 
 | Suite | Test Files | Coverage Areas |
@@ -353,22 +351,22 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 
 ```bash
 # Terminal 1 -- Main app: API worker + Vue frontend (port 8787)
-cd siliconbeest && npx wrangler dev
+cd siliconbeest && pnpm exec wrangler dev
 
 # Terminal 2 -- Queue consumer
-cd siliconbeest-queue-consumer && npx wrangler dev
+cd siliconbeest-queue-consumer && pnpm exec wrangler dev
 
 # Terminal 3 -- Email sender
-cd siliconbeest-email-sender && npx wrangler dev
+cd siliconbeest-email-sender && pnpm exec wrangler dev
 
 # Terminal 4 -- Vue frontend dev server with HMR (port 5173, optional)
-cd siliconbeest && npm run dev
+cd siliconbeest && pnpm run dev
 ```
 
 For local D1, apply migrations first:
 
 ```bash
-cd siliconbeest && npx wrangler d1 migrations apply siliconbeest-db --local
+cd siliconbeest && pnpm exec wrangler d1 migrations apply siliconbeest-db --local
 ```
 
 ---
@@ -395,7 +393,7 @@ Running on Cloudflare Workers Paid plan ($5/month base):
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-change`
 3. Make your changes and add tests
-4. Run tests: `cd siliconbeest && npx vitest run --config vitest.worker.config.ts && npx vitest run`
+4. Run tests: `cd siliconbeest && pnpm exec vitest run --config vitest.worker.config.ts && pnpm exec vitest run`
 5. Submit a pull request
 
 All new API endpoints should include Zod validation schemas and integration tests.

@@ -167,7 +167,7 @@ Production update workflow: pull latest code, validate, migrate, and deploy.
 
 Steps performed:
 1. `git pull` (shows changelog)
-2. `npm install` for all projects
+2. `pnpm install` for all projects
 3. TypeScript type check (vue-tsc for unified worker, tsc for others)
 4. Run tests
 5. Apply D1 migrations
@@ -362,4 +362,4 @@ Fetches resource IDs (D1, KV, R2, Queues) from your Cloudflare account and regen
 5. Reads existing domain/title/registration from current config
 6. Regenerates `siliconbeest/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, and `siliconbeest-email-sender/wrangler.jsonc`
 
-**Prerequisites:** `wrangler` CLI authenticated (`npx wrangler login`)
+**Prerequisites:** `wrangler` CLI authenticated (`pnpm exec wrangler login`)

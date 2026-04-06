@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/config.sh"
 header "Checking prerequisites"
 
 if ! command -v wrangler &>/dev/null; then
-  error "wrangler CLI is not installed. Install with: npm i -g wrangler"
+  error "wrangler CLI is not installed. Install with: pnpm add -g wrangler"
   exit 1
 fi
 success "wrangler found"

@@ -31,7 +31,7 @@ export function createFed(env: Env): Federation<FedifyContextData> {
   if (cachedFed) return cachedFed;
 
   cachedFed = createFederation<FedifyContextData>({
-    kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
+    kv: new WorkersKvStore(env.FEDIFY_KV),
     queue: new CloudflareMessageQueue(new WorkersMessageQueue(env.QUEUE_FEDERATION)),
     userAgent: {
       software: 'SiliconBeest/1.0',

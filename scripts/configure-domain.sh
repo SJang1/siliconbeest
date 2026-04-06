@@ -88,7 +88,7 @@ fi
 header "Redeploying Worker"
 
 info "Redeploying $MAIN_WORKER_NAME with updated domain..."
-(cd "$MAIN_DIR" && npm run build && wrangler deploy)
+(cd "$MAIN_DIR" && pnpm run build && pnpm wrangler deploy)
 success "$MAIN_WORKER_NAME redeployed"
 
 # ---------------------------------------------------------------------------
