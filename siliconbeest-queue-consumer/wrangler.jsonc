@@ -13,7 +13,8 @@
 	"alias": {
 		"@fedify/fedify": "./node_modules/@fedify/fedify/dist/mod.js",
 		"@fedify/fedify/vocab": "./node_modules/@fedify/fedify/dist/vocab/mod.js",
-		"@fedify/cfworkers": "./node_modules/@fedify/cfworkers/dist/mod.js"
+		"@fedify/cfworkers": "./node_modules/@fedify/cfworkers/dist/mod.js",
+		"ulid": "./node_modules/ulid/dist/browser/index.js"
 	},
 	"placement": {
 		"mode": "smart"
