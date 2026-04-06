@@ -10,6 +10,7 @@
 
 import type { Env } from '../env';
 import type { FetchRemoteAccountMessage } from '../shared/types/queue';
+import { ensureInstanceRecord } from '../../../packages/shared/services/instance';
 
 /** Cache TTL for remote actor documents (5 minutes). */
 const ACTOR_CACHE_TTL = 300;
@@ -230,12 +231,7 @@ export async function handleFetchRemoteAccount(
   }
 
   // Ensure the instance record exists
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO instances (id, domain, created_at, updated_at)
-     VALUES (?, ?, datetime('now'), datetime('now'))`,
-  )
-    .bind(crypto.randomUUID(), actorDomain)
-    .run();
+  await ensureInstanceRecord(env.DB, actorDomain);
 
   // NodeInfo discovery — fetch software info for this instance (best-effort, never blocks)
   try {

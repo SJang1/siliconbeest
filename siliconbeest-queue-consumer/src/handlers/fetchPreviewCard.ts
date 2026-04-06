@@ -7,6 +7,7 @@
 
 import type { Env } from '../env';
 import type { FetchPreviewCardMessage } from '../shared/types/queue';
+import { generateUlid } from '../../../packages/shared/utils/ulid';
 
 /** Basic HTML entity decoding. */
 function decodeHtmlEntities(text: string): string {
@@ -135,15 +136,6 @@ async function fetchOgMetadata(url: string): Promise<OgData | null> {
   }
 }
 
-function generateId(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
-
 export async function handleFetchPreviewCard(
   msg: FetchPreviewCardMessage,
   env: Env,
@@ -193,7 +185,7 @@ export async function handleFetchPreviewCard(
   }
   console.log(`[preview-card] Found OG: title="${og.title}", image=${!!og.image}`);
 
-  const cardId = generateId();
+  const cardId = generateUlid();
   const now = new Date().toISOString();
 
   await env.DB.batch([
