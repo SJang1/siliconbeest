@@ -621,7 +621,7 @@
     "vapid_public_key": "VAPID公開鍵",
     "vapid_private_key": "VAPID秘密鍵",
     "vapid_note": "VAPIDキーはサーバーの環境変数で設定されます",
-    "vapid_help": "VAPIDキーはscripts/generate-vapid-keys.shで生成するか、環境変数で設定できます。データベースの設定が環境変数より優先されます。",
+    "vapid_help": "VAPIDキーはscripts/generate-vapid-keys.shで生成できます。",
     "reg_open": "オープン — 誰でも登録できます",
     "reg_approval": "承認制 — 管理者の承認が必要です",
     "reg_closed": "クローズ — 新規登録は受け付けていません",

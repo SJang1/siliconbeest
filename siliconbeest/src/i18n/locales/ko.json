@@ -621,7 +621,7 @@
     "vapid_public_key": "VAPID 공개 키",
     "vapid_private_key": "VAPID 비공개 키",
     "vapid_note": "VAPID 키는 서버 환경변수로 설정됩니다",
-    "vapid_help": "VAPID 키는 scripts/generate-vapid-keys.sh로 생성하거나, 환경변수로도 설정할 수 있습니다. DB 설정이 환경변수보다 우선합니다.",
+    "vapid_help": "VAPID 키는 scripts/generate-vapid-keys.sh로 생성할 수 있습니다.",
     "reg_open": "공개 — 누구나 가입 가능",
     "reg_approval": "승인 필요 — 관리자 승인 후 가입",
     "reg_closed": "비공개 — 신규 가입 불가",

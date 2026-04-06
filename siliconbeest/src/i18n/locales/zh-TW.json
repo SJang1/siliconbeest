@@ -621,7 +621,7 @@
     "vapid_public_key": "VAPID 公開金鑰",
     "vapid_private_key": "VAPID 私密金鑰",
     "vapid_note": "VAPID 金鑰透過伺服器環境變數設定",
-    "vapid_help": "VAPID 金鑰可使用 scripts/generate-vapid-keys.sh 產生，或透過環境變數設定。資料庫設定優先於環境變數。",
+    "vapid_help": "VAPID 金鑰可使用 scripts/generate-vapid-keys.sh 產生。",
     "reg_open": "開放 — 任何人皆可註冊",
     "reg_approval": "需審核 — 管理員需核准",
     "reg_closed": "關閉 — 不接受新註冊",

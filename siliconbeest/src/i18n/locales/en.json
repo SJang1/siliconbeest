@@ -621,7 +621,7 @@
     "vapid_public_key": "VAPID Public Key",
     "vapid_private_key": "VAPID Private Key",
     "vapid_note": "VAPID keys are configured via server environment variables",
-    "vapid_help": "VAPID keys can be generated with scripts/generate-vapid-keys.sh or set via environment variables. DB settings take priority over environment variables.",
+    "vapid_help": "VAPID keys can be generated with scripts/generate-vapid-keys.sh.",
     "reg_open": "Open — anyone can sign up",
     "reg_approval": "Approval required — admin must approve",
     "reg_closed": "Closed — no new registrations",
