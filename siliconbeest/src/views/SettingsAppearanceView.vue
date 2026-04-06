@@ -71,6 +71,21 @@ async function saveDefaultLanguage(newLocale: string) {
   }
 }
 
+const clearingCache = ref(false)
+const cacheClearSuccess = ref(false)
+
+async function clearCache() {
+  clearingCache.value = true
+  try {
+    const names = await caches.keys()
+    await Promise.all(names.map((n) => caches.delete(n)))
+    cacheClearSuccess.value = true
+    setTimeout(() => window.location.reload(), 800)
+  } finally {
+    clearingCache.value = false
+  }
+}
+
 watch(() => auth.currentUser?.source?.language, (lang) => {
   if (lang) defaultLanguage.value = lang
 }, { immediate: true })
@@ -201,6 +216,22 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
           >
             + {{ t(col.labelKey) }}
           </button>
+        </div>
+      </div>
+
+      <!-- Clear Cache -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.clear_cache') }}</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.clear_cache_desc') }}</p>
+        <div class="flex items-center gap-3">
+          <button
+            @click="clearCache"
+            :disabled="clearingCache"
+            class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {{ t('settings.clear_cache_button') }}
+          </button>
+          <span v-if="cacheClearSuccess" class="text-sm text-green-600 dark:text-green-400">{{ t('settings.clear_cache_done') }}</span>
         </div>
       </div>
     </div>

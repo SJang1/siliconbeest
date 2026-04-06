@@ -361,7 +361,11 @@
     "column_notifications": "Notifications",
     "columns_reorder_hint": "Use arrows to reorder columns.",
     "show_trending": "Trending panel",
-    "show_trending_desc": "Show the trending panel on the right side of the screen."
+    "show_trending_desc": "Show the trending panel on the right side of the screen.",
+    "clear_cache": "Clear local cache",
+    "clear_cache_desc": "Remove cached data and assets stored by the service worker. The page will reload.",
+    "clear_cache_button": "Clear cache",
+    "clear_cache_done": "Cache cleared."
   },
   "admin": {
     "title": "Administration",

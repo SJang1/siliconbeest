@@ -7,6 +7,17 @@ import vueDevTools from 'vite-plugin-vue-devtools';
 import tailwindcss from '@tailwindcss/vite';
 import { cloudflare } from '@cloudflare/vite-plugin';
 
+const BASE_VERSION = '0.1.0';
+
+function getAppVersion(): string {
+  try {
+    const hash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    return hash ? `${BASE_VERSION}+${hash}` : BASE_VERSION;
+  } catch {
+    return BASE_VERSION;
+  }
+}
+
 function getGitHash(): string {
   try {
     return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
@@ -19,6 +30,7 @@ function getGitHash(): string {
 export default defineConfig({
   define: {
     __GIT_HASH__: JSON.stringify(getGitHash()),
+    __APP_VERSION__: JSON.stringify(getAppVersion()),
   },
   plugins: [
     vue(),

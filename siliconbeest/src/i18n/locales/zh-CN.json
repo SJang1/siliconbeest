@@ -361,7 +361,11 @@
     "column_notifications": "通知",
     "columns_reorder_hint": "使用箭头重新排列栏目。",
     "show_trending": "热门面板",
-    "show_trending_desc": "在屏幕右侧显示热门面板。"
+    "show_trending_desc": "在屏幕右侧显示热门面板。",
+    "clear_cache": "清除本地缓存",
+    "clear_cache_desc": "删除服务工作线程存储的缓存数据和资源。页面将重新加载。",
+    "clear_cache_button": "清除缓存",
+    "clear_cache_done": "缓存已清除。"
   },
   "admin": {
     "title": "管理",
