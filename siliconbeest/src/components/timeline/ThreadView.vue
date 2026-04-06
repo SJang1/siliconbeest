@@ -1,0 +1,147 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { Status } from '@/types/mastodon'
+import { getStatus, getStatusContext } from '@/api/mastodon/statuses'
+import { useAuthStore } from '@/stores/auth'
+import { useStatusesStore } from '@/stores/statuses'
+import StatusCard from '@/components/status/StatusCard.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+
+const { t } = useI18n()
+const auth = useAuthStore()
+const statusesStore = useStatusesStore()
+
+const props = defineProps<{
+  statusId: string
+}>()
+
+const emit = defineEmits<{
+  back: []
+  navigate: [status: Status]
+}>()
+
+const currentStatusId = ref<string | null>(null)
+const ancestorIds = ref<string[]>([])
+const descendantIds = ref<string[]>([])
+const loading = ref(true)
+const error = ref<string | null>(null)
+
+const status = computed(() =>
+  currentStatusId.value ? statusesStore.cache.get(currentStatusId.value) ?? null : null
+)
+const ancestors = computed(() =>
+  ancestorIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[]
+)
+const descendants = computed(() =>
+  descendantIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[]
+)
+
+interface ThreadedStatus {
+  status: Status
+  depth: number
+}
+
+const threadedDescendants = computed<ThreadedStatus[]>(() => {
+  if (!status.value || descendants.value.length === 0) return []
+
+  const mainId = status.value.id
+  const childrenMap = new Map<string, Status[]>()
+  for (const s of descendants.value) {
+    const parentId = s.in_reply_to_id ?? mainId
+    const list = childrenMap.get(parentId) ?? []
+    list.push(s)
+    childrenMap.set(parentId, list)
+  }
+
+  const result: ThreadedStatus[] = []
+  function walk(parentId: string, depth: number) {
+    const children = childrenMap.get(parentId)
+    if (!children) return
+    for (const child of children) {
+      result.push({ status: child, depth: Math.min(depth, 4) })
+      walk(child.id, depth + 1)
+    }
+  }
+  walk(mainId, 0)
+  return result
+})
+
+async function loadThread() {
+  loading.value = true
+  error.value = null
+  const id = props.statusId
+  if (!id) return
+
+  try {
+    const { data: statusData } = await getStatus(id, auth.token ?? undefined)
+    statusesStore.cacheStatus(statusData)
+    currentStatusId.value = statusData.id
+
+    const { data: context } = await getStatusContext(id, auth.token ?? undefined)
+    for (const s of context.ancestors) statusesStore.cacheStatus(s)
+    for (const s of context.descendants) statusesStore.cacheStatus(s)
+    ancestorIds.value = context.ancestors.map((s: Status) => s.id)
+    descendantIds.value = context.descendants.map((s: Status) => s.id)
+  } catch (e) {
+    error.value = (e as Error).message
+    currentStatusId.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleDeleted(deletedId: string) {
+  descendantIds.value = descendantIds.value.filter((id) => id !== deletedId)
+  if (currentStatusId.value === deletedId) {
+    emit('back')
+  }
+}
+
+function handleNavigate(s: Status) {
+  emit('navigate', s)
+}
+
+onMounted(loadThread)
+
+watch(() => props.statusId, () => {
+  loadThread()
+})
+</script>
+
+<template>
+  <div>
+    <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+      <button @click="emit('back')" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <h2 class="text-lg font-bold">{{ t('status.thread') }}</h2>
+    </header>
+
+    <LoadingSpinner v-if="loading" />
+
+    <template v-else-if="status">
+      <!-- Ancestors -->
+      <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @navigate="handleNavigate" @deleted="handleDeleted" />
+
+      <!-- Main status -->
+      <div class="border-l-4 border-indigo-500">
+        <StatusCard :status="status" @navigate="handleNavigate" @deleted="handleDeleted" />
+      </div>
+
+      <!-- Descendants -->
+      <div
+        v-for="item in threadedDescendants"
+        :key="item.status.id"
+        :style="{ marginLeft: `${item.depth * 24}px` }"
+        :class="item.depth > 0 ? 'border-l-2 border-gray-200 dark:border-gray-700' : ''"
+      >
+        <StatusCard :status="item.status" @navigate="handleNavigate" @deleted="handleDeleted" />
+      </div>
+    </template>
+
+    <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">
+      {{ error || t('status.not_found') }}
+    </div>
+  </div>
+</template>

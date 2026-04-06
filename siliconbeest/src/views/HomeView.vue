@@ -11,6 +11,7 @@ import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 import TimelineColumn from '@/components/timeline/TimelineColumn.vue'
 import NotificationsColumn from '@/components/timeline/NotificationsColumn.vue'
 import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
+import ThreadView from '@/components/timeline/ThreadView.vue'
 
 const { t } = useI18n()
 const timelinesStore = useTimelinesStore()
@@ -19,6 +20,20 @@ const auth = useAuthStore()
 const ui = useUiStore()
 
 const columns = computed(() => ui.columns)
+
+// Home column view stack
+const homeView = ref<'timeline' | 'thread'>('timeline')
+const homeThreadId = ref<string | null>(null)
+
+function openHomeThread(status: Status) {
+  homeThreadId.value = status.id
+  homeView.value = 'thread'
+}
+
+function backToHomeTimeline() {
+  homeView.value = 'timeline'
+  homeThreadId.value = null
+}
 
 const timeline = computed(() => timelinesStore.getTimeline('home'))
 
@@ -30,20 +45,23 @@ const statuses = computed(() => {
 
 const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
 
+const homeColumnRef = ref<HTMLElement | null>(null)
 const isAtTop = ref(true)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleScroll() {
   if (scrollTimer) return
   scrollTimer = setTimeout(() => {
-    isAtTop.value = window.scrollY < 50
+    const el = homeColumnRef.value
+    isAtTop.value = el ? el.scrollTop < 50 : window.scrollY < 50
     scrollTimer = null
   }, 100)
 }
 
-onMounted(() => window.addEventListener('scroll', handleScroll, { passive: true }))
+onMounted(() => {
+  // Scroll listener will be attached after DOM renders via ref
+})
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
   if (scrollTimer) clearTimeout(scrollTimer)
 })
 
@@ -104,50 +122,60 @@ onMounted(loadTimeline)
 <template>
   <AppShell>
     <div
-      class="grid min-h-screen"
+      class="grid h-full"
       :class="{
         'xl:grid-cols-2': columns.length >= 1,
         '2xl:grid-cols-3': columns.length >= 2,
       }"
     >
       <!-- Home Timeline (always visible) -->
-      <div class="border-r border-gray-200 dark:border-gray-700 min-h-screen">
-        <!-- Header -->
-        <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
-          <h1 class="text-xl font-bold">{{ t('nav.home') }}</h1>
-          <button
-            v-if="auth.isAuthenticated"
-            @click="ui.openComposeModal()"
-            class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
-          >
-            {{ t('nav.compose') }}
-          </button>
-        </header>
+      <div ref="homeColumnRef" class="border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto" @scroll="handleScroll">
+        <template v-if="homeView === 'timeline'">
+          <!-- Header -->
+          <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
+            <h1 class="text-xl font-bold">{{ t('nav.home') }}</h1>
+            <button
+              v-if="auth.isAuthenticated"
+              @click="ui.openComposeModal()"
+              class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
+            >
+              {{ t('nav.compose') }}
+            </button>
+          </header>
 
-        <!-- Announcements -->
-        <AnnouncementBanner />
+          <!-- Announcements -->
+          <AnnouncementBanner />
 
-        <!-- Error -->
-        <div v-if="timeline.error" class="p-4 text-center text-red-500">
-          {{ timeline.error }}
-        </div>
+          <!-- Error -->
+          <div v-if="timeline.error" class="p-4 text-center text-red-500">
+            {{ timeline.error }}
+          </div>
 
-        <!-- Feed -->
-        <TimelineFeed
-          :statuses="statuses"
-          :loading="timeline.loading || timeline.loadingMore"
-          :done="!timeline.hasMore"
-          :has-new-posts="hasNewPosts && !isAtTop"
-          :new-posts-count="timeline.newStatusIds.length"
-          @load-more="loadMore"
-          @load-new="showNew"
+          <!-- Feed -->
+          <TimelineFeed
+            :statuses="statuses"
+            :loading="timeline.loading || timeline.loadingMore"
+            :done="!timeline.hasMore"
+            :has-new-posts="hasNewPosts && !isAtTop"
+            :new-posts-count="timeline.newStatusIds.length"
+            @load-more="loadMore"
+            @load-new="showNew"
+            @navigate="openHomeThread"
+          />
+        </template>
+
+        <ThreadView
+          v-else-if="homeThreadId"
+          :status-id="homeThreadId"
+          @back="backToHomeTimeline"
+          @navigate="openHomeThread"
         />
       </div>
 
       <!-- First extra column (xl+) -->
       <div
         v-if="columns.length >= 1"
-        class="hidden xl:block border-r border-gray-200 dark:border-gray-700 min-h-screen"
+        class="hidden xl:block border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto"
       >
         <NotificationsColumn v-if="columns[0] === 'notifications'" />
         <TimelineColumn
@@ -162,7 +190,7 @@ onMounted(loadTimeline)
       <!-- Second extra column (2xl+) -->
       <div
         v-if="columns.length >= 2"
-        class="hidden 2xl:block min-h-screen"
+        class="hidden 2xl:block h-full overflow-y-auto"
       >
         <NotificationsColumn v-if="columns[1] === 'notifications'" />
         <TimelineColumn

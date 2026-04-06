@@ -16,20 +16,20 @@ const gridClass = computed(() =>
 </script>
 
 <template>
-  <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-    <div class="grid min-h-screen" :class="gridClass">
+  <div class="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div class="grid h-screen" :class="gridClass">
       <!-- Desktop Sidebar — pinned to left edge -->
       <aside class="hidden md:flex md:flex-col h-screen sticky top-0 border-r border-gray-200 dark:border-gray-700">
         <Sidebar />
       </aside>
 
       <!-- Main Content -->
-      <main class="min-h-screen border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0">
+      <main class="h-screen overflow-y-auto border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0">
         <slot />
       </main>
 
       <!-- Right Panel (trending) — pinned to right edge -->
-      <aside v-if="ui.showTrending" class="hidden lg:block h-screen sticky top-0 p-4">
+      <aside v-if="ui.showTrending" class="hidden lg:block h-screen overflow-y-auto p-4">
         <slot name="right-panel">
           <div class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
             <h2 class="font-bold text-lg mb-3">{{ t('explore.trending') }}</h2>

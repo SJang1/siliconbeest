@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'load-more': []
   'load-new': []
+  'navigate': [status: Status]
 }>()
 </script>
 
@@ -38,6 +39,7 @@ const emit = defineEmits<{
         v-for="status in statuses"
         :key="status.id"
         :status="status"
+        @navigate="(s: Status) => emit('navigate', s)"
       />
 
       <!-- Empty state -->

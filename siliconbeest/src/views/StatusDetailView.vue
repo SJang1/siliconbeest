@@ -7,10 +7,8 @@ import { getStatus, getStatusContext } from '@/api/mastodon/statuses'
 import { useAuthStore } from '@/stores/auth'
 import { useStatusesStore } from '@/stores/statuses'
 import { useInstanceStore } from '@/stores/instance'
-import { usePublish, type PublishPayload } from '@/composables/usePublish'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
-import StatusComposer from '@/components/status/StatusComposer.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
@@ -19,7 +17,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const statusesStore = useStatusesStore()
 const instanceStore = useInstanceStore()
-const { publish } = usePublish()
 
 const statusId = ref<string | null>(null)
 const ancestorIds = ref<string[]>([])
@@ -27,12 +24,10 @@ const descendantIds = ref<string[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-// Resolve statuses from store cache for reactive updates
 const status = computed(() => statusId.value ? statusesStore.cache.get(statusId.value) ?? null : null)
 const ancestors = computed(() => ancestorIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[])
 const descendants = computed(() => descendantIds.value.map((id) => statusesStore.cache.get(id)).filter(Boolean) as Status[])
 
-// Build threaded tree with depth for indentation
 interface ThreadedStatus {
   status: Status
   depth: number
@@ -74,7 +69,6 @@ async function loadThread() {
     statusesStore.cacheStatus(statusData)
     statusId.value = statusData.id
 
-    // Set dynamic page title
     const siteName = instanceStore.instance?.title || 'SiliconBeest'
     const displayName = statusData.account?.display_name || statusData.account?.username || ''
     const acct = statusData.account?.acct || ''
@@ -84,7 +78,6 @@ async function loadThread() {
       : `${displayName} (@${acct}) | ${siteName}`
 
     const { data: context } = await getStatusContext(id, auth.token ?? undefined)
-    // Cache all statuses and store their IDs
     for (const s of context.ancestors) statusesStore.cacheStatus(s)
     for (const s of context.descendants) statusesStore.cacheStatus(s)
     ancestorIds.value = context.ancestors.map((s: Status) => s.id)
@@ -97,35 +90,15 @@ async function loadThread() {
   }
 }
 
-const replyTarget = ref<Status | null>(null)
-
-function setReplyTarget(s: Status) {
-  replyTarget.value = s
-}
-
 function handleDeleted(deletedId: string) {
-  // Remove from descendant IDs
   descendantIds.value = descendantIds.value.filter((id) => id !== deletedId)
-  // If the main status was deleted, go back
   if (statusId.value === deletedId) {
     router.back()
   }
 }
 
-async function handleReply(payload: PublishPayload) {
-  if (!auth.token || !status.value) return
-  const target = replyTarget.value ?? status.value
-  try {
-    await publish({
-      ...payload,
-      in_reply_to_id: target.id,
-    })
-    // Reload full thread to get correct ordering
-    await loadThread()
-    replyTarget.value = null
-  } catch (e) {
-    // silently fail
-  }
+function handleNavigate(s: Status) {
+  router.push(`/@${s.account.acct}/${s.id}`)
 }
 
 onMounted(loadThread)
@@ -149,11 +122,11 @@ watch(() => route.params.statusId, (newId) => {
 
       <template v-else-if="status">
         <!-- Ancestors -->
-        <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @deleted="handleDeleted" />
+        <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @navigate="handleNavigate" @deleted="handleDeleted" />
 
         <!-- Main status -->
         <div class="border-l-4 border-indigo-500">
-          <StatusCard :status="status" @deleted="handleDeleted" />
+          <StatusCard :status="status" @navigate="handleNavigate" @deleted="handleDeleted" />
         </div>
 
         <!-- Descendants (threaded with indentation) -->
@@ -163,15 +136,8 @@ watch(() => route.params.statusId, (newId) => {
           :style="{ marginLeft: `${item.depth * 24}px` }"
           :class="item.depth > 0 ? 'border-l-2 border-gray-200 dark:border-gray-700' : ''"
         >
-          <StatusCard :status="item.status" @reply="setReplyTarget(item.status)" @deleted="handleDeleted" />
+          <StatusCard :status="item.status" @navigate="handleNavigate" @deleted="handleDeleted" />
         </div>
-
-        <!-- Reply composer (below all replies) -->
-        <div v-if="replyTarget && replyTarget.id !== status.id" class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2">
-          <span>{{ t('status.replying_to') }} @{{ replyTarget.account.acct }}</span>
-          <button @click="replyTarget = null" class="text-indigo-500 hover:underline text-xs">{{ t('common.cancel') }}</button>
-        </div>
-        <StatusComposer :reply-to="replyTarget ?? status" @submit="handleReply" />
       </template>
 
       <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">

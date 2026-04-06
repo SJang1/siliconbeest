@@ -7,6 +7,8 @@ import { useStatusesStore } from '@/stores/statuses'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountsStore } from '@/stores/accounts'
+import { useComposeStore } from '@/stores/compose'
+import { useUiStore } from '@/stores/ui'
 import { useNow } from '@/composables/useNow'
 import Avatar from '../common/Avatar.vue'
 import StatusContent from './StatusContent.vue'
@@ -23,6 +25,8 @@ const router = useRouter()
 const statusesStore = useStatusesStore()
 const timelinesStore = useTimelinesStore()
 const authStore = useAuthStore()
+const composeStore = useComposeStore()
+const uiStore = useUiStore()
 const { now } = useNow()
 
 const props = defineProps<{
@@ -51,6 +55,9 @@ const loadingBookmark = ref(false)
 const showReportDialog = ref(false)
 const showImageViewer = ref(false)
 const imageViewerIndex = ref(0)
+const showShareModal = ref(false)
+const shareUrl = ref('')
+const shareCopied = ref(false)
 
 function openImageViewer(index: number) {
   imageViewerIndex.value = index
@@ -165,7 +172,13 @@ async function handleBookmark() {
 function handleReply() {
   // For reblogs, reply to the original status, not the reblog wrapper
   const target = props.status.reblog ?? props.status
-  router.push(`/@${target.account.acct}/${target.id}`)
+  composeStore.setReplyTo(target)
+  uiStore.openComposeModal()
+}
+
+function handleCardClick() {
+  const target = props.status.reblog ?? props.status
+  emit('navigate', target)
 }
 
 async function handleShare() {
@@ -173,11 +186,31 @@ async function handleShare() {
   if (navigator.share) {
     try {
       await navigator.share({ url })
+      return
     } catch {
-      // User cancelled or share failed
+      // User cancelled or share failed — fall through to modal
     }
-  } else {
-    await navigator.clipboard.writeText(url)
+  }
+  // Show share modal with copyable link
+  shareUrl.value = url
+  shareCopied.value = false
+  showShareModal.value = true
+}
+
+async function copyShareUrl() {
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    shareCopied.value = true
+    setTimeout(() => { shareCopied.value = false }, 2000)
+  } catch {
+    // Fallback: select input text
+    const input = document.querySelector('.share-url-input') as HTMLInputElement
+    if (input) {
+      input.select()
+      document.execCommand('copy')
+      shareCopied.value = true
+      setTimeout(() => { shareCopied.value = false }, 2000)
+    }
   }
 }
 
@@ -231,6 +264,7 @@ async function submitEdit() {
 const emit = defineEmits<{
   reply: [status: Status]
   deleted: [statusId: string]
+  navigate: [status: Status]
 }>()
 
 function handlePollUpdate(updatedPoll: Status['poll']) {
@@ -260,15 +294,16 @@ async function handleDelete() {
 <template>
   <article
     v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
-    class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+    class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
     :aria-label="t('status.by', { name: displayStatus.account.display_name })"
+    @click="handleCardClick"
   >
     <!-- Reblog indicator -->
     <div v-if="isReblog" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-2 ml-12">
       <svg class="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="currentColor" viewBox="0 0 24 24">
         <path d="M23.77 15.67a.749.749 0 00-1.06 0l-2.22 2.22V7.65a3.755 3.755 0 00-3.75-3.75h-5.85a.75.75 0 000 1.5h5.85a2.25 2.25 0 012.25 2.25v10.24l-2.22-2.22a.749.749 0 10-1.06 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5a.747.747 0 000-1.06zm-10.66 1.47H7.26a2.25 2.25 0 01-2.25-2.25V4.65l2.22 2.22a.744.744 0 001.06 0 .749.749 0 000-1.06l-3.5-3.5a.747.747 0 00-1.06 0l-3.5 3.5a.749.749 0 101.06 1.06l2.22-2.22v10.24a3.755 3.755 0 003.75 3.75h5.85a.75.75 0 000-1.5z"/>
       </svg>
-      <router-link :to="`/@${status.account.acct}`" class="font-semibold hover:underline">
+      <router-link :to="`/@${status.account.acct}`" class="font-semibold hover:underline" @click.stop>
         {{ status.account.display_name || status.account.username }}
       </router-link>
       <span>{{ t('status.reblogged') }}</span>
@@ -283,6 +318,7 @@ async function handleDelete() {
         v-if="displayStatus.in_reply_to_account_id"
         :to="displayStatus.in_reply_to_id ? `/@${displayStatus.account.acct}/${displayStatus.in_reply_to_id}` : '#'"
         class="hover:underline"
+        @click.stop
       >
         {{ t('status.repliedTo', { user: replyToDisplay }) }}
       </router-link>
@@ -291,14 +327,14 @@ async function handleDelete() {
 
     <div class="flex gap-3">
       <!-- Avatar -->
-      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0 w-10 h-10">
+      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0 w-10 h-10" @click.stop>
         <Avatar :src="displayStatus.account.avatar" :alt="displayStatus.account.display_name" size="md" />
       </router-link>
 
       <div class="flex-1 min-w-0">
         <!-- Header -->
         <div class="flex items-center gap-1 text-sm">
-          <router-link :to="`/@${displayStatus.account.acct}`" class="font-bold hover:underline truncate">
+          <router-link :to="`/@${displayStatus.account.acct}`" class="font-bold hover:underline truncate" @click.stop>
             <span v-if="hasAccountEmojis" v-html="emojifiedDisplayName" />
             <template v-else>{{ displayStatus.account.display_name || displayStatus.account.username }}</template>
           </router-link>
@@ -388,6 +424,7 @@ async function handleDelete() {
             v-if="displayStatus.poll"
             :poll="displayStatus.poll"
             @updated="handlePollUpdate"
+            @click.stop
           />
 
           <!-- Media -->
@@ -396,12 +433,14 @@ async function handleDelete() {
             :attachments="displayStatus.media_attachments"
             class="mt-2"
             @expand="openImageViewer"
+            @click.stop
           />
 
           <!-- Preview Card -->
           <PreviewCard
             v-if="displayStatus.card && !displayStatus.media_attachments?.length"
             :card="displayStatus.card"
+            @click.stop
           />
         </template>
 
@@ -410,10 +449,11 @@ async function handleDelete() {
           :status="displayStatus"
           class="mt-2"
           @updated="handleReactionUpdate"
+          @click.stop
         />
 
         <!-- Actions -->
-        <StatusActions
+        <StatusActions @click.stop
           :status-id="displayStatus.id"
           :replies-count="displayStatus.replies_count"
           :reblogs-count="displayStatus.reblogs_count"
@@ -450,6 +490,40 @@ async function handleDelete() {
       @close="showReportDialog = false"
     />
 
+    <!-- Share Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showShareModal" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" @click.self="showShareModal = false">
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-5" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ t('status.share') }}</h3>
+              <button @click="showShareModal = false" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                readonly
+                :value="shareUrl"
+                class="share-url-input flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 select-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                @focus="($event.target as HTMLInputElement).select()"
+              />
+              <button
+                @click="copyShareUrl"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+                :class="shareCopied
+                  ? 'bg-green-600 text-white'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'"
+              >
+                {{ shareCopied ? t('common.copied') : t('status.copyLink') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Image Viewer Modal -->
     <ImageViewer
       v-if="showImageViewer && displayStatus.media_attachments?.length"
@@ -459,3 +533,12 @@ async function handleDelete() {
     />
   </article>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>
