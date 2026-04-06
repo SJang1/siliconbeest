@@ -410,7 +410,9 @@ app.get('/thumbnail.png', async (c) => {
 });
 
 // PWA icons — serve the admin-uploaded favicon/thumbnail for PWA installability
-app.get('/pwa-icon/:size{192|512}.png', async (c) => {
+app.get('/pwa-icon/:size', async (c) => {
+  const size = c.req.param('size');
+  if (size !== '192.png' && size !== '512.png') return c.notFound();
   const obj = await env.MEDIA_BUCKET.get('instance/favicon.ico');
   if (obj) {
     return new Response(obj.body, {
