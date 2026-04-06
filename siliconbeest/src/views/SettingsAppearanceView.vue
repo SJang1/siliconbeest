@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useUiStore, type Theme } from '@/stores/ui'
+import { useUiStore, type Theme, type ColumnType } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { updateCredentials } from '@/api/mastodon/accounts'
 import LanguageSelector from '@/components/settings/LanguageSelector.vue'
@@ -22,6 +22,32 @@ const savingDefaultLang = ref(false)
 const defaultLangSuccess = ref(false)
 
 const localeMap = Object.fromEntries(SUPPORTED_LOCALES.map((l) => [l.code, l.name]))
+
+const availableColumns: { type: ColumnType; labelKey: string }[] = [
+  { type: 'local', labelKey: 'settings.column_local' },
+  { type: 'federated', labelKey: 'settings.column_federated' },
+  { type: 'notifications', labelKey: 'settings.column_notifications' },
+]
+
+function isColumnEnabled(type: ColumnType): boolean {
+  return uiStore.columns.includes(type)
+}
+
+function toggleColumn(type: ColumnType) {
+  if (isColumnEnabled(type)) {
+    uiStore.removeColumn(type)
+  } else {
+    uiStore.addColumn(type)
+  }
+}
+
+function moveColumnUp(index: number) {
+  if (index > 0) uiStore.moveColumn(index, index - 1)
+}
+
+function moveColumnDown(index: number) {
+  if (index < uiStore.columns.length - 1) uiStore.moveColumn(index, index + 1)
+}
 
 function selectTheme(theme: Theme) {
   uiStore.setTheme(theme)
@@ -101,6 +127,80 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
             </option>
           </select>
           <span v-if="defaultLangSuccess" class="text-sm text-green-600 dark:text-green-400">{{ t('settings.saved') }}</span>
+        </div>
+      </div>
+      <!-- Trending Panel -->
+      <div>
+        <label class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          <input
+            type="checkbox"
+            :checked="uiStore.showTrending"
+            @change="uiStore.setShowTrending(!uiStore.showTrending)"
+            class="w-4 h-4 text-indigo-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
+          />
+          <div>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.show_trending') }}</span>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.show_trending_desc') }}</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- Columns -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.columns') }}</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.columns_desc') }}</p>
+
+        <!-- Available columns (checkboxes) -->
+        <div class="space-y-2 mb-4">
+          <label
+            v-for="col in availableColumns"
+            :key="col.type"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            <input
+              type="checkbox"
+              :checked="isColumnEnabled(col.type)"
+              @change="toggleColumn(col.type)"
+              class="w-4 h-4 text-indigo-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
+            />
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(col.labelKey) }}</span>
+          </label>
+        </div>
+
+        <!-- Active columns order -->
+        <div v-if="uiStore.columns.length > 1">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.columns_reorder_hint') }}</p>
+          <div class="space-y-1">
+            <div
+              v-for="(col, index) in uiStore.columns"
+              :key="col"
+              class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            >
+              <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">
+                {{ t(`settings.column_${col}`) }}
+              </span>
+              <button
+                @click="moveColumnUp(index)"
+                :disabled="index === 0"
+                class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move up"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
+              <button
+                @click="moveColumnDown(index)"
+                :disabled="index === uiStore.columns.length - 1"
+                class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move down"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

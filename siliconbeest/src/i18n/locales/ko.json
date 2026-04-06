@@ -142,7 +142,9 @@
     "conversations": "대화",
     "follow_requests": "팔로우 요청",
     "followed_tags": "팔로우한 태그",
-    "directory": "디렉터리"
+    "directory": "디렉터리",
+    "local_timeline": "로컬 타임라인",
+    "federated_timeline": "연합 타임라인"
   },
   "explore": {
     "trending": "트렌딩",
@@ -160,7 +162,9 @@
     "showNewPosts": "새 게시물 보기",
     "empty": "아직 게시물이 없습니다",
     "empty_hint": "사람들을 팔로우하거나 공개 타임라인을 확인하세요.",
-    "new_posts": "새 게시물 {count}개"
+    "new_posts": "새 게시물 {count}개",
+    "local_banner": "로컬 타임라인은 이 서버에 있는 모든 사용자의 공개 게시물을 표시합니다.",
+    "federated_banner": "연합 타임라인은 이 서버와 연결된 다른 서버의 공개 게시물을 표시합니다."
   },
   "status": {
     "reply": "답글",
@@ -342,7 +346,15 @@
     "posting": "게시",
     "posting_default_visibility": "기본 게시물 공개 범위",
     "posting_default_visibility_desc": "새 게시물은 기본적으로 이 공개 범위를 사용합니다. 스레드에 답글을 달 때는 상위 게시물의 공개 범위 이하로 제한됩니다.",
-    "posting_visibility_saved": "기본 공개 범위가 저장되었습니다."
+    "posting_visibility_saved": "기본 공개 범위가 저장되었습니다.",
+    "columns": "컬럼",
+    "columns_desc": "넓은 화면에서 홈 타임라인 옆에 표시할 컬럼을 선택하세요.",
+    "column_local": "로컬 타임라인",
+    "column_federated": "연합 타임라인",
+    "column_notifications": "알림",
+    "columns_reorder_hint": "화살표를 사용하여 컬럼 순서를 변경하세요.",
+    "show_trending": "트렌딩 패널",
+    "show_trending_desc": "화면 오른쪽에 트렌딩 패널을 표시합니다."
   },
   "admin": {
     "title": "관리",

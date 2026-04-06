@@ -142,7 +142,9 @@
     "conversations": "對話",
     "follow_requests": "追蹤請求",
     "followed_tags": "追蹤的標籤",
-    "directory": "名錄"
+    "directory": "名錄",
+    "local_timeline": "本站時間軸",
+    "federated_timeline": "聯邦時間軸"
   },
   "explore": {
     "trending": "熱門",
@@ -160,7 +162,9 @@
     "showNewPosts": "顯示新貼文",
     "empty": "還沒有貼文",
     "empty_hint": "追蹤一些人或查看公開時間軸來開始吧。",
-    "new_posts": "{count} 則新貼文"
+    "new_posts": "{count} 則新貼文",
+    "local_banner": "本站時間軸顯示本伺服器所有使用者的公開貼文。",
+    "federated_banner": "聯邦時間軸顯示與本伺服器互聯的其他伺服器的公開貼文。"
   },
   "status": {
     "reply": "回覆",
@@ -342,7 +346,15 @@
     "posting": "發文",
     "posting_default_visibility": "預設貼文可見度",
     "posting_default_visibility_desc": "新貼文將預設使用此可見度。回覆串文時，可見度會被限制在上層貼文的範圍內。",
-    "posting_visibility_saved": "預設可見度已儲存。"
+    "posting_visibility_saved": "預設可見度已儲存。",
+    "columns": "欄位",
+    "columns_desc": "選擇在寬螢幕上首頁時間軸旁顯示的欄位。",
+    "column_local": "本站時間軸",
+    "column_federated": "聯邦時間軸",
+    "column_notifications": "通知",
+    "columns_reorder_hint": "使用箭頭重新排列欄位。",
+    "show_trending": "熱門面板",
+    "show_trending_desc": "在螢幕右側顯示熱門面板。"
   },
   "admin": {
     "title": "管理",

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { TimelineType } from '@/stores/timelines'
 import AppShell from '@/components/layout/AppShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
+import DismissibleBanner from '@/components/common/DismissibleBanner.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -88,26 +89,22 @@ onMounted(loadTimeline)
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
-        <h1 class="text-xl font-bold px-4 py-3">{{ t('nav.explore') }}</h1>
-        <div class="flex border-b border-gray-200 dark:border-gray-700">
-          <button
-            v-for="tab in (['local', 'federated'] as ExploreTab[])"
-            :key="tab"
-            @click="switchTab(tab)"
-            class="flex-1 py-3 text-center text-sm font-medium transition-colors relative"
-            :class="activeTab === tab
-              ? 'text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-          >
-            {{ t(`explore.${tab}`) }}
-            <div
-              v-if="activeTab === tab"
-              class="absolute bottom-0 left-1/4 right-1/4 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-full"
-            />
-          </button>
-        </div>
+      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <h1 class="text-xl font-bold">{{ activeTab === 'federated' ? t('nav.federated_timeline') : t('nav.local_timeline') }}</h1>
       </header>
+
+      <DismissibleBanner
+        v-if="activeTab === 'local'"
+        storage-key="siliconbeest_banner_dismissed_local"
+      >
+        {{ t('timeline.local_banner') }}
+      </DismissibleBanner>
+      <DismissibleBanner
+        v-if="activeTab === 'federated'"
+        storage-key="siliconbeest_banner_dismissed_federated"
+      >
+        {{ t('timeline.federated_banner') }}
+      </DismissibleBanner>
 
       <div v-if="timeline.error" class="p-4 text-center text-red-500">
         {{ timeline.error }}

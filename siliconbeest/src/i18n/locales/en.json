@@ -142,7 +142,9 @@
     "conversations": "Conversations",
     "follow_requests": "Follow Requests",
     "followed_tags": "Followed Tags",
-    "directory": "Directory"
+    "directory": "Directory",
+    "local_timeline": "Local Timeline",
+    "federated_timeline": "Federated Timeline"
   },
   "explore": {
     "trending": "Trending",
@@ -160,7 +162,9 @@
     "showNewPosts": "Show new posts",
     "empty": "No posts yet",
     "empty_hint": "Follow some people or check the public timeline to get started.",
-    "new_posts": "{count} new posts"
+    "new_posts": "{count} new posts",
+    "local_banner": "The local timeline shows public posts from everyone on this server.",
+    "federated_banner": "The federated timeline shows public posts from other servers that this server is connected to."
   },
   "status": {
     "reply": "Reply",
@@ -342,7 +346,15 @@
     "posting": "Posting",
     "posting_default_visibility": "Default post visibility",
     "posting_default_visibility_desc": "New posts will use this visibility by default. When replying to a thread, visibility will be clamped to the parent post's level.",
-    "posting_visibility_saved": "Default visibility saved."
+    "posting_visibility_saved": "Default visibility saved.",
+    "columns": "Columns",
+    "columns_desc": "Choose which columns to show alongside your home timeline on wide screens.",
+    "column_local": "Local Timeline",
+    "column_federated": "Federated Timeline",
+    "column_notifications": "Notifications",
+    "columns_reorder_hint": "Use arrows to reorder columns.",
+    "show_trending": "Trending panel",
+    "show_trending_desc": "Show the trending panel on the right side of the screen."
   },
   "admin": {
     "title": "Administration",

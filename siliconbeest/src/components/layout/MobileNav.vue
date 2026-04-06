@@ -71,6 +71,14 @@ function signOut() {
             <span class="text-lg">👤</span>
             <span>{{ t('nav.profile') }}</span>
           </button>
+          <button @click="navigateTo('/explore/local')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <span class="text-lg">👥</span>
+            <span>{{ t('nav.local_timeline') }}</span>
+          </button>
+          <button @click="navigateTo('/explore/public')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <span class="text-lg">🌐</span>
+            <span>{{ t('nav.federated_timeline') }}</span>
+          </button>
           <button @click="navigateTo('/search')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <span class="text-lg">🔎</span>
             <span>{{ t('nav.search') }}</span>

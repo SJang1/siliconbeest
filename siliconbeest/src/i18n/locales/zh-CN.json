@@ -142,7 +142,9 @@
     "conversations": "对话",
     "follow_requests": "关注请求",
     "followed_tags": "关注的话题标签",
-    "directory": "用户目录"
+    "directory": "用户目录",
+    "local_timeline": "本站时间线",
+    "federated_timeline": "跨站时间线"
   },
   "explore": {
     "trending": "热门",
@@ -160,7 +162,9 @@
     "showNewPosts": "显示新帖文",
     "empty": "暂无帖文",
     "empty_hint": "关注一些用户或查看公共时间线以开始。",
-    "new_posts": "{count} 条新帖文"
+    "new_posts": "{count} 条新帖文",
+    "local_banner": "本站时间线显示本服务器所有用户的公开帖文。",
+    "federated_banner": "跨站时间线显示与本服务器互联的其他服务器的公开帖文。"
   },
   "status": {
     "reply": "回复",
@@ -342,7 +346,15 @@
     "posting": "发帖",
     "posting_default_visibility": "默认帖子可见度",
     "posting_default_visibility_desc": "新帖子将默认使用此可见度。回复串帖时，可见度会被限制在上级帖子的范围内。",
-    "posting_visibility_saved": "默认可见度已保存。"
+    "posting_visibility_saved": "默认可见度已保存。",
+    "columns": "栏目",
+    "columns_desc": "选择在宽屏幕上主页时间线旁显示的栏目。",
+    "column_local": "本站时间线",
+    "column_federated": "跨站时间线",
+    "column_notifications": "通知",
+    "columns_reorder_hint": "使用箭头重新排列栏目。",
+    "show_trending": "热门面板",
+    "show_trending_desc": "在屏幕右侧显示热门面板。"
   },
   "admin": {
     "title": "管理",

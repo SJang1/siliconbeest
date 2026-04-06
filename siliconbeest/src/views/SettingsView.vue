@@ -42,25 +42,22 @@ const settingSections = computed(() => {
 
       <div class="flex">
         <!-- Settings sidebar (desktop) -->
-        <nav class="hidden md:block w-56 border-r border-gray-200 dark:border-gray-700 min-h-[calc(100vh-57px)]">
-          <div class="p-3 space-y-1">
+        <nav class="hidden md:flex md:flex-col md:justify-between w-60 xl:w-64 border-r border-gray-200 dark:border-gray-700 min-h-[calc(100vh-57px)] flex-shrink-0">
+          <div class="p-4 space-y-1">
             <router-link
               v-for="section in settingSections"
               :key="section.key"
               :to="{ name: section.name }"
-              class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-              active-class="bg-gray-100 dark:bg-gray-800 font-bold"
+              class="flex items-center px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+              active-class="!bg-indigo-50 dark:!bg-indigo-900/20 !text-indigo-600 dark:!text-indigo-400 !font-bold"
             >
               {{ t(`settings.${section.key}`) }}
             </router-link>
           </div>
 
-          <div class="p-3 border-t border-gray-200 dark:border-gray-700">
+          <div class="p-4 space-y-3 border-t border-gray-200 dark:border-gray-700">
             <LanguageSelector />
-          </div>
-
-          <div class="p-3">
-            <button @click="signOut" class="w-full py-2 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <button @click="signOut" class="w-full py-2.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
               {{ t('settings.sign_out') }}
             </button>
           </div>
@@ -75,15 +72,18 @@ const settingSections = computed(() => {
                 v-for="section in settingSections"
                 :key="section.key"
                 :to="{ name: section.name }"
-                class="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors"
-                active-class="bg-indigo-600 text-white"
+                class="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors text-gray-600 dark:text-gray-400"
+                active-class="!bg-indigo-600 !text-white"
               >
                 {{ t(`settings.${section.key}`) }}
               </router-link>
             </div>
           </div>
 
-          <router-view />
+          <!-- Content area with proper padding and max-width -->
+          <div class="p-5 md:p-8 lg:p-10 max-w-3xl">
+            <router-view />
+          </div>
         </div>
       </div>
     </div>

@@ -142,7 +142,9 @@
     "conversations": "会話",
     "follow_requests": "フォローリクエスト",
     "followed_tags": "フォロー中のハッシュタグ",
-    "directory": "ディレクトリ"
+    "directory": "ディレクトリ",
+    "local_timeline": "ローカルタイムライン",
+    "federated_timeline": "連合タイムライン"
   },
   "explore": {
     "trending": "トレンド",
@@ -160,7 +162,9 @@
     "showNewPosts": "新しい投稿を表示",
     "empty": "投稿はまだありません",
     "empty_hint": "誰かをフォローするか、公開タイムラインを確認してみましょう。",
-    "new_posts": "{count}件の新しい投稿"
+    "new_posts": "{count}件の新しい投稿",
+    "local_banner": "ローカルタイムラインは、このサーバーの全ユーザーの公開投稿を表示します。",
+    "federated_banner": "連合タイムラインは、このサーバーが接続している他のサーバーの公開投稿を表示します。"
   },
   "status": {
     "reply": "返信",
@@ -342,7 +346,15 @@
     "posting": "投稿",
     "posting_default_visibility": "デフォルトの公開範囲",
     "posting_default_visibility_desc": "新しい投稿はデフォルトでこの公開範囲を使用します。スレッドへの返信時は、親投稿の公開範囲以下に制限されます。",
-    "posting_visibility_saved": "デフォルトの公開範囲を保存しました。"
+    "posting_visibility_saved": "デフォルトの公開範囲を保存しました。",
+    "columns": "カラム",
+    "columns_desc": "ワイドスクリーンでホームタイムラインの横に表示するカラムを選択してください。",
+    "column_local": "ローカルタイムライン",
+    "column_federated": "連合タイムライン",
+    "column_notifications": "通知",
+    "columns_reorder_hint": "矢印を使ってカラムの順序を変更してください。",
+    "show_trending": "トレンドパネル",
+    "show_trending_desc": "画面右側にトレンドパネルを表示します。"
   },
   "admin": {
     "title": "管理",

@@ -20,7 +20,8 @@ const showLangMenu = ref(false)
 
 const navItems = [
   { key: 'home', path: '/home', icon: '🏠' },
-  { key: 'explore', path: '/explore', icon: '🔍' },
+  { key: 'local_timeline', path: '/explore/local', icon: '👥' },
+  { key: 'federated_timeline', path: '/explore/public', icon: '🌐' },
   { key: 'notifications', path: '/notifications', icon: '🔔' },
   { key: 'search', path: '/search', icon: '🔎' },
   { key: 'bookmarks', path: '/bookmarks', icon: '🔖' },
