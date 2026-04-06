@@ -293,7 +293,7 @@ export function serializeNotification(
     status?: MastodonStatus | null;
   },
 ): MastodonNotification & { emoji?: string; read: boolean; group_key: string } {
-  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean; group_key?: string } = {
+  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read: boolean; group_key: string } = {
     id: row.id,
     type: row.type as NotificationType,
     created_at: ensureISO8601WithMs(row.created_at),
