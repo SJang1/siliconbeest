@@ -1,11 +1,9 @@
 /**
  * ULID (Universally Unique Lexicographically Sortable Identifier) Utilities
  *
- * Re-exports from the `ulid` package for ULID generation,
- * with additional validation and timestamp extraction helpers.
+ * Zero-dependency ULID generation using crypto.getRandomValues (available in
+ * Cloudflare Workers, Node 19+, and all modern browsers).
  */
-
-import { ulid } from 'ulid';
 
 const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -16,7 +14,33 @@ const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  * Crockford Base32 encoded, always 26 characters.
  */
 export function generateUlid(): string {
-	return ulid();
+	const now = Date.now();
+	// Encode 48-bit timestamp as 10 Crockford Base32 characters (most significant first)
+	let ts = now;
+	const timePart = new Array(10);
+	for (let i = 9; i >= 0; i--) {
+		timePart[i] = CROCKFORD_BASE32[ts & 0x1f]; // ts % 32
+		ts = Math.floor(ts / 32);
+	}
+
+	// Encode 80 bits of randomness as 16 Crockford Base32 characters
+	const randomBytes = new Uint8Array(10);
+	crypto.getRandomValues(randomBytes);
+	const randPart = new Array(16);
+	// Pack 10 bytes (80 bits) into 16 base-32 digits
+	// Each digit = 5 bits, so we walk a bit cursor across the byte array.
+	let bitCursor = 0;
+	for (let i = 0; i < 16; i++) {
+		const byteIdx = (bitCursor >> 3);          // which byte
+		const bitOffset = bitCursor & 7;            // bit offset within that byte
+		// Grab up to 2 bytes and extract 5 bits
+		const twoBytes = (randomBytes[byteIdx] << 8) | (randomBytes[byteIdx + 1] ?? 0);
+		const value = (twoBytes >> (11 - bitOffset)) & 0x1f;
+		randPart[i] = CROCKFORD_BASE32[value];
+		bitCursor += 5;
+	}
+
+	return timePart.join('') + randPart.join('');
 }
 
 /**
