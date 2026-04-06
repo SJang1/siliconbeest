@@ -3,8 +3,8 @@ set -e
 
 # =============================================================================
 # SiliconBeest — Update Script
-# Pulls latest code, installs dependencies, applies migrations, and redeploys
-# all 3 workers. Designed for production update workflow.
+# Installs dependencies, applies migrations, and redeploys all 3 workers
+# from local code. Designed for production update workflow.
 #
 # Architecture: unified worker deployed from siliconbeest/
 # =============================================================================
@@ -16,26 +16,19 @@ source "$SCRIPT_DIR/config.sh"
 # ---------------------------------------------------------------------------
 # Parse arguments
 # ---------------------------------------------------------------------------
-SKIP_PULL=false
 SKIP_TESTS=false
-BRANCH="main"
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip-pull)    SKIP_PULL=true; shift ;;
     --skip-tests)   SKIP_TESTS=true; shift ;;
-    --branch)       BRANCH="$2"; shift 2 ;;
-    --branch=*)     BRANCH="${1#*=}"; shift ;;
     --dry-run)      DRY_RUN=true; shift ;;
     -h|--help)
       echo "Usage: update.sh [OPTIONS]"
       echo
-      echo "Pulls latest code, runs tests, applies migrations, and deploys."
+      echo "Runs tests, applies migrations, and deploys from local code."
       echo
       echo "Options:"
-      echo "  --branch <name>   Git branch to pull (default: main)"
-      echo "  --skip-pull       Skip git pull (use current working tree)"
       echo "  --skip-tests      Skip running tests before deploy"
       echo "  --dry-run         Run all checks without deploying"
       echo "  -h, --help        Show this help"
@@ -91,41 +84,9 @@ if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 1: Git Pull
+# Step 1: Install / Update Dependencies
 # ---------------------------------------------------------------------------
-if [[ "$SKIP_PULL" == false ]]; then
-  header "Step 1: Pulling Latest Code"
-
-  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-  info "Current branch: $CURRENT_BRANCH"
-
-  if [[ "$CURRENT_BRANCH" != "$BRANCH" ]]; then
-    info "Switching to branch: $BRANCH"
-    git checkout "$BRANCH"
-  fi
-
-  BEFORE_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-  info "Current commit: $BEFORE_HASH"
-
-  git pull origin "$BRANCH"
-
-  AFTER_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-  if [[ "$BEFORE_HASH" == "$AFTER_HASH" ]]; then
-    success "Already up to date ($AFTER_HASH)"
-  else
-    success "Updated: $BEFORE_HASH -> $AFTER_HASH"
-    echo
-    info "Changes pulled:"
-    git log --oneline "$BEFORE_HASH..$AFTER_HASH" 2>/dev/null | head -20
-  fi
-else
-  header "Step 1: Skipping git pull (--skip-pull)"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 2: Install / Update Dependencies
-# ---------------------------------------------------------------------------
-header "Step 2: Installing Dependencies"
+header "Step 1: Installing Dependencies"
 
 for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
   DIRNAME=$(basename "$DIR")
@@ -137,9 +98,9 @@ for DIR in "$MAIN_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
 done
 
 # ---------------------------------------------------------------------------
-# Step 3: Type Checking
+# Step 2: Type Checking
 # ---------------------------------------------------------------------------
-header "Step 3: Type Checking"
+header "Step 2: Type Checking"
 
 info "Checking $MAIN_WORKER_NAME (Vue + Worker)..."
 (cd "$MAIN_DIR" && npx vue-tsc --noEmit)
@@ -154,22 +115,22 @@ info "Checking $EMAIL_SENDER_NAME..."
 success "$EMAIL_SENDER_NAME: 0 errors"
 
 # ---------------------------------------------------------------------------
-# Step 4: Run Tests
+# Step 3: Run Tests
 # ---------------------------------------------------------------------------
 if [[ "$SKIP_TESTS" == false ]]; then
-  header "Step 4: Running Tests"
+  header "Step 3: Running Tests"
 
   info "Running tests (worker + Vue)..."
   (cd "$MAIN_DIR" && npm test)
   success "All tests passed"
 else
-  header "Step 4: Skipping tests (--skip-tests)"
+  header "Step 3: Skipping tests (--skip-tests)"
 fi
 
 # ---------------------------------------------------------------------------
-# Step 5: Apply D1 Migrations
+# Step 4: Apply D1 Migrations
 # ---------------------------------------------------------------------------
-header "Step 5: Database Migrations"
+header "Step 4: Database Migrations"
 
 DB_NAME=$(get_d1_name "$MAIN_DIR")
 if [[ -z "$DB_NAME" ]]; then
@@ -196,9 +157,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6: Deploy
+# Step 5: Deploy
 # ---------------------------------------------------------------------------
-header "Step 6: Deploying"
+header "Step 5: Deploying"
 
 if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy the following:"
