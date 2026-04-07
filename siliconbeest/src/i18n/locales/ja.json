@@ -265,6 +265,11 @@
     "not_found": "プロフィールが見つかりません",
     "remote_server": "リモートサーバー",
     "report_user": "ユーザーを報告",
+    "block_user": "@{user}をブロック",
+    "unblock_user": "@{user}のブロックを解除",
+    "mute_user": "@{user}をミュート",
+    "unmute_user": "@{user}のミュートを解除",
+    "blocked_banner": "このユーザーをブロックしています",
     "follows_you": "フォローされています"
   },
   "settings": {

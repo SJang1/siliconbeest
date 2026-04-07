@@ -30,11 +30,34 @@ export interface PublicTimelineOpts extends TimelinePaginationOpts {
   local?: boolean;
   remote?: boolean;
   onlyMedia?: boolean;
+  viewerAccountId?: string;
 }
 
 export interface TagTimelineOpts extends TimelinePaginationOpts {
   local?: boolean;
   onlyMedia?: boolean;
+  viewerAccountId?: string;
+}
+
+// ----------------------------------------------------------------
+// Block/Mute filter helper
+// ----------------------------------------------------------------
+
+function addBlockMuteFilters(
+  conditions: string[],
+  binds: (string | number)[],
+  viewerAccountId: string | undefined,
+  statusAlias = 's',
+): void {
+  if (!viewerAccountId) return;
+  conditions.push(
+    `${statusAlias}.account_id NOT IN (SELECT target_account_id FROM blocks WHERE account_id = ?)`,
+  );
+  binds.push(viewerAccountId);
+  conditions.push(
+    `${statusAlias}.account_id NOT IN (SELECT target_account_id FROM mutes WHERE account_id = ? AND (expires_at IS NULL OR expires_at > ?))`,
+  );
+  binds.push(viewerAccountId, new Date().toISOString());
 }
 
 // ----------------------------------------------------------------
@@ -85,6 +108,7 @@ export async function getHomeTimeline(
   }
 
   conditions.push('s.deleted_at IS NULL');
+  addBlockMuteFilters(conditions, binds, accountId);
 
   const sql = `
     SELECT s.*, ${ACCOUNT_COLUMNS}
@@ -135,6 +159,7 @@ export async function getPublicTimeline(
   if (opts.onlyMedia) {
     conditions.push('EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)');
   }
+  addBlockMuteFilters(conditions, binds, opts.viewerAccountId);
 
   const sql = `
     SELECT s.*, ${ACCOUNT_COLUMNS}
@@ -184,6 +209,7 @@ export async function getTagTimeline(
   if (opts.onlyMedia) {
     conditions.push('EXISTS (SELECT 1 FROM media_attachments ma WHERE ma.status_id = s.id)');
   }
+  addBlockMuteFilters(conditions, binds, opts.viewerAccountId);
 
   const sql = `
     SELECT s.*, ${ACCOUNT_COLUMNS}
@@ -237,6 +263,7 @@ export async function getListTimeline(
     conditions.push(whereClause);
     binds.push(...params);
   }
+  addBlockMuteFilters(conditions, binds, accountId);
 
   const sql = `
     SELECT s.*, ${ACCOUNT_COLUMNS}

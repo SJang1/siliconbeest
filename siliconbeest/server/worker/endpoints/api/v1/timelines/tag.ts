@@ -23,6 +23,8 @@ app.get('/:tag', authOptional, async (c) => {
   const local = c.req.query('local') === 'true';
   const onlyMedia = c.req.query('only_media') === 'true';
 
+  const currentAccount = c.get('currentAccount');
+
   const allRows = await getTagTimeline(tagName, {
     maxId: pag.maxId,
     sinceId: pag.sinceId,
@@ -30,10 +32,10 @@ app.get('/:tag', authOptional, async (c) => {
     limit: pag.limit,
     local,
     onlyMedia,
+    viewerAccountId: currentAccount?.id,
   });
 
   const statusIds = allRows.map((r) => r.id as string);
-  const currentAccount = c.get('currentAccount');
   const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, statusIds, currentAccount?.id ?? null, env.CACHE);
 
   const statuses = allRows.map((row: any) => {

@@ -265,6 +265,11 @@
     "not_found": "Profile not found",
     "remote_server": "Remote server",
     "report_user": "Report user",
+    "block_user": "Block @{user}",
+    "unblock_user": "Unblock @{user}",
+    "mute_user": "Mute @{user}",
+    "unmute_user": "Unmute @{user}",
+    "blocked_banner": "You have blocked this user",
     "follows_you": "Follows you"
   },
   "settings": {

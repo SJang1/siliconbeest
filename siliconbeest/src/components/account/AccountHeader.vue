@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Relationship } from '@/types/mastodon'
+import { useAuthStore } from '@/stores/auth'
+import { blockAccount, unblockAccount, muteAccount, unmuteAccount } from '@/api/mastodon/accounts'
 import Avatar from '../common/Avatar.vue'
 import FollowButton from './FollowButton.vue'
 import ReportDialog from '../common/ReportDialog.vue'
@@ -52,16 +54,50 @@ const props = defineProps<{
 const emojifiedName = computed(() => emojifyText(props.account.display_name || props.account.acct, props.account.emojis))
 const emojifiedNote = computed(() => emojifyText(props.account.note || '', props.account.emojis))
 
+const auth = useAuthStore()
+
 const emit = defineEmits<{
   'toggle-follow': []
+  'relationship-updated': [relationship: Relationship]
 }>()
 
 const showMoreMenu = ref(false)
 const showReportDialog = ref(false)
+const actionLoading = ref(false)
 
 function openReport() {
   showMoreMenu.value = false
   showReportDialog.value = true
+}
+
+async function toggleBlock() {
+  if (!auth.token || actionLoading.value) return
+  showMoreMenu.value = false
+  actionLoading.value = true
+  try {
+    const fn = props.relationship?.blocking ? unblockAccount : blockAccount
+    const { data } = await fn(props.account.id, auth.token)
+    emit('relationship-updated', data as Relationship)
+  } catch (e) {
+    console.error('Block toggle failed:', e)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function toggleMute() {
+  if (!auth.token || actionLoading.value) return
+  showMoreMenu.value = false
+  actionLoading.value = true
+  try {
+    const fn = props.relationship?.muting ? unmuteAccount : muteAccount
+    const { data } = await fn(props.account.id, auth.token)
+    emit('relationship-updated', data as Relationship)
+  } catch (e) {
+    console.error('Mute toggle failed:', e)
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 const remoteDomain = computed(() => {
@@ -91,6 +127,12 @@ function handleToggle() {
         :alt="t('profile.banner')"
         class="w-full h-full object-cover"
       />
+    </div>
+
+    <!-- Blocked banner -->
+    <div v-if="!isOwn && relationship?.blocking" class="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
+      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+      {{ t('profile.blocked_banner') }}
     </div>
 
     <!-- Profile info -->
@@ -127,6 +169,22 @@ function handleToggle() {
               class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
             >
               <div class="fixed inset-0 z-[-1]" @click="showMoreMenu = false" />
+              <button
+                @click="toggleBlock"
+                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                :class="relationship?.blocking ? 'text-gray-700 dark:text-gray-200' : 'text-red-600 dark:text-red-400'"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                {{ relationship?.blocking ? t('profile.unblock_user', { user: account.acct }) : t('profile.block_user', { user: account.acct }) }}
+              </button>
+              <button
+                @click="toggleMute"
+                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                :class="relationship?.muting ? 'text-gray-700 dark:text-gray-200' : 'text-orange-600 dark:text-orange-400'"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                {{ relationship?.muting ? t('profile.unmute_user', { user: account.acct }) : t('profile.mute_user', { user: account.acct }) }}
+              </button>
               <button
                 @click="openReport"
                 class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"

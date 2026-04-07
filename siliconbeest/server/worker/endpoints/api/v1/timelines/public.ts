@@ -22,6 +22,8 @@ app.get('/', authOptional, async (c) => {
     limit: c.req.query('limit'),
   });
 
+  const currentAccount = c.get('currentAccount');
+
   const allRows = await getPublicTimeline({
     maxId: pag.maxId,
     sinceId: pag.sinceId,
@@ -30,10 +32,10 @@ app.get('/', authOptional, async (c) => {
     local,
     remote,
     onlyMedia,
+    viewerAccountId: currentAccount?.id,
   });
 
   const statusIds = allRows.map((r) => r.id as string);
-  const currentAccount = c.get('currentAccount');
   const currentAccountId = currentAccount?.id ?? null;
 
   // Collect reblog_of_ids

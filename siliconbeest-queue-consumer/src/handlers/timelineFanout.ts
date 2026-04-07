@@ -49,9 +49,32 @@ export async function handleTimelineFanout(
   );
 
   // Build list of local followers + always include the author
-  const followerIds = (rows.results ?? []).map((r) => r.account_id);
-  if (!followerIds.includes(accountId)) {
-    followerIds.push(accountId);
+  const allFollowerIds = (rows.results ?? []).map((r) => r.account_id);
+  if (!allFollowerIds.includes(accountId)) {
+    allFollowerIds.push(accountId);
+  }
+
+  // Filter out followers who have blocked or muted the author
+  let followerIds = allFollowerIds;
+  if (allFollowerIds.length > 0) {
+    const now = new Date().toISOString();
+    const placeholders = allFollowerIds.map(() => '?').join(',');
+    const blockedBy = await env.DB.prepare(
+      `SELECT account_id FROM blocks WHERE target_account_id = ? AND account_id IN (${placeholders})`,
+    ).bind(accountId, ...allFollowerIds).all<{ account_id: string }>();
+    const mutedBy = await env.DB.prepare(
+      `SELECT account_id FROM mutes WHERE target_account_id = ? AND account_id IN (${placeholders}) AND (expires_at IS NULL OR expires_at > ?)`,
+    ).bind(accountId, ...allFollowerIds, now).all<{ account_id: string }>();
+
+    const excludeSet = new Set([
+      ...(blockedBy.results ?? []).map((r) => r.account_id),
+      ...(mutedBy.results ?? []).map((r) => r.account_id),
+    ]);
+
+    if (excludeSet.size > 0) {
+      followerIds = allFollowerIds.filter((id) => !excludeSet.has(id));
+      console.log(`Filtered ${excludeSet.size} blocked/muted followers from fanout for status ${statusId}`);
+    }
   }
 
   if (followerIds.length === 0) {

@@ -35,6 +35,8 @@ const emit = defineEmits<{
   edit: [id: string]
   delete: [id: string]
   report: [payload: { accountId: string; accountAcct: string; statusId: string }]
+  block: [accountId: string]
+  mute: [accountId: string]
 }>()
 
 const showMenu = ref(false)
@@ -62,6 +64,16 @@ function handleReport() {
   if (props.accountId && props.accountAcct) {
     emit('report', { accountId: props.accountId, accountAcct: props.accountAcct, statusId: props.statusId })
   }
+}
+
+function handleBlock() {
+  closeMenu()
+  if (props.accountId) emit('block', props.accountId)
+}
+
+function handleMute() {
+  closeMenu()
+  if (props.accountId) emit('mute', props.accountId)
 }
 
 function formatCount(n: number): string {
@@ -173,6 +185,22 @@ function formatCount(n: number): string {
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
           {{ t('status.delete_action') }}
+        </button>
+        <button
+          v-if="!isOwnStatus"
+          @click="handleMute"
+          class="w-full text-left px-4 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+          {{ t('account.mute') }}
+        </button>
+        <button
+          v-if="!isOwnStatus"
+          @click="handleBlock"
+          class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+          {{ t('account.block') }}
         </button>
         <button
           v-if="!isOwnStatus"
