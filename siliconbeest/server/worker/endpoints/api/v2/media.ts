@@ -10,16 +10,61 @@ import type { MediaAttachmentRow } from '../../../types/db';
 
 type HonoEnv = { Variables: AppVariables };
 
-const ALLOWED_MIME_TYPES: Record<string, string> = {
+/** Blocked MIME types that could be harmful or are not media. */
+const BLOCKED_MIME_TYPES = new Set([
+  'application/javascript',
+  'application/x-javascript',
+  'text/javascript',
+  'text/html',
+  'text/xml',
+  'application/xml',
+  'application/xhtml+xml',
+  'application/x-shockwave-flash',
+  'application/x-msdownload',
+  'application/x-executable',
+  'application/x-dosexec',
+  'application/bat',
+  'application/x-bat',
+  'application/x-msdos-program',
+]);
+
+/** Well-known extension mappings for common media types. */
+const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/gif': 'gif',
   'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/avif': 'avif',
+  'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
   'video/mp4': 'mp4',
   'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/x-matroska': 'mkv',
+  'video/ogg': 'ogv',
+  'video/3gpp': '3gp',
   'audio/mpeg': 'mp3',
   'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/aac': 'aac',
+  'audio/flac': 'flac',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'weba',
+  'audio/opus': 'opus',
 };
+
+function extFromMime(mime: string): string {
+  if (MIME_TO_EXT[mime]) return MIME_TO_EXT[mime];
+  // Fallback: use subtype as extension (e.g. 'image/tiff' → 'tiff')
+  const sub = mime.split('/')[1];
+  if (sub) return sub.replace(/^x-/, '');
+  return 'bin';
+}
 
 function mediaTypeFromMime(mime: string): string {
   if (mime.startsWith('image/')) return mime === 'image/gif' ? 'gifv' : 'image';
@@ -45,10 +90,17 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
   const focus = (formData.get('focus') as string) || '0.0,0.0';
 
   const contentType = file.type;
-  const ext = ALLOWED_MIME_TYPES[contentType];
-  if (!ext) {
+  if (
+    !contentType.startsWith('image/') &&
+    !contentType.startsWith('video/') &&
+    !contentType.startsWith('audio/')
+  ) {
     throw new AppError(422, 'Validation failed', 'Unsupported file type');
   }
+  if (BLOCKED_MIME_TYPES.has(contentType)) {
+    throw new AppError(422, 'Validation failed', 'Unsupported file type');
+  }
+  const ext = extFromMime(contentType);
 
   const mediaId = generateUlid();
   const fileKey = `${currentUser.account_id}/${mediaId}.${ext}`;

@@ -14,9 +14,8 @@ function handleLocaleChange(newLocale: string) {
 
 <template>
   <div>
-    <label class="block text-sm font-medium mb-1">{{ t('settings.language') }}</label>
     <Listbox :model-value="locale" @update:model-value="handleLocaleChange">
-      <div class="relative">
+      <div class="relative w-full max-w-xs">
         <ListboxButton
           class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >

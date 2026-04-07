@@ -12,6 +12,7 @@ import {
 import { setOnUnauthorized } from '@/api/client';
 import { useTimelinesStore } from './timelines';
 import { useNotificationsStore } from './notifications';
+import { useUiStore } from './ui';
 
 const TOKEN_KEY = 'siliconbeest_token';
 
@@ -47,6 +48,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await verifyCredentials(token.value);
       currentUser.value = data;
+      // Load server-synced UI preferences
+      const uiStore = useUiStore();
+      uiStore.loadFromServer(token.value);
     } catch (e) {
       error.value = (e as Error).message;
       // Token might be expired
@@ -187,7 +191,11 @@ export const useAuthStore = defineStore('auth', () => {
     timelinesStore.disconnectStream();
     notificationsStore.disconnectStream();
 
-    // 3. Clear local state
+    // 3. Reset UI preferences to defaults
+    const uiStore = useUiStore();
+    uiStore.resetToDefaults();
+
+    // 4. Clear local state
     clearToken();
   }
 

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTurnstile } from '@/composables/useTurnstile'
-import { SUPPORTED_LOCALES, getDisplayLocale } from '@/i18n'
+import { ALL_LOCALES, getDisplayLocale } from '@/i18n'
 
 const { t, locale } = useI18n()
 const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
@@ -171,7 +171,7 @@ function handleSubmit() {
           v-model="defaultLocale"
           class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option v-for="loc in SUPPORTED_LOCALES" :key="loc.code" :value="loc.code">
+          <option v-for="loc in ALL_LOCALES" :key="loc.code" :value="loc.code">
             {{ loc.name }}
           </option>
         </select>

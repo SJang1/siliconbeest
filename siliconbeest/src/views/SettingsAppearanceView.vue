@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue'
 import { useUiStore, type Theme, type ColumnType } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { updateCredentials } from '@/api/mastodon/accounts'
 import LanguageSelector from '@/components/settings/LanguageSelector.vue'
-import { SUPPORTED_LOCALES } from '@/i18n'
+import { SUPPORTED_LOCALES, ALL_LOCALES } from '@/i18n'
 
 const { t } = useI18n()
 const uiStore = useUiStore()
@@ -21,7 +22,7 @@ const defaultLanguage = ref(auth.currentUser?.source?.language || 'en')
 const savingDefaultLang = ref(false)
 const defaultLangSuccess = ref(false)
 
-const localeMap = Object.fromEntries(SUPPORTED_LOCALES.map((l) => [l.code, l.name]))
+const localeMap = Object.fromEntries(ALL_LOCALES.map((l) => [l.code, l.name]))
 
 const availableColumns: { type: ColumnType; labelKey: string }[] = [
   { type: 'home', labelKey: 'settings.column_home' },
@@ -96,11 +97,14 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
     <h2 class="text-xl font-bold mb-6 text-gray-900 dark:text-white">{{ t('settings.appearance') }}</h2>
 
     <div class="space-y-8">
-      <!-- Theme -->
+      <!-- Theme (localStorage) -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-          {{ t('settings.theme') }}
-        </label>
+        <div class="flex items-center gap-2 mb-3">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('settings.theme') }}
+          </label>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('settings.local_hint') }}</span>
+        </div>
         <div class="grid grid-cols-3 gap-3">
           <button
             v-for="theme in themes"
@@ -118,9 +122,12 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
         </div>
       </div>
 
-      <!-- Display Language (client-side, localStorage) -->
+      <!-- Display Language (localStorage) -->
       <div>
-        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.display_language') }}</h3>
+        <div class="flex items-center gap-2 mb-1">
+          <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.display_language') }}</h3>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('settings.local_hint') }}</span>
+        </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.display_language_desc') }}</p>
         <LanguageSelector />
       </div>
@@ -130,21 +137,38 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
         <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.default_language') }}</h3>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.default_language_desc') }}</p>
         <div class="flex items-center gap-3">
-          <select
-            :value="defaultLanguage"
-            @change="saveDefaultLanguage(($event.target as HTMLSelectElement).value)"
-            :disabled="savingDefaultLang"
-            class="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-          >
-            <option v-for="loc in SUPPORTED_LOCALES" :key="loc.code" :value="loc.code">
-              {{ loc.name }}
-            </option>
-          </select>
+          <Listbox :model-value="defaultLanguage" @update:model-value="saveDefaultLanguage" :disabled="savingDefaultLang">
+            <div class="relative w-full max-w-xs">
+              <ListboxButton
+                class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {{ localeMap[defaultLanguage] || defaultLanguage }}
+              </ListboxButton>
+              <ListboxOptions
+                class="absolute mt-1 w-full rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 max-h-60 overflow-auto"
+              >
+                <ListboxOption
+                  v-for="loc in ALL_LOCALES"
+                  :key="loc.code"
+                  :value="loc.code"
+                  class="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                  :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 font-medium': loc.code === defaultLanguage }"
+                >
+                  {{ loc.name }}
+                </ListboxOption>
+              </ListboxOptions>
+            </div>
+          </Listbox>
           <span v-if="defaultLangSuccess" class="text-sm text-green-600 dark:text-green-400">{{ t('settings.saved') }}</span>
         </div>
       </div>
-      <!-- Trending Panel -->
+
+      <!-- Trending Panel (server-synced) -->
       <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.show_trending') }}</span>
+          <span class="text-xs text-indigo-500 dark:text-indigo-400">{{ t('settings.synced_hint') }}</span>
+        </div>
         <label class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           <input
             type="checkbox"
@@ -153,15 +177,17 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
             class="w-4 h-4 text-indigo-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
           />
           <div>
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.show_trending') }}</span>
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.show_trending_desc') }}</p>
           </div>
         </label>
       </div>
 
-      <!-- Columns -->
+      <!-- Columns (server-synced) -->
       <div>
-        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.columns') }}</h3>
+        <div class="flex items-center gap-2 mb-1">
+          <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.columns') }}</h3>
+          <span class="text-xs text-indigo-500 dark:text-indigo-400">{{ t('settings.synced_hint') }}</span>
+        </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.columns_desc') }}</p>
 
         <!-- Active columns list -->

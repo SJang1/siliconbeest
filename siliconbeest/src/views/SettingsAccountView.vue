@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { updateCredentials } from '@/api/mastodon/accounts'
 import { apiFetch } from '@/api/client'
-import { SUPPORTED_LOCALES } from '@/i18n'
+import { ALL_LOCALES } from '@/i18n'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -95,7 +95,7 @@ async function saveDefaultLanguage(newLocale: string) {
             :disabled="savingLang"
             class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            <option v-for="loc in SUPPORTED_LOCALES" :key="loc.code" :value="loc.code">
+            <option v-for="loc in ALL_LOCALES" :key="loc.code" :value="loc.code">
               {{ loc.name }}
             </option>
           </select>

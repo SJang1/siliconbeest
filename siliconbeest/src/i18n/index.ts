@@ -2,7 +2,8 @@ import { createI18n } from 'vue-i18n';
 import type { Ref } from 'vue';
 import en from './locales/en.json';
 
-export const SUPPORTED_LOCALES = [
+/** All locales available for post language tagging (server-side default language). */
+export const ALL_LOCALES = [
   { code: 'en', name: 'English' },
   { code: 'ko', name: '한국어' },
   { code: 'ja', name: '日本語' },
@@ -15,6 +16,15 @@ export const SUPPORTED_LOCALES = [
   { code: 'ru', name: 'Русский' },
   { code: 'ar', name: 'العربية', rtl: true },
   { code: 'id', name: 'Bahasa Indonesia' },
+] as const;
+
+/** Locales with full UI translations (display language selector). */
+export const SUPPORTED_LOCALES = [
+  { code: 'en', name: 'English' },
+  { code: 'ko', name: '한국어' },
+  { code: 'ja', name: '日本語' },
+  { code: 'zh-CN', name: '简体中文' },
+  { code: 'zh-TW', name: '繁體中文' },
 ] as const;
 
 const SUPPORTED_CODES = SUPPORTED_LOCALES.map((l) => l.code) as readonly string[];

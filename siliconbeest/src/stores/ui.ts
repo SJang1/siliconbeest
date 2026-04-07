@@ -1,12 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watchEffect } from 'vue';
+import { getPreferences, updatePreferences } from '@/api/mastodon/preferences';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ColumnType = 'home' | 'local' | 'federated' | 'notifications';
 
 const THEME_KEY = 'siliconbeest_theme';
-const COLUMNS_KEY = 'siliconbeest_columns';
-const TRENDING_KEY = 'siliconbeest_show_trending';
 const DEFAULT_COLUMNS: ColumnType[] = ['home', 'local', 'federated'];
 
 export const useUiStore = defineStore('ui', () => {
@@ -17,12 +16,10 @@ export const useUiStore = defineStore('ui', () => {
   const mediaViewerOpen = ref(false);
   const mediaViewerIndex = ref(0);
   const mediaViewerItems = ref<string[]>([]);
-  const columns = ref<ColumnType[]>(
-    JSON.parse(localStorage.getItem(COLUMNS_KEY) || 'null') || [...DEFAULT_COLUMNS]
-  );
-  const showTrending = ref<boolean>(
-    localStorage.getItem(TRENDING_KEY) !== 'false'
-  );
+  const columns = ref<ColumnType[]>([...DEFAULT_COLUMNS]);
+  const showTrending = ref(true);
+  const serverLoaded = ref(false);
+  const saving = ref(false);
 
   const isDark = computed(() => {
     if (theme.value === 'system') {
@@ -64,14 +61,27 @@ export const useUiStore = defineStore('ui', () => {
     mediaViewerIndex.value = 0;
   }
 
+  /** Token stored externally — only passed when calling server-synced setters */
+  let _token: string | null = null;
+
+  async function saveToServer(prefs: Record<string, string>) {
+    if (!_token) return;
+    saving.value = true;
+    try {
+      await updatePreferences(_token, prefs);
+    } finally {
+      saving.value = false;
+    }
+  }
+
   function setShowTrending(show: boolean) {
     showTrending.value = show;
-    localStorage.setItem(TRENDING_KEY, String(show));
+    saveToServer({ 'ui:show_trending': String(show) });
   }
 
   function setColumns(newColumns: ColumnType[]) {
     columns.value = newColumns;
-    localStorage.setItem(COLUMNS_KEY, JSON.stringify(newColumns));
+    saveToServer({ 'ui:columns': JSON.stringify(newColumns) });
   }
 
   function addColumn(type: ColumnType) {
@@ -91,6 +101,32 @@ export const useUiStore = defineStore('ui', () => {
       arr.splice(to, 0, item);
       setColumns(arr);
     }
+  }
+
+  async function loadFromServer(token: string) {
+    _token = token;
+    try {
+      const { data } = await getPreferences(token);
+      if (data['ui:columns']) {
+        const parsed = JSON.parse(data['ui:columns']) as ColumnType[];
+        if (Array.isArray(parsed)) {
+          columns.value = parsed;
+        }
+      }
+      if (data['ui:show_trending'] !== null) {
+        showTrending.value = data['ui:show_trending'] !== 'false';
+      }
+      serverLoaded.value = true;
+    } catch {
+      // Use defaults on failure
+    }
+  }
+
+  function resetToDefaults() {
+    _token = null;
+    columns.value = [...DEFAULT_COLUMNS];
+    showTrending.value = true;
+    serverLoaded.value = false;
   }
 
   // Apply dark class to <html>
@@ -129,10 +165,14 @@ export const useUiStore = defineStore('ui', () => {
     closeMediaViewer,
     columns,
     showTrending,
+    serverLoaded,
+    saving,
     setShowTrending,
     setColumns,
     addColumn,
     removeColumnAt,
     moveColumn,
+    loadFromServer,
+    resetToDefaults,
   };
 });
