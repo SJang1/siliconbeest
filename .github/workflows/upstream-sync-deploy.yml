@@ -89,7 +89,7 @@ jobs:
           TAG="${{ steps.decide.outputs.new_tag }}"
 
           echo "Merging upstream/main (tag: $TAG)..."
-          if git merge upstream/main --no-edit -m "chore: sync upstream to $TAG"; then
+          if git merge upstream/main --no-edit --allow-unrelated-histories -m "chore: sync upstream to $TAG"; then
             echo "$TAG" > .upstream-version
             git add .upstream-version
             git commit --amend --no-edit
