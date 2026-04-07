@@ -33,7 +33,7 @@ const emit = defineEmits<{
       </TransitionChild>
 
       <!-- Panel -->
-      <div class="fixed inset-0 flex items-center justify-center p-4">
+      <div class="fixed inset-0 flex items-start justify-center pt-[15vh] p-4">
         <TransitionChild
           enter="ease-out duration-200"
           enter-from="opacity-0 scale-95"

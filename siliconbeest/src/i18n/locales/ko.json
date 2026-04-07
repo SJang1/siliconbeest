@@ -129,7 +129,13 @@
     "closed": "종료됨",
     "minutes_left": "{n}분 남음",
     "hours_left": "{n}시간 남음",
-    "days_left": "{n}일 남음"
+    "days_left": "{n}일 남음",
+    "showResults": "결과 보기",
+    "hideResults": "결과 숨기기",
+    "totalVotes": "투표 {count}개",
+    "totalVoters": "투표자 {count}명",
+    "closesIn": "{time} 후 종료",
+    "voted": "투표 완료"
   },
   "nav": {
     "home": "홈",
@@ -565,16 +571,6 @@
     "hours_ago": "{n}시간 전",
     "just_now": "방금",
     "minutes_ago": "{n}분 전"
-  },
-  "poll": {
-    "vote": "투표",
-    "showResults": "결과 보기",
-    "hideResults": "결과 숨기기",
-    "totalVotes": "투표 {count}개",
-    "totalVoters": "투표자 {count}명",
-    "closed": "종료됨",
-    "closesIn": "{time} 후 종료",
-    "voted": "투표 완료"
   },
   "about": {
     "title": "이 서버에 대하여",

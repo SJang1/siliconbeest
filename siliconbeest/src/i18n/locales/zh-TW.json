@@ -129,7 +129,13 @@
     "closed": "已結束",
     "minutes_left": "剩餘 {n} 分鐘",
     "hours_left": "剩餘 {n} 小時",
-    "days_left": "剩餘 {n} 天"
+    "days_left": "剩餘 {n} 天",
+    "showResults": "顯示結果",
+    "hideResults": "隱藏結果",
+    "totalVotes": "{count} 票",
+    "totalVoters": "{count} 位投票者",
+    "closesIn": "{time}後結束",
+    "voted": "你已投票"
   },
   "nav": {
     "home": "首頁",
@@ -565,16 +571,6 @@
     "hours_ago": "{n}小時前",
     "just_now": "剛剛",
     "minutes_ago": "{n}分鐘前"
-  },
-  "poll": {
-    "vote": "投票",
-    "showResults": "顯示結果",
-    "hideResults": "隱藏結果",
-    "totalVotes": "{count} 票",
-    "totalVoters": "{count} 位投票者",
-    "closed": "已結束",
-    "closesIn": "{time}後結束",
-    "voted": "你已投票"
   },
   "about": {
     "title": "關於此伺服器",

@@ -129,7 +129,13 @@
     "closed": "終了",
     "minutes_left": "残り{n}分",
     "hours_left": "残り{n}時間",
-    "days_left": "残り{n}日"
+    "days_left": "残り{n}日",
+    "showResults": "結果を表示",
+    "hideResults": "結果を非表示",
+    "totalVotes": "{count}票",
+    "totalVoters": "{count}人が投票",
+    "closesIn": "あと{time}で終了",
+    "voted": "投票済み"
   },
   "nav": {
     "home": "ホーム",
@@ -565,16 +571,6 @@
     "hours_ago": "{n}時間前",
     "just_now": "たった今",
     "minutes_ago": "{n}分前"
-  },
-  "poll": {
-    "vote": "投票",
-    "showResults": "結果を表示",
-    "hideResults": "結果を非表示",
-    "totalVotes": "{count}票",
-    "totalVoters": "{count}人が投票",
-    "closed": "終了",
-    "closesIn": "あと{time}で終了",
-    "voted": "投票済み"
   },
   "about": {
     "title": "このサーバーについて",

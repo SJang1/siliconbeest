@@ -129,7 +129,13 @@
     "closed": "已结束",
     "minutes_left": "剩余 {n} 分钟",
     "hours_left": "剩余 {n} 小时",
-    "days_left": "剩余 {n} 天"
+    "days_left": "剩余 {n} 天",
+    "showResults": "显示结果",
+    "hideResults": "隐藏结果",
+    "totalVotes": "{count} 票",
+    "totalVoters": "{count} 人投票",
+    "closesIn": "{time}后结束",
+    "voted": "你已投票"
   },
   "nav": {
     "home": "首页",
@@ -565,16 +571,6 @@
     "hours_ago": "{n}小时前",
     "just_now": "刚刚",
     "minutes_ago": "{n}分钟前"
-  },
-  "poll": {
-    "vote": "投票",
-    "showResults": "显示结果",
-    "hideResults": "隐藏结果",
-    "totalVotes": "{count} 票",
-    "totalVoters": "{count} 人投票",
-    "closed": "已结束",
-    "closesIn": "{time}后结束",
-    "voted": "你已投票"
   },
   "about": {
     "title": "关于本站",

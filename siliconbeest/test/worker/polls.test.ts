@@ -84,7 +84,7 @@ describe('Polls API', () => {
       expect(body.id).toBe(pollId);
       expect(body.options).toHaveLength(3);
       expect(body.voted).toBe(false);
-      expect(body.own_votes).toBeNull();
+      expect(body.own_votes).toEqual([]);
     });
 
     it('returns 404 for non-existent poll', async () => {

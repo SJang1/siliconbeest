@@ -129,7 +129,13 @@
     "closed": "Closed",
     "minutes_left": "{n}m left",
     "hours_left": "{n}h left",
-    "days_left": "{n}d left"
+    "days_left": "{n}d left",
+    "showResults": "Show results",
+    "hideResults": "Hide results",
+    "totalVotes": "{count} votes",
+    "totalVoters": "{count} voters",
+    "closesIn": "Closes in {time}",
+    "voted": "You voted"
   },
   "nav": {
     "home": "Home",
@@ -565,16 +571,6 @@
     "hours_ago": "{n}h ago",
     "just_now": "just now",
     "minutes_ago": "{n}m ago"
-  },
-  "poll": {
-    "vote": "Vote",
-    "showResults": "Show results",
-    "hideResults": "Hide results",
-    "totalVotes": "{count} votes",
-    "totalVoters": "{count} voters",
-    "closed": "Closed",
-    "closesIn": "Closes in {time}",
-    "voted": "You voted"
   },
   "about": {
     "title": "About this server",
