@@ -20,8 +20,7 @@
 #   KV_FEDIFY_ID       — KV namespace ID for Fedify
 #
 # Optional GitHub Repository Variables:
-#   AUTO_DEPLOY          — "true" (default) or "false" (sync only, skip deploy)
-#   ENABLE_EMAIL_WORKER  — "true" (default) or "false" (skip email worker deploy)
+#   AUTO_UPDATE_UPSTREAM_DEPLOY — "true" (default) or "false" (sync only, skip deploy after upstream update)
 # =============================================================================
 
 name: Sync Upstream & Deploy
@@ -153,7 +152,7 @@ jobs:
     needs: check-and-sync
     if: |
       needs.check-and-sync.outputs.should_deploy == 'true' &&
-      (vars.AUTO_DEPLOY != 'false')
+      (vars.AUTO_UPDATE_UPSTREAM_DEPLOY != 'false')
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -224,7 +223,6 @@ jobs:
         run: cd siliconbeest-queue-consumer && npx wrangler deploy
 
       - name: Deploy email sender
-        if: vars.ENABLE_EMAIL_WORKER != 'false'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

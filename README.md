@@ -279,8 +279,8 @@ In your repository's **Settings > Secrets and variables > Actions**:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTO_DEPLOY` | `true` | Set `false` to sync upstream only (no auto-deploy) |
-| `ENABLE_EMAIL_WORKER` | `true` | Set `false` to skip email worker deployment |
+| `AUTO_DEPLOY` | `true` | Set `false` to disable auto-deploy on push to main |
+| `AUTO_UPDATE_UPSTREAM_DEPLOY` | `true` | Set `false` to sync upstream only (no deploy after update) |
 
 ### 4. Deploy
 

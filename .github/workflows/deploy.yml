@@ -5,6 +5,9 @@
 # Triggered on push to main (when worker code changes) or manually.
 #
 # See upstream-sync-deploy.yml for required Secrets & Variables.
+#
+# Optional GitHub Repository Variables:
+#   AUTO_DEPLOY — "true" (default) or "false" (disable auto-deploy on push)
 # =============================================================================
 
 name: Deploy
@@ -22,6 +25,7 @@ on:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY != 'false'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -90,7 +94,6 @@ jobs:
         run: cd siliconbeest-queue-consumer && npx wrangler deploy
 
       - name: Deploy email sender
-        if: vars.ENABLE_EMAIL_WORKER != 'false'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
