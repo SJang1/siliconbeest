@@ -119,6 +119,25 @@ export interface APNote extends APObject {
 }
 
 // ============================================================
+// QUESTION (Poll)
+// ============================================================
+
+export interface APQuestionOption {
+  type: string;
+  name: string;
+  replies?: { type: string; totalItems: number };
+}
+
+export interface APQuestion extends APObject {
+  type: 'Question';
+  oneOf?: APQuestionOption[];
+  anyOf?: APQuestionOption[];
+  endTime?: string;
+  closed?: string | boolean;
+  votersCount?: number;
+}
+
+// ============================================================
 // DOCUMENT / IMAGE
 // ============================================================
 

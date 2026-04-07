@@ -15,6 +15,8 @@ export {
   toTemporalInstant,
   buildMediaAttachment,
   buildFedifyNote,
+  buildFedifyQuestion,
   resolveAddressing,
   type FedifyNoteResult,
+  type FedifyQuestionResult,
 } from './helpers';

@@ -9,6 +9,7 @@ import { getFedifyContext, sendToFollowers, sendToRecipient } from '../../../../
 import {
   Create,
   Note,
+  Question,
   Mention,
   Hashtag,
   Image,
@@ -498,13 +499,41 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       noteValues.contexts = [new URL(conversationApUri)];
     }
 
-    const fedifyNote = new Note(noteValues);
+    // Build Note or Question depending on whether this is a poll
+    let fedifyObject: Note | Question;
+
+    if (pollData) {
+      const options: Array<{ title: string; votes_count: number }> = JSON.parse(
+        typeof pollData.options === 'string' ? pollData.options : JSON.stringify(pollData.options),
+      );
+      const optionNotes = options.map((o: { title: string }) => new Note({ name: o.title }));
+
+      const questionValues: ConstructorParameters<typeof Question>[0] = {
+        ...noteValues,
+        actor: new URL(actorUri),
+      };
+
+      if (pollData.multiple) {
+        questionValues.inclusiveOptions = optionNotes;
+      } else {
+        questionValues.exclusiveOptions = optionNotes;
+      }
+
+      if (pollData.expires_at) {
+        questionValues.endTime = Temporal.Instant.from(new Date(pollData.expires_at).toISOString());
+      }
+
+      questionValues.voters = 0;
+      fedifyObject = new Question(questionValues);
+    } else {
+      fedifyObject = new Note(noteValues);
+    }
 
     // -- Build Create activity --
     const create = new Create({
       id: new URL(`https://${domain}/activities/${generateUlid()}`),
       actor: new URL(actorUri),
-      object: fedifyNote,
+      object: fedifyObject,
       published: Temporal.Instant.from(now),
       tos: toUrls,
       ccs: ccUrls,

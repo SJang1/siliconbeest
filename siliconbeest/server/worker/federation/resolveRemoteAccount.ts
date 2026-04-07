@@ -10,9 +10,12 @@
  */
 
 import { env } from 'cloudflare:workers';
+import { isActor } from '@fedify/fedify/vocab';
 import { generateUlid } from '../utils/ulid';
 import { isDomainBlocked } from './helpers/domainBlock';
 import { sanitizeHtml } from '../utils/sanitize';
+import { createFed } from './fedify';
+import { getFedifyContext } from './helpers/send';
 
 export async function resolveRemoteAccount(
 	actorUri: string,
@@ -51,26 +54,36 @@ export async function resolveRemoteAccount(
 	}
 
 	try {
-		const res = await fetch(actorUri, {
-			headers: { Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"' },
+		const fed = createFed();
+		const ctx = getFedifyContext(fed);
+		const localAcct = await env.DB.prepare(
+			"SELECT username FROM accounts WHERE domain IS NULL LIMIT 1",
+		).first<{ username: string }>();
+		const docLoader = await ctx.getDocumentLoader({
+			identifier: localAcct?.username || 'admin',
 		});
-		if (res.ok) {
-			const actor = await res.json() as Record<string, unknown>;
-			username = (actor.preferredUsername as string) || username;
-			displayName = (actor.name as string) || '';
-			summary = sanitizeHtml((actor.summary as string) || '');
-			actorUrl = (actor.url as string) || actorUri;
-			inboxUrl = (actor.inbox as string) || null;
-			const endpoints = actor.endpoints as Record<string, unknown> | undefined;
-			sharedInboxUrl = (endpoints?.sharedInbox as string) || null;
+		const actorObj = await ctx.lookupObject(actorUri, { documentLoader: docLoader });
+		if (actorObj && isActor(actorObj)) {
+			username = (actorObj.preferredUsername ?? username) as string;
+			displayName = (actorObj.name?.toString() ?? '') as string;
+			summary = sanitizeHtml(actorObj.summary?.toString() ?? '');
+			actorUrl = String(actorObj.url ?? actorUri);
+			inboxUrl = actorObj.inboxId?.href ?? null;
+			sharedInboxUrl = actorObj.endpoints?.sharedInbox?.href ?? null;
 
-			const icon = actor.icon as Record<string, unknown> | undefined;
-			if (icon?.url) avatarUrl = icon.url as string;
-			const image = actor.image as Record<string, unknown> | undefined;
-			if (image?.url) headerUrl = image.url as string;
+			const icon = await actorObj.getIcon();
+			if (icon?.url) avatarUrl = String(icon.url);
+			const image = await actorObj.getImage();
+			if (image?.url) headerUrl = String(image.url);
+		} else {
+			console.warn(`[resolveRemoteAccount] Could not resolve actor via Fedify: ${actorUri}`);
 		}
-	} catch {
-		// Fallback: extract from URI path
+	} catch (e) {
+		console.warn(`[resolveRemoteAccount] Error fetching actor ${actorUri}:`, e);
+	}
+
+	// Fallback: extract username from URI path if fetch didn't resolve it
+	if (username === 'unknown') {
 		try {
 			const url = new URL(actorUri);
 			const segments = url.pathname.split('/').filter(Boolean);

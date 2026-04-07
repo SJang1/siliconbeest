@@ -8,6 +8,7 @@
 
 import {
   Note,
+  Question,
   Create,
   Announce,
   Hashtag,
@@ -15,9 +16,10 @@ import {
 } from '@fedify/vocab';
 import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
-import type { AccountRow, StatusRow } from '../../types/db';
+import type { AccountRow, StatusRow, PollRow } from '../../types/db';
 import {
   buildFedifyNote,
+  buildFedifyQuestion,
   toTemporalInstant,
   AS_PUBLIC,
 } from './collections';
@@ -61,14 +63,8 @@ export function setupObjectDispatchers(
       // Load supporting data
       const { convMap, mediaMap, replyUriMap } = await loadStatusContext(row, id, domain);
 
-      // Build core Note
-      const { note } = buildFedifyNote(row as StatusRow, account, domain, {
-        convMap, mediaMap, replyUriMap,
-      });
-
-      // Add Mention and Hashtag tags
+      // Load mention and hashtag tags (shared by Note and Question)
       const tags: (Mention | Hashtag)[] = [];
-
       const { results: mentionRows } = await env.DB.prepare(
         `SELECT a.uri AS account_uri, a.username, a.domain
          FROM mentions m JOIN accounts a ON a.id = m.account_id
@@ -81,7 +77,6 @@ export function setupObjectDispatchers(
           name: mentionDomain ? `@${mr.username}@${mentionDomain}` : `@${mr.username}@${domain}`,
         }));
       }
-
       const { results: tagRows } = await env.DB.prepare(
         'SELECT t.name FROM status_tags st JOIN tags t ON t.id = st.tag_id WHERE st.status_id = ?1',
       ).bind(id).all();
@@ -91,6 +86,24 @@ export function setupObjectDispatchers(
           name: `#${tr.name}`,
         }));
       }
+
+      // If status has a poll, build a Question instead of a Note
+      if (row.poll_id) {
+        const poll = await env.DB.prepare(
+          'SELECT * FROM polls WHERE id = ?1 LIMIT 1',
+        ).bind(row.poll_id).first<PollRow>();
+        if (poll) {
+          const { question } = buildFedifyQuestion(row as StatusRow, account, poll, domain, {
+            convMap, mediaMap, replyUriMap,
+          });
+          return tags.length > 0 ? question.clone({ tags }) : question;
+        }
+      }
+
+      // Build core Note
+      const { note } = buildFedifyNote(row as StatusRow, account, domain, {
+        convMap, mediaMap, replyUriMap,
+      });
 
       return tags.length > 0 ? note.clone({ tags }) : note;
     },
@@ -146,7 +159,7 @@ export async function handleActivityRequest(
       object: new URL(originalUri),
     });
   } else {
-    // Regular post → Create(Note)
+    // Regular post → Create(Note) or Create(Question) for polls
     const account = await env.DB.prepare(
       'SELECT * FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
     ).bind(identifier).first<AccountRow>();
@@ -159,9 +172,39 @@ export async function handleActivityRequest(
     }
 
     const { convMap, mediaMap, replyUriMap } = await loadStatusContext(row, id, domain);
-    const { note, tos, ccs } = buildFedifyNote(row as StatusRow, account, domain, {
-      convMap, mediaMap, replyUriMap,
-    });
+
+    // Check for poll → build Question instead of Note
+    let objectToWrap: Note | Question;
+    let tos: URL[];
+    let ccs: URL[];
+
+    if (row.poll_id) {
+      const poll = await env.DB.prepare(
+        'SELECT * FROM polls WHERE id = ?1 LIMIT 1',
+      ).bind(row.poll_id).first<PollRow>();
+      if (poll) {
+        const result = buildFedifyQuestion(row as StatusRow, account, poll, domain, {
+          convMap, mediaMap, replyUriMap,
+        });
+        objectToWrap = result.question;
+        tos = result.tos;
+        ccs = result.ccs;
+      } else {
+        const result = buildFedifyNote(row as StatusRow, account, domain, {
+          convMap, mediaMap, replyUriMap,
+        });
+        objectToWrap = result.note;
+        tos = result.tos;
+        ccs = result.ccs;
+      }
+    } else {
+      const result = buildFedifyNote(row as StatusRow, account, domain, {
+        convMap, mediaMap, replyUriMap,
+      });
+      objectToWrap = result.note;
+      tos = result.tos;
+      ccs = result.ccs;
+    }
 
     activity = new Create({
       id: new URL(activityUri),
@@ -169,7 +212,7 @@ export async function handleActivityRequest(
       published: toTemporalInstant(row.created_at),
       tos,
       ccs,
-      object: note,
+      object: objectToWrap,
     });
   }
 

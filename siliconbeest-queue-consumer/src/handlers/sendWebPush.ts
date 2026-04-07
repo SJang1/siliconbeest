@@ -43,7 +43,7 @@ export async function handleSendWebPush(
 
   // Load all push subscriptions for the user
   const subscriptions = await env.DB.prepare(
-    `SELECT id, endpoint, p256dh_key, auth_key
+    `SELECT id, endpoint, key_p256dh, key_auth
      FROM web_push_subscriptions
      WHERE user_id = ?`,
   )
@@ -51,8 +51,8 @@ export async function handleSendWebPush(
     .all<{
       id: string;
       endpoint: string;
-      p256dh_key: string;
-      auth_key: string;
+      key_p256dh: string;
+      key_auth: string;
     }>();
 
   if (!subscriptions.results || subscriptions.results.length === 0) {
@@ -92,8 +92,8 @@ export async function handleSendWebPush(
         {
           endpoint: sub.endpoint,
           keys: {
-            p256dh: sub.p256dh_key,
-            auth: sub.auth_key,
+            p256dh: sub.key_p256dh,
+            auth: sub.key_auth,
           },
         },
         payload,

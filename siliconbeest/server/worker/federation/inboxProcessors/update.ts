@@ -7,7 +7,7 @@
  * local users who interacted with the post.
  */
 
-import type { APActivity, APObject, APActor } from '../../types/activitypub';
+import type { APActivity, APObject, APActor, APQuestion, APQuestionOption } from '../../types/activitypub';
 import type { UpdateAccountInput } from '../../repositories/account';
 import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
@@ -68,10 +68,10 @@ class UpdateProcessor extends BaseProcessor {
 			return;
 		}
 
-		// Handle Note update
-		if (obj.type === 'Note') {
+		// Handle Note or Question update
+		if (obj.type === 'Note' || obj.type === 'Question') {
 			if (!obj.id) {
-				console.warn('[update] Note has no id');
+				console.warn(`[update] ${obj.type} has no id`);
 				return;
 			}
 
@@ -95,6 +95,51 @@ class UpdateProcessor extends BaseProcessor {
 				sensitive: obj.sensitive ? 1 : 0,
 				edited_at: now,
 			});
+
+			// Update poll data if this is a Question
+			if (obj.type === 'Question') {
+				const question = obj as APQuestion;
+				const poll = await env.DB.prepare(
+					'SELECT id FROM polls WHERE status_id = ?1 LIMIT 1',
+				).bind(status.id).first<{ id: string }>();
+
+				if (poll) {
+					const optionsRaw = question.oneOf ?? question.anyOf;
+					if (optionsRaw && optionsRaw.length > 0) {
+						const options = optionsRaw
+							.filter((o: APQuestionOption) => o.name)
+							.map((o: APQuestionOption) => ({
+								title: o.name,
+								votes_count: o.replies?.totalItems ?? 0,
+							}));
+						const votesCount = options.reduce((sum: number, o: { votes_count: number }) => sum + o.votes_count, 0);
+						const votersCount = question.votersCount ?? 0;
+
+						const updates: string[] = [];
+						const values: unknown[] = [];
+						let idx = 1;
+
+						updates.push(`options = ?${idx}`); values.push(JSON.stringify(options)); idx++;
+						updates.push(`votes_count = ?${idx}`); values.push(votesCount); idx++;
+						updates.push(`voters_count = ?${idx}`); values.push(votersCount); idx++;
+
+						// Handle closed status
+						if (question.closed) {
+							const closedAt = typeof question.closed === 'string'
+								? new Date(question.closed).toISOString()
+								: new Date().toISOString();
+							updates.push(`expires_at = ?${idx}`); values.push(closedAt); idx++;
+						} else if (question.endTime) {
+							updates.push(`expires_at = ?${idx}`); values.push(new Date(question.endTime).toISOString()); idx++;
+						}
+
+						values.push(poll.id);
+						await env.DB.prepare(
+							`UPDATE polls SET ${updates.join(', ')} WHERE id = ?${idx}`,
+						).bind(...values).run();
+					}
+				}
+			}
 
 			// Notify local users who interacted with this status
 			const interactedUsers = await env.DB.prepare(

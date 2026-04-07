@@ -8,13 +8,14 @@
 
 import {
   Note,
+  Question,
   Image,
   Document as APDocument,
   Source,
   Emoji as APEmoji,
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
-import type { AccountRow, StatusRow } from '../../../types/db';
+import type { AccountRow, StatusRow, PollRow } from '../../../types/db';
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -59,6 +60,13 @@ export function buildMediaAttachment(
 /** Result from building a Fedify Note with addressing info. */
 export interface FedifyNoteResult {
   note: Note;
+  tos: URL[];
+  ccs: URL[];
+}
+
+/** Result from building a Fedify Question with addressing info. */
+export interface FedifyQuestionResult {
+  question: Question;
   tos: URL[];
   ccs: URL[];
 }
@@ -173,6 +181,101 @@ export function buildFedifyNote(
   const note = new Note(noteValues);
 
   return { note, tos, ccs };
+}
+
+/**
+ * Build a Fedify Question from a StatusRow + PollRow.
+ * Reuses the same addressing/attachment/emoji logic as buildFedifyNote.
+ */
+export function buildFedifyQuestion(
+  status: StatusRow,
+  account: AccountRow,
+  poll: PollRow,
+  domain: string,
+  helpers: {
+    convMap: Map<string, string | null>;
+    mediaMap: Map<string, { url: string; mediaType: string; description: string; width: number | null; height: number | null; blurhash: string | null; type: string }[]>;
+    replyUriMap: Map<string, string>;
+  },
+): FedifyQuestionResult {
+  // Build the base Note first to reuse all shared logic
+  const { note, tos, ccs } = buildFedifyNote(status, account, domain, helpers);
+
+  // Parse poll options
+  const options: Array<{ title: string; votes_count: number }> = JSON.parse(poll.options);
+  const optionNotes = options.map((o) => new Note({ name: o.title }));
+
+  // Build Question values from the Note's JSON-LD-compatible properties
+  const questionValues: ConstructorParameters<typeof Question>[0] = {
+    id: note.id,
+    content: status.content,
+    url: note.url,
+    published: toTemporalInstant(status.created_at),
+    tos: tos.map((u) => u),
+    ccs: ccs.map((u) => u),
+    sensitive: status.sensitive === 1,
+    summary: status.content_warning || null,
+  };
+
+  // Set actor URI (Question is an Activity, needs actor)
+  const actorUri = `https://${domain}/users/${account.username}`;
+  questionValues.actor = new URL(actorUri);
+
+  if (poll.multiple) {
+    questionValues.inclusiveOptions = optionNotes;
+  } else {
+    questionValues.exclusiveOptions = optionNotes;
+  }
+
+  if (poll.expires_at) {
+    questionValues.endTime = Temporal.Instant.from(new Date(poll.expires_at).toISOString());
+  }
+
+  // Mark as closed if expired
+  if (poll.expires_at && new Date(poll.expires_at) <= new Date()) {
+    questionValues.closed = Temporal.Instant.from(new Date(poll.expires_at).toISOString());
+  }
+
+  questionValues.voters = poll.voters_count;
+
+  if (status.edited_at) {
+    questionValues.updated = toTemporalInstant(status.edited_at);
+  }
+
+  if (status.text) {
+    questionValues.source = new Source({
+      content: status.text,
+      mediaType: 'text/plain',
+    });
+  }
+
+  // Carry over attachments
+  const attachments = (helpers.mediaMap.get(status.id) ?? []).map(buildMediaAttachment);
+  if (attachments.length > 0) {
+    questionValues.attachments = attachments;
+  }
+
+  // Carry over emoji tags
+  const emojiTagObjects: APEmoji[] = [];
+  if (status.emoji_tags) {
+    try {
+      const emojiTags = JSON.parse(status.emoji_tags) as Array<{ shortcode: string; url: string }>;
+      for (const et of emojiTags) {
+        if (!et.shortcode || !et.url) continue;
+        emojiTagObjects.push(new APEmoji({
+          id: new URL(et.url),
+          name: `:${et.shortcode}:`,
+          icon: new Image({ url: new URL(et.url), mediaType: 'image/png' }),
+        }));
+      }
+    } catch { /* ignore */ }
+  }
+  if (emojiTagObjects.length > 0) {
+    questionValues.tags = emojiTagObjects;
+  }
+
+  const question = new Question(questionValues);
+  return { question, tos, ccs };
 }
 
 /**

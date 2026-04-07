@@ -1,13 +1,14 @@
 /**
- * Inbox Processor: Create(Note)
+ * Inbox Processor: Create(Note | Question)
  *
- * Handles incoming Create activities containing a Note object.
+ * Handles incoming Create activities containing a Note or Question object.
  * Inserts the remote status, resolves the author account, processes
  * mentions, and fans out to local followers' timelines.
+ * For Question objects (polls), also extracts poll options and metadata.
  */
 
 import { env } from 'cloudflare:workers';
-import type { APActivity, APObject, APTag, APNote } from '../../types/activitypub';
+import type { APActivity, APObject, APTag, APNote, APQuestion, APQuestionOption } from '../../types/activitypub';
 import type { StatusWithJoinedAccountRow } from '../../types/db';
 import { generateUlid } from '../../utils/ulid';
 import { sanitizeHtml } from '../../utils/sanitize';
@@ -37,7 +38,7 @@ class CreateProcessor extends BaseProcessor {
 		}
 
 		const note = object as APObject;
-		if (note.type !== 'Note') {
+		if (note.type !== 'Note' && note.type !== 'Question') {
 			console.log(`[create] Ignoring non-Note object type: ${note.type}`);
 			return;
 		}
@@ -55,6 +56,12 @@ class CreateProcessor extends BaseProcessor {
 		const authorAccountId = await this.resolveActor(activity.actor);
 		if (!authorAccountId) {
 			console.error('[create] Could not resolve remote author');
+			return;
+		}
+
+		// Detect poll vote: Note with `name` (option text), inReplyTo, and no content
+		if (note.type === 'Note' && note.name && note.inReplyTo && !note.content) {
+			await this.processVote(note, authorAccountId);
 			return;
 		}
 
@@ -122,7 +129,7 @@ class CreateProcessor extends BaseProcessor {
 		}
 
 		// Extract emoji tags for db column
-		const rawTags: APTag[] = Array.isArray(note.tag) ? note.tag : [];
+		const rawTags: APTag[] = Array.isArray(note.tag) ? note.tag : note.tag ? [note.tag as APTag] : [];
 		const emojiTagsForDb = rawTags
 			.filter((t) => t.type === 'Emoji')
 			.map((et) => {
@@ -152,6 +159,11 @@ class CreateProcessor extends BaseProcessor {
 			)
 			.run();
 
+		// Process poll data if this is a Question
+		if (note.type === 'Question') {
+			await this.processQuestionData(note as APQuestion, statusId, now);
+		}
+
 		// Process media attachments
 		await this.processAttachments(note, statusId, authorAccountId, now);
 
@@ -161,7 +173,7 @@ class CreateProcessor extends BaseProcessor {
 		}
 
 		// Process mentions, hashtags, emojis from tags
-		const tags: APTag[] = note.tag ?? [];
+		const tags: APTag[] = Array.isArray(note.tag) ? note.tag : note.tag ? [note.tag as APTag] : [];
 		await this.processMentions(tags, statusId, authorAccountId, now);
 		await this.processHashtags(tags, statusId, now);
 		await this.processEmojis(tags, activity.actor, now);
@@ -175,6 +187,93 @@ class CreateProcessor extends BaseProcessor {
 			});
 		} else {
 			await this.fanoutDM(statusId, authorAccountId, now);
+		}
+	}
+
+	private async processQuestionData(
+		question: APQuestion,
+		statusId: string,
+		now: string,
+	): Promise<void> {
+		const optionsRaw = question.oneOf ?? question.anyOf;
+		if (!optionsRaw || optionsRaw.length === 0) return;
+
+		const multiple = question.anyOf ? 1 : 0;
+		const options = optionsRaw
+			.filter((o: APQuestionOption) => o.name)
+			.map((o: APQuestionOption) => ({
+				title: o.name,
+				votes_count: o.replies?.totalItems ?? 0,
+			}));
+
+		if (options.length === 0) return;
+
+		const votesCount = options.reduce((sum: number, o: { votes_count: number }) => sum + o.votes_count, 0);
+		const votersCount = question.votersCount ?? 0;
+		const expiresAt = question.endTime ? new Date(question.endTime).toISOString() : null;
+		const pollId = generateUlid();
+
+		try {
+			await env.DB.batch([
+				env.DB.prepare(
+					`INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
+					 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+				).bind(pollId, statusId, expiresAt, multiple, votesCount, votersCount, JSON.stringify(options), now),
+				env.DB.prepare(
+					'UPDATE statuses SET poll_id = ?1 WHERE id = ?2',
+				).bind(pollId, statusId),
+			]);
+		} catch (e) {
+			console.error(`[create] Failed to insert poll for status ${statusId}:`, e);
+		}
+	}
+
+	private async processVote(
+		note: APObject,
+		voterAccountId: string,
+	): Promise<void> {
+		const optionName = note.name as string;
+		const questionUri = note.inReplyTo as string;
+
+		// Find the local status this vote is for
+		const parentStatus = await env.DB.prepare(
+			'SELECT id, poll_id FROM statuses WHERE uri = ?1 LIMIT 1',
+		).bind(questionUri).first<{ id: string; poll_id: string | null }>();
+
+		if (!parentStatus?.poll_id) return;
+
+		// Find the poll
+		const poll = await env.DB.prepare(
+			'SELECT id, options FROM polls WHERE id = ?1 LIMIT 1',
+		).bind(parentStatus.poll_id).first<{ id: string; options: string }>();
+		if (!poll) return;
+
+		const options: Array<{ title: string; votes_count: number }> = JSON.parse(poll.options);
+		const choiceIndex = options.findIndex((o) => o.title === optionName);
+		if (choiceIndex === -1) return;
+
+		const now = new Date().toISOString();
+
+		try {
+			// Insert vote (UNIQUE constraint prevents duplicates)
+			await env.DB.prepare(
+				'INSERT INTO poll_votes (id, poll_id, account_id, choice, created_at) VALUES (?1, ?2, ?3, ?4, ?5)',
+			).bind(generateUlid(), poll.id, voterAccountId, choiceIndex, now).run();
+
+			// Update poll counts
+			options[choiceIndex].votes_count += 1;
+			const newVotesCount = options.reduce((sum, o) => sum + o.votes_count, 0);
+
+			// Count distinct voters
+			const voterCount = await env.DB.prepare(
+				'SELECT COUNT(DISTINCT account_id) AS cnt FROM poll_votes WHERE poll_id = ?1',
+			).bind(poll.id).first<{ cnt: number }>();
+
+			await env.DB.prepare(
+				'UPDATE polls SET options = ?1, votes_count = ?2, voters_count = ?3 WHERE id = ?4',
+			).bind(JSON.stringify(options), newVotesCount, voterCount?.cnt ?? 0, poll.id).run();
+		} catch {
+			// UNIQUE constraint violation = duplicate vote, ignore
 		}
 	}
 
