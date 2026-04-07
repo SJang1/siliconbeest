@@ -29,7 +29,7 @@ export async function resolveRemoteAccount(
 	if (existing) return existing.id;
 
 	// Fetch the actor document to get the real preferredUsername
-	let username = 'unknown';
+	let username = '';
 	let domain = 'unknown';
 	let displayName = '';
 	let inboxUrl: string | null = null;
@@ -38,6 +38,7 @@ export async function resolveRemoteAccount(
 	let headerUrl = '';
 	let summary = '';
 	let actorUrl = '';
+	let resolved = false;
 
 	try {
 		const url = new URL(actorUri);
@@ -64,7 +65,8 @@ export async function resolveRemoteAccount(
 		});
 		const actorObj = await ctx.lookupObject(actorUri, { documentLoader: docLoader });
 		if (actorObj && isActor(actorObj)) {
-			username = (actorObj.preferredUsername ?? username) as string;
+			resolved = true;
+			username = (actorObj.preferredUsername ?? '') as string;
 			displayName = (actorObj.name?.toString() ?? '') as string;
 			summary = sanitizeHtml(actorObj.summary?.toString() ?? '');
 			actorUrl = String(actorObj.url ?? actorUri);
@@ -82,13 +84,23 @@ export async function resolveRemoteAccount(
 		console.warn(`[resolveRemoteAccount] Error fetching actor ${actorUri}:`, e);
 	}
 
-	// Fallback: extract username from URI path if fetch didn't resolve it
-	if (username === 'unknown') {
+	// If we don't have a username yet, try to extract from URI path
+	if (!username) {
 		try {
 			const url = new URL(actorUri);
 			const segments = url.pathname.split('/').filter(Boolean);
-			username = segments[segments.length - 1] ?? 'unknown';
-		} catch { /* leave defaults */ }
+			username = segments[segments.length - 1] ?? '';
+		} catch { /* leave empty */ }
+	}
+
+	// Only create accounts when Fedify confirmed the actor exists
+	if (!resolved) {
+		console.warn(`[resolveRemoteAccount] Could not verify actor ${actorUri}, skipping account creation`);
+		return null;
+	}
+	if (!username) {
+		console.warn(`[resolveRemoteAccount] No username for ${actorUri}, skipping account creation`);
+		return null;
 	}
 
 	const now = new Date().toISOString();

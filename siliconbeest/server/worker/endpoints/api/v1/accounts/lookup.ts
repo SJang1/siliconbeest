@@ -112,7 +112,7 @@ app.get('/lookup', async (c) => {
   // Parse account emoji_tags and proxy URLs
   let emojis: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
   const emojiTagsRaw = row.emoji_tags as string | null;
-  if (emojiTagsRaw && domain) {
+  if (emojiTagsRaw) {
     try {
       const tags = JSON.parse(emojiTagsRaw) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
       emojis = tags.map((t) => {

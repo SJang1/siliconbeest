@@ -87,8 +87,8 @@ export async function registerUser(
 
 	const approved = registrationMode === 'open' ? 1 : 0;
 
-	const uri = `https://${domain}/users/${lowerUsername}`;
-	const url = `https://${domain}/@${lowerUsername}`;
+	const uri = `https://${domain}/users/${username}`;
+	const url = `https://${domain}/@${username}`;
 	const keyIdUri = `${uri}#main-key`;
 
 	const accountStmt = env.DB.prepare(
@@ -115,7 +115,7 @@ export async function registerUser(
 	);
 
 	await env.DB.batch([
-		accountStmt.bind(accountId, lowerUsername, lowerUsername, uri, url, now, now),
+		accountStmt.bind(accountId, username, username, uri, url, now, now),
 		userStmt.bind(userId, accountId, lowerEmail, encryptedPassword, null, approved, now, now),
 		actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
 	]);
