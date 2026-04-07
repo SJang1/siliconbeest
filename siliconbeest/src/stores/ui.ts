@@ -113,8 +113,9 @@ export const useUiStore = defineStore('ui', () => {
           columns.value = parsed;
         }
       }
-      if (data['ui:show_trending'] !== null) {
-        showTrending.value = data['ui:show_trending'] !== 'false';
+      if (data['ui:show_trending'] !== null && data['ui:show_trending'] !== undefined) {
+        const v = data['ui:show_trending'];
+        showTrending.value = v !== false && v !== 'false';
       }
       serverLoaded.value = true;
     } catch {

@@ -7,7 +7,7 @@ export interface Preferences {
 	'reading:expand:media': string;
 	'reading:expand:spoilers': boolean;
 	'ui:columns': string | null;
-	'ui:show_trending': string | null;
+	'ui:show_trending': string | boolean | null;
 }
 
 export function getPreferences(token: string) {
