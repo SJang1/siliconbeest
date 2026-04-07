@@ -115,8 +115,9 @@ function processMentions(text: string, localDomain: string, mentions: ParsedMent
  * Detect and linkify #hashtags in text.
  */
 function processHashtags(text: string, localDomain: string, tags: string[]): string {
-	// Match #hashtag (word characters and underscores, must start with a letter)
-	const hashtagRegex = /(?<=^|[\s>,.;:!?()])#([a-zA-Z][a-zA-Z0-9_]*)/g;
+	// Match #hashtag (Unicode letters/numbers and underscores, must start with a letter)
+	// Uses Unicode property escapes to support non-Latin scripts (Korean, Japanese, Chinese, etc.)
+	const hashtagRegex = /(?<=^|[\s>,.;:!?()])#([\p{L}\p{M}][\p{L}\p{M}\p{N}_]*)/gu;
 
 	return text.replace(hashtagRegex, (match, tag: string) => {
 		const normalizedTag = tag.toLowerCase();
