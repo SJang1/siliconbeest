@@ -42,6 +42,9 @@ env:
 jobs:
   check-and-sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
     outputs:
       should_deploy: ${{ steps.decide.outputs.should_deploy }}
       new_tag: ${{ steps.decide.outputs.new_tag }}
