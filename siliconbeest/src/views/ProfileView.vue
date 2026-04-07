@@ -6,6 +6,7 @@ import type { Account, Status, Relationship } from '@/types/mastodon'
 import { lookupAccount, getAccountStatuses, followAccount, unfollowAccount } from '@/api/mastodon/accounts'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountsStore } from '@/stores/accounts'
+import { useStatusesStore } from '@/stores/statuses'
 import { useInstanceStore } from '@/stores/instance'
 import { parseLinkHeader } from '@/api/client'
 import AppShell from '@/components/layout/AppShell.vue'
@@ -17,6 +18,7 @@ const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
 const accountsStore = useAccountsStore()
+const statusesStore = useStatusesStore()
 const instanceStore = useInstanceStore()
 
 const account = ref<Account | null>(null)
@@ -63,6 +65,7 @@ async function loadProfile(acct: string) {
       token: auth.token ?? undefined,
       exclude_replies: true,
     })
+    statusesStore.cacheStatuses(statusData)
     statuses.value = statusData
     const links = parseLinkHeader(headers.get('Link'))
     feedDone.value = !links.next
@@ -86,6 +89,7 @@ async function loadMoreStatuses() {
       token: auth.token ?? undefined,
       exclude_replies: true,
     })
+    statusesStore.cacheStatuses(data)
     statuses.value.push(...data)
     const links = parseLinkHeader(headers.get('Link'))
     feedDone.value = !links.next

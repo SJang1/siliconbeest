@@ -33,13 +33,18 @@ const props = defineProps<{
   status: Status
 }>()
 
+// Resolve status from the store cache so optimistic updates are reactive
+const cachedStatus = computed(() => statusesStore.getCached(props.status.id) ?? props.status)
+
 // If this is a reblog, show the original status content
 // A status is a reblog wrapper when content is empty and reblog exists
-const isReblog = computed(() => !!props.status.reblog)
+const isReblog = computed(() => !!cachedStatus.value.reblog)
 const displayStatus = computed(() => {
-  if (props.status.reblog) return props.status.reblog
-  // Fallback: if content is empty, it might be a reblog whose inner data wasn't loaded
-  return props.status
+  if (cachedStatus.value.reblog) {
+    // Also resolve the inner reblog from cache
+    return statusesStore.getCached(cachedStatus.value.reblog.id) ?? cachedStatus.value.reblog
+  }
+  return cachedStatus.value
 })
 
 const isEditing = ref(false)
@@ -140,7 +145,7 @@ async function handleFavourite() {
   if (loadingFavourite.value) return
   loadingFavourite.value = true
   try {
-    const target = props.status.reblog ?? props.status
+    const target = cachedStatus.value.reblog ?? cachedStatus.value
     await statusesStore.toggleFavourite(target)
   } finally {
     loadingFavourite.value = false
@@ -151,7 +156,7 @@ async function handleReblog() {
   if (loadingReblog.value) return
   loadingReblog.value = true
   try {
-    const target = props.status.reblog ?? props.status
+    const target = cachedStatus.value.reblog ?? cachedStatus.value
     await statusesStore.toggleReblog(target)
   } finally {
     loadingReblog.value = false
@@ -162,7 +167,7 @@ async function handleBookmark() {
   if (loadingBookmark.value) return
   loadingBookmark.value = true
   try {
-    const target = props.status.reblog ?? props.status
+    const target = cachedStatus.value.reblog ?? cachedStatus.value
     await statusesStore.toggleBookmark(target)
   } finally {
     loadingBookmark.value = false
@@ -171,18 +176,18 @@ async function handleBookmark() {
 
 function handleReply() {
   // For reblogs, reply to the original status, not the reblog wrapper
-  const target = props.status.reblog ?? props.status
+  const target = cachedStatus.value.reblog ?? cachedStatus.value
   composeStore.setReplyTo(target)
   uiStore.openComposeModal()
 }
 
 function handleCardClick() {
-  const target = props.status.reblog ?? props.status
+  const target = cachedStatus.value.reblog ?? cachedStatus.value
   emit('navigate', target)
 }
 
 async function handleShare() {
-  const url = props.status.url || `${window.location.origin}/@${props.status.account.acct}/${props.status.id}`
+  const url = cachedStatus.value.url || `${window.location.origin}/@${cachedStatus.value.account.acct}/${cachedStatus.value.id}`
   if (navigator.share) {
     try {
       await navigator.share({ url })
@@ -248,7 +253,7 @@ async function submitEdit() {
   if (editLoading.value) return
   editLoading.value = true
   try {
-    await statusesStore.editStatus(props.status.id, {
+    await statusesStore.editStatus(cachedStatus.value.id, {
       status: editText.value,
       spoiler_text: editSpoilerText.value || undefined,
       sensitive: editSensitive.value,
@@ -268,7 +273,7 @@ const emit = defineEmits<{
 }>()
 
 function handlePollUpdate(updatedPoll: Status['poll']) {
-  const target = props.status.reblog ?? props.status
+  const target = cachedStatus.value.reblog ?? cachedStatus.value
   if (updatedPoll) {
     statusesStore.cacheStatus({ ...target, poll: updatedPoll })
   }
@@ -282,9 +287,9 @@ function handleReactionUpdate(updatedStatus: Status) {
 async function handleDelete() {
   if (!confirm(t('status.delete_confirm'))) return
   try {
-    await statusesStore.deleteStatus(props.status.id)
-    timelinesStore.removeStatus(props.status.id)
-    emit('deleted', props.status.id)
+    await statusesStore.deleteStatus(cachedStatus.value.id)
+    timelinesStore.removeStatus(cachedStatus.value.id)
+    emit('deleted', cachedStatus.value.id)
   } catch {
     // Error handling
   }
@@ -303,8 +308,8 @@ async function handleDelete() {
       <svg class="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="currentColor" viewBox="0 0 24 24">
         <path d="M23.77 15.67a.749.749 0 00-1.06 0l-2.22 2.22V7.65a3.755 3.755 0 00-3.75-3.75h-5.85a.75.75 0 000 1.5h5.85a2.25 2.25 0 012.25 2.25v10.24l-2.22-2.22a.749.749 0 10-1.06 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5a.747.747 0 000-1.06zm-10.66 1.47H7.26a2.25 2.25 0 01-2.25-2.25V4.65l2.22 2.22a.744.744 0 001.06 0 .749.749 0 000-1.06l-3.5-3.5a.747.747 0 00-1.06 0l-3.5 3.5a.749.749 0 101.06 1.06l2.22-2.22v10.24a3.755 3.755 0 003.75 3.75h5.85a.75.75 0 000-1.5z"/>
       </svg>
-      <router-link :to="`/@${status.account.acct}`" class="font-semibold hover:underline" @click.stop>
-        {{ status.account.display_name || status.account.username }}
+      <router-link :to="`/@${cachedStatus.account.acct}`" class="font-semibold hover:underline" @click.stop>
+        {{ cachedStatus.account.display_name || cachedStatus.account.username }}
       </router-link>
       <span>{{ t('status.reblogged') }}</span>
     </div>

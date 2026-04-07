@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { Account, Status, Tag } from '@/types/mastodon'
 import { search as apiSearch } from '@/api/mastodon/search'
 import { useAuthStore } from '@/stores/auth'
+import { useStatusesStore } from '@/stores/statuses'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
 import AccountCard from '@/components/account/AccountCard.vue'
@@ -11,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const statusesStore = useStatusesStore()
 
 type SearchTab = 'accounts' | 'statuses' | 'hashtags'
 
@@ -34,6 +36,7 @@ async function performSearch() {
       token: auth.token ?? undefined,
     })
     accounts.value = data.accounts
+    statusesStore.cacheStatuses(data.statuses)
     statuses.value = data.statuses
     hashtags.value = data.hashtags
   } catch (e) {
