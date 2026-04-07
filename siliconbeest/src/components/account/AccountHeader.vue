@@ -134,12 +134,13 @@ function handleToggle() {
         :alt="t('profile.banner')"
         class="w-full h-full object-cover"
       />
-    </div>
-
-    <!-- Blocked banner -->
-    <div v-if="!isOwn && relationship?.blocking" class="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-      {{ t('profile.blocked_banner') }}
+      <!-- Blocked overlay on banner -->
+      <div v-if="!isOwn && relationship?.blocking" class="absolute inset-0 bg-black/60 flex items-center justify-center">
+        <div class="flex items-center gap-2 text-white text-sm font-medium bg-red-600/80 px-4 py-2 rounded-full">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+          {{ t('profile.blocked_banner') }}
+        </div>
+      </div>
     </div>
 
     <!-- Profile info -->

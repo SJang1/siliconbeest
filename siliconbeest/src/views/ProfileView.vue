@@ -147,6 +147,7 @@ watch(() => route.params.acct, (acct) => {
           :is-own="isOwn"
           :relationship="relationship ?? undefined"
           @toggle-follow="handleFollowToggle"
+          @relationship-updated="(r) => { relationship = r; accountsStore.updateRelationship(r) }"
         />
         <TimelineFeed
           :statuses="statuses"
