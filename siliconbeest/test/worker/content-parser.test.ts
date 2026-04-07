@@ -67,6 +67,32 @@ describe('parseContent', () => {
 
       expect(result.tags.length).toBe(2);
     });
+
+    it('extracts Korean hashtags', () => {
+      const result = parseContent('#커피주세요 #한글태그', DOMAIN);
+
+      expect(result.tags.length).toBe(2);
+      expect(result.tags[0]).toBe('커피주세요');
+      expect(result.tags[1]).toBe('한글태그');
+    });
+
+    it('extracts mixed-script hashtags', () => {
+      const result = parseContent('#hello #日本語 #커피', DOMAIN);
+
+      expect(result.tags.length).toBe(3);
+      expect(result.tags[0]).toBe('hello');
+      expect(result.tags[1]).toBe('日本語');
+      expect(result.tags[2]).toBe('커피');
+    });
+
+    it('generates correct HTML links for Unicode hashtags', () => {
+      const result = parseContent('#커피주세요', DOMAIN);
+
+      expect(result.html).toContain('class="mention hashtag"');
+      expect(result.html).toContain('rel="tag"');
+      expect(result.html).toContain(`href="https://${DOMAIN}/tags/커피주세요"`);
+      expect(result.html).toContain('#<span>커피주세요</span>');
+    });
   });
 
   // ---------------------------------------------------------------
