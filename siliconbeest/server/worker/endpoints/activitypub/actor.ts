@@ -45,9 +45,8 @@ app.get('/:username', async (c) => {
     });
   }
 
-  // Non-suspended actors should have been handled by Fedify.
-  // If we reach here, something went wrong in the Fedify dispatcher.
-  return c.json({ error: 'Record not found' }, 404);
+  // Non-AP requests (browsers) — redirect to the profile page
+  return c.redirect(`https://${domain}/@${account.username}`);
 });
 
 export default app;
