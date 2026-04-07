@@ -76,6 +76,13 @@ function handleMute() {
   if (props.accountId) emit('mute', props.accountId)
 }
 
+function onMenuFocusOut(e: FocusEvent) {
+  const container = e.currentTarget as HTMLElement
+  if (!container?.contains(e.relatedTarget as Node)) {
+    closeMenu()
+  }
+}
+
 function formatCount(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
@@ -155,7 +162,7 @@ function formatCount(n: number): string {
     </button>
 
     <!-- More menu -->
-    <div class="relative">
+    <div class="relative" @focusout="onMenuFocusOut">
       <button
         @click="toggleMenu"
         class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
@@ -169,7 +176,6 @@ function formatCount(n: number): string {
         v-if="showMenu"
         class="absolute right-0 bottom-full mb-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
       >
-        <div class="fixed inset-0 z-[-1]" @click="closeMenu" />
         <button
           v-if="isOwnStatus"
           @click="handleEdit(statusId)"

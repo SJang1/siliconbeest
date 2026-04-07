@@ -70,6 +70,13 @@ function openReport() {
   showReportDialog.value = true
 }
 
+function onMenuFocusOut(e: FocusEvent) {
+  const container = e.currentTarget as HTMLElement
+  if (!container?.contains(e.relatedTarget as Node)) {
+    showMoreMenu.value = false
+  }
+}
+
 async function toggleBlock() {
   if (!auth.token || actionLoading.value) return
   showMoreMenu.value = false
@@ -156,8 +163,9 @@ function handleToggle() {
             @toggle="handleToggle"
           />
           <!-- More menu for non-own accounts -->
-          <div v-if="!isOwn" class="relative">
+          <div v-if="!isOwn" class="relative" @focusout="onMenuFocusOut">
             <button
+              type="button"
               @click="showMoreMenu = !showMoreMenu"
               class="p-2 rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               :aria-label="t('status.more_actions')"
@@ -168,7 +176,6 @@ function handleToggle() {
               v-if="showMoreMenu"
               class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
             >
-              <div class="fixed inset-0 z-[-1]" @click="showMoreMenu = false" />
               <button
                 @click="toggleBlock"
                 class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
