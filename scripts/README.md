@@ -282,12 +282,17 @@ Cloudflare's **Bot Fight Mode** and **Super Bot Fight Mode** block ActivityPub f
 1. Go to **Security > WAF > Custom Rules** in the Cloudflare Dashboard
 2. Create a **Skip** rule with this expression:
    ```
+   (any(http.request.headers["accept"][*] contains "application/activity+json") or
+    any(http.request.headers["accept"][*] contains "application/ld+json") or
+    any(http.request.headers["content-type"][*] contains "application/activity+json") or
+    any(http.request.headers["content-type"][*] contains "application/ld+json")) and
    (http.request.uri.path matches "^/users/.*" or
     http.request.uri.path eq "/inbox" or
     http.request.uri.path eq "/actor" or
     http.request.uri.path matches "^/nodeinfo/.*" or
     http.request.uri.path matches "^/.well-known/.*")
    ```
+   This only bypasses requests with ActivityPub content types (`application/activity+json`, `application/ld+json`) on federation endpoints -- normal browser traffic is still protected by bot rules.
 3. Action: **Skip** -- check **All remaining custom rules** + **Super Bot Fight Mode**
 4. Place it **FIRST** in your rule list (highest priority)
 

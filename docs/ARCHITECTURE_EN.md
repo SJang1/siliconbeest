@@ -52,7 +52,7 @@ SiliconBeest is inspired by [Cloudflare Wildebeest](https://github.com/cloudflar
 | Goal | Approach |
 |------|----------|
 | **Zero server infrastructure** | Runs entirely on Cloudflare edge network |
-| **Low cost** | Designed to stay within Cloudflare Workers Paid plan ($5/month) |
+| **Low cost** | Designed to stay within Cloudflare Workers Enabled account limits |
 | **Full compatibility** | Works with existing Mastodon clients (Tusky, Elk, Ice Cubes, Ivory, Mona) |
 | **Federation first** | Implements ActivityPub, WebFinger, NodeInfo, HTTP Signatures, LD Signatures, Object Integrity Proofs |
 | **Security** | OAuth 2.0 + PKCE, TOTP 2FA, bcrypt passwords, rate limiting |
@@ -202,7 +202,7 @@ Both the API worker and queue consumer use `placement.mode: "smart"`. Cloudflare
 
 ### Cost Considerations
 
-SiliconBeest is designed to operate within the Cloudflare Workers Paid plan ($5/month base):
+SiliconBeest is designed to operate within Cloudflare Workers Enabled account limits:
 
 | Resource | 100 users/mo | 1000 users/mo |
 |----------|-------------|---------------|

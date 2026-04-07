@@ -52,7 +52,7 @@ SiliconBeest는 Cloudflare의 공식 서버리스 페디버스 서버였던 [Clo
 | 목표 | 접근 방식 |
 |------|----------|
 | **서버 인프라 불필요** | Cloudflare 엣지 네트워크에서 완전히 실행 |
-| **저비용** | Cloudflare Workers Paid 플랜($5/월) 범위 내에서 운영 설계 |
+| **저비용** | Cloudflare Workers Enabled 계정 한도 내에서 운영 설계 |
 | **완전한 호환성** | 기존 Mastodon 클라이언트와 호환 (Tusky, Elk, Ice Cubes, Ivory, Mona) |
 | **연합 우선** | ActivityPub, WebFinger, NodeInfo, HTTP Signatures, LD Signatures, Object Integrity Proofs 구현 |
 | **보안** | OAuth 2.0 + PKCE, TOTP 2FA, bcrypt 비밀번호 해싱, 속도 제한 |
@@ -202,7 +202,7 @@ API Worker와 큐 소비자 모두 `placement.mode: "smart"`를 사용합니다.
 
 ### 비용 고려사항
 
-SiliconBeest는 Cloudflare Workers Paid 플랜 ($5/월 기본) 내에서 운영되도록 설계되었습니다:
+SiliconBeest는 Cloudflare Workers Enabled 계정 한도 내에서 운영되도록 설계되었습니다:
 
 | 리소스 | 100명 사용자/월 | 1000명 사용자/월 |
 |--------|----------------|-----------------|

@@ -8,6 +8,22 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 
 ---
 
+## Deploy Your Own Instance
+
+SiliconBeest is a **GitHub Template Repository**. Deploy your own Fediverse instance in minutes:
+
+1. Click **"Use this template"** on this repository
+2. Create Cloudflare resources:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/SJang1/siliconbeest/HEAD/scripts/install.sh)"
+   ```
+3. Set the output values as GitHub Secrets & Variables
+4. Run the Deploy workflow -- done!
+
+**Full deployment guide: [English](docs/deploy/README.md) | [한국어](docs/deploy/README.ko.md)**
+
+---
+
 ## Features
 
 ### Mastodon API Compatibility
@@ -158,7 +174,7 @@ A `packages/shared/` directory contains code shared between workers:
 
 - [Node.js](https://nodejs.org/) >= 20
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.x (`pnpm add -g wrangler`)
-- A Cloudflare account with **Workers Paid plan** ($5/month)
+- A **Workers Enabled** Cloudflare account
 - A domain managed by Cloudflare (for custom domain deployment)
 
 ### 1. Clone and Install
@@ -212,91 +228,11 @@ The script automatically:
 ./scripts/deploy.sh
 ```
 
-### 4. DNS
-
-If using a subdomain (e.g., `social.example.com`), add a DNS record in Cloudflare:
-
-| Type | Name | Content | Proxy |
-|------|------|---------|-------|
-| AAAA | social | 100:: | Proxied |
-
-(The `100::` is a dummy address -- Cloudflare Workers routes handle the traffic.)
-
-### 5. Cloudflare Bot Protection (CRITICAL)
+### 4. Cloudflare Bot Protection (CRITICAL)
 
 > **Without this step, federation is completely broken.**
 
 Cloudflare's Bot Fight Mode blocks ActivityPub traffic (403 to `/users/*`, `/inbox`). You must create a WAF **Skip** rule -- see **[scripts/README.md](scripts/README.md#cloudflare-bot-protection-critical)** for full instructions.
-
----
-
-## Deploy Your Own Instance (Template)
-
-SiliconBeest is a **GitHub Template Repository**. You can deploy your own instance with automatic upstream updates in a few steps.
-
-### 1. Create Your Repository
-
-Click **"Use this template"** on [github.com/SJang1/siliconbeest](https://github.com/SJang1/siliconbeest) to create a new repository (e.g., `my-instance.example.com`).
-
-### 2. Set Up Cloudflare Resources
-
-Clone your new repository locally and run the interactive setup:
-
-```bash
-git clone https://github.com/YOUR_USER/YOUR_REPO.git
-cd YOUR_REPO
-pnpm install
-./scripts/setup.sh
-```
-
-This creates all required Cloudflare resources (D1, R2, KV, Queues) and outputs the resource IDs you'll need.
-
-### 3. Configure GitHub Secrets & Variables
-
-In your repository's **Settings > Secrets and variables > Actions**:
-
-**Secrets** (required):
-
-| Secret | Description |
-|--------|-------------|
-| `CLOUDFLARE_API_TOKEN` | CF API token with Workers/D1/R2/KV/Queues permissions |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
-
-**Repository Variables** (required):
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `PROJECT_PREFIX` | Resource name prefix | `myinstance` |
-| `INSTANCE_DOMAIN` | Your instance domain | `social.example.com` |
-| `INSTANCE_TITLE` | Display name | `My Fediverse Server` |
-| `REGISTRATION_MODE` | `open` / `approval` / `closed` | `open` |
-| `D1_DATABASE_ID` | D1 database UUID | (from setup.sh output) |
-| `KV_CACHE_ID` | KV namespace ID for cache | (from setup.sh output) |
-| `KV_SESSIONS_ID` | KV namespace ID for sessions | (from setup.sh output) |
-| `KV_FEDIFY_ID` | KV namespace ID for Fedify | (from setup.sh output) |
-
-**Optional Variables** (feature flags):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTO_DEPLOY` | `true` | Set `false` to disable auto-deploy on push to main |
-| `AUTO_UPDATE_UPSTREAM_DEPLOY` | `true` | Set `false` to sync upstream only (no deploy after update) |
-
-### 4. Deploy
-
-Push to `main` or trigger the **Deploy** workflow manually. The first deploy will build and deploy all workers.
-
-### 5. Automatic Upstream Updates
-
-Your instance includes a daily workflow (**Sync Upstream & Deploy**, 00:00 UTC / 09:00 KST) that:
-
-1. Checks for new releases (git tags) in `SJang1/siliconbeest`
-2. Merges upstream changes into your `main` branch
-3. Applies database migrations and deploys all workers
-
-If a merge conflict occurs, the workflow creates a GitHub Issue with resolution instructions instead of deploying.
-
-You can also trigger the sync manually via **Actions > Sync Upstream & Deploy > Run workflow** with the `force_deploy` option.
 
 ---
 
@@ -443,7 +379,7 @@ cd siliconbeest && pnpm exec wrangler d1 migrations apply siliconbeest-db --loca
 
 ## Cost Estimate
 
-Running on Cloudflare Workers Paid plan ($5/month base):
+Estimated cost with a Workers Enabled account:
 
 | Resource | 100 users/mo | 1000 users/mo |
 |----------|-------------|---------------|
