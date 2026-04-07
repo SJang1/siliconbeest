@@ -24,7 +24,7 @@
 		{
 			"binding": "DB",
 			"database_name": "siliconbeest-db",
-			"database_id": "7c66942d-1293-400d-84ce-8fbaa1821854"
+			"database_id": "YOUR_D1_DATABASE_ID"
 		}
 	]
 }

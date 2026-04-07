@@ -1,0 +1,218 @@
+# =============================================================================
+# SiliconBeest Instance — Upstream Sync & Auto-Deploy
+#
+# Checks the upstream template repo (SJang1/siliconbeest) for new releases
+# (git tags). If a new release is found, merges upstream changes and deploys
+# all Cloudflare Workers.
+#
+# Required GitHub Secrets:
+#   CLOUDFLARE_API_TOKEN   — CF API token with Workers/D1/R2/KV/Queues permissions
+#   CLOUDFLARE_ACCOUNT_ID  — Your Cloudflare account ID
+#
+# Required GitHub Repository Variables:
+#   PROJECT_PREFIX     — Resource name prefix (e.g. "siliconbeest")
+#   INSTANCE_DOMAIN    — Your instance domain (e.g. "social.example.com")
+#   INSTANCE_TITLE     — Display name for your instance
+#   REGISTRATION_MODE  — "open", "approval", or "closed"
+#   D1_DATABASE_ID     — D1 database UUID
+#   KV_CACHE_ID        — KV namespace ID for cache
+#   KV_SESSIONS_ID     — KV namespace ID for sessions
+#   KV_FEDIFY_ID       — KV namespace ID for Fedify
+#
+# Optional GitHub Repository Variables:
+#   AUTO_DEPLOY          — "true" (default) or "false" (sync only, skip deploy)
+#   ENABLE_EMAIL_WORKER  — "true" (default) or "false" (skip email worker deploy)
+# =============================================================================
+
+name: Sync Upstream & Deploy
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily at 00:00 UTC (09:00 KST)
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Deploy even without new upstream release"
+        type: boolean
+        default: false
+
+env:
+  UPSTREAM_REPO: https://github.com/SJang1/siliconbeest.git
+
+jobs:
+  check-and-sync:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.decide.outputs.should_deploy }}
+      new_tag: ${{ steps.decide.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream "${{ env.UPSTREAM_REPO }}" 2>/dev/null || true
+          git fetch upstream --tags --prune
+
+      - name: Check for new upstream release
+        id: decide
+        run: |
+          # Get latest upstream tag (semver sorted)
+          LATEST_TAG=$(git tag -l --sort=-v:refname | head -1)
+          CURRENT_TAG=$(cat .upstream-version 2>/dev/null | tr -d '[:space:]' || echo "none")
+
+          echo "Latest upstream tag: ${LATEST_TAG:-none}"
+          echo "Current synced tag:  $CURRENT_TAG"
+
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "No upstream tags found"
+            echo "should_deploy=${{ inputs.force_deploy || false }}" >> "$GITHUB_OUTPUT"
+            echo "new_tag=" >> "$GITHUB_OUTPUT"
+          elif [[ "$LATEST_TAG" != "$CURRENT_TAG" ]] || [[ "${{ inputs.force_deploy }}" == "true" ]]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "new_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "Already up to date at $CURRENT_TAG"
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "new_tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream changes
+        id: merge
+        if: steps.decide.outputs.should_deploy == 'true' && steps.decide.outputs.new_tag != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TAG="${{ steps.decide.outputs.new_tag }}"
+
+          echo "Merging upstream/main (tag: $TAG)..."
+          if git merge upstream/main --no-edit -m "chore: sync upstream to $TAG"; then
+            echo "$TAG" > .upstream-version
+            git add .upstream-version
+            git commit --amend --no-edit
+            echo "merge_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "merge_ok=false" >> "$GITHUB_OUTPUT"
+            CONFLICTED=$(git diff --name-only --diff-filter=U | head -20)
+            echo "conflicted_files<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CONFLICTED" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            git merge --abort
+          fi
+
+      - name: Create issue on merge conflict
+        if: steps.merge.outputs.merge_ok == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ steps.decide.outputs.new_tag }}';
+            const files = `${{ steps.merge.outputs.conflicted_files }}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Upstream sync conflict: ${tag}`,
+              body: [
+                `Automatic merge of upstream tag \`${tag}\` failed due to conflicts.`,
+                '',
+                '**Conflicting files:**',
+                '```',
+                files,
+                '```',
+                '',
+                '**To resolve manually:**',
+                '```bash',
+                'git remote add upstream https://github.com/SJang1/siliconbeest.git',
+                'git fetch upstream --tags',
+                `git merge upstream/main`,
+                '# Resolve conflicts, then:',
+                `echo "${tag}" > .upstream-version`,
+                'git add -A && git commit',
+                'git push',
+                '```',
+              ].join('\n'),
+              labels: ['upstream-sync', 'conflict'],
+            });
+
+      - name: Fail on merge conflict
+        if: steps.merge.outputs.merge_ok == 'false'
+        run: |
+          echo "::error::Merge conflict detected. A GitHub Issue has been created."
+          exit 1
+
+      - name: Push synced changes
+        if: steps.merge.outputs.merge_ok == 'true'
+        run: git push origin main
+
+  deploy:
+    needs: check-and-sync
+    if: |
+      needs.check-and-sync.outputs.should_deploy == 'true' &&
+      (vars.AUTO_DEPLOY != 'false')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate config.env from GitHub Variables
+        run: |
+          cat > scripts/config.env << 'ENVEOF'
+          PROJECT_PREFIX=${{ vars.PROJECT_PREFIX }}
+          INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}
+          INSTANCE_TITLE=${{ vars.INSTANCE_TITLE }}
+          REGISTRATION_MODE=${{ vars.REGISTRATION_MODE }}
+          D1_DATABASE_ID=${{ vars.D1_DATABASE_ID }}
+          KV_CACHE_ID=${{ vars.KV_CACHE_ID }}
+          KV_SESSIONS_ID=${{ vars.KV_SESSIONS_ID }}
+          KV_FEDIFY_ID=${{ vars.KV_FEDIFY_ID }}
+          ENVEOF
+
+      - name: Generate wrangler.jsonc files
+        run: ./scripts/sync-config.sh --apply
+
+      - name: Build frontend
+        run: |
+          echo "VITE_INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}" > siliconbeest/.env
+          pnpm --filter siliconbeest build
+
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          source scripts/config.sh
+          source scripts/config.env
+          cd siliconbeest && npx wrangler d1 migrations apply "$D1_DATABASE_NAME" --remote
+
+      - name: Deploy main worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest && npx wrangler deploy
+
+      - name: Deploy queue consumer
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest-queue-consumer && npx wrangler deploy
+
+      - name: Deploy email sender
+        if: vars.ENABLE_EMAIL_WORKER != 'false'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest-email-sender && npx wrangler deploy

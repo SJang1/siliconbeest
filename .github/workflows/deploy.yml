@@ -1,0 +1,87 @@
+# =============================================================================
+# SiliconBeest Instance — Manual / Push Deploy
+#
+# Deploys all Cloudflare Workers without upstream sync.
+# Triggered on push to main (when worker code changes) or manually.
+#
+# See upstream-sync-deploy.yml for required Secrets & Variables.
+# =============================================================================
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "siliconbeest/**"
+      - "siliconbeest-queue-consumer/**"
+      - "siliconbeest-email-sender/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate config.env from GitHub Variables
+        run: |
+          cat > scripts/config.env << 'ENVEOF'
+          PROJECT_PREFIX=${{ vars.PROJECT_PREFIX }}
+          INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}
+          INSTANCE_TITLE=${{ vars.INSTANCE_TITLE }}
+          REGISTRATION_MODE=${{ vars.REGISTRATION_MODE }}
+          D1_DATABASE_ID=${{ vars.D1_DATABASE_ID }}
+          KV_CACHE_ID=${{ vars.KV_CACHE_ID }}
+          KV_SESSIONS_ID=${{ vars.KV_SESSIONS_ID }}
+          KV_FEDIFY_ID=${{ vars.KV_FEDIFY_ID }}
+          ENVEOF
+
+      - name: Generate wrangler.jsonc files
+        run: ./scripts/sync-config.sh --apply
+
+      - name: Build frontend
+        run: |
+          echo "VITE_INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}" > siliconbeest/.env
+          pnpm --filter siliconbeest build
+
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          source scripts/config.sh
+          source scripts/config.env
+          cd siliconbeest && npx wrangler d1 migrations apply "$D1_DATABASE_NAME" --remote
+
+      - name: Deploy main worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest && npx wrangler deploy
+
+      - name: Deploy queue consumer
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest-queue-consumer && npx wrangler deploy
+
+      - name: Deploy email sender
+        if: vars.ENABLE_EMAIL_WORKER != 'false'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd siliconbeest-email-sender && npx wrangler deploy

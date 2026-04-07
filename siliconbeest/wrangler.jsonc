@@ -18,10 +18,9 @@
 
 	// Environment Variables (secrets set via `wrangler secret put`)
 	"vars": {
-		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
-		"INSTANCE_TITLE": "SiliconBeest by siliconsjang",
-		"REGISTRATION_MODE": "approval",
-		"SKIP_SIGNATURE_VERIFICATION": "true"
+		"INSTANCE_DOMAIN": "social.example.com",
+		"INSTANCE_TITLE": "My SiliconBeest Instance",
+		"REGISTRATION_MODE": "open"
 	},
 
 	// D1 Database
@@ -29,7 +28,7 @@
 		{
 			"binding": "DB",
 			"database_name": "siliconbeest-db",
-			"database_id": "7c66942d-1293-400d-84ce-8fbaa1821854"
+			"database_id": "YOUR_D1_DATABASE_ID"
 		}
 	],
 
@@ -45,15 +44,15 @@
 	"kv_namespaces": [
 		{
 			"binding": "CACHE",
-			"id": "14a4d29db39c4de79adcef9f07d76c4d"
+			"id": "YOUR_KV_CACHE_ID"
 		},
 		{
 			"binding": "SESSIONS",
-			"id": "b28dd211bbfc41d2b928ecfe71e3c087"
+			"id": "YOUR_KV_SESSIONS_ID"
 		},
 		{
 			"binding": "FEDIFY_KV",
-			"id": "cc8fbc2dafae46cfb3346d08520fed36"
+			"id": "YOUR_KV_FEDIFY_ID"
 		}
 	],
 
@@ -95,7 +94,7 @@
 	"routes": [
 		{
 			"custom_domain": true,
-			"pattern": "siliconbeest.sjang.dev"
+			"pattern": "social.example.com"
 		}
 	]
 }

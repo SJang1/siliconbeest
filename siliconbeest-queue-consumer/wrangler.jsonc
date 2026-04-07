@@ -19,15 +19,14 @@
 		"mode": "smart"
 	},
 	"vars": {
-		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
-		"SKIP_SIGNATURE_VERIFICATION": "true"
+		"INSTANCE_DOMAIN": "social.example.com"
 	},
 	// D1 Database
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "siliconbeest-db",
-			"database_id": "7c66942d-1293-400d-84ce-8fbaa1821854"
+			"database_id": "YOUR_D1_DATABASE_ID"
 		}
 	],
 
@@ -43,11 +42,11 @@
 	"kv_namespaces": [
 		{
 			"binding": "CACHE",
-			"id": "14a4d29db39c4de79adcef9f07d76c4d"
+			"id": "YOUR_KV_CACHE_ID"
 		},
 		{
 			"binding": "FEDIFY_KV",
-			"id": "cc8fbc2dafae46cfb3346d08520fed36"
+			"id": "YOUR_KV_FEDIFY_ID"
 		}
 	],
 

@@ -20,6 +20,9 @@ dist-ssr/
 .env.*.local
 !.env.example
 
+# --- Instance config (create from config.env.example) ---
+scripts/config.env
+
 # --- Logs ---
 logs/
 *.log

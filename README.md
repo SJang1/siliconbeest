@@ -230,6 +230,76 @@ Cloudflare's Bot Fight Mode blocks ActivityPub traffic (403 to `/users/*`, `/inb
 
 ---
 
+## Deploy Your Own Instance (Template)
+
+SiliconBeest is a **GitHub Template Repository**. You can deploy your own instance with automatic upstream updates in a few steps.
+
+### 1. Create Your Repository
+
+Click **"Use this template"** on [github.com/SJang1/siliconbeest](https://github.com/SJang1/siliconbeest) to create a new repository (e.g., `my-instance.example.com`).
+
+### 2. Set Up Cloudflare Resources
+
+Clone your new repository locally and run the interactive setup:
+
+```bash
+git clone https://github.com/YOUR_USER/YOUR_REPO.git
+cd YOUR_REPO
+pnpm install
+./scripts/setup.sh
+```
+
+This creates all required Cloudflare resources (D1, R2, KV, Queues) and outputs the resource IDs you'll need.
+
+### 3. Configure GitHub Secrets & Variables
+
+In your repository's **Settings > Secrets and variables > Actions**:
+
+**Secrets** (required):
+
+| Secret | Description |
+|--------|-------------|
+| `CLOUDFLARE_API_TOKEN` | CF API token with Workers/D1/R2/KV/Queues permissions |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+
+**Repository Variables** (required):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `PROJECT_PREFIX` | Resource name prefix | `myinstance` |
+| `INSTANCE_DOMAIN` | Your instance domain | `social.example.com` |
+| `INSTANCE_TITLE` | Display name | `My Fediverse Server` |
+| `REGISTRATION_MODE` | `open` / `approval` / `closed` | `open` |
+| `D1_DATABASE_ID` | D1 database UUID | (from setup.sh output) |
+| `KV_CACHE_ID` | KV namespace ID for cache | (from setup.sh output) |
+| `KV_SESSIONS_ID` | KV namespace ID for sessions | (from setup.sh output) |
+| `KV_FEDIFY_ID` | KV namespace ID for Fedify | (from setup.sh output) |
+
+**Optional Variables** (feature flags):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_DEPLOY` | `true` | Set `false` to sync upstream only (no auto-deploy) |
+| `ENABLE_EMAIL_WORKER` | `true` | Set `false` to skip email worker deployment |
+
+### 4. Deploy
+
+Push to `main` or trigger the **Deploy** workflow manually. The first deploy will build and deploy all workers.
+
+### 5. Automatic Upstream Updates
+
+Your instance includes a daily workflow (**Sync Upstream & Deploy**, 00:00 UTC / 09:00 KST) that:
+
+1. Checks for new releases (git tags) in `SJang1/siliconbeest`
+2. Merges upstream changes into your `main` branch
+3. Applies database migrations and deploys all workers
+
+If a merge conflict occurs, the workflow creates a GitHub Issue with resolution instructions instead of deploying.
+
+You can also trigger the sync manually via **Actions > Sync Upstream & Deploy > Run workflow** with the `force_deploy` option.
+
+---
+
 ## Updating an Existing Instance
 
 ```bash

@@ -66,77 +66,125 @@ fi
 
 header "SiliconBeest Config Sync"
 
-# Verify wrangler is authenticated
-info "Checking wrangler authentication..."
-if ! npx wrangler whoami 2>/dev/null | grep -q "Account ID"; then
-  error "Not authenticated. Run: npx wrangler login"
-  exit 1
+# Check if all IDs are pre-configured (skip auth check if so)
+_PRE_D1="${D1_DATABASE_ID:-}"
+_PRE_KVC="${KV_CACHE_ID:-}"
+_PRE_KVS="${KV_SESSIONS_ID:-}"
+_PRE_KVF="${KV_FEDIFY_ID:-}"
+_PRE_DOM="${INSTANCE_DOMAIN:-}"
+
+if [[ -n "$_PRE_D1" && -n "$_PRE_KVC" && -n "$_PRE_KVS" && -n "$_PRE_KVF" && -n "$_PRE_DOM" ]]; then
+  info "All resource IDs provided in config.env — skipping wrangler auth check"
+else
+  # Verify wrangler is authenticated (needed to fetch missing IDs)
+  info "Checking wrangler authentication..."
+  if ! npx wrangler whoami 2>/dev/null | grep -q "Account ID"; then
+    error "Not authenticated. Run: npx wrangler login"
+    exit 1
+  fi
+  success "Authenticated"
 fi
-success "Authenticated"
 
 # ============================================================================
-# Fetch all resource IDs from Cloudflare
+# Resolve resource IDs — prefer config.env values, fallback to Cloudflare API
 # ============================================================================
 
-header "Fetching Cloudflare Resources"
+# Check if all IDs are already provided (e.g. from config.env or GitHub Variables)
+HAS_ALL_IDS=true
+[[ -z "${D1_DATABASE_ID:-}" ]] && HAS_ALL_IDS=false
+[[ -z "${KV_CACHE_ID:-}" ]] && HAS_ALL_IDS=false
+[[ -z "${KV_SESSIONS_ID:-}" ]] && HAS_ALL_IDS=false
+[[ -z "${KV_FEDIFY_ID:-}" ]] && HAS_ALL_IDS=false
 
-# --- D1 Database ---
-info "Looking up D1 database: ${D1_DATABASE_NAME}"
-D1_ID=$(npx wrangler d1 list --json 2>/dev/null | node -e "
-  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const db = d.find(x => x.name === '${D1_DATABASE_NAME}');
-  if (db) console.log(db.uuid);
-" 2>/dev/null || true)
-# Fallback: parse table output
-if [[ -z "$D1_ID" || "$D1_ID" == *"│"* ]]; then
-  D1_ID=$(npx wrangler d1 list 2>/dev/null | grep "$D1_DATABASE_NAME" | sed 's/[│ ]//g' | grep -oE '[0-9a-f-]{36}' | head -1 || true)
-fi
-if [[ -n "$D1_ID" ]]; then
+if $HAS_ALL_IDS; then
+  header "Using Resource IDs from config.env"
+  D1_ID="$D1_DATABASE_ID"
   success "D1: $D1_DATABASE_NAME → $D1_ID"
+  success "KV CACHE: $KV_CACHE_ID"
+  success "KV SESSIONS: $KV_SESSIONS_ID"
+  success "KV FEDIFY: $KV_FEDIFY_ID"
+  info "R2 bucket: $R2_BUCKET_NAME (name only, no ID needed)"
 else
-  warn "D1 database '$D1_DATABASE_NAME' not found"
-  D1_ID=""
+  header "Fetching Cloudflare Resources"
+
+  # --- D1 Database ---
+  if [[ -n "${D1_DATABASE_ID:-}" ]]; then
+    D1_ID="$D1_DATABASE_ID"
+    success "D1: $D1_DATABASE_NAME → $D1_ID (from config.env)"
+  else
+    info "Looking up D1 database: ${D1_DATABASE_NAME}"
+    D1_ID=$(npx wrangler d1 list --json 2>/dev/null | node -e "
+      const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+      const db = d.find(x => x.name === '${D1_DATABASE_NAME}');
+      if (db) console.log(db.uuid);
+    " 2>/dev/null || true)
+    # Fallback: parse table output
+    if [[ -z "$D1_ID" || "$D1_ID" == *"│"* ]]; then
+      D1_ID=$(npx wrangler d1 list 2>/dev/null | grep "$D1_DATABASE_NAME" | sed 's/[│ ]//g' | grep -oE '[0-9a-f-]{36}' | head -1 || true)
+    fi
+    if [[ -n "$D1_ID" ]]; then
+      success "D1: $D1_DATABASE_NAME → $D1_ID"
+    else
+      warn "D1 database '$D1_DATABASE_NAME' not found"
+      D1_ID=""
+    fi
+  fi
+
+  # --- KV Namespaces ---
+  if [[ -n "${KV_CACHE_ID:-}" && -n "${KV_SESSIONS_ID:-}" && -n "${KV_FEDIFY_ID:-}" ]]; then
+    success "KV CACHE: $KV_CACHE_ID (from config.env)"
+    success "KV SESSIONS: $KV_SESSIONS_ID (from config.env)"
+    success "KV FEDIFY: $KV_FEDIFY_ID (from config.env)"
+  else
+    info "Looking up KV namespaces..."
+    KV_JSON=$(npx wrangler kv namespace list 2>/dev/null || echo "[]")
+
+    if [[ -z "${KV_CACHE_ID:-}" ]]; then
+      KV_CACHE_ID=$(echo "$KV_JSON" | node -e "
+        const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+        const ns = d.find(x => x.title === '${KV_CACHE_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_CACHE_TITLE}' || x.title.includes('CACHE'));
+        if (ns) console.log(ns.id);
+      " 2>/dev/null || true)
+    fi
+
+    if [[ -z "${KV_SESSIONS_ID:-}" ]]; then
+      KV_SESSIONS_ID=$(echo "$KV_JSON" | node -e "
+        const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+        const ns = d.find(x => x.title === '${KV_SESSIONS_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_SESSIONS_TITLE}' || x.title.includes('SESSIONS'));
+        if (ns) console.log(ns.id);
+      " 2>/dev/null || true)
+    fi
+
+    if [[ -z "${KV_FEDIFY_ID:-}" ]]; then
+      KV_FEDIFY_ID=$(echo "$KV_JSON" | node -e "
+        const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+        const ns = d.find(x => x.title === '${KV_FEDIFY_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_FEDIFY_TITLE}' || x.title.includes('FEDIFY'));
+        if (ns) console.log(ns.id);
+      " 2>/dev/null || true)
+    fi
+
+    [[ -n "$KV_CACHE_ID" ]] && success "KV CACHE: $KV_CACHE_ID" || warn "KV CACHE not found"
+    [[ -n "$KV_SESSIONS_ID" ]] && success "KV SESSIONS: $KV_SESSIONS_ID" || warn "KV SESSIONS not found"
+    [[ -n "$KV_FEDIFY_ID" ]] && success "KV FEDIFY: $KV_FEDIFY_ID" || warn "KV FEDIFY not found"
+  fi
+
+  # --- R2 Bucket ---
+  info "Looking up R2 bucket: ${R2_BUCKET_NAME}"
+  R2_EXISTS=$(npx wrangler r2 bucket list 2>/dev/null | grep -w "$R2_BUCKET_NAME" || true)
+  if [[ -n "$R2_EXISTS" ]]; then
+    success "R2: $R2_BUCKET_NAME exists"
+  else
+    warn "R2 bucket '$R2_BUCKET_NAME' not found"
+  fi
 fi
 
-# --- KV Namespaces ---
-info "Looking up KV namespaces..."
-KV_JSON=$(npx wrangler kv namespace list 2>/dev/null || echo "[]")
+# ============================================================================
+# Resolve instance configuration — prefer config.env, fallback to wrangler.jsonc
+# ============================================================================
 
-KV_CACHE_ID=$(echo "$KV_JSON" | node -e "
-  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_CACHE_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_CACHE_TITLE}' || x.title.includes('CACHE'));
-  if (ns) console.log(ns.id);
-" 2>/dev/null || true)
-
-KV_SESSIONS_ID=$(echo "$KV_JSON" | node -e "
-  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_SESSIONS_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_SESSIONS_TITLE}' || x.title.includes('SESSIONS'));
-  if (ns) console.log(ns.id);
-" 2>/dev/null || true)
-
-[[ -n "$KV_CACHE_ID" ]] && success "KV CACHE: $KV_CACHE_ID" || warn "KV CACHE not found"
-[[ -n "$KV_SESSIONS_ID" ]] && success "KV SESSIONS: $KV_SESSIONS_ID" || warn "KV SESSIONS not found"
-
-KV_FEDIFY_ID=$(echo "$KV_JSON" | node -e "
-  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const ns = d.find(x => x.title === '${KV_FEDIFY_TITLE}' || x.title === '${MAIN_WORKER_NAME}-${KV_FEDIFY_TITLE}' || x.title.includes('FEDIFY'));
-  if (ns) console.log(ns.id);
-" 2>/dev/null || true)
-
-[[ -n "$KV_FEDIFY_ID" ]] && success "KV FEDIFY: $KV_FEDIFY_ID" || warn "KV FEDIFY not found"
-
-# --- R2 Bucket ---
-info "Looking up R2 bucket: ${R2_BUCKET_NAME}"
-R2_EXISTS=$(npx wrangler r2 bucket list 2>/dev/null | grep -w "$R2_BUCKET_NAME" || true)
-if [[ -n "$R2_EXISTS" ]]; then
-  success "R2: $R2_BUCKET_NAME exists"
-else
-  warn "R2 bucket '$R2_BUCKET_NAME' not found"
-fi
-
-# --- Instance Domain (from current wrangler.jsonc if exists) ---
-CURRENT_DOMAIN=""
-if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+# --- Instance Domain ---
+CURRENT_DOMAIN="${INSTANCE_DOMAIN:-}"
+if [[ -z "$CURRENT_DOMAIN" && -f "$MAIN_DIR/wrangler.jsonc" ]]; then
   CURRENT_DOMAIN=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
@@ -144,16 +192,16 @@ if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
     } catch(e) {}
   " 2>/dev/null || true)
 fi
-if [[ -n "$CURRENT_DOMAIN" ]]; then
+if [[ -n "$CURRENT_DOMAIN" && "$CURRENT_DOMAIN" != "social.example.com" ]]; then
   info "Instance domain: $CURRENT_DOMAIN"
 else
-  warn "No INSTANCE_DOMAIN found in wrangler.jsonc"
+  warn "No INSTANCE_DOMAIN configured — using placeholder"
   CURRENT_DOMAIN="${PROJECT_PREFIX}.example.com"
 fi
 
 # --- Instance Title ---
-CURRENT_TITLE=""
-if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+CURRENT_TITLE="${INSTANCE_TITLE:-}"
+if [[ -z "$CURRENT_TITLE" && -f "$MAIN_DIR/wrangler.jsonc" ]]; then
   CURRENT_TITLE=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
@@ -164,8 +212,8 @@ fi
 CURRENT_TITLE="${CURRENT_TITLE:-SiliconBeest}"
 
 # --- Registration Mode ---
-CURRENT_REG=""
-if [[ -f "$MAIN_DIR/wrangler.jsonc" ]]; then
+CURRENT_REG="${REGISTRATION_MODE:-}"
+if [[ -z "$CURRENT_REG" && -f "$MAIN_DIR/wrangler.jsonc" ]]; then
   CURRENT_REG=$(sed 's|//.*$||' "$MAIN_DIR/wrangler.jsonc" | node -e "
     try {
       const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
