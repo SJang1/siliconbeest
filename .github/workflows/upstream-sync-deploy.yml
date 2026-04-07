@@ -172,17 +172,26 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate config.env from GitHub Variables
+        env:
+          V_PROJECT_PREFIX: ${{ vars.PROJECT_PREFIX }}
+          V_INSTANCE_DOMAIN: ${{ vars.INSTANCE_DOMAIN }}
+          V_INSTANCE_TITLE: ${{ vars.INSTANCE_TITLE }}
+          V_REGISTRATION_MODE: ${{ vars.REGISTRATION_MODE }}
+          V_D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          V_KV_CACHE_ID: ${{ vars.KV_CACHE_ID }}
+          V_KV_SESSIONS_ID: ${{ vars.KV_SESSIONS_ID }}
+          V_KV_FEDIFY_ID: ${{ vars.KV_FEDIFY_ID }}
         run: |
-          cat > scripts/config.env << 'ENVEOF'
-          PROJECT_PREFIX=${{ vars.PROJECT_PREFIX }}
-          INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}
-          INSTANCE_TITLE=${{ vars.INSTANCE_TITLE }}
-          REGISTRATION_MODE=${{ vars.REGISTRATION_MODE }}
-          D1_DATABASE_ID=${{ vars.D1_DATABASE_ID }}
-          KV_CACHE_ID=${{ vars.KV_CACHE_ID }}
-          KV_SESSIONS_ID=${{ vars.KV_SESSIONS_ID }}
-          KV_FEDIFY_ID=${{ vars.KV_FEDIFY_ID }}
-          ENVEOF
+          cat > scripts/config.env <<EOF
+          PROJECT_PREFIX="${V_PROJECT_PREFIX}"
+          INSTANCE_DOMAIN="${V_INSTANCE_DOMAIN}"
+          INSTANCE_TITLE="${V_INSTANCE_TITLE}"
+          REGISTRATION_MODE="${V_REGISTRATION_MODE}"
+          D1_DATABASE_ID="${V_D1_DATABASE_ID}"
+          KV_CACHE_ID="${V_KV_CACHE_ID}"
+          KV_SESSIONS_ID="${V_KV_SESSIONS_ID}"
+          KV_FEDIFY_ID="${V_KV_FEDIFY_ID}"
+          EOF
 
       - name: Generate wrangler.jsonc files
         run: ./scripts/sync-config.sh --apply
