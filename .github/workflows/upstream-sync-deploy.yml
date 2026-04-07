@@ -100,7 +100,7 @@ jobs:
             echo "conflicted_files<<EOF" >> "$GITHUB_OUTPUT"
             echo "$CONFLICTED" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
-            git merge --abort
+            git merge --abort 2>/dev/null || true
           fi
 
       - name: Create issue on merge conflict
