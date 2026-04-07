@@ -67,10 +67,10 @@ export async function registerUser(
 		throw new AppError(422, 'Validation failed', 'Email is already in use');
 	}
 
-	// Check for existing username on local domain
+	// Check for existing username on local domain (case-insensitive)
 	const existingAccount = await env.DB
-		.prepare('SELECT id FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
-		.bind(lowerUsername)
+		.prepare('SELECT id FROM accounts WHERE username = ? COLLATE NOCASE AND domain IS NULL LIMIT 1')
+		.bind(username)
 		.first();
 	if (existingAccount) {
 		throw new AppError(422, 'Validation failed', 'Username is already taken');

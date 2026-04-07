@@ -22,12 +22,12 @@ export async function getAccountByUsername(
 ): Promise<AccountRow | null> {
 	if (domain) {
 		return (await env.DB
-			.prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE AND domain = ? COLLATE NOCASE LIMIT 1')
-			.bind(username, domain)
+			.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ? LIMIT 1')
+			.bind(username, domain.toLowerCase())
 			.first()) as AccountRow | null;
 	}
 	return (await env.DB
-		.prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE AND domain IS NULL LIMIT 1')
+		.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
 		.bind(username)
 		.first()) as AccountRow | null;
 }
