@@ -11,7 +11,7 @@
 
 import { env } from 'cloudflare:workers';
 import type { SendWebPushMessage } from '../shared/types/queue';
-import { sendPushNotification } from '../shared/webpush';
+import { base64urlDecode, sendPushNotification } from '../shared/webpush';
 
 export async function handleSendWebPush(
   msg: SendWebPushMessage,
@@ -82,6 +82,23 @@ export async function handleSendWebPush(
 
   if (!vapidPrivateKey || !vapidPublicKey) {
     console.warn('[web-push] VAPID keys not configured in DB settings, skipping push');
+    return;
+  }
+
+  // Validate VAPID key formats before attempting push
+  try {
+    const pubBytes = base64urlDecode(vapidPublicKey);
+    const privBytes = base64urlDecode(vapidPrivateKey);
+    if (pubBytes.length !== 65 || pubBytes[0] !== 0x04) {
+      console.error(`[web-push] Invalid VAPID public key: expected 65 bytes (0x04 prefix), got ${pubBytes.length} bytes (prefix 0x${pubBytes[0]?.toString(16)})`);
+      return;
+    }
+    if (privBytes.length !== 32) {
+      console.error(`[web-push] Invalid VAPID private key: expected 32 bytes, got ${privBytes.length} bytes`);
+      return;
+    }
+  } catch (e) {
+    console.error(`[web-push] Failed to decode VAPID keys (not valid base64url):`, e);
     return;
   }
 

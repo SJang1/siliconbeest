@@ -114,7 +114,7 @@ if [[ "$STORE_IN_DB" == true ]]; then
 
   info "Storing VAPID keys in D1 settings table ($DB_NAME)..."
   wrangler d1 execute "$DB_NAME" --remote --command \
-    "INSERT OR REPLACE INTO settings (key, value) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY'), ('vapid_public_key', '$VAPID_PUBLIC_KEY');"
+    "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY', datetime('now')), ('vapid_public_key', '$VAPID_PUBLIC_KEY', datetime('now'));"
   success "VAPID keys stored in DB"
 
   echo
@@ -124,7 +124,7 @@ fi
 echo
 echo -e "${YELLOW}To store these keys in the database manually:${NC}"
 echo "  wrangler d1 execute $D1_DATABASE_NAME --remote --command \\"
-echo "    \"INSERT OR REPLACE INTO settings (key, value) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY'), ('vapid_public_key', '$VAPID_PUBLIC_KEY');\""
+echo "    \"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY', datetime('now')), ('vapid_public_key', '$VAPID_PUBLIC_KEY', datetime('now'));\""
 echo
 echo -e "${YELLOW}NOTE:${NC} VAPID keys are stored in the D1 database (not env secrets)."
 echo "  Rotating keys invalidates all existing Web Push subscriptions."
