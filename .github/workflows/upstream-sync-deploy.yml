@@ -196,10 +196,11 @@ jobs:
       - name: Generate wrangler.jsonc files
         run: ./scripts/sync-config.sh --apply
 
-      - name: Build frontend
+      - name: Build
         run: |
           echo "VITE_INSTANCE_DOMAIN=${{ vars.INSTANCE_DOMAIN }}" > siliconbeest/.env
-          pnpm --filter siliconbeest build
+          cd siliconbeest && npx vite build
+          ls -la dist/client/ || echo "WARNING: dist/client not found"
 
       - name: Apply D1 migrations
         env:
