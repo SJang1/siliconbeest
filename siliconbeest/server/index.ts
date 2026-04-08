@@ -79,7 +79,7 @@ export default {
 
     // 3. PWA static files — serve with appropriate headers
     if (STATIC_PWA_PATHS.includes(pathname)) {
-      const assetResponse = await env.ASSETS.fetch(request);
+      const assetResponse = await _env.ASSETS.fetch(request);
       if (assetResponse.status !== 404) {
         const headers = new Headers(assetResponse.headers);
         if (pathname === '/sw.js') {
@@ -97,6 +97,6 @@ export default {
     }
 
     // 4. Static assets + SPA fallback (handled by not_found_handling: single-page-application)
-    return env.ASSETS.fetch(request);
+    return _env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
