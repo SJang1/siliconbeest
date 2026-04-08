@@ -22,7 +22,6 @@ export function createFed(): Federation<FedifyContextData> {
   if (cachedFed) return cachedFed;
 
   cachedFed = createFederation<FedifyContextData>({
-    // @ts-expect-error — @fedify/cfworkers imports KVNamespace from @cloudflare/workers-types; wrangler/vite generates its own nominal KVNamespace
     kv: new WorkersKvStore(env.FEDIFY_KV),
     queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
     userAgent: {
