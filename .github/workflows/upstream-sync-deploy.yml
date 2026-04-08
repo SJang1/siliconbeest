@@ -92,10 +92,20 @@ jobs:
           TAG="${{ steps.decide.outputs.new_tag }}"
 
           echo "Merging upstream/main (tag: $TAG)..."
+          BEFORE=$(git rev-parse HEAD)
           if git merge upstream/main --no-edit --allow-unrelated-histories -m "chore: sync upstream to $TAG"; then
-            echo "$TAG" > .upstream-version
-            git add .upstream-version
-            git commit --amend --no-edit
+            AFTER=$(git rev-parse HEAD)
+            if [[ "$BEFORE" == "$AFTER" ]]; then
+              # Merge was "Already up to date" — just update version file
+              echo "$TAG" > .upstream-version
+              git add .upstream-version
+              git commit -m "chore: sync upstream to $TAG"
+            else
+              # Merge created a new commit — amend it to include version file
+              echo "$TAG" > .upstream-version
+              git add .upstream-version
+              git commit --amend --no-edit
+            fi
             echo "merge_ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "merge_ok=false" >> "$GITHUB_OUTPUT"
