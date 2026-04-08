@@ -4,7 +4,6 @@
 // and the SPA assets handler. Crawler requests on SPA paths get
 // OG meta tags for link previews.
 
-import { env } from 'cloudflare:workers';
 import app from './worker/index';
 import { isCrawler, handleOgRequest } from './og-handler';
 
@@ -59,13 +58,13 @@ function isWorkerPath(pathname: string, request: Request): boolean {
 }
 
 export default {
-  async fetch(request: Request, _env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, fetchEnv: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
 
     // 1. Worker paths → Hono app
     if (isWorkerPath(pathname, request)) {
-      return app.fetch(request, _env, ctx);
+      return app.fetch(request, fetchEnv, ctx);
     }
 
     // 2. Crawler on SPA paths → OG handler
@@ -79,7 +78,7 @@ export default {
 
     // 3. PWA static files — serve with appropriate headers
     if (STATIC_PWA_PATHS.includes(pathname)) {
-      const assetResponse = await env.ASSETS.fetch(request);
+      const assetResponse = await fetchEnv.ASSETS.fetch(request);
       if (assetResponse.status !== 404) {
         const headers = new Headers(assetResponse.headers);
         if (pathname === '/sw.js') {
@@ -97,10 +96,10 @@ export default {
     }
 
     // 4. Try serving static assets
-    const assetResponse = await env.ASSETS.fetch(request);
+    const assetResponse = await fetchEnv.ASSETS.fetch(request);
     if (assetResponse.status !== 404) return assetResponse;
 
     // 5. SPA fallback — serve index.html for client-side routing
-    return env.ASSETS.fetch(new Request(new URL('/', request.url), request));
+    return fetchEnv.ASSETS.fetch(new Request(new URL('/', request.url), request));
   },
 } satisfies ExportedHandler<Env>;
