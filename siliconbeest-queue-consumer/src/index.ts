@@ -114,7 +114,6 @@ export default {
           try {
             const fed = ensureFedInitialized();
 
-            // @ts-expect-error — @fedify/cfworkers uses experimental workers-types internally
             const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
             const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
             console.log('[queue] processMessage result:', JSON.stringify({

@@ -16,7 +16,7 @@ import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
 import { createRateLimit, RATE_LIMIT_ADMIN, RATE_LIMIT_AUTH, RATE_LIMIT_REGISTRATION } from './middleware/rateLimit';
-import { createFed, setWaitUntil, type FedifyContextData } from './federation/fedify';
+import { createFed, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
 import { setupCollectionDispatchers } from './federation/dispatchers/collections';
@@ -186,9 +186,6 @@ app.use('*', async (c, next) => {
     setupWorkerInboxListeners(fed);
     fedInitialized = true;
   }
-
-  // Update per-request waitUntil so fire-and-forget enqueues survive
-  setWaitUntil((p) => c.executionCtx.waitUntil(p));
 
   // Store federation instance for use in route handlers (sendActivity)
   c.set('federation', fed);

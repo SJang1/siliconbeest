@@ -8,7 +8,6 @@
 import { createFederation, type Federation } from '@fedify/fedify';
 import { WorkersKvStore, WorkersMessageQueue } from '@fedify/cfworkers';
 import { env } from 'cloudflare:workers';
-import { CloudflareMessageQueue } from '../../packages/shared/fedify/cloudflare-queue';
 
 /** Context data passed to Fedify dispatchers. Empty — use import { env } instead. */
 export interface FedifyContextData {}
@@ -23,10 +22,9 @@ export function createFed(): Federation<FedifyContextData> {
   if (cachedFed) return cachedFed;
 
   cachedFed = createFederation<FedifyContextData>({
-    // @ts-expect-error — @fedify/cfworkers uses @cloudflare/workers-types/experimental internally
+    // @ts-expect-error — @fedify/cfworkers imports KVNamespace from @cloudflare/workers-types; wrangler/vite generates its own nominal KVNamespace
     kv: new WorkersKvStore(env.FEDIFY_KV),
-    // @ts-expect-error — same wrangler vs experimental type mismatch
-    queue: new CloudflareMessageQueue(new WorkersMessageQueue(env.QUEUE_FEDERATION)),
+    queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),
