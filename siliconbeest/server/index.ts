@@ -79,7 +79,7 @@ export default {
 
     // 3. PWA static files — serve with appropriate headers
     if (STATIC_PWA_PATHS.includes(pathname)) {
-      const assetResponse = await _env.ASSETS.fetch(request);
+      const assetResponse = await env.ASSETS.fetch(request);
       if (assetResponse.status !== 404) {
         const headers = new Headers(assetResponse.headers);
         if (pathname === '/sw.js') {
@@ -97,10 +97,10 @@ export default {
     }
 
     // 4. Try serving static assets
-    const assetResponse = await _env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
     if (assetResponse.status !== 404) return assetResponse;
 
     // 5. SPA fallback — serve index.html for client-side routing
-    return _env.ASSETS.fetch(new Request(new URL('/', request.url), request));
+    return env.ASSETS.fetch(new Request(new URL('/', request.url), request));
   },
 } satisfies ExportedHandler<Env>;
