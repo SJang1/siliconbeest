@@ -96,7 +96,11 @@ export default {
       }
     }
 
-    // 4. Static assets + SPA fallback (handled by not_found_handling: single-page-application)
-    return _env.ASSETS.fetch(request);
+    // 4. Try serving static assets
+    const assetResponse = await _env.ASSETS.fetch(request);
+    if (assetResponse.status !== 404) return assetResponse;
+
+    // 5. SPA fallback — serve index.html for client-side routing
+    return _env.ASSETS.fetch(new Request(new URL('/', request.url), request));
   },
 } satisfies ExportedHandler<Env>;

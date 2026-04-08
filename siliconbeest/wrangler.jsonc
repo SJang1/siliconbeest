@@ -5,7 +5,7 @@
 	"main": "server/index.ts",
 	"assets": {
 		"directory": "./dist/client",
-		"not_found_handling": "single-page-application",
+		"not_found_handling": "none",
 		"binding": "ASSETS"
 	},
 	"observability": {
