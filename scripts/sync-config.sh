@@ -275,7 +275,8 @@ cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"directory": "./dist/client",
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "none",
+		"binding": "ASSETS"
 	},
 	"observability": {
 		"enabled": true
