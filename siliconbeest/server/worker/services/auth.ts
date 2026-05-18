@@ -79,7 +79,6 @@ export async function registerUser(
 	}
 
 	const lowerEmail = email.toLowerCase();
-	const lowerUsername = username.toLowerCase();
 
 	// Check for existing email
 	const existingUser = await env.DB
@@ -429,7 +428,7 @@ export async function createPasswordResetToken(
 		 JOIN accounts a ON a.id = u.account_id
 		 WHERE a.username = ? AND u.email = ? AND a.domain IS NULL
 		 LIMIT 1`,
-	).bind(username.toLowerCase(), email.toLowerCase()).first();
+	).bind(username, email.toLowerCase()).first();
 
 	if (!user) return null;
 
