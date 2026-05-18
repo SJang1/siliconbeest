@@ -26,10 +26,52 @@ import { env } from 'cloudflare:workers';
 // STRUCTURAL TYPES (match Fedify's API without importing it)
 // ============================================================
 
+interface SenderKeyPairLike {
+	readonly privateKey: CryptoKey;
+	readonly keyId: URL;
+}
+
+interface RecipientLike {
+	readonly id: URL | null;
+	readonly inboxId: URL | null;
+	readonly endpoints?: {
+		readonly sharedInbox: URL | null;
+	} | null;
+}
+
+interface ForwardActivityOptionsLike {
+	readonly preferSharedInbox?: boolean;
+	readonly immediate?: boolean;
+	readonly normalizeExistingProofs?: boolean;
+	readonly excludeBaseUris?: readonly URL[];
+	readonly orderingKey?: string;
+	readonly skipIfUnsigned: boolean;
+}
+
+type ForwarderLike =
+	| SenderKeyPairLike
+	| SenderKeyPairLike[]
+	| { identifier: string }
+	| { username: string };
+
+interface ForwardActivityLike {
+	(
+		forwarder: ForwarderLike,
+		recipients: RecipientLike | RecipientLike[],
+		options?: ForwardActivityOptionsLike,
+	): Promise<void>;
+	(
+		forwarder: { identifier: string } | { username: string },
+		recipients: 'followers',
+		options?: ForwardActivityOptionsLike,
+	): Promise<void>;
+}
+
 /** Matches Fedify's InboxContext shape. */
 interface InboxContextLike<TData> {
 	recipient: string | null;
 	data: TData;
+	forwardActivity?: ForwardActivityLike;
 }
 
 /** Matches the builder returned by Federation.setInboxListeners(). */
@@ -192,6 +234,12 @@ export function setupInboxListeners<TData>(
 		convert: (
 			activity: any,
 		) => Record<string, unknown> | Promise<Record<string, unknown>>,
+		afterProcess?: (
+			ctx: InboxContextLike<TData>,
+			activity: any,
+			apActivity: Record<string, unknown>,
+			localAccountId: string,
+		) => Promise<void>,
 	) {
 		return async (ctx: InboxContextLike<TData>, activity: any) => {
 			await withMeasure(name, activity.actorId?.href, async () => {
@@ -202,8 +250,112 @@ export function setupInboxListeners<TData>(
 
 				const apActivity = await Promise.resolve(convert(activity));
 				await processor(apActivity, localAccountId);
+				if (afterProcess) {
+					await afterProcess(ctx, activity, apActivity, localAccountId);
+				}
 			});
 		};
+	}
+
+	function asArray(value: unknown): unknown[] {
+		if (Array.isArray(value)) return value;
+		if (value == null) return [];
+		return [value];
+	}
+
+	function getStringId(value: unknown): string | null {
+		if (!value) return null;
+		if (typeof value === 'string') return value;
+		if (typeof value === 'object') {
+			const id = (value as Record<string, unknown>).id;
+			return typeof id === 'string' ? id : null;
+		}
+		return null;
+	}
+
+	function collectReferencedStatusUris(value: unknown, out: Set<string>): void {
+		if (!value) return;
+
+		if (typeof value === 'string') {
+			out.add(value);
+			return;
+		}
+
+		if (Array.isArray(value)) {
+			for (const item of value) collectReferencedStatusUris(item, out);
+			return;
+		}
+
+		if (typeof value !== 'object') return;
+
+		const object = value as Record<string, unknown>;
+		for (const candidate of [
+			getStringId(object.inReplyTo),
+			getStringId(object.object),
+			getStringId(object.target),
+		]) {
+			if (candidate) out.add(candidate);
+		}
+
+		collectReferencedStatusUris(object.object, out);
+	}
+
+	function isPubliclyAddressed(activity: Record<string, unknown>): boolean {
+		const publicNs = 'https://www.w3.org/ns/activitystreams#Public';
+		const recipients = [
+			...asArray(activity.to),
+			...asArray(activity.cc),
+			...asArray((activity.object as Record<string, unknown> | undefined)?.to),
+			...asArray((activity.object as Record<string, unknown> | undefined)?.cc),
+		];
+		return recipients.some((recipient) => recipient === publicNs);
+	}
+
+	async function forwardActivityForLocalStatus(
+		ctx: InboxContextLike<TData>,
+		apActivity: Record<string, unknown>,
+	): Promise<void> {
+		if (!ctx.forwardActivity) return;
+
+		const referencedUris = new Set<string>();
+
+		if (apActivity.type === 'Create') {
+			collectReferencedStatusUris(apActivity.object, referencedUris);
+			if (!isPubliclyAddressed(apActivity)) return;
+		} else if (apActivity.type === 'Like' || apActivity.type === 'Announce') {
+			collectReferencedStatusUris(apActivity.object, referencedUris);
+		} else if (apActivity.type === 'Undo') {
+			collectReferencedStatusUris(apActivity.object, referencedUris);
+		} else {
+			return;
+		}
+
+		if (referencedUris.size === 0) return;
+
+		const placeholders = [...referencedUris].map(() => '?').join(',');
+		const { results } = await env.DB.prepare(
+			`SELECT DISTINCT a.username
+			 FROM statuses s
+			 JOIN accounts a ON a.id = s.account_id
+			 WHERE s.uri IN (${placeholders})
+			   AND s.local = 1
+			   AND s.deleted_at IS NULL
+			   AND s.visibility != 'direct'
+			   AND a.domain IS NULL`,
+		).bind(...referencedUris).all<{ username: string }>();
+
+		for (const row of results ?? []) {
+			try {
+				await ctx.forwardActivity(
+					{ identifier: row.username },
+					'followers',
+					{ skipIfUnsigned: true },
+				);
+				console.log(`[inbox] Forwarded ${apActivity.type} to followers of ${row.username}`);
+			} catch (err) {
+				console.error(`[inbox] Failed to forward ${apActivity.type} to followers of ${row.username}:`, err);
+			}
+		}
 	}
 
 	// ── Register listeners ────────────────────────────────────
@@ -235,7 +387,9 @@ export function setupInboxListeners<TData>(
 		)
 		.on(
 			vocab.Create,
-			standardHandler('Create', processors.processCreate, viaJsonLd),
+			standardHandler('Create', processors.processCreate, viaJsonLd, async (ctx, _activity, apActivity) => {
+				await forwardActivityForLocalStatus(ctx, apActivity);
+			}),
 		)
 		.on(
 			vocab.Accept,
@@ -273,14 +427,20 @@ export function setupInboxListeners<TData>(
 						activity,
 						localAccountId,
 					);
+					await forwardActivityForLocalStatus(ctx, activity);
 				}
 			});
 		})
 
 		.on(
 			vocab.Announce,
-			standardHandler('Announce', processors.processAnnounce, (a) =>
-				buildSimple('Announce', a),
+			standardHandler(
+				'Announce',
+				processors.processAnnounce,
+				(a) => buildSimple('Announce', a),
+				async (ctx, _activity, apActivity) => {
+					await forwardActivityForLocalStatus(ctx, apActivity);
+				},
 			),
 		)
 		.on(
@@ -293,7 +453,9 @@ export function setupInboxListeners<TData>(
 		)
 		.on(
 			vocab.Undo,
-			standardHandler('Undo', processors.processUndo, viaJsonLd),
+			standardHandler('Undo', processors.processUndo, viaJsonLd, async (ctx, _activity, apActivity) => {
+				await forwardActivityForLocalStatus(ctx, apActivity);
+			}),
 		)
 		.on(
 			vocab.Block,

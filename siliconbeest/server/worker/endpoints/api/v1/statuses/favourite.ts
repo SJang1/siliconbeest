@@ -7,7 +7,8 @@ import { requireScope } from '../../../../middleware/scopeCheck';
 type HonoEnv = { Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
+import { sendToRecipient, sendToFollowers, sendToRecipients } from '../../../../federation/helpers/send';
+import { getStatusFederationAudience } from '../../../../federation/helpers/status-audience';
 import { Like } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import { favouriteStatus } from '../../../../services/status';
@@ -57,9 +58,22 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
         if (row.account_domain) {
           const authorUri = row.account_uri as string;
           await sendToRecipient(fed, currentAccount.username as string, authorUri, like);
+          // Remote-origin statuses keep the normal actor follower fanout.
+          await sendToFollowers(fed, currentAccount.username as string, like);
+        } else {
+          const audience = await getStatusFederationAudience(
+            {
+              id: statusId,
+              accountId: row.account_id as string,
+              visibility: row.visibility as string,
+              local: row.local as number | null,
+              accountDomain: row.account_domain as string | null,
+              inReplyToAccountId: row.in_reply_to_account_id as string | null,
+            },
+            { includeActorFollowersAccountId: currentAccountId },
+          );
+          await sendToRecipients(fed, currentAccount.username as string, audience.recipients, like);
         }
-        // Always fan out to followers
-        await sendToFollowers(fed, currentAccount.username as string, like);
       }
     } catch (e) {
       throw new Error(`Federation delivery failed for favourite: ${e instanceof Error ? e.message : e}`);

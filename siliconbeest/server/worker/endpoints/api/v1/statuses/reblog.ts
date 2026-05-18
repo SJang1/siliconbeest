@@ -8,7 +8,8 @@ import { requireScope } from '../../../../middleware/scopeCheck';
 type HonoEnv = { Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToFollowers } from '../../../../federation/helpers/send';
+import { sendToFollowers, sendToRecipients } from '../../../../federation/helpers/send';
+import { getStatusFederationAudience } from '../../../../federation/helpers/status-audience';
 import { Announce } from '@fedify/fedify/vocab';
 import { reblogStatus } from '../../../../services/status';
 
@@ -133,7 +134,22 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
       ccs: [new URL(followersUri)],
     });
     const fed = c.get('federation');
-    await sendToFollowers(fed, currentAccount.username, announce);
+    if (row.account_domain) {
+      await sendToFollowers(fed, currentAccount.username, announce);
+    } else {
+      const audience = await getStatusFederationAudience(
+        {
+          id: statusId,
+          accountId: row.account_id as string,
+          visibility: row.visibility as string,
+          local: row.local as number | null,
+          accountDomain: row.account_domain as string | null,
+          inReplyToAccountId: row.in_reply_to_account_id as string | null,
+        },
+        { includeActorFollowersAccountId: currentUser.account_id },
+      );
+      await sendToRecipients(fed, currentAccount.username, audience.recipients, announce);
+    }
   } catch (e) {
     throw new Error(`Federation delivery failed for reblog: ${e instanceof Error ? e.message : e}`);
   }

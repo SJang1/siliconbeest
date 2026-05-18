@@ -5,7 +5,8 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
+import { sendToRecipient, sendToFollowers, sendToRecipients } from '../../../../federation/helpers/send';
+import { getStatusFederationAudience } from '../../../../federation/helpers/status-audience';
 import { Like, Undo } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import { unfavouriteStatus } from '../../../../services/status';
@@ -55,9 +56,22 @@ app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), asy
         if (row.account_domain) {
           const authorUri = row.account_uri as string;
           await sendToRecipient(fed, currentAccount.username as string, authorUri, undo);
+          // Remote-origin statuses keep the normal actor follower fanout.
+          await sendToFollowers(fed, currentAccount.username as string, undo);
+        } else {
+          const audience = await getStatusFederationAudience(
+            {
+              id: statusId,
+              accountId: row.account_id as string,
+              visibility: row.visibility as string,
+              local: row.local as number | null,
+              accountDomain: row.account_domain as string | null,
+              inReplyToAccountId: row.in_reply_to_account_id as string | null,
+            },
+            { includeActorFollowersAccountId: currentAccountId },
+          );
+          await sendToRecipients(fed, currentAccount.username as string, audience.recipients, undo);
         }
-        // Always fan out to followers
-        await sendToFollowers(fed, currentAccount.username as string, undo);
       }
     } catch (e) {
       console.error('Federation delivery failed for unfavourite:', e);

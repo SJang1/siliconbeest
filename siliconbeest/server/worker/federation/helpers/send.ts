@@ -110,3 +110,33 @@ export async function sendToRecipient(
 		activity,
 	);
 }
+
+/**
+ * Send an activity to an already-resolved recipient set.
+ *
+ * Use this when the ActivityPub audience is not simply the actor's followers
+ * collection, e.g. interactions on a local status that must reach the original
+ * status audience.
+ */
+export async function sendToRecipients(
+	federation: Federation<FedifyContextData>,
+	senderUsername: string,
+	recipients: Recipient[],
+	activity: Activity,
+): Promise<void> {
+	if (recipients.length === 0) return;
+
+	console.log(`[federation] sendToRecipients: sender=${senderUsername}, recipients=${recipients.length}, activity.type=${activity.constructor.name}`);
+	try {
+		const ctx = getFedifyContext(federation);
+		await ctx.sendActivity(
+			{ identifier: senderUsername },
+			recipients,
+			activity,
+			{ preferSharedInbox: true },
+		);
+		console.log(`[federation] sendToRecipients: enqueued successfully`);
+	} catch (err) {
+		console.error(`[federation] sendToRecipients error:`, err);
+	}
+}

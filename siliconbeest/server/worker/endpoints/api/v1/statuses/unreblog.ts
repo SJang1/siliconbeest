@@ -6,7 +6,8 @@ import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToFollowers } from '../../../../federation/helpers/send';
+import { sendToFollowers, sendToRecipients } from '../../../../federation/helpers/send';
+import { getStatusFederationAudience } from '../../../../federation/helpers/status-audience';
 import { Announce, Undo } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import { unreblogStatus } from '../../../../services/status';
@@ -35,11 +36,12 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
       ).bind(currentAccountId).first();
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
+        const username = currentAccount.username as string;
         const statusUri = row.uri as string;
         const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
         const followersUri = `${actorUri}/followers`;
         const originalAnnounce = new Announce({
-          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          id: new URL(`https://${domain}/users/${username}/statuses/${reblogId}/activity`),
           actor: new URL(actorUri),
           object: new URL(statusUri),
           published: Temporal.Now.instant(),
@@ -52,7 +54,22 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
           object: originalAnnounce,
         });
         const fed = c.get('federation');
-        await sendToFollowers(fed, currentAccount.username as string, undo);
+        if (row.account_domain) {
+          await sendToFollowers(fed, username, undo);
+        } else {
+          const audience = await getStatusFederationAudience(
+            {
+              id: statusId,
+              accountId: row.account_id as string,
+              visibility: row.visibility as string,
+              local: row.local as number | null,
+              accountDomain: row.account_domain as string | null,
+              inReplyToAccountId: row.in_reply_to_account_id as string | null,
+            },
+            { includeActorFollowersAccountId: currentAccountId },
+          );
+          await sendToRecipients(fed, username, audience.recipients, undo);
+        }
       }
     } catch (e) {
       console.error('Federation delivery failed for unreblog:', e);
