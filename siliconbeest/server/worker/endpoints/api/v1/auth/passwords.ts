@@ -21,7 +21,7 @@ const app = new Hono<HonoEnv>();
 app.post('/', async (c) => {
 	const body = await c.req.json<{ username?: string; email?: string }>()
 		.catch((): { username?: string; email?: string } => ({}));
-	const username = body.username?.trim().toLowerCase();
+	const username = body.username?.trim();
 	const email = body.email?.trim().toLowerCase();
 
 	if (!username || !email) {
