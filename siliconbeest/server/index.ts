@@ -7,6 +7,11 @@
 import { env } from 'cloudflare:workers';
 import app from './worker/index';
 import { isCrawler, handleOgRequest } from './og-handler';
+import {
+  injectActivityPubAlternateHtml,
+  resolveActivityPubAlternate,
+  type ActivityPubAlternate,
+} from './activitypub-alternate';
 
 // Re-export Durable Object class so the runtime can find it
 export { StreamingDO } from './worker/durableObjects/streaming';
@@ -38,6 +43,50 @@ const STATIC_PWA_PATHS = [
   '/manifest.json',
   '/sw.js',
 ];
+
+function appendHeaderValue(existing: string | null, value: string): string {
+  return existing ? `${existing}, ${value}` : value;
+}
+
+async function attachActivityPubAlternate(
+  url: URL,
+  db: D1Database,
+  response: Response,
+): Promise<Response> {
+  const alternate = await resolveActivityPubAlternate(url, db);
+  if (!alternate) return response;
+
+  return withActivityPubAlternate(response, alternate);
+}
+
+async function withActivityPubAlternate(
+  response: Response,
+  alternate: ActivityPubAlternate,
+): Promise<Response> {
+  const headers = new Headers(response.headers);
+  headers.set('Link', appendHeaderValue(headers.get('Link'), alternate.headerValue));
+
+  const contentType = headers.get('Content-Type') ?? '';
+  const contentEncoding = headers.get('Content-Encoding');
+  const shouldInjectHtml =
+    contentType.includes('text/html') && !contentEncoding && response.body !== null;
+
+  if (!shouldInjectHtml) {
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
+  const html = await response.text();
+  headers.delete('Content-Length');
+  return new Response(injectActivityPubAlternateHtml(html, alternate), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 function isWorkerPath(pathname: string, request: Request): boolean {
   for (const prefix of WORKER_PREFIXES) {
@@ -73,7 +122,7 @@ export default {
     if (isCrawler(ua)) {
       if (!pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|webp|avif|map|json)$/)) {
         const ogResponse = await handleOgRequest(url);
-        if (ogResponse) return ogResponse;
+        if (ogResponse) return attachActivityPubAlternate(url, _env.DB, ogResponse);
       }
     }
 
@@ -98,9 +147,12 @@ export default {
 
     // 4. Try serving static assets
     const assetResponse = await env.ASSETS.fetch(request);
-    if (assetResponse.status !== 404) return assetResponse;
+    if (assetResponse.status !== 404) {
+      return attachActivityPubAlternate(url, _env.DB, assetResponse);
+    }
 
     // 5. SPA fallback — serve index.html for client-side routing
-    return env.ASSETS.fetch(new Request(new URL('/', request.url), request));
+    const spaResponse = await env.ASSETS.fetch(new Request(new URL('/', request.url), request));
+    return attachActivityPubAlternate(url, _env.DB, spaResponse);
   },
 } satisfies ExportedHandler<Env>;
