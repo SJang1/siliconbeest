@@ -6,7 +6,7 @@
  * "0.1.0+a9e597a"; otherwise it falls back to the plain semver string.
  */
 
-const BASE_VERSION = '1.0.1';
+const BASE_VERSION = '1.0.2';
 
 declare const __GIT_HASH__: string | undefined;
 
