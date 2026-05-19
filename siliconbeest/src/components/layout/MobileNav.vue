@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -13,6 +13,7 @@ const notifStore = useNotificationsStore()
 const router = useRouter()
 
 const menuOpen = ref(false)
+const navigating = ref(false)
 
 const profilePath = computed(() => {
   const acct = auth.currentUser?.acct
@@ -33,9 +34,19 @@ function handleTab(tab: { path: string | null; action: (() => void) | null }) {
   }
 }
 
-function navigateTo(path: string) {
+async function navigateTo(path: string) {
   menuOpen.value = false
-  router.push(path)
+  await nextTick()
+
+  if (navigating.value || router.currentRoute.value.fullPath === path) return
+  navigating.value = true
+  try {
+    await router.push(path)
+  } catch {
+    // Ignore cancelled/duplicated navigations caused by rapid taps.
+  } finally {
+    navigating.value = false
+  }
 }
 
 async function signOut() {
@@ -43,80 +54,80 @@ async function signOut() {
   await auth.logout()
   await router.push('/login')
 }
+
+onBeforeRouteLeave(() => {
+  menuOpen.value = false
+})
 </script>
 
 <template>
   <!-- Slide-up menu overlay -->
   <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="menuOpen"
-        class="fixed inset-0 bg-black/40 z-[60]"
-        @click="menuOpen = false"
-      />
-    </Transition>
-    <Transition name="slide-up">
-      <div
-        v-if="menuOpen"
-        class="fixed bottom-14 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-t-2xl z-[61] shadow-2xl"
-      >
-        <div class="p-2 space-y-0.5">
-          <!-- User info -->
-          <div v-if="auth.currentUser" class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 mb-1">
-            <p class="font-semibold text-gray-900 dark:text-white">{{ auth.currentUser.display_name || auth.currentUser.username }}</p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">@{{ auth.currentUser.acct }}</p>
-          </div>
+    <div
+      v-if="menuOpen"
+      class="fixed inset-0 bg-black/40 z-[60]"
+      @click="menuOpen = false"
+    />
+    <div
+      v-if="menuOpen"
+      class="fixed bottom-14 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-t-2xl z-[61] shadow-2xl"
+    >
+      <div class="p-2 space-y-0.5">
+        <!-- User info -->
+        <div v-if="auth.currentUser" class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 mb-1">
+          <p class="font-semibold text-gray-900 dark:text-white">{{ auth.currentUser.display_name || auth.currentUser.username }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">@{{ auth.currentUser.acct }}</p>
+        </div>
 
-          <button @click="navigateTo(profilePath)" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">👤</span>
-            <span>{{ t('nav.profile') }}</span>
-          </button>
-          <button @click="navigateTo('/explore/local')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">👥</span>
-            <span>{{ t('nav.local_timeline') }}</span>
-          </button>
-          <button @click="navigateTo('/explore/public')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">🌐</span>
-            <span>{{ t('nav.federated_timeline') }}</span>
-          </button>
-          <button @click="navigateTo('/search')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">🔎</span>
-            <span>{{ t('nav.search') }}</span>
-          </button>
-          <button @click="navigateTo('/bookmarks')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">🔖</span>
-            <span>{{ t('nav.bookmarks') }}</span>
-          </button>
-          <button @click="navigateTo('/favourites')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">⭐</span>
-            <span>{{ t('nav.favourites') }}</span>
-          </button>
-          <button @click="navigateTo('/lists')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">📋</span>
-            <span>{{ t('nav.lists') }}</span>
-          </button>
-          <button @click="navigateTo('/settings')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">⚙️</span>
-            <span>{{ t('nav.settings') }}</span>
-          </button>
-          <button @click="navigateTo('/about')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">ℹ️</span>
-            <span>{{ t('nav.about') }}</span>
-          </button>
-          <button v-if="auth.isAdmin || auth.isModerator" @click="navigateTo('/admin')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <span class="text-lg">🛡️</span>
-            <span>{{ t('nav.admin') }}</span>
-          </button>
+        <button @click="navigateTo(profilePath)" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">👤</span>
+          <span>{{ t('nav.profile') }}</span>
+        </button>
+        <button @click="navigateTo('/explore/local')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">👥</span>
+          <span>{{ t('nav.local_timeline') }}</span>
+        </button>
+        <button @click="navigateTo('/explore/public')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">🌐</span>
+          <span>{{ t('nav.federated_timeline') }}</span>
+        </button>
+        <button @click="navigateTo('/search')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">🔎</span>
+          <span>{{ t('nav.search') }}</span>
+        </button>
+        <button @click="navigateTo('/bookmarks')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">🔖</span>
+          <span>{{ t('nav.bookmarks') }}</span>
+        </button>
+        <button @click="navigateTo('/favourites')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">⭐</span>
+          <span>{{ t('nav.favourites') }}</span>
+        </button>
+        <button @click="navigateTo('/lists')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">📋</span>
+          <span>{{ t('nav.lists') }}</span>
+        </button>
+        <button @click="navigateTo('/settings')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">⚙️</span>
+          <span>{{ t('nav.settings') }}</span>
+        </button>
+        <button @click="navigateTo('/about')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">ℹ️</span>
+          <span>{{ t('nav.about') }}</span>
+        </button>
+        <button v-if="auth.isAdmin || auth.isModerator" @click="navigateTo('/admin')" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <span class="text-lg">🛡️</span>
+          <span>{{ t('nav.admin') }}</span>
+        </button>
 
-          <div class="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
-            <button @click="signOut" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-              <span class="text-lg">🚪</span>
-              <span>{{ t('settings.sign_out') }}</span>
-            </button>
-          </div>
+        <div class="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
+          <button @click="signOut" class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <span class="text-lg">🚪</span>
+            <span>{{ t('settings.sign_out') }}</span>
+          </button>
         </div>
       </div>
-    </Transition>
+    </div>
   </Teleport>
 
   <!-- Bottom tab bar -->

@@ -2,14 +2,17 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/ui'
-import { usePublicInstance } from '@/composables/usePublicInstance'
 import Sidebar from './Sidebar.vue'
 import MobileNav from './MobileNav.vue'
 
 const { t } = useI18n()
 const ui = useUiStore()
 
-await usePublicInstance()
+withDefaults(defineProps<{
+  mainScrollable?: boolean
+}>(), {
+  mainScrollable: true,
+})
 
 const gridClass = computed(() =>
   ui.showTrending
@@ -19,15 +22,18 @@ const gridClass = computed(() =>
 </script>
 
 <template>
-  <div class="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-    <div class="grid h-screen" :class="gridClass">
+  <div class="h-screen overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div class="grid h-screen min-h-0" :class="gridClass">
       <!-- Desktop Sidebar — pinned to left edge -->
       <aside class="hidden md:flex md:flex-col h-screen sticky top-0 border-r border-gray-200 dark:border-gray-700">
         <Sidebar />
       </aside>
 
       <!-- Main Content -->
-      <main class="h-screen overflow-x-hidden overflow-y-auto border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0">
+      <main
+        class="h-screen min-h-0 overflow-x-hidden border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0"
+        :class="mainScrollable ? 'overflow-y-auto' : 'overflow-y-hidden'"
+      >
         <slot />
       </main>
 
