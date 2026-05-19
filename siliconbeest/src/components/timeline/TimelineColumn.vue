@@ -50,6 +50,10 @@ const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
 // Scroll detection uses the closest scrollable parent
 const isAtTop = ref(true)
 
+function handleScroll(event: Event) {
+  isAtTop.value = (event.currentTarget as HTMLElement).scrollTop < 100
+}
+
 watch(() => timeline.value.newStatusIds.length, (len) => {
   if (len > 0 && isAtTop.value) {
     timelinesStore.showNewStatuses(props.timelineType)
@@ -78,7 +82,7 @@ watch(
 </script>
 
 <template>
-  <div>
+  <div class="h-full min-h-0 overflow-y-auto overscroll-contain" @scroll.passive="handleScroll">
     <!-- Timeline view -->
     <template v-if="activeView === 'timeline'">
       <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">

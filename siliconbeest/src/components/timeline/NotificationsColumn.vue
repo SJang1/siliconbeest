@@ -65,7 +65,7 @@ watch(
 </script>
 
 <template>
-  <div>
+  <div class="h-full min-h-0 overflow-y-auto overscroll-contain">
     <!-- Notifications list view -->
     <template v-if="activeView === 'notifications'">
       <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">

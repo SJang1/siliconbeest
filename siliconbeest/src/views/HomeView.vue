@@ -74,16 +74,16 @@ function getBannerText(type: ColumnType): string {
 </script>
 
 <template>
-  <AppShell>
+  <AppShell contained-main>
     <div
       ref="gridContainer"
-      class="grid min-h-dvh"
+      class="grid h-full min-h-0"
       :style="{ gridTemplateColumns: `repeat(${visibleColumns.length || 1}, 1fr)` }"
     >
       <div
         v-for="(col, index) in visibleColumns"
         :key="`col-${index}-${col}`"
-        class="border-r border-gray-200 dark:border-gray-700 min-h-dvh min-w-0"
+        class="border-r border-gray-200 dark:border-gray-700 h-full min-h-0 min-w-0 overflow-hidden"
       >
         <HomeColumn v-if="col === 'home'" />
         <NotificationsColumn v-else-if="col === 'notifications'" />
@@ -97,7 +97,7 @@ function getBannerText(type: ColumnType): string {
       </div>
 
       <!-- Fallback if no columns configured -->
-      <div v-if="columns.length === 0" class="min-h-dvh flex items-center justify-center text-gray-400 dark:text-gray-600">
+      <div v-if="columns.length === 0" class="h-full min-h-0 flex items-center justify-center text-gray-400 dark:text-gray-600">
         <p class="text-sm">{{ t('settings.columns_desc') }}</p>
       </div>
     </div>

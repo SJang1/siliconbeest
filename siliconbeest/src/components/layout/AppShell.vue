@@ -8,11 +8,24 @@ import MobileNav from './MobileNav.vue'
 const { t } = useI18n()
 const ui = useUiStore()
 
+const props = withDefaults(defineProps<{
+  containedMain?: boolean
+}>(), {
+  containedMain: false,
+})
+
 const gridClass = computed(() =>
   ui.showTrending
     ? 'grid-cols-1 md:grid-cols-[16rem_1fr] lg:grid-cols-[16rem_1fr_20rem] xl:grid-cols-[18rem_1fr_20rem]'
     : 'grid-cols-1 md:grid-cols-[16rem_1fr] xl:grid-cols-[18rem_1fr]'
 )
+
+const mainClass = computed(() => [
+  'overflow-x-hidden border-r border-gray-200 dark:border-gray-700 w-full',
+  props.containedMain
+    ? 'h-[calc(100dvh-3.5rem)] md:h-dvh overflow-hidden'
+    : 'min-h-dvh pb-16 md:pb-0',
+])
 </script>
 
 <template>
@@ -25,7 +38,7 @@ const gridClass = computed(() =>
 
       <!-- Main Content -->
       <main
-        class="min-h-dvh overflow-x-hidden border-r border-gray-200 dark:border-gray-700 w-full pb-16 md:pb-0"
+        :class="mainClass"
       >
         <slot />
       </main>
