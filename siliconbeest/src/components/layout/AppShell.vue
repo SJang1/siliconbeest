@@ -22,7 +22,7 @@ const gridClass = computed(() =>
 </script>
 
 <template>
-  <div class="h-screen overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div class="fixed inset-0 overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
     <div class="grid h-screen min-h-0" :class="gridClass">
       <!-- Desktop Sidebar — pinned to left edge -->
       <aside class="hidden md:flex md:flex-col h-screen sticky top-0 border-r border-gray-200 dark:border-gray-700">
