@@ -3,12 +3,15 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/api/client'
+import { useInstanceStore } from '@/stores/instance'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const instanceStore = useInstanceStore()
 
 const token = computed(() => (route.query.token as string) || '')
+const instanceTitle = computed(() => instanceStore.instance?.title)
 const newPassword = ref('')
 const confirmPassword = ref('')
 const loading = ref(false)
@@ -55,7 +58,7 @@ async function handleSubmit() {
   <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">SiliconBeest</h1>
+        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('passwords.reset_title') }}</p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">

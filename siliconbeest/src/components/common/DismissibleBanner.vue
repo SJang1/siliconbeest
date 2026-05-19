@@ -8,11 +8,15 @@ const props = defineProps<{
   storageKey: string
 }>()
 
-const dismissed = ref(localStorage.getItem(props.storageKey) === 'true')
+const dismissed = ref(
+  typeof localStorage !== 'undefined' && localStorage.getItem(props.storageKey) === 'true'
+)
 
 function dismiss() {
   dismissed.value = true
-  localStorage.setItem(props.storageKey, 'true')
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(props.storageKey, 'true')
+  }
 }
 </script>
 

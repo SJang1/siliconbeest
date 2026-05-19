@@ -199,24 +199,3 @@ function getShortcode(name: string): string {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* 리액션 추가/제거 애니메이션 */
-.reaction-enter-active {
-  transition: all 0.2s ease-out;
-}
-.reaction-leave-active {
-  transition: all 0.15s ease-in;
-}
-.reaction-enter-from {
-  opacity: 0;
-  transform: scale(0.8);
-}
-.reaction-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-.reaction-move {
-  transition: transform 0.2s ease;
-}
-</style>

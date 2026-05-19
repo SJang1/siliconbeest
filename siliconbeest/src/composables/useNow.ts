@@ -11,6 +11,7 @@ let refCount = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function startTimer() {
+  if (typeof window === 'undefined') return;
   if (timer) return;
   timer = setInterval(() => {
     now.value = Date.now();

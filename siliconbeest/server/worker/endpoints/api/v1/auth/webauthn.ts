@@ -36,6 +36,7 @@ import {
 	deleteWebAuthnCredential,
 	getWebAuthnCredentialsByEmail,
 } from '../../../../services/auth';
+import { setAuthTokenCookie } from '../../../../utils/authCookie';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -424,6 +425,8 @@ app.post('/authenticate/verify', async (c) => {
 
 	// 14. Update sign-in tracking
 	await updateSignInTracking(user.id, ip);
+
+	setAuthTokenCookie(c, tokenValue);
 
 	return c.json({
 		access_token: tokenValue,

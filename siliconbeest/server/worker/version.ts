@@ -6,7 +6,7 @@
  * "0.1.0+a9e597a"; otherwise it falls back to the plain semver string.
  */
 
-const BASE_VERSION = '1.0.2';
+export const SILICONBEEST_BASE_VERSION = '1.0.3';
 
 declare const __GIT_HASH__: string | undefined;
 
@@ -14,8 +14,8 @@ const gitHash = typeof __GIT_HASH__ !== 'undefined' ? __GIT_HASH__ : '';
 
 /** SiliconBeest version — e.g. "0.1.0" or "0.1.0+a9e597a" */
 export const SILICONBEEST_VERSION = gitHash
-  ? `${BASE_VERSION}+${gitHash}`
-  : BASE_VERSION;
+  ? `${SILICONBEEST_BASE_VERSION}+${gitHash}`
+  : SILICONBEEST_BASE_VERSION;
 
 /** Mastodon-compatible version string for /api/v1/instance */
 export const MASTODON_V1_VERSION = `4.0.0 (compatible; SiliconBeest ${SILICONBEEST_VERSION})`;

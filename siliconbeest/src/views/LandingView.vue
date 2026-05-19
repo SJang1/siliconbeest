@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useInstanceStore } from '@/stores/instance'
+import { usePublicInstance } from '@/composables/usePublicInstance'
 import { renderMarkdown } from '@/utils/markdown'
 import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
 
 const { t } = useI18n()
 const instanceStore = useInstanceStore()
-const instance = ref<any>(null)
+const { data: ssrInstance } = await usePublicInstance()
+
+const instance = computed(() => ssrInstance.value ?? instanceStore.instance)
 
 const landingHtml = computed(() => {
   const md = instance.value?.site_landing_markdown
   return md ? renderMarkdown(md) : ''
-})
-
-onMounted(async () => {
-  await instanceStore.fetchInstance()
-  instance.value = instanceStore.instance
 })
 </script>
 
@@ -28,7 +26,7 @@ onMounted(async () => {
     <!-- Hero -->
     <div class="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
       <h1 class="text-5xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">
-        {{ instance?.title || 'SiliconBeest' }}
+        {{ instance?.title }}
       </h1>
       <p class="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
         {{ instance?.description || t('landing.tagline') }}

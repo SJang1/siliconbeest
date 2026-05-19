@@ -88,18 +88,17 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 // ----------------------------------------------------------------
-// Instance Title (DB setting → env fallback → default)
+// Instance Title (DB setting → env)
 // ----------------------------------------------------------------
 
 /**
  * Resolve the instance title with consistent priority:
  *   1. DB `settings.site_title` (admin-configurable)
  *   2. `INSTANCE_TITLE` env binding (deploy-time config)
- *   3. Hardcoded fallback
  */
 export async function getInstanceTitle(): Promise<string> {
 	const dbTitle = await getSetting('site_title');
-	return dbTitle || env.INSTANCE_TITLE || 'SiliconBeest';
+	return dbTitle || env.INSTANCE_TITLE;
 }
 
 // ----------------------------------------------------------------

@@ -30,7 +30,9 @@ export const useComposeStore = defineStore('compose', () => {
   const uploading = ref(false);
   const publishing = ref(false);
   // Default language from browser/i18n locale
-  const language = ref(navigator.language?.split('-')[0] || 'en');
+  const language = ref(
+    typeof navigator === 'undefined' ? 'en' : (navigator.language?.split('-')[0] || 'en'),
+  );
   const pollOptions = ref<string[]>([]);
   const pollExpiresIn = ref(86400); // 24h default
   const pollMultiple = ref(false);

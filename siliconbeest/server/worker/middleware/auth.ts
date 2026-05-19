@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import type { AppVariables } from '../types';
 import { resolveToken, type ResolvedToken } from '../services/auth';
 import { sha256 } from '../utils/crypto';
+import { getAuthTokenFromCookie } from '../utils/authCookie';
 
 type MiddlewareEnv = { Variables: AppVariables };
 
@@ -19,6 +20,10 @@ function extractBearerToken(header: string | undefined): string | null {
   return parts[1];
 }
 
+function extractRequestToken(authorization: string | undefined, cookie: string | undefined): string | null {
+  return extractBearerToken(authorization) ?? getAuthTokenFromCookie(cookie);
+}
+
 // ---------------------------------------------------------------------------
 // Middleware exports
 // ---------------------------------------------------------------------------
@@ -33,7 +38,7 @@ export const authOptional = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('tokenScopes', null);
   c.set('tokenId', null);
 
-  const token = extractBearerToken(c.req.header('Authorization'));
+  const token = extractRequestToken(c.req.header('Authorization'), c.req.header('Cookie'));
   if (token) {
     const tokenHash = await sha256(token);
     const payload = await resolveToken(tokenHash, token);
@@ -57,7 +62,7 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   c.set('tokenScopes', null);
   c.set('tokenId', null);
 
-  const token = extractBearerToken(c.req.header('Authorization'));
+  const token = extractRequestToken(c.req.header('Authorization'), c.req.header('Cookie'));
   if (!token) {
     return c.json(
       { error: 'The access token is invalid' },

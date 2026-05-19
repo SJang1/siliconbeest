@@ -12,20 +12,30 @@ const app = new Hono<HonoEnv>();
 app.get('/', authOptional, async (c) => {
   const currentAccount = c.get('currentAccount');
 
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM announcements
-     WHERE published_at IS NOT NULL
-     ORDER BY created_at DESC`,
-  ).all();
+  let results: unknown[] = [];
+  try {
+    ({ results = [] } = await env.DB.prepare(
+      `SELECT * FROM announcements
+       WHERE published_at IS NOT NULL
+       ORDER BY created_at DESC`,
+    ).all());
+  } catch {
+    results = [];
+  }
 
   // Get dismissed announcement IDs for the current user (if authenticated)
   let dismissedIds = new Set<string>();
   if (currentAccount) {
-    const { results: dismissedRows } = await env.DB.prepare(
-      'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
-    )
-      .bind(currentAccount.id)
-      .all();
+    let dismissedRows: unknown[] = [];
+    try {
+      ({ results: dismissedRows = [] } = await env.DB.prepare(
+        'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
+      )
+        .bind(currentAccount.id)
+        .all());
+    } catch {
+      dismissedRows = [];
+    }
 
     dismissedIds = new Set(
       (dismissedRows ?? []).map((r: any) => r.announcement_id as string),

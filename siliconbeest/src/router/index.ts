@@ -355,11 +355,11 @@ router.onError((error, to) => {
 // Dynamic page titles based on route meta
 router.afterEach((to) => {
   const instanceStore = useInstanceStore();
-  const siteName = instanceStore.instance?.title || 'SiliconBeest';
+  const siteName = instanceStore.instance?.title;
   const titleKey = to.meta.titleKey as string | undefined;
 
   if (titleKey) {
-    document.title = `${titleKey} | ${siteName}`;
+    document.title = siteName ? `${titleKey} | ${siteName}` : titleKey;
   }
   // Profile and status views set their own title after data loads
   // (see ProfileView.vue and StatusDetailView.vue)

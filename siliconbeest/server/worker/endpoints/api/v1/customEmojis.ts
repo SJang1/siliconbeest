@@ -11,11 +11,16 @@ const app = new Hono<{ Variables: AppVariables }>();
 app.get('/', async (c) => {
   const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM custom_emojis
-     WHERE visible_in_picker = 1 AND (domain IS NULL OR domain = ?1)
-     ORDER BY category ASC, shortcode ASC`,
-  ).bind(domain).all();
+  let results: unknown[] = [];
+  try {
+    ({ results = [] } = await env.DB.prepare(
+      `SELECT * FROM custom_emojis
+       WHERE visible_in_picker = 1 AND (domain IS NULL OR domain = ?1)
+       ORDER BY category ASC, shortcode ASC`,
+    ).bind(domain).all());
+  } catch {
+    results = [];
+  }
 
   const emojis = (results ?? []).map((row: any) => ({
     shortcode: row.shortcode as string,

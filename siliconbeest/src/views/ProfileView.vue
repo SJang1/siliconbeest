@@ -48,9 +48,10 @@ async function loadProfile(acct: string) {
     accountsStore.cacheAccount(acctData)
 
     // Set dynamic page title
-    const siteName = instanceStore.instance?.title || 'SiliconBeest'
+    const siteName = instanceStore.instance?.title
     const displayName = acctData.display_name || acctData.username || acct
-    document.title = `${displayName} (@${acctData.acct || acct}) | ${siteName}`
+    const profileTitle = `${displayName} (@${acctData.acct || acct})`
+    document.title = siteName ? `${profileTitle} | ${siteName}` : profileTitle
 
     // Load relationship if authenticated and not own profile
     if (auth.token && !isOwn.value) {

@@ -8,10 +8,23 @@ export type ColumnType = 'home' | 'local' | 'federated' | 'notifications';
 const THEME_KEY = 'siliconbeest_theme';
 const DEFAULT_COLUMNS: ColumnType[] = ['home', 'local', 'federated'];
 
+function persistTheme(theme: Theme) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(THEME_KEY, theme);
+  }
+  if (typeof document !== 'undefined') {
+    document.cookie = `${THEME_KEY}=${encodeURIComponent(theme)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  }
+}
+
 export const useUiStore = defineStore('ui', () => {
-  const theme = ref<Theme>((localStorage.getItem(THEME_KEY) as Theme) || 'system');
+  const theme = ref<Theme>(
+    typeof localStorage === 'undefined'
+      ? 'system'
+      : ((localStorage.getItem(THEME_KEY) as Theme) || 'system'),
+  );
   const sidebarOpen = ref(false);
-  const isMobile = ref(window.innerWidth < 768);
+  const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const composeModalOpen = ref(false);
   const mediaViewerOpen = ref(false);
   const mediaViewerIndex = ref(0);
@@ -23,14 +36,16 @@ export const useUiStore = defineStore('ui', () => {
 
   const isDark = computed(() => {
     if (theme.value === 'system') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return typeof window !== 'undefined'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        : false;
     }
     return theme.value === 'dark';
   });
 
   function setTheme(newTheme: Theme) {
     theme.value = newTheme;
-    localStorage.setItem(THEME_KEY, newTheme);
+    persistTheme(newTheme);
   }
 
   function toggleSidebar() {
@@ -132,7 +147,10 @@ export const useUiStore = defineStore('ui', () => {
 
   // Apply dark class to <html>
   watchEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark.value);
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', isDark.value);
+      document.documentElement.style.colorScheme = isDark.value ? 'dark' : 'light';
+    }
   });
 
   // Track window resize

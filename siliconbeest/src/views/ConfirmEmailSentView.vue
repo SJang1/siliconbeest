@@ -3,11 +3,14 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { apiFetch } from '@/api/client'
+import { useInstanceStore } from '@/stores/instance'
 
 const { t } = useI18n()
 const route = useRoute()
+const instanceStore = useInstanceStore()
 
 const email = computed(() => (route.query.email as string) || '')
+const instanceTitle = computed(() => instanceStore.instance?.title)
 const loading = ref(false)
 const resent = ref(false)
 const error = ref('')
@@ -53,7 +56,7 @@ onUnmounted(() => {
   <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">SiliconBeest</h1>
+        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <div class="text-center space-y-4">

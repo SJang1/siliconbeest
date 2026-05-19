@@ -162,10 +162,10 @@ export async function handleOgRequest(url: URL): Promise<Response | null> {
 
   // Fetch instance info (used by all page types as fallback and for siteName)
   const instanceData = await fetchApi(domain, '/api/v2/instance');
-  const siteName: string = instanceData?.title || 'SiliconBeest';
+  const siteName: string = instanceData?.title || domain;
   const siteDescription: string =
     stripHtml(instanceData?.description || instanceData?.short_description || '') ||
-    'A Mastodon-compatible social network';
+    domain;
   const siteThumbnail: string | undefined = instanceData?.thumbnail?.url;
 
   if (page.type === 'status') {

@@ -82,6 +82,8 @@ export default {
 					continue;
 				}
 
+				const serverName = await env.DB.prepare("SELECT value FROM settings WHERE key = 'server_name'").first<string>();
+
 				const authType: ('plain' | 'login' | 'cram-md5') | ('plain' | 'login' | 'cram-md5')[] =
 					config.authType === 'auto' || !config.authType
 						? ['login', 'plain', 'cram-md5']
@@ -99,7 +101,7 @@ export default {
 						authType,
 					},
 					{
-						from: { name: 'SiliconBeest', email: config.from },
+						from: { name: serverName || 'SiliconBeest', email: config.from },
 						to: body.to,
 						subject: body.subject,
 						html: body.html,

@@ -21,7 +21,7 @@ const profilePath = computed(() => {
 
 const tabs = computed(() => [
   { key: 'home', path: '/home', icon: '🏠', action: null },
-  { key: 'explore', path: '/explore', icon: '🔍', action: null },
+  { key: 'explore', path: '/explore/local', icon: '🔍', action: null },
   { key: 'compose', path: null, icon: '➕', action: () => ui.openComposeModal() },
   { key: 'notifications', path: '/notifications', icon: '🔔', action: null },
   { key: 'profile', path: profilePath.value, icon: '👤', action: null },
@@ -38,10 +38,10 @@ function navigateTo(path: string) {
   router.push(path)
 }
 
-function signOut() {
+async function signOut() {
   menuOpen.value = false
-  auth.logout()
-  router.push('/login')
+  await auth.logout()
+  await router.push('/login')
 }
 </script>
 
@@ -162,18 +162,3 @@ function signOut() {
     </ul>
   </nav>
 </template>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
-.slide-up-enter-active, .slide-up-leave-active {
-  transition: transform 0.25s ease;
-}
-.slide-up-enter-from, .slide-up-leave-to {
-  transform: translateY(100%);
-}
-</style>

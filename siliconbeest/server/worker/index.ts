@@ -75,6 +75,7 @@ import featuredTags from './endpoints/api/v1/featuredTags';
 import directory from './endpoints/api/v1/directory';
 import userDomainBlocks from './endpoints/api/v1/domainBlocks';
 import endorsements from './endpoints/api/v1/endorsements';
+import setup from './endpoints/api/v1/setup';
 
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
@@ -294,6 +295,8 @@ app.route('/api/v1/featured_tags', featuredTags);
 app.route('/api/v1/directory', directory);
 app.route('/api/v1/domain_blocks', userDomainBlocks);
 app.route('/api/v1/endorsements', endorsements);
+app.use('/api/v1/setup', createRateLimit(RATE_LIMIT_REGISTRATION));
+app.route('/api/v1/setup', setup);
 app.route('/api/v1/announcements', announcements);
 app.route('/api/v1/instance/peers', instancePeers);
 app.route('/api/v1/instance/activity', instanceActivity);

@@ -2,11 +2,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/ui'
+import { usePublicInstance } from '@/composables/usePublicInstance'
 import Sidebar from './Sidebar.vue'
 import MobileNav from './MobileNav.vue'
 
 const { t } = useI18n()
 const ui = useUiStore()
+
+await usePublicInstance()
 
 const gridClass = computed(() =>
   ui.showTrending

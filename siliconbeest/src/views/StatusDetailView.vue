@@ -69,13 +69,14 @@ async function loadThread() {
     statusesStore.cacheStatus(statusData)
     statusId.value = statusData.id
 
-    const siteName = instanceStore.instance?.title || 'SiliconBeest'
+    const siteName = instanceStore.instance?.title
     const displayName = statusData.account?.display_name || statusData.account?.username || ''
     const acct = statusData.account?.acct || ''
     const contentSnippet = (statusData.content || '').replace(/<[^>]*>/g, '').substring(0, 50)
-    document.title = contentSnippet
-      ? `${displayName}: "${contentSnippet}" | ${siteName}`
-      : `${displayName} (@${acct}) | ${siteName}`
+    const statusTitle = contentSnippet
+      ? `${displayName}: "${contentSnippet}"`
+      : `${displayName} (@${acct})`
+    document.title = siteName ? `${statusTitle} | ${siteName}` : statusTitle
 
     const { data: context } = await getStatusContext(id, auth.token ?? undefined)
     for (const s of context.ancestors) statusesStore.cacheStatus(s)

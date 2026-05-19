@@ -14,6 +14,7 @@ import {
 	updateSignInTracking,
 } from '../../../../../services/auth';
 import type { UserRow } from '../../../../../types/db';
+import { setAuthTokenCookie } from '../../../../../utils/authCookie';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -65,6 +66,8 @@ app.post('/', async (c) => {
 	});
 
 	await updateSignInTracking(user.id, ip);
+
+	setAuthTokenCookie(c, tokenValue);
 
 	return c.json({
 		access_token: tokenValue,

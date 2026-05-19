@@ -37,6 +37,8 @@ function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; 
  * 2. Show @username@domain for remote users
  */
 function enrichMentions(html: string): string {
+  if (typeof window === 'undefined') return html
+
   const currentDomain = window.location.hostname
   const currentOrigin = window.location.origin
 
@@ -120,7 +122,7 @@ const processedSpoiler = computed(() => emojify(enrichMentions(props.spoilerText
 </script>
 
 <template>
-  <div class="mt-1">
+  <div class="status-content mt-1">
     <!-- CW / Spoiler -->
     <div v-if="spoilerText">
       <p class="text-sm text-gray-700 dark:text-gray-300" v-html="processedSpoiler" />
@@ -141,32 +143,3 @@ const processedSpoiler = computed(() => emojify(enrichMentions(props.spoilerText
     />
   </div>
 </template>
-
-<style scoped>
-:deep(.custom-emoji) {
-  display: inline;
-  height: 1.2em;
-  width: auto;
-  vertical-align: middle;
-  margin: 0 0.05em;
-}
-
-/* Ensure paragraph spacing for \n\n line breaks */
-:deep(p) {
-  margin-bottom: 0.75em;
-}
-:deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-/* Links styling */
-:deep(a) {
-  color: rgb(99 102 241);
-  text-decoration: none;
-}
-:deep(a:hover) {
-  text-decoration: underline;
-}
-
-/* Mastodon link formatting now handled globally in main.css */
-</style>

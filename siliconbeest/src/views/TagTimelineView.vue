@@ -21,8 +21,8 @@ const tag = computed(() => {
   const value = route.params.tag as string
   // Set dynamic page title for tag page
   if (value) {
-    const siteName = instanceStore.instance?.title || 'SiliconBeest'
-    document.title = `#${value} | ${siteName}`
+    const siteName = instanceStore.instance?.title
+    document.title = siteName ? `#${value} | ${siteName}` : `#${value}`
   }
   return value
 })

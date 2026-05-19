@@ -56,8 +56,19 @@ function handlePasskeyLogin() {
 </script>
 
 <template>
-  <form @submit.prevent="handleSubmit" class="space-y-4">
+  <form
+    id="login-form"
+    data-login-endpoint="/api/v1/auth/login"
+    @submit.prevent.stop="handleSubmit"
+    class="space-y-4"
+  >
     <h1 class="text-2xl font-bold text-center">{{ t('auth.sign_in') }}</h1>
+
+    <div
+      id="login-static-error"
+      class="hidden p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm"
+      role="alert"
+    ></div>
 
     <!-- Error -->
     <div v-if="error || props.serverError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
@@ -109,9 +120,11 @@ function handlePasskeyLogin() {
 
     <!-- Submit -->
     <button
-      type="submit"
+      type="button"
+      data-login-submit
       :disabled="loading"
       class="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+      @click="handleSubmit"
     >
       {{ loading ? t('common.loading') : t('auth.sign_in') }}
     </button>

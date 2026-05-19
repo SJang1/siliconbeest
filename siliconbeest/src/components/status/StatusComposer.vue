@@ -371,7 +371,9 @@ const languageOptions = [
   { code: 'ar', label: 'العربية' },
 ]
 const selectedLanguage = ref(
-  languageOptions.find(l => l.code === (navigator.language?.split('-')[0] || 'en')) || languageOptions[1]!
+  languageOptions.find(l => l.code === (
+    typeof navigator === 'undefined' ? 'en' : (navigator.language?.split('-')[0] || 'en')
+  )) || languageOptions[1]!
 )
 
 const visibilityOptions = [

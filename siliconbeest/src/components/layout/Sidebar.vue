@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useInstanceStore } from '@/stores/instance'
 import { useNotificationsStore } from '@/stores/notifications'
-import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
+import { SUPPORTED_LOCALES, setDisplayLocale } from '@/i18n'
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api/client'
 import Avatar from '../common/Avatar.vue'
@@ -16,7 +16,6 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const instanceStore = useInstanceStore()
 const notifStore = useNotificationsStore()
-const showLangMenu = ref(false)
 
 const navItems = [
   { key: 'home', path: '/home', icon: '🏠' },
@@ -52,13 +51,13 @@ async function checkFollowRequests() {
 
 onMounted(checkFollowRequests)
 
-const currentLocaleName = () => {
-  return SUPPORTED_LOCALES.find(l => l.code === locale.value)?.name ?? locale.value
+async function switchLocale(code: string) {
+  await setDisplayLocale(code)
 }
 
-async function switchLocale(code: string) {
-  await loadLocale(code)
-  showLangMenu.value = false
+function handleLocaleChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  void switchLocale(target.value)
 }
 </script>
 
@@ -66,7 +65,7 @@ async function switchLocale(code: string) {
   <nav class="flex flex-col h-full p-4" aria-label="Main navigation">
     <!-- Logo -->
     <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
-      <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceStore.instance?.title || 'SiliconBeest' }}</span>
+      <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceStore.instance?.title }}</span>
     </router-link>
 
     <!-- Authenticated: full nav -->
@@ -136,7 +135,7 @@ async function switchLocale(code: string) {
     <template v-else>
       <div class="space-y-2 flex-1">
         <router-link
-          to="/explore"
+          to="/explore/local"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
           active-class="bg-gray-100 dark:bg-gray-800 font-bold"
         >
@@ -169,28 +168,22 @@ async function switchLocale(code: string) {
 
     <!-- Language Selector -->
     <div class="relative mb-3">
-      <button
-        @click="showLangMenu = !showLangMenu"
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm" aria-hidden="true">🌐</span>
+      <select
+        :value="locale"
+        class="w-full appearance-none rounded-lg bg-transparent py-2 pl-9 pr-8 text-sm text-gray-600 transition-colors hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+        aria-label="Display language"
+        @change="handleLocaleChange"
       >
-        <span>🌐</span>
-        <span>{{ currentLocaleName() }}</span>
-        <span class="ml-auto text-xs">▾</span>
-      </button>
-      <div
-        v-if="showLangMenu"
-        class="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50"
-      >
-        <button
+        <option
           v-for="loc in SUPPORTED_LOCALES"
           :key="loc.code"
-          @click="switchLocale(loc.code)"
-          class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          :class="locale === loc.code ? 'text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+          :value="loc.code"
         >
           {{ loc.name }}
-        </button>
-      </div>
+        </option>
+      </select>
+      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500" aria-hidden="true">▾</span>
     </div>
 
     <!-- Current User — links to my profile (only when logged in) -->

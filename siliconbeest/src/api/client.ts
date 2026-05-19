@@ -51,6 +51,7 @@ export async function apiFetch<T>(
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...fetchOpts,
+    credentials: fetchOpts.credentials ?? 'same-origin',
     headers,
     body: body as BodyInit | undefined,
   });
@@ -83,6 +84,7 @@ export async function apiFetchFormData<T>(
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: opts?.method ?? 'POST',
+    credentials: 'same-origin',
     headers,
     body: formData,
   });

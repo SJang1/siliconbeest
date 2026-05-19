@@ -23,7 +23,7 @@ const registrationMessage = computed(() => {
 })
 
 const instanceTitle = computed(() => {
-  return instanceStore.instance?.title || 'SiliconBeest'
+  return instanceStore.instance?.title
 })
 
 onMounted(async () => {

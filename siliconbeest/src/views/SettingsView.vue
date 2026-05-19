@@ -10,9 +10,9 @@ const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 
-function signOut() {
-  auth.logout()
-  router.push('/login')
+async function signOut() {
+  await auth.logout()
+  await router.push('/login')
 }
 
 const settingSections = computed(() => {

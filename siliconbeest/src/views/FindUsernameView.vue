@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { findUsername } from '@/api/mastodon/oauth'
+import { useInstanceStore } from '@/stores/instance'
 
 const { t } = useI18n()
+const instanceStore = useInstanceStore()
 const email = ref('')
 const loading = ref(false)
 const sent = ref(false)
 const error = ref('')
+const instanceTitle = computed(() => instanceStore.instance?.title)
 
 async function handleSubmit() {
   if (!email.value) return
@@ -28,7 +31,7 @@ async function handleSubmit() {
   <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">SiliconBeest</h1>
+        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <h2 class="text-xl font-bold text-center mb-2">{{ t('auth.find_username_title') }}</h2>

@@ -56,7 +56,9 @@ onMounted(async () => {
   await Promise.allSettled(promises);
 
   // Set dynamic page title
-  document.title = instance.instance?.title || 'SiliconBeest';
+  if (instance.instance?.title) {
+    document.title = instance.instance.title;
+  }
 
   // Set dynamic favicon
   const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;

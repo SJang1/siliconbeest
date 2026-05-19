@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { CredentialAccount, Token } from '@/types/mastodon';
 import { verifyCredentials } from '@/api/mastodon/accounts';
 import { login as apiLogin, register as apiRegister, revokeToken } from '@/api/mastodon/oauth';
+import { ApiError } from '@/api/client';
 import {
   getAuthenticateOptions,
   verifyAuthentication,
@@ -16,11 +17,41 @@ import { useUiStore } from './ui';
 
 const TOKEN_KEY = 'siliconbeest_token';
 
+function readTokenCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+
+  for (const part of document.cookie.split(';')) {
+    const [rawKey, ...rawValue] = part.trim().split('=');
+    if (rawKey === TOKEN_KEY) {
+      return decodeURIComponent(rawValue.join('='));
+    }
+  }
+
+  return null;
+}
+
+function writeTokenCookie(newToken: string) {
+  if (typeof document === 'undefined') return;
+
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(newToken)}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${secure}`;
+}
+
+function clearTokenCookie() {
+  if (typeof document === 'undefined') return;
+
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${TOKEN_KEY}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${secure}`;
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem(TOKEN_KEY));
+  const token = ref<string | null>(
+    readTokenCookie(),
+  );
   const currentUser = ref<CredentialAccount | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const ready = ref(false);
 
   const isAuthenticated = computed(() => !!token.value);
   const isAdmin = computed(() => currentUser.value?.role?.name === 'admin');
@@ -32,16 +63,38 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setToken(newToken: string) {
     token.value = newToken;
-    localStorage.setItem(TOKEN_KEY, newToken);
+    writeTokenCookie(newToken);
+  }
+
+  function syncTokenFromCookie(cookieToken?: string | null) {
+    const storedToken = cookieToken !== undefined ? cookieToken : readTokenCookie();
+
+    if (!storedToken) {
+      token.value = null;
+      currentUser.value = null;
+      return null;
+    }
+
+    if (token.value !== storedToken) {
+      token.value = storedToken;
+      currentUser.value = null;
+    }
+
+    return token.value;
+  }
+
+  function setReady(value: boolean) {
+    ready.value = value;
   }
 
   function clearToken() {
     token.value = null;
     currentUser.value = null;
-    localStorage.removeItem(TOKEN_KEY);
+    clearTokenCookie();
   }
 
   async function fetchCurrentUser() {
+    syncTokenFromCookie();
     if (!token.value) return;
     loading.value = true;
     error.value = null;
@@ -53,8 +106,9 @@ export const useAuthStore = defineStore('auth', () => {
       uiStore.loadFromServer(token.value);
     } catch (e) {
       error.value = (e as Error).message;
-      // Token might be expired
-      clearToken();
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        clearToken();
+      }
     } finally {
       loading.value = false;
     }
@@ -170,33 +224,30 @@ export const useAuthStore = defineStore('auth', () => {
     timelinesStore.disconnectStream();
     notificationsStore.disconnectStream();
     // Redirect to login if not already there
-    if (window.location.pathname !== '/login') {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
   });
 
   async function logout() {
-    // 1. Revoke token on server (best-effort — don't block on failure)
-    if (token.value) {
-      try {
-        await revokeToken({ token: token.value });
-      } catch {
-        // Server might be unreachable — still log out locally
-      }
-    }
+    const tokenToRevoke = token.value ?? readTokenCookie();
 
-    // 2. Disconnect all streaming connections
+    // Clear local state first so route guards and UI stop treating the user as logged in.
+    clearToken();
+
     const timelinesStore = useTimelinesStore();
     const notificationsStore = useNotificationsStore();
     timelinesStore.disconnectStream();
     notificationsStore.disconnectStream();
 
-    // 3. Reset UI preferences to defaults
     const uiStore = useUiStore();
     uiStore.resetToDefaults();
 
-    // 4. Clear local state
-    clearToken();
+    if (tokenToRevoke) {
+      revokeToken({ token: tokenToRevoke }).catch(() => {
+        // Server might be unreachable; local logout has already completed.
+      });
+    }
   }
 
   return {
@@ -207,7 +258,10 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isModerator,
+    ready,
     setToken,
+    syncTokenFromCookie,
+    setReady,
     clearToken,
     fetchCurrentUser,
     login,

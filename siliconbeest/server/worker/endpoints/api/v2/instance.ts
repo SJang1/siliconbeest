@@ -15,18 +15,18 @@ app.get('/', async (c) => {
     'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'site_landing_markdown',
     'terms_of_service', 'privacy_policy',
-  ]);
+  ]).catch((): Record<string, string> => ({}));
 
   // Turnstile settings (cached in KV)
-  const turnstile = await getTurnstileSettings();
+  const turnstile = await getTurnstileSettings().catch(() => ({ enabled: false, siteKey: '', secretKey: '' }));
 
-  const title = await getInstanceTitle();
-  const registrationMode = dbSettings.registration_mode || env.REGISTRATION_MODE || 'none';
+  const title = await getInstanceTitle().catch(() => env.INSTANCE_TITLE);
+  const registrationMode = dbSettings.registration_mode || env.REGISTRATION_MODE;
 
   // Usage stats + rules (parallel)
   const [stats, ruleRows] = await Promise.all([
-    getStats(),
-    getRules(),
+    getStats().catch(() => ({ userCount: 0, statusCount: 0, domainCount: 0 })),
+    getRules().catch(() => []),
   ]);
 
   const rules = ruleRows.map((r) => ({
@@ -39,7 +39,7 @@ app.get('/', async (c) => {
     title,
     version: MASTODON_V2_VERSION,
     source_url: 'https://github.com/SJang1/siliconbeest',
-    description: dbSettings.site_description || `${title} is powered by SiliconBeest, a serverless Fediverse server.`,
+    description: dbSettings.site_description,
     usage: {
       users: {
         active_month: stats.userCount,
@@ -90,13 +90,13 @@ app.get('/', async (c) => {
       },
     },
     registrations: {
-      enabled: registrationMode !== 'none' && registrationMode !== 'closed',
+      enabled: registrationMode === 'open' || registrationMode === 'approval',
       approval_required: registrationMode === 'approval',
       message: dbSettings.registration_message || null,
       url: null,
     },
     contact: {
-      email: dbSettings.site_contact_email || `admin@${domain}`,
+      email: dbSettings.site_contact_email || null,
       account: null,
     },
     rules,

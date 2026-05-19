@@ -2,9 +2,9 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "siliconbeest",
 	"compatibility_date": "2026-03-17",
-	"main": "server/index.ts",
+	"main": ".output/server/index.mjs",
 	"assets": {
-		"directory": "./dist/client",
+		"directory": "./.output/public",
 		"not_found_handling": "none",
 		"binding": "ASSETS"
 	},

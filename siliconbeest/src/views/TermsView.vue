@@ -2,13 +2,17 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useInstanceStore } from '@/stores/instance'
+import { usePublicInstance } from '@/composables/usePublicInstance'
 import { renderMarkdown } from '@/utils/markdown'
 
 const { t } = useI18n()
 const instanceStore = useInstanceStore()
+const { data: ssrInstance } = await usePublicInstance()
+
+const instance = computed(() => ssrInstance.value ?? instanceStore.instance)
 
 const html = computed(() => {
-  const md = instanceStore.instance?.terms_of_service
+  const md = instance.value?.terms_of_service
   return md ? renderMarkdown(md) : ''
 })
 </script>
