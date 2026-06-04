@@ -18,7 +18,7 @@
 	},
 	"dependencies": {
 		"@fedify/cfworkers": "^2.1.5",
-		"@fedify/fedify": "^2.2.3",
+		"@fedify/fedify": "^2.2.4",
 		"glob": "^13.0.6"
 	}
 }
