@@ -25,7 +25,7 @@ app.get('/', async (c) => {
 
   // Stats + rules (parallel)
   const [stats, ruleRows] = await Promise.all([
-    getStats().catch(() => ({ userCount: 0, statusCount: 0, domainCount: 0 })),
+    getStats().catch(() => ({ activeUserCount: 0, statusCount: 0, domainCount: 0 })),
     getRules().catch(() => []),
   ]);
   const rules = ruleRows.map((r) => ({ id: r.id, text: r.text }));
@@ -75,7 +75,7 @@ app.get('/', async (c) => {
       streaming_api: `wss://${domain}/api/v1/streaming`,
     },
     stats: {
-      user_count: stats.userCount,
+      user_count: stats.activeUserCount,
       status_count: stats.statusCount,
       domain_count: stats.domainCount,
     },
