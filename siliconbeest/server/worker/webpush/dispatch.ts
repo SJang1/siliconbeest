@@ -7,6 +7,7 @@
 
 import { encryptPushPayload } from './encrypt';
 import { generateVapidAuth } from './vapid';
+import { getUserAgent } from '../utils/repository';
 
 export type PushSubscription = {
   endpoint: string;
@@ -66,7 +67,7 @@ export async function sendPushNotification(
       Authorization: authorization,
       TTL: '86400', // 24 hours
       Urgency: 'normal',
-      'User-Agent': 'SiliconBeest/1.0 (WebPush; +https://github.com/SJang1/siliconbeest)',
+      'User-Agent': getUserAgent('WebPush'),
     },
     body: encrypted.body,
   });

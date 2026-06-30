@@ -12,6 +12,7 @@ import { env } from 'cloudflare:workers';
 import { isActor } from '@fedify/vocab';
 import { createFed } from '../fedify';
 import type { FetchRemoteAccountMessage } from '../shared/types/queue';
+import { getUserAgent } from '../utils/repository';
 import { ensureInstanceRecord } from '../../../packages/shared/services/instance';
 import { pickSignerUsername } from '../../../packages/shared/services/signer';
 
@@ -243,7 +244,7 @@ export async function handleFetchRemoteAccount(
       const wellKnownRes = await fetch(`https://${actorDomain}/.well-known/nodeinfo`, {
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+          'User-Agent': getUserAgent('ActivityPub'),
         },
       });
       if (wellKnownRes.ok) {
@@ -259,7 +260,7 @@ export async function handleFetchRemoteAccount(
           const nodeinfoRes = await fetch(link.href, {
             headers: {
               Accept: 'application/json',
-              'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+              'User-Agent': getUserAgent('ActivityPub'),
             },
           });
           if (nodeinfoRes.ok) {

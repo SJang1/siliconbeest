@@ -13,6 +13,7 @@
 #   PROJECT_PREFIX     — Resource name prefix (e.g. "siliconbeest")
 #   INSTANCE_DOMAIN    — Your instance domain (e.g. "social.example.com")
 #   INSTANCE_TITLE     — Display name for your instance
+#   REPOSITORY_URL     — Public source repository URL
 #   REGISTRATION_MODE  — "open", "approval", or "closed"
 #   D1_DATABASE_ID     — D1 database UUID
 #   KV_CACHE_ID        — KV namespace ID for cache
@@ -36,7 +37,7 @@ on:
         default: false
 
 env:
-  UPSTREAM_REPO: https://github.com/SJang1/siliconbeest.git
+  UPSTREAM_REPO: ${{ vars.REPOSITORY_URL || 'https://github.com/SJang1/siliconbeest.git' }}
 
 jobs:
   check-and-sync:
@@ -137,7 +138,7 @@ jobs:
                 '',
                 '**To resolve manually:**',
                 '```bash',
-                'git remote add upstream https://github.com/SJang1/siliconbeest.git',
+                `git remote add upstream ${process.env.UPSTREAM_REPO}`,
                 'git fetch upstream --tags',
                 `git merge upstream/main`,
                 '# Resolve conflicts, then:',
@@ -186,6 +187,7 @@ jobs:
           V_PROJECT_PREFIX: ${{ vars.PROJECT_PREFIX }}
           V_INSTANCE_DOMAIN: ${{ vars.INSTANCE_DOMAIN }}
           V_INSTANCE_TITLE: ${{ vars.INSTANCE_TITLE }}
+          V_REPOSITORY_URL: ${{ vars.REPOSITORY_URL }}
           V_REGISTRATION_MODE: ${{ vars.REGISTRATION_MODE }}
           V_D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           V_KV_CACHE_ID: ${{ vars.KV_CACHE_ID }}
@@ -196,6 +198,7 @@ jobs:
           PROJECT_PREFIX="${V_PROJECT_PREFIX}"
           INSTANCE_DOMAIN="${V_INSTANCE_DOMAIN}"
           INSTANCE_TITLE="${V_INSTANCE_TITLE}"
+          REPOSITORY_URL="${V_REPOSITORY_URL}"
           REGISTRATION_MODE="${V_REGISTRATION_MODE}"
           D1_DATABASE_ID="${V_D1_DATABASE_ID}"
           KV_CACHE_ID="${V_KV_CACHE_ID}"

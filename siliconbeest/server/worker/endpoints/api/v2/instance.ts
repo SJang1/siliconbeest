@@ -4,6 +4,7 @@ import type { AppVariables } from '../../../types';
 import { getTurnstileSettings } from '../../../utils/turnstile';
 import { MASTODON_V2_VERSION } from '../../../version';
 import { getSettings, getInstanceTitle, getRules, getStats } from '../../../services/instance';
+import { getRepositoryUrl } from '../../../utils/repository';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -38,7 +39,7 @@ app.get('/', async (c) => {
     domain,
     title,
     version: MASTODON_V2_VERSION,
-    source_url: 'https://github.com/SJang1/siliconbeest',
+    source_url: getRepositoryUrl(),
     description: dbSettings.site_description,
     usage: {
       users: {

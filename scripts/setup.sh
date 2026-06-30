@@ -60,6 +60,9 @@ fi
 read -rp "$(echo -e "${CYAN}Instance title${NC} [SiliconBeest]: ")" INSTANCE_TITLE
 INSTANCE_TITLE="${INSTANCE_TITLE:-SiliconBeest}"
 
+read -rp "$(echo -e "${CYAN}Repository URL${NC} [${REPOSITORY_URL:-https://github.com/SJang1/siliconbeest}]: ")" USER_REPOSITORY_URL
+REPOSITORY_URL="${USER_REPOSITORY_URL:-${REPOSITORY_URL:-https://github.com/SJang1/siliconbeest}}"
+
 echo -e "${CYAN}Registration mode${NC}:"
 echo "  1) open       — anyone can register"
 echo "  2) approval   — registrations require admin approval"
@@ -97,6 +100,7 @@ read -rp "  DSN: " SENTRY_DSN
 echo
 info "Domain:            $INSTANCE_DOMAIN"
 info "Title:             $INSTANCE_TITLE"
+info "Repository:        $REPOSITORY_URL"
 info "Registration:      $REGISTRATION_MODE"
 info "Admin email:       $ADMIN_EMAIL"
 info "Admin username:    $ADMIN_USERNAME"
@@ -293,6 +297,11 @@ const fs = require('fs');
 let content = fs.readFileSync('$DIR/wrangler.jsonc', 'utf8');
 content = content.replace(/(\"INSTANCE_DOMAIN\":\s*\")[^\"]*(\")/, '\$1$INSTANCE_DOMAIN\$2');
 content = content.replace(/(\"INSTANCE_TITLE\":\s*\")[^\"]*(\")/, '\$1$INSTANCE_TITLE\$2');
+if (content.match(/\"REPOSITORY_URL\":\s*\"[^\"]*\"/)) {
+  content = content.replace(/(\"REPOSITORY_URL\":\s*\")[^\"]*(\")/, '\$1$REPOSITORY_URL\$2');
+} else {
+  content = content.replace(/(\"INSTANCE_TITLE\":\s*\"[^\"]*\",)/, '\$1\n\t\t\"REPOSITORY_URL\": \"$REPOSITORY_URL\",');
+}
 content = content.replace(/(\"REGISTRATION_MODE\":\s*\")[^\"]*(\")/, '\$1$REGISTRATION_MODE\$2');
 fs.writeFileSync('$DIR/wrangler.jsonc', content);
 "
@@ -373,6 +382,7 @@ echo -e "${GREEN}${BOLD}SiliconBeest has been configured successfully!${NC}"
 echo
 echo -e "  ${BOLD}Instance Domain:${NC}    $INSTANCE_DOMAIN"
 echo -e "  ${BOLD}Instance Title:${NC}     $INSTANCE_TITLE"
+echo -e "  ${BOLD}Repository URL:${NC}     $REPOSITORY_URL"
 echo -e "  ${BOLD}Registration Mode:${NC}  $REGISTRATION_MODE"
 echo -e "  ${BOLD}Admin Email:${NC}        $ADMIN_EMAIL"
 echo -e "  ${BOLD}Admin Username:${NC}     $ADMIN_USERNAME"

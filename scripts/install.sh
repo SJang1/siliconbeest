@@ -76,6 +76,13 @@ fi
 read -rp "$(echo -e "${CYAN}Instance title${NC} [SiliconBeest]: ")" INSTANCE_TITLE
 INSTANCE_TITLE="${INSTANCE_TITLE:-SiliconBeest}"
 
+read -rp "$(echo -e "${CYAN}Repository URL${NC} [${REPOSITORY_URL:-https://github.com/SJang1/siliconbeest}]: ")" USER_REPOSITORY_URL
+REPOSITORY_URL="${USER_REPOSITORY_URL:-${REPOSITORY_URL:-https://github.com/SJang1/siliconbeest}}"
+REPOSITORY_CLONE_URL="$REPOSITORY_URL"
+if [[ "$REPOSITORY_CLONE_URL" != *.git ]]; then
+  REPOSITORY_CLONE_URL="${REPOSITORY_CLONE_URL}.git"
+fi
+
 echo -e "${CYAN}Registration mode${NC}:"
 echo "  1) open       — anyone can register"
 echo "  2) approval   — registrations require admin approval"
@@ -125,6 +132,7 @@ QUEUE_DLQ="${PROJECT_PREFIX}-federation-dlq"
 echo
 info "Domain:         $INSTANCE_DOMAIN"
 info "Title:          $INSTANCE_TITLE"
+info "Repository:     $REPOSITORY_URL"
 info "Registration:   $REGISTRATION_MODE"
 info "Prefix:         $PROJECT_PREFIX"
 info "Admin:          $ADMIN_USERNAME ($ADMIN_EMAIL)"
@@ -219,7 +227,7 @@ header "Applying Database Migrations & Seeding Admin"
 
 TEMP_DIR=$(mktemp -d)
 info "Cloning SiliconBeest to temp directory..."
-git clone --depth 1 https://github.com/SJang1/siliconbeest.git "$TEMP_DIR" 2>/dev/null
+git clone --depth 1 "$REPOSITORY_CLONE_URL" "$TEMP_DIR" 2>/dev/null
 success "Cloned to $TEMP_DIR"
 
 # Patch wrangler.jsonc with actual DB ID for migrations
@@ -366,6 +374,7 @@ echo "┌───────────────────────�
 echo "│ PROJECT_PREFIX          $PROJECT_PREFIX"
 echo "│ INSTANCE_DOMAIN         $INSTANCE_DOMAIN"
 echo "│ INSTANCE_TITLE          $INSTANCE_TITLE"
+echo "│ REPOSITORY_URL          $REPOSITORY_URL"
 echo "│ REGISTRATION_MODE       $REGISTRATION_MODE"
 echo "│ D1_DATABASE_ID          ${DB_ID:-<check dashboard>}"
 echo "│ KV_CACHE_ID             ${KV_CACHE_ID:-<check dashboard>}"

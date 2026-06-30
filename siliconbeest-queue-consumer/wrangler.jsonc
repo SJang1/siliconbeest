@@ -20,6 +20,7 @@
 	},
 	"vars": {
 		"INSTANCE_DOMAIN": "social.example.com",
+		"REPOSITORY_URL": "https://github.com/SJang1/siliconbeest",
 		"SKIP_SIGNATURE_VERIFICATION": true,
 	},
 	// D1 Database

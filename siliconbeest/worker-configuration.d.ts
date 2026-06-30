@@ -18,6 +18,7 @@ declare namespace Cloudflare {
 		ASSETS: Fetcher;
 		INSTANCE_DOMAIN: "social.example.com";
 		INSTANCE_TITLE: "My SiliconBeest Instance";
+		REPOSITORY_URL: "https://github.com/SJang1/siliconbeest";
 		REGISTRATION_MODE: "open";
 		SKIP_SIGNATURE_VERIFICATION: true;
 		OTP_ENCRYPTION_KEY: string;
@@ -29,7 +30,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "INSTANCE_DOMAIN" | "INSTANCE_TITLE" | "REGISTRATION_MODE" | "SKIP_SIGNATURE_VERIFICATION" | "OTP_ENCRYPTION_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "INSTANCE_DOMAIN" | "INSTANCE_TITLE" | "REPOSITORY_URL" | "REGISTRATION_MODE" | "SKIP_SIGNATURE_VERIFICATION" | "OTP_ENCRYPTION_KEY">> {}
 }
 
 // Begin runtime types

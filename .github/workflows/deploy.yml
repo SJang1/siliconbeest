@@ -46,6 +46,7 @@ jobs:
           V_PROJECT_PREFIX: ${{ vars.PROJECT_PREFIX }}
           V_INSTANCE_DOMAIN: ${{ vars.INSTANCE_DOMAIN }}
           V_INSTANCE_TITLE: ${{ vars.INSTANCE_TITLE }}
+          V_REPOSITORY_URL: ${{ vars.REPOSITORY_URL }}
           V_REGISTRATION_MODE: ${{ vars.REGISTRATION_MODE }}
           V_D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           V_KV_CACHE_ID: ${{ vars.KV_CACHE_ID }}
@@ -56,6 +57,7 @@ jobs:
           PROJECT_PREFIX="${V_PROJECT_PREFIX}"
           INSTANCE_DOMAIN="${V_INSTANCE_DOMAIN}"
           INSTANCE_TITLE="${V_INSTANCE_TITLE}"
+          REPOSITORY_URL="${V_REPOSITORY_URL}"
           REGISTRATION_MODE="${V_REGISTRATION_MODE}"
           D1_DATABASE_ID="${V_D1_DATABASE_ID}"
           KV_CACHE_ID="${V_KV_CACHE_ID}"

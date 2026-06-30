@@ -18,6 +18,7 @@ import { env } from 'cloudflare:workers';
 import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
+import { getUserAgent } from '../utils/repository';
 import { ensureInstanceRecord, recordDeliverySuccess, recordDeliveryFailure } from '../../../packages/shared/services/instance';
 
 // Crypto, signing, and signature preference from shared package
@@ -106,7 +107,7 @@ export async function handleDeliverActivity(
         method: 'POST',
         headers: {
           ...headers,
-          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+          'User-Agent': getUserAgent('ActivityPub'),
         },
         body
       }),
@@ -129,7 +130,7 @@ export async function handleDeliverActivity(
           method: 'POST',
           headers: {
             ...rfc9421Headers,
-            'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+            'User-Agent': getUserAgent('ActivityPub'),
           },
           body
         }),
@@ -154,7 +155,7 @@ export async function handleDeliverActivity(
         method: 'POST',
         headers: {
           ...rfc9421Headers,
-          'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+          'User-Agent': getUserAgent('ActivityPub'),
         },
         body
       }),
@@ -177,7 +178,7 @@ export async function handleDeliverActivity(
           method: 'POST',
           headers: {
             ...cavageHeaders,
-            'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+            'User-Agent': getUserAgent('ActivityPub'),
           },
           body
         }),

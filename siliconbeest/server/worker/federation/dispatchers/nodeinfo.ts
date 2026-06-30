@@ -14,6 +14,7 @@ import type { FedifyContextData } from '../fedify';
 import { SILICONBEEST_VERSION } from '../../version';
 import { getInstanceTitle } from '../../services/instance';
 import { env } from 'cloudflare:workers';
+import { getRepositoryUrl } from '../../utils/repository';
 
 const STATS_CACHE_KEY = 'nodeinfo:stats:fedify';
 const STATS_CACHE_TTL = 3600; // 1 hour
@@ -71,7 +72,7 @@ export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): voi
       software: {
         name: 'siliconbeest',
         version: SILICONBEEST_VERSION,
-        repository: new URL('https://github.com/SJang1/siliconbeest'),
+        repository: new URL(getRepositoryUrl()),
         homepage: new URL(`https://${env.INSTANCE_DOMAIN}`),
       },
       protocols: ['activitypub'],

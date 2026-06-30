@@ -5,6 +5,7 @@
  * Returns true when the token is valid, false otherwise.
  */
 import { env } from 'cloudflare:workers';
+import { getUserAgent } from './repository';
 export async function verifyTurnstile(
   token: string,
   secretKey: string,
@@ -24,7 +25,7 @@ export async function verifyTurnstile(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'SiliconBeest/1.0 (+https://github.com/SJang1/siliconbeest)',
+        'User-Agent': getUserAgent(),
       },
       body: JSON.stringify(payload),
     },
