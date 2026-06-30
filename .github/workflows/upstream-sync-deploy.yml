@@ -74,9 +74,13 @@ jobs:
             echo "No upstream tags found"
             echo "should_deploy=${{ inputs.force_deploy || false }}" >> "$GITHUB_OUTPUT"
             echo "new_tag=" >> "$GITHUB_OUTPUT"
-          elif [[ "$LATEST_TAG" != "$CURRENT_TAG" ]] || [[ "${{ inputs.force_deploy }}" == "true" ]]; then
+          elif [[ "$LATEST_TAG" != "$CURRENT_TAG" ]]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "new_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.force_deploy }}" == "true" ]]; then
+            echo "Already up to date at $CURRENT_TAG; forcing deploy only"
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "new_tag=" >> "$GITHUB_OUTPUT"
           else
             echo "Already up to date at $CURRENT_TAG"
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
@@ -100,7 +104,9 @@ jobs:
               # Merge was "Already up to date" — just update version file
               echo "$TAG" > .upstream-version
               git add .upstream-version
-              git commit -m "chore: sync upstream to $TAG"
+              if ! git diff --cached --quiet; then
+                git commit -m "chore: sync upstream to $TAG"
+              fi
             else
               # Merge created a new commit — amend it to include version file
               echo "$TAG" > .upstream-version
