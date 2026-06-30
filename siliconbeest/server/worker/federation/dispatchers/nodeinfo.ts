@@ -65,7 +65,7 @@ export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): voi
       software: {
         name: 'siliconbeest',
         version: SILICONBEEST_VERSION,
-        repository: new URL('https://github.com/nicepkg/siliconbeest'),
+        repository: new URL('https://github.com/SJang1/siliconbeest'),
         homepage: new URL(`https://${env.INSTANCE_DOMAIN}`),
       },
       protocols: ['activitypub'],
