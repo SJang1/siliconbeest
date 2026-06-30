@@ -1,15 +1,17 @@
-import { SELF } from 'cloudflare:test';
+import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser } from './helpers';
 
 const BASE = 'https://test.siliconbeest.local';
 const DOMAIN = 'test.siliconbeest.local';
+let nodeInfoAccountId: string;
 
 describe('NodeInfo', () => {
   beforeAll(async () => {
     await applyMigration();
     // Create a test user so stats are non-zero
-    await createTestUser('nodeinfouser');
+    const user = await createTestUser('nodeinfouser');
+    nodeInfoAccountId = user.accountId;
   });
 
   // -------------------------------------------------------------------
@@ -70,6 +72,21 @@ describe('NodeInfo', () => {
       expect(typeof body.usage.users.activeHalfyear).toBe('number');
       expect(typeof body.usage.localPosts).toBe('number');
       expect(typeof body.usage.localComments).toBe('number');
+    });
+
+    it('counts active users from sign-in timestamps', async () => {
+      const now = new Date().toISOString();
+
+      await env.CACHE.delete('nodeinfo:stats:fedify');
+      await env.DB.prepare('UPDATE users SET current_sign_in_at = ?1 WHERE account_id = ?2')
+        .bind(now, nodeInfoAccountId)
+        .run();
+
+      const res = await SELF.fetch(`${BASE}/nodeinfo/2.1`);
+      const body = await res.json<Record<string, any>>();
+
+      expect(body.usage.users.activeMonth).toBeGreaterThanOrEqual(1);
+      expect(body.usage.users.activeHalfyear).toBeGreaterThanOrEqual(1);
     });
 
     it('has user count of at least 1 after creating a user', async () => {

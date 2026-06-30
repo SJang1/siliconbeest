@@ -35,10 +35,23 @@ async function getStats(): Promise<NodeInfoStats> {
   const cached = await env.CACHE.get(STATS_CACHE_KEY, 'json');
   if (cached) return cached as NodeInfoStats;
 
-  const [usersResult, activeUserCount, activeHalfyearUserCount, statusesResult, domainsResult, commentsResult] = await Promise.all([
+  const activeMonthSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const activeHalfyearSince = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [usersResult, activeUserCountResult, activeHalfyearUserCountResult, statusesResult, domainsResult, commentsResult] = await Promise.all([
     env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE last_seen_at > datetime('now', '-30 days')`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE last_seen_at > datetime('now', '-180 days')`).first(),
+    env.DB.prepare(
+      `SELECT COUNT(DISTINCT a.id) AS cnt
+       FROM accounts a
+       JOIN users u ON u.account_id = a.id
+       WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
+    ).bind(activeMonthSince).first(),
+    env.DB.prepare(
+      `SELECT COUNT(DISTINCT a.id) AS cnt
+       FROM accounts a
+       JOIN users u ON u.account_id = a.id
+       WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
+    ).bind(activeHalfyearSince).first(),
     env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
     env.DB.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
     env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL AND local = 1 AND reply = 1`).first(),
@@ -46,8 +59,8 @@ async function getStats(): Promise<NodeInfoStats> {
 
   const stats: NodeInfoStats = {
     totalUserCount: (usersResult?.cnt as number) ?? 0,
-    activeUserCount: (activeUserCount?.cnt as number) ?? 0,
-    activeHalfyearUserCount: (activeHalfyearUserCount?.cnt as number) ?? 0,
+    activeUserCount: (activeUserCountResult?.cnt as number) ?? 0,
+    activeHalfyearUserCount: (activeHalfyearUserCountResult?.cnt as number) ?? 0,
     statusCount: (statusesResult?.cnt as number) ?? 0,
     domainCount: (domainsResult?.cnt as number) ?? 0,
     localComments: (commentsResult?.cnt as number) ?? 0,
