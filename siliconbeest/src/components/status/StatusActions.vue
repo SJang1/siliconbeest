@@ -38,6 +38,7 @@ const quoteTooltip = computed(() => {
   const reason = props.quotePolicyReason
   if (reason === 'policy_nobody') return t('status.cannot_quote_policy_nobody')
   if (reason === 'followers_only') return t('status.cannot_quote_followers_only')
+  if (reason === 'following_only') return t('status.cannot_quote_following_only')
   if (reason === 'login_required') return t('status.cannot_quote_login_required')
   return t('status.cannot_quote_visibility')
 })

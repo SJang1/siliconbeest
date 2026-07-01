@@ -2,6 +2,7 @@ import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
 import { processAnnounce } from '../../server/worker/federation/inboxProcessors/announce';
+import { processCreate } from '../../server/worker/federation/inboxProcessors/create';
 
 const BASE = 'https://test.siliconbeest.local';
 
@@ -242,6 +243,172 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(body.quote_policy).toBe('nobody');
     expect(body.quote_policy_allows).toBe(false);
     expect(body.quote_policy_reason).toBe('policy_nobody');
+  });
+
+  it('stores author-only canQuote automatic approval as nobody for remote posts', async () => {
+    const remoteAccountId = 'remote_author_only_quote_actor';
+    const remoteActorUri = 'https://kurry-policy.example/users/chicomi';
+    const remoteStatusUri = 'https://kurry-policy.example/users/chicomi/statuses/author-only';
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO accounts
+        (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
+         header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
+         statuses_count, followers_count, following_count, created_at, updated_at)
+       VALUES (?1, 'chicomi', 'kurry-policy.example', '', '', ?2,
+         'https://kurry-policy.example/@chicomi', '', '', '', '', 0, 0, 1, 0, 1, 0, 0, ?3, ?3)`,
+    ).bind(remoteAccountId, remoteActorUri, now).run();
+
+    await processCreate({
+      type: 'Create',
+      actor: remoteActorUri,
+      object: {
+        type: 'Note',
+        id: remoteStatusUri,
+        attributedTo: remoteActorUri,
+        to: 'https://www.w3.org/ns/activitystreams#Public',
+        cc: `${remoteActorUri}/followers`,
+        content: '<p>author only quote policy</p>',
+        interactionPolicy: {
+          canQuote: {
+            automaticApproval: remoteActorUri,
+          },
+        },
+      },
+    }, user.accountId, { fanout: false, notify: false });
+
+    const stored = await env.DB.prepare(
+      'SELECT id, quote_policy FROM statuses WHERE uri = ?1 LIMIT 1',
+    ).bind(remoteStatusUri).first<{ id: string; quote_policy: string }>();
+    expect(stored?.quote_policy).toBe('nobody');
+
+    const res = await SELF.fetch(`${BASE}/api/v1/statuses/${stored?.id}`, {
+      headers: authHeaders(user.token),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json<Record<string, any>>();
+    expect(body.quote_policy).toBe('nobody');
+    expect(body.quote_policy_allows).toBe(false);
+    expect(body.quote_policy_reason).toBe('policy_nobody');
+  });
+
+  it('stores followers canQuote automatic approval and enables quoting only for followers', async () => {
+    const remoteAccountId = 'remote_followers_quote_actor';
+    const remoteActorUri = 'https://followers-policy.example/users/chicomi';
+    const remoteFollowersUri = `${remoteActorUri}/followers`;
+    const remoteStatusUri = 'https://followers-policy.example/users/chicomi/statuses/followers-only';
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO accounts
+        (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
+         header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
+         statuses_count, followers_count, following_count, created_at, updated_at)
+       VALUES (?1, 'chicomi', 'followers-policy.example', '', '', ?2,
+         'https://followers-policy.example/@chicomi', '', '', '', '', 0, 0, 1, 0, 1, 0, 0, ?3, ?3)`,
+    ).bind(remoteAccountId, remoteActorUri, now).run();
+
+    await processCreate({
+      type: 'Create',
+      actor: remoteActorUri,
+      object: {
+        type: 'Note',
+        id: remoteStatusUri,
+        attributedTo: remoteActorUri,
+        to: 'https://www.w3.org/ns/activitystreams#Public',
+        cc: remoteFollowersUri,
+        content: '<p>followers quote policy</p>',
+        interactionPolicy: {
+          canQuote: {
+            automaticApproval: remoteFollowersUri,
+          },
+        },
+      },
+    }, user.accountId, { fanout: false, notify: false });
+
+    const stored = await env.DB.prepare(
+      'SELECT id, quote_policy FROM statuses WHERE uri = ?1 LIMIT 1',
+    ).bind(remoteStatusUri).first<{ id: string; quote_policy: string }>();
+    expect(stored?.quote_policy).toBe('followers');
+
+    const beforeFollowRes = await SELF.fetch(`${BASE}/api/v1/statuses/${stored?.id}`, {
+      headers: authHeaders(user.token),
+    });
+    expect(beforeFollowRes.status).toBe(200);
+    const beforeFollow = await beforeFollowRes.json<Record<string, any>>();
+    expect(beforeFollow.quote_policy).toBe('followers');
+    expect(beforeFollow.quote_policy_allows).toBe(false);
+    expect(beforeFollow.quote_policy_reason).toBe('followers_only');
+
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
+    ).bind('remote_followers_quote_follow', user.accountId, remoteAccountId, now).run();
+
+    const afterFollowRes = await SELF.fetch(`${BASE}/api/v1/statuses/${stored?.id}`, {
+      headers: authHeaders(user.token),
+    });
+    expect(afterFollowRes.status).toBe(200);
+    const afterFollow = await afterFollowRes.json<Record<string, any>>();
+    expect(afterFollow.quote_policy).toBe('followers');
+    expect(afterFollow.quote_policy_allows).toBe(true);
+    expect(afterFollow.quote_policy_reason).toBeNull();
+  });
+
+  it('honors following canQuote approval for accounts followed by the author', async () => {
+    const remoteAccountId = 'remote_following_quote_actor';
+    const remoteActorUri = 'https://following-policy.example/users/chicomi';
+    const remoteFollowingUri = `${remoteActorUri}/following`;
+    const remoteStatusUri = 'https://following-policy.example/users/chicomi/statuses/following-only';
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO accounts
+        (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
+         header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
+         statuses_count, followers_count, following_count, created_at, updated_at)
+       VALUES (?1, 'chicomi', 'following-policy.example', '', '', ?2,
+         'https://following-policy.example/@chicomi', '', '', '', '', 0, 0, 1, 0, 1, 0, 0, ?3, ?3)`,
+    ).bind(remoteAccountId, remoteActorUri, now).run();
+
+    await processCreate({
+      type: 'Create',
+      actor: remoteActorUri,
+      object: {
+        type: 'Note',
+        id: remoteStatusUri,
+        attributedTo: remoteActorUri,
+        to: 'https://www.w3.org/ns/activitystreams#Public',
+        cc: `${remoteActorUri}/followers`,
+        content: '<p>following quote policy</p>',
+        interactionPolicy: {
+          canQuote: {
+            automaticApproval: remoteFollowingUri,
+          },
+        },
+      },
+    }, user.accountId, { fanout: false, notify: false });
+
+    const stored = await env.DB.prepare(
+      'SELECT id FROM statuses WHERE uri = ?1 LIMIT 1',
+    ).bind(remoteStatusUri).first<{ id: string }>();
+
+    const beforeFollowRes = await SELF.fetch(`${BASE}/api/v1/statuses/${stored?.id}`, {
+      headers: authHeaders(user.token),
+    });
+    expect(beforeFollowRes.status).toBe(200);
+    const beforeFollow = await beforeFollowRes.json<Record<string, any>>();
+    expect(beforeFollow.quote_policy_allows).toBe(false);
+    expect(beforeFollow.quote_policy_reason).toBe('following_only');
+
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
+    ).bind('remote_following_quote_follow', remoteAccountId, user.accountId, now).run();
+
+    const afterFollowRes = await SELF.fetch(`${BASE}/api/v1/statuses/${stored?.id}`, {
+      headers: authHeaders(user.token),
+    });
+    expect(afterFollowRes.status).toBe(200);
+    const afterFollow = await afterFollowRes.json<Record<string, any>>();
+    expect(afterFollow.quote_policy_allows).toBe(true);
+    expect(afterFollow.quote_policy_reason).toBeNull();
   });
 
   it('stores FEP-dd4b Announce with content as a quote post', async () => {

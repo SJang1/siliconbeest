@@ -1,4 +1,9 @@
 export type QuotePolicy = 'public' | 'followers' | 'nobody';
+export type QuotePolicyDetails = {
+  policy: QuotePolicy;
+  automaticApprovals: string[];
+  manualApprovals: string[];
+};
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 const GTS_CAN_QUOTE = 'https://gotosocial.org/ns#canQuote';
@@ -8,10 +13,11 @@ const GTS_MANUAL_APPROVAL = 'https://gotosocial.org/ns#manualApproval';
 function idsFrom(value: unknown): string[] {
   if (!value) return [];
   if (typeof value === 'string') return [value];
+  if (value instanceof URL) return [value.href];
   if (Array.isArray(value)) return value.flatMap(idsFrom);
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    return idsFrom(obj.id).concat(idsFrom(obj.href));
+    return idsFrom(obj.id).concat(idsFrom(obj['@id'])).concat(idsFrom(obj.href));
   }
   return [];
 }
@@ -25,24 +31,40 @@ export function parseQuotePolicyFromInteractionPolicy(
   authorUri: string,
   followersUri?: string | null,
 ): QuotePolicy {
-  if (!interactionPolicy || typeof interactionPolicy !== 'object') return 'public';
+  return parseQuotePolicyDetailsFromInteractionPolicy(
+    interactionPolicy,
+    authorUri,
+    followersUri,
+  ).policy;
+}
+
+export function parseQuotePolicyDetailsFromInteractionPolicy(
+  interactionPolicy: unknown,
+  authorUri: string,
+  followersUri?: string | null,
+): QuotePolicyDetails {
+  if (!interactionPolicy || typeof interactionPolicy !== 'object') {
+    return { policy: 'public', automaticApprovals: [], manualApprovals: [] };
+  }
 
   const policy = interactionPolicy as Record<string, unknown>;
   const canQuote = policy.canQuote ?? policy[GTS_CAN_QUOTE];
-  if (!canQuote || typeof canQuote !== 'object') return 'public';
+  if (!canQuote || typeof canQuote !== 'object') {
+    return { policy: 'public', automaticApprovals: [], manualApprovals: [] };
+  }
 
   const rule = canQuote as Record<string, unknown>;
-  const approvals = [
-    ...idsFrom(rule.automaticApproval ?? rule[GTS_AUTOMATIC_APPROVAL]),
-    ...idsFrom(rule.manualApproval ?? rule[GTS_MANUAL_APPROVAL]),
-  ];
+  const automaticApprovals = idsFrom(rule.automaticApproval ?? rule.automaticApprovals ?? rule[GTS_AUTOMATIC_APPROVAL]);
+  const manualApprovals = idsFrom(rule.manualApproval ?? rule.manualApprovals ?? rule[GTS_MANUAL_APPROVAL]);
+  const approvals = [...automaticApprovals, ...manualApprovals];
 
-  if (approvals.includes(AS_PUBLIC) || approvals.includes('as:Public')) return 'public';
-  if (followersUri && approvals.includes(followersUri)) return 'followers';
-  if (approvals.some((id) => id.endsWith('/followers'))) return 'followers';
-  if (approvals.includes(authorUri)) return 'nobody';
+  let parsedPolicy: QuotePolicy = 'nobody';
+  if (approvals.includes(AS_PUBLIC) || approvals.includes('as:Public')) parsedPolicy = 'public';
+  else if (followersUri && approvals.includes(followersUri)) parsedPolicy = 'followers';
+  else if (approvals.some((id) => id.endsWith('/followers'))) parsedPolicy = 'followers';
+  else if (approvals.includes(authorUri)) parsedPolicy = 'nobody';
 
-  return 'nobody';
+  return { policy: parsedPolicy, automaticApprovals, manualApprovals };
 }
 
 export function quotePolicyAutomaticApproval(policy: QuotePolicy, actorUri: string, followersUri: string): string {

@@ -12,6 +12,7 @@ import { processCreate } from '../../../federation/inboxProcessors/create';
 import { resolveRemoteAccount } from '../../../federation/resolveRemoteAccount';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
 import type { APActivity, APObject } from '../../../types/activitypub';
+import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../../packages/shared/utils/quotePolicy';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -149,13 +150,25 @@ async function canViewRemoteObject(
   return false;
 }
 
-async function findStatusByUriOrUrl(uriOrUrl: string): Promise<{ id: string; visibility: string } | null> {
+async function findStatusByUriOrUrl(uriOrUrl: string): Promise<{
+  id: string;
+  visibility: string;
+  quote_policy: string | null;
+  quote_policy_automatic_approvals: string | null;
+  quote_policy_manual_approvals: string | null;
+} | null> {
   const row = await env.DB.prepare(
-    `SELECT id, visibility FROM statuses
+    `SELECT id, visibility, quote_policy, quote_policy_automatic_approvals, quote_policy_manual_approvals FROM statuses
      WHERE (uri = ?1 OR url = ?1)
        AND deleted_at IS NULL
      LIMIT 1`,
-  ).bind(uriOrUrl).first<{ id: string; visibility: string }>();
+  ).bind(uriOrUrl).first<{
+    id: string;
+    visibility: string;
+    quote_policy: string | null;
+    quote_policy_automatic_approvals: string | null;
+    quote_policy_manual_approvals: string | null;
+  }>();
   return row ?? null;
 }
 
@@ -176,10 +189,9 @@ async function resolveRemoteStatusFromUrl(
   const normalizedUrl = new URL(url).href;
   const existing = await findStatusByUriOrUrl(normalizedUrl);
   const isLocalUrl = new URL(normalizedUrl).host === env.INSTANCE_DOMAIN;
+  const existingVisible = existing ? await canViewStoredStatus(existing.id, viewer?.id ?? null) : false;
   if (existing) {
-    const visible = await canViewStoredStatus(existing.id, viewer?.id ?? null);
-    if (visible) return existing.id;
-    if (isLocalUrl) return null;
+    if (isLocalUrl) return existingVisible ? existing.id : null;
   }
   if (isLocalUrl) return null;
 
@@ -187,7 +199,7 @@ async function resolveRemoteStatusFromUrl(
   const signerUsername = await pickSignerUsername(env.DB, viewer?.id ?? null);
   if (!signerUsername) {
     console.warn('[search] No local signer available, skipping remote status fetch');
-    return null;
+    return existingVisible ? existing?.id ?? null : null;
   }
 
   const docLoader = await ctx.getDocumentLoader({ identifier: signerUsername });
@@ -196,16 +208,16 @@ async function resolveRemoteStatusFromUrl(
     remoteObject = await ctx.lookupObject(normalizedUrl, { documentLoader: docLoader });
   } catch (e) {
     console.warn('[search] remote status lookupObject failed:', e);
-    return null;
+    return existingVisible ? existing?.id ?? null : null;
   }
 
   const isStatusObject = remoteObject instanceof Note || remoteObject instanceof Question
     || (remoteObject && typeof remoteObject === 'object' && ['Note', 'Question'].includes((remoteObject as { constructor?: { name?: string } }).constructor?.name ?? ''));
-  if (!isStatusObject) return null;
+  if (!isStatusObject) return existingVisible ? existing?.id ?? null : null;
 
   const statusObject = remoteObject as Note | Question;
   const objectId = statusObject.id?.href;
-  if (!objectId) return null;
+  if (!objectId) return existingVisible ? existing?.id ?? null : null;
 
   const fallbackType = remoteObject instanceof Question || (remoteObject as { constructor?: { name?: string } }).constructor?.name === 'Question'
     ? 'Question'
@@ -221,15 +233,39 @@ async function resolveRemoteStatusFromUrl(
   if (!actorAccountId) return null;
   const visibility = resolveVisibilityFromObject(object);
   const remoteVisible = await canViewRemoteObject(object, visibility, actor, actorAccountId, viewer);
+  const interactionPolicy = (object as Record<string, unknown>).interactionPolicy;
+  const quotePolicyDetails = parseQuotePolicyDetailsFromInteractionPolicy(
+    interactionPolicy,
+    actor,
+    `${actor}/followers`,
+  );
+  const quotePolicy = quotePolicyDetails.policy;
+  const automaticApprovalsJson = interactionPolicy !== undefined
+    ? JSON.stringify(quotePolicyDetails.automaticApprovals)
+    : null;
+  const manualApprovalsJson = interactionPolicy !== undefined
+    ? JSON.stringify(quotePolicyDetails.manualApprovals)
+    : null;
 
   const existingByObjectId = await findStatusByUriOrUrl(objectId);
   const existingStatus = existingByObjectId ?? existing;
   if (existingStatus) {
     if (!remoteVisible) return null;
-    if (visibility !== existingStatus.visibility) {
+    if (
+      visibility !== existingStatus.visibility
+      || quotePolicy !== existingStatus.quote_policy
+      || automaticApprovalsJson !== existingStatus.quote_policy_automatic_approvals
+      || manualApprovalsJson !== existingStatus.quote_policy_manual_approvals
+    ) {
       await env.DB.prepare(
-        'UPDATE statuses SET visibility = ?1, updated_at = ?2 WHERE id = ?3',
-      ).bind(visibility, new Date().toISOString(), existingStatus.id).run();
+        `UPDATE statuses
+         SET visibility = ?1,
+             quote_policy = ?2,
+             quote_policy_automatic_approvals = ?3,
+             quote_policy_manual_approvals = ?4,
+             updated_at = ?5
+         WHERE id = ?6`,
+      ).bind(visibility, quotePolicy, automaticApprovalsJson, manualApprovalsJson, new Date().toISOString(), existingStatus.id).run();
     }
     return await canViewStoredStatus(existingStatus.id, viewer?.id ?? null) ? existingStatus.id : null;
   }

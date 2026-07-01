@@ -116,6 +116,8 @@ export type StatusRow = {
   readonly quote_request_uri?: string | null;
   /** FEP-044f: public | followers | nobody. */
   readonly quote_policy?: string | null;
+  readonly quote_policy_automatic_approvals?: string | null;
+  readonly quote_policy_manual_approvals?: string | null;
   /** JSON array of emoji tag objects from ActivityPub for lazy-load rendering */
   readonly emoji_tags: string | null;
   readonly created_at: string;

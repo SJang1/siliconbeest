@@ -10,6 +10,7 @@ import type { MediaAttachment as MastodonMediaAttachment, PreviewCard, Poll as M
 import { serializeAccount, serializeMediaAttachment, serializePoll, serializeStatus } from './mastodonSerializer';
 import type { AccountRow, MediaAttachmentRow, PollRow, StatusRow } from '../types/db';
 import { emojiTagToCustomEmoji } from '../../../../packages/shared/utils/customEmoji';
+import { AS_PUBLIC } from '../../../../packages/shared/utils/quotePolicy';
 
 export type MentionInfo = {
   id: string;
@@ -33,6 +34,21 @@ function proxyEmojiUrl(url: string, instanceDomain: string): string {
   } catch {
     return url;
   }
+}
+
+function parseApprovalTargets(value: unknown): string[] | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return null;
+  }
+}
+
+function hasPublicApproval(targets: string[]): boolean {
+  return targets.includes(AS_PUBLIC) || targets.includes('as:Public') || targets.includes('Public');
 }
 
 export type EmojiInfo = {
@@ -102,13 +118,24 @@ export async function enrichStatuses(
   queries.push(
     env.DB
       .prepare(
-        `SELECT id, account_id, visibility, quote_policy
-         FROM statuses WHERE id IN (${placeholders})`,
+        `SELECT s.id, s.account_id, s.visibility, s.quote_policy,
+                s.quote_policy_automatic_approvals, s.quote_policy_manual_approvals,
+                a.uri AS account_uri
+         FROM statuses s
+         JOIN accounts a ON a.id = s.account_id
+         WHERE s.id IN (${placeholders})`,
       )
       .bind(...statusIds)
       .all()
       .then(async ({ results }) => {
         const followerTargets = new Set<string>();
+        const followingTargets = new Set<string>();
+        const currentAccount = currentAccountId
+          ? await env.DB.prepare('SELECT uri FROM accounts WHERE id = ?1 LIMIT 1')
+            .bind(currentAccountId)
+            .first<{ uri: string }>()
+          : null;
+        const currentAccountUri = currentAccount?.uri ?? null;
         for (const row of results ?? []) {
           const visibility = (row.visibility as string) || 'public';
           const policy = row.quote_policy === 'followers' || row.quote_policy === 'nobody' ? row.quote_policy as string : 'public';
@@ -121,32 +148,78 @@ export async function enrichStatuses(
           } else if (visibility !== 'public' && visibility !== 'unlisted') {
             entry.quotePolicyAllows = false;
             entry.quotePolicyReason = 'visibility';
-          } else if (policy === 'nobody') {
-            entry.quotePolicyAllows = false;
-            entry.quotePolicyReason = 'policy_nobody';
-          } else if (policy === 'followers') {
-            entry.quotePolicyAllows = false;
-            entry.quotePolicyReason = currentAccountId ? 'followers_only' : 'login_required';
-            if (currentAccountId) followerTargets.add(row.account_id as string);
           } else {
-            entry.quotePolicyAllows = true;
-            entry.quotePolicyReason = null;
+            const automaticApprovals = parseApprovalTargets(row.quote_policy_automatic_approvals);
+            const manualApprovals = parseApprovalTargets(row.quote_policy_manual_approvals);
+            const hasRawPolicy = automaticApprovals !== null || manualApprovals !== null;
+            const approvals = [...(automaticApprovals ?? []), ...(manualApprovals ?? [])];
+            if (hasRawPolicy) {
+              const authorUri = row.account_uri as string;
+              const followersUri = `${authorUri}/followers`;
+              const followingUri = `${authorUri}/following`;
+              if (hasPublicApproval(approvals) || (currentAccountUri && approvals.includes(currentAccountUri))) {
+                entry.quotePolicyAllows = true;
+                entry.quotePolicyReason = null;
+              } else if (!currentAccountId) {
+                entry.quotePolicyAllows = false;
+                entry.quotePolicyReason = 'login_required';
+              } else if (approvals.includes(followersUri)) {
+                entry.quotePolicyAllows = false;
+                entry.quotePolicyReason = 'followers_only';
+                followerTargets.add(row.account_id as string);
+              } else if (approvals.includes(followingUri)) {
+                entry.quotePolicyAllows = false;
+                entry.quotePolicyReason = 'following_only';
+                followingTargets.add(row.account_id as string);
+              } else {
+                entry.quotePolicyAllows = false;
+                entry.quotePolicyReason = 'policy_nobody';
+              }
+            } else if (policy === 'nobody') {
+              entry.quotePolicyAllows = false;
+              entry.quotePolicyReason = 'policy_nobody';
+            } else if (policy === 'followers') {
+              entry.quotePolicyAllows = false;
+              entry.quotePolicyReason = currentAccountId ? 'followers_only' : 'login_required';
+              if (currentAccountId) followerTargets.add(row.account_id as string);
+            } else {
+              entry.quotePolicyAllows = true;
+              entry.quotePolicyReason = null;
+            }
           }
         }
 
-        if (!currentAccountId || followerTargets.size === 0) return;
-        const ids = [...followerTargets];
-        const ph = ids.map(() => '?').join(',');
-        const follows = await env.DB.prepare(
-          `SELECT target_account_id FROM follows WHERE account_id = ?1 AND target_account_id IN (${ph})`,
-        ).bind(currentAccountId, ...ids).all<{ target_account_id: string }>();
-        const followed = new Set((follows.results ?? []).map((row) => row.target_account_id));
-        for (const row of results ?? []) {
-          const entry = result.get(row.id as string);
-          if (!entry || row.quote_policy !== 'followers') continue;
-          if (followed.has(row.account_id as string)) {
-            entry.quotePolicyAllows = true;
-            entry.quotePolicyReason = null;
+        if (!currentAccountId) return;
+        if (followerTargets.size > 0) {
+          const ids = [...followerTargets];
+          const ph = ids.map(() => '?').join(',');
+          const follows = await env.DB.prepare(
+            `SELECT target_account_id FROM follows WHERE account_id = ?1 AND target_account_id IN (${ph})`,
+          ).bind(currentAccountId, ...ids).all<{ target_account_id: string }>();
+          const followed = new Set((follows.results ?? []).map((row) => row.target_account_id));
+          for (const row of results ?? []) {
+            const entry = result.get(row.id as string);
+            if (!entry || entry.quotePolicyReason !== 'followers_only') continue;
+            if (followed.has(row.account_id as string)) {
+              entry.quotePolicyAllows = true;
+              entry.quotePolicyReason = null;
+            }
+          }
+        }
+        if (followingTargets.size > 0) {
+          const ids = [...followingTargets];
+          const ph = ids.map(() => '?').join(',');
+          const follows = await env.DB.prepare(
+            `SELECT account_id FROM follows WHERE target_account_id = ?1 AND account_id IN (${ph})`,
+          ).bind(currentAccountId, ...ids).all<{ account_id: string }>();
+          const followedBy = new Set((follows.results ?? []).map((row) => row.account_id));
+          for (const row of results ?? []) {
+            const entry = result.get(row.id as string);
+            if (!entry || entry.quotePolicyReason !== 'following_only') continue;
+            if (followedBy.has(row.account_id as string)) {
+              entry.quotePolicyAllows = true;
+              entry.quotePolicyReason = null;
+            }
           }
         }
       }),

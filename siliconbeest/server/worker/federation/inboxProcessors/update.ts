@@ -12,7 +12,7 @@ import type { UpdateAccountInput } from '../../repositories/account';
 import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
 import { env } from 'cloudflare:workers';
-import { parseQuotePolicyFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
+import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
 
 class UpdateProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
@@ -95,14 +95,17 @@ class UpdateProcessor extends BaseProcessor {
 				content_warning: sanitizedCw,
 				sensitive: obj.sensitive ? 1 : 0,
 				edited_at: now,
-			};
-			if (interactionPolicy !== undefined) {
-				statusUpdates.quote_policy = parseQuotePolicyFromInteractionPolicy(
-					interactionPolicy,
-					activity.actor,
-					`${activity.actor}/followers`,
-				);
-			}
+				};
+				if (interactionPolicy !== undefined) {
+					const quotePolicyDetails = parseQuotePolicyDetailsFromInteractionPolicy(
+						interactionPolicy,
+						activity.actor,
+						`${activity.actor}/followers`,
+					);
+					statusUpdates.quote_policy = quotePolicyDetails.policy;
+					statusUpdates.quote_policy_automatic_approvals = JSON.stringify(quotePolicyDetails.automaticApprovals);
+					statusUpdates.quote_policy_manual_approvals = JSON.stringify(quotePolicyDetails.manualApprovals);
+				}
 
 			await this.statusRepo.update(status.id, statusUpdates);
 

@@ -231,6 +231,7 @@
     "cannot_quote_visibility": "공개 또는 비목록 게시물만 인용할 수 있습니다",
     "cannot_quote_policy_nobody": "작성자가 이 게시물의 인용을 허용하지 않았습니다",
     "cannot_quote_followers_only": "작성자의 팔로워만 이 게시물을 인용할 수 있습니다",
+    "cannot_quote_following_only": "작성자가 팔로우하는 사용자만 이 게시물을 인용할 수 있습니다",
     "cannot_quote_login_required": "로그인한 팔로워만 이 게시물을 인용할 수 있습니다"
   },
   "notification": {

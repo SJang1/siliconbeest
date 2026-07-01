@@ -15,7 +15,7 @@ import { sanitizeHtml } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
 import { getQuoteUri, verifyQuoteAuthorization } from '../helpers/quote';
 import { customEmojiTagDomain, emojiTagToCustomEmoji } from '../../../../../packages/shared/utils/customEmoji';
-import { parseQuotePolicyFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
+import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
 
 interface CreateProcessorOptions {
 	fanout?: boolean;
@@ -231,31 +231,42 @@ class CreateProcessor extends BaseProcessor {
 				return emoji ? { shortcode: emoji.shortcode, url: emoji.url, static_url: emoji.static_url } : null;
 			})
 			.filter(Boolean);
-		const emojiTagsJson = emojiTagsForDb.length > 0 ? JSON.stringify(emojiTagsForDb) : null;
-		const quotePolicy = parseQuotePolicyFromInteractionPolicy(
-			(apNote as Record<string, unknown>).interactionPolicy,
-			activity.actor,
-			`${activity.actor}/followers`,
-		);
+			const emojiTagsJson = emojiTagsForDb.length > 0 ? JSON.stringify(emojiTagsForDb) : null;
+			const interactionPolicy = (apNote as Record<string, unknown>).interactionPolicy;
+			const quotePolicyDetails = parseQuotePolicyDetailsFromInteractionPolicy(
+				interactionPolicy,
+				activity.actor,
+				`${activity.actor}/followers`,
+			);
+			const quotePolicy = quotePolicyDetails.policy;
+			const automaticApprovalsJson = interactionPolicy !== undefined
+				? JSON.stringify(quotePolicyDetails.automaticApprovals)
+				: null;
+			const manualApprovalsJson = interactionPolicy !== undefined
+				? JSON.stringify(quotePolicyDetails.manualApprovals)
+				: null;
 
-		// Insert the status
-		await env.DB.prepare(
-			`INSERT INTO statuses
-			 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
-			  content, content_warning, visibility, sensitive, language,
-			  conversation_id, local, reply, quote_id, quote_authorization_uri, quote_approval_status, quote_policy, emoji_tags, created_at, updated_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)`,
-		)
+			// Insert the status
+			await env.DB.prepare(
+				`INSERT INTO statuses
+				 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
+				  content, content_warning, visibility, sensitive, language,
+				  conversation_id, local, reply, quote_id, quote_authorization_uri, quote_approval_status,
+				  quote_policy, quote_policy_automatic_approvals, quote_policy_manual_approvals,
+				  emoji_tags, created_at, updated_at)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)`,
+			)
 			.bind(
 				statusId, note.id,
 				statusUrl,
 				authorAccountId, inReplyToId, inReplyToAccountId,
 				noteContent, contentWarning, visibility,
 				note.sensitive ? 1 : 0, language, conversationId,
-				inReplyToId ? 1 : 0, quoteId, quoteAuthorizationUri, quoteApprovalStatus, quotePolicy, emojiTagsJson,
+				inReplyToId ? 1 : 0, quoteId, quoteAuthorizationUri, quoteApprovalStatus,
+				quotePolicy, automaticApprovalsJson, manualApprovalsJson, emojiTagsJson,
 				note.published ? new Date(note.published).toISOString() : now, now,
 			)
-			.run();
+				.run();
 
 		// Process poll data if this is a Question
 		if (note.type === 'Question') {

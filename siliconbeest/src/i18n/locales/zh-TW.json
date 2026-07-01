@@ -231,6 +231,7 @@
     "cannot_quote_visibility": "只有公開或未列出的貼文可以被引用",
     "cannot_quote_policy_nobody": "作者不允許引用此貼文",
     "cannot_quote_followers_only": "只有作者的追蹤者可以引用此貼文",
+    "cannot_quote_following_only": "只有作者追蹤的使用者可以引用此貼文",
     "cannot_quote_login_required": "以追蹤者身分登入後才能引用此貼文"
   },
   "notification": {

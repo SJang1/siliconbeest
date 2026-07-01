@@ -231,6 +231,7 @@
     "cannot_quote_visibility": "Only public or unlisted posts can be quoted",
     "cannot_quote_policy_nobody": "The author does not allow quotes for this post",
     "cannot_quote_followers_only": "Only the author's followers can quote this post",
+    "cannot_quote_following_only": "Only accounts followed by the author can quote this post",
     "cannot_quote_login_required": "Log in as a follower to quote this post"
   },
   "notification": {
