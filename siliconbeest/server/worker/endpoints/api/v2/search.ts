@@ -6,11 +6,138 @@ import { serializeAccount, serializeStatus, serializeTag } from '../../../utils/
 import { enrichStatuses } from '../../../utils/statusEnrichment';
 import { generateUlid } from '../../../utils/ulid';
 import { getFedifyContext } from '../../../federation/helpers/send';
-import { isActor } from '@fedify/fedify/vocab';
+import { isActor, Note, Question } from '@fedify/fedify/vocab';
 import { pickSignerUsername } from '../../../../../../packages/shared/services/signer';
+import { processCreate } from '../../../federation/inboxProcessors/create';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
+import type { APActivity, APObject } from '../../../types/activitypub';
 
 const app = new Hono<{ Variables: AppVariables }>();
+
+const STATUS_SEARCH_SELECT = `
+  SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
+         a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
+         a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
+         a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
+         a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
+         a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
+         a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
+         a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
+         a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
+         a.emoji_tags AS a_emoji_tags
+  FROM statuses s
+  JOIN accounts a ON a.id = s.account_id
+`;
+
+function isUrlQuery(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function idsFrom(value: unknown): string[] {
+  if (!value) return [];
+  if (typeof value === 'string') return [value];
+  if (value instanceof URL) return [value.href];
+  if (Array.isArray(value)) return value.flatMap(idsFrom);
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    return idsFrom(obj.id).concat(idsFrom(obj['@id'])).concat(idsFrom(obj.href));
+  }
+  return [];
+}
+
+function normalizeApObject(jsonLd: unknown, fallbackId: string, fallbackType: 'Note' | 'Question'): APObject {
+  const obj = { ...(jsonLd as Record<string, unknown>) };
+  if (typeof obj.id !== 'string') {
+    obj.id = typeof obj['@id'] === 'string' ? obj['@id'] : fallbackId;
+  }
+  if (typeof obj.type !== 'string') {
+    const typeId = typeof obj['@type'] === 'string' ? obj['@type'] : '';
+    obj.type = typeId.endsWith('#Question') || typeId.endsWith('/Question') ? 'Question' : fallbackType;
+  }
+  return obj as APObject;
+}
+
+async function findStatusIdByUriOrUrl(uriOrUrl: string): Promise<string | null> {
+  const row = await env.DB.prepare(
+    `SELECT id FROM statuses
+     WHERE (uri = ?1 OR url = ?1)
+       AND deleted_at IS NULL
+     LIMIT 1`,
+  ).bind(uriOrUrl).first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+async function fetchJoinedStatusById(statusId: string): Promise<Record<string, unknown> | null> {
+  return await env.DB.prepare(
+    `${STATUS_SEARCH_SELECT}
+     WHERE s.id = ?1
+       AND s.deleted_at IS NULL
+     LIMIT 1`,
+  ).bind(statusId).first<Record<string, unknown>>();
+}
+
+async function resolveRemoteStatusFromUrl(
+  url: string,
+  fed: NonNullable<AppVariables['federation']>,
+  signerAccountId: string | null,
+): Promise<string | null> {
+  const normalizedUrl = new URL(url).href;
+  const existing = await findStatusIdByUriOrUrl(normalizedUrl);
+  if (existing) return existing;
+
+  const ctx = getFedifyContext(fed);
+  const signerUsername = await pickSignerUsername(env.DB, signerAccountId);
+  if (!signerUsername) {
+    console.warn('[search] No local signer available, skipping remote status fetch');
+    return null;
+  }
+
+  const docLoader = await ctx.getDocumentLoader({ identifier: signerUsername });
+  let remoteObject: unknown;
+  try {
+    remoteObject = await ctx.lookupObject(normalizedUrl, { documentLoader: docLoader });
+  } catch (e) {
+    console.warn('[search] remote status lookupObject failed:', e);
+    return null;
+  }
+
+  const isStatusObject = remoteObject instanceof Note || remoteObject instanceof Question
+    || (remoteObject && typeof remoteObject === 'object' && ['Note', 'Question'].includes((remoteObject as { constructor?: { name?: string } }).constructor?.name ?? ''));
+  if (!isStatusObject) return null;
+
+  const statusObject = remoteObject as Note | Question;
+  const objectId = statusObject.id?.href;
+  if (!objectId) return null;
+
+  const existingByObjectId = await findStatusIdByUriOrUrl(objectId);
+  if (existingByObjectId) return existingByObjectId;
+
+  const fallbackType = remoteObject instanceof Question || (remoteObject as { constructor?: { name?: string } }).constructor?.name === 'Question'
+    ? 'Question'
+    : 'Note';
+  const jsonLd = await statusObject.toJsonLd({ contextLoader: docLoader });
+  const object = normalizeApObject(jsonLd, objectId, fallbackType);
+  const actor = statusObject.attributionId?.href ?? idsFrom((object as Record<string, unknown>).attributedTo)[0];
+  if (!actor) {
+    console.warn(`[search] remote status has no attributedTo: ${objectId}`);
+    return null;
+  }
+
+  const activity: APActivity = {
+    type: 'Create',
+    id: `${objectId}#search-fetch`,
+    actor,
+    object,
+  };
+
+  await processCreate(activity, signerAccountId, { fanout: false, notify: false });
+  return await findStatusIdByUriOrUrl(objectId);
+}
 
 app.get('/', authOptional, async (c) => {
   const q = c.req.query('q')?.trim();
@@ -180,18 +307,7 @@ app.get('/', authOptional, async (c) => {
   // Search statuses
   if (!type || type === 'statuses') {
     const { results } = await env.DB.prepare(`
-      SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
-             a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
-             a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
-             a.header_url AS a_header_url, a.header_static_url AS a_header_static_url,
-             a.locked AS a_locked, a.bot AS a_bot, a.discoverable AS a_discoverable,
-             a.statuses_count AS a_statuses_count, a.followers_count AS a_followers_count,
-             a.following_count AS a_following_count, a.last_status_at AS a_last_status_at,
-             a.created_at AS a_created_at, a.suspended_at AS a_suspended_at,
-             a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
-             a.emoji_tags AS a_emoji_tags
-      FROM statuses s
-      JOIN accounts a ON a.id = s.account_id
+      ${STATUS_SEARCH_SELECT}
       WHERE s.content LIKE ?1
         AND s.visibility = 'public'
         AND s.deleted_at IS NULL
@@ -199,8 +315,21 @@ app.get('/', authOptional, async (c) => {
       LIMIT ?2 OFFSET ?3
     `).bind(searchTerm, limit, offset).all();
 
-    const statusIds = (results ?? []).map((r: any) => r.id as string);
     const currentAccount = c.get('currentAccount');
+    const statusRows: Record<string, unknown>[] = [...((results ?? []) as Record<string, unknown>[])];
+    if (resolve && isUrlQuery(q)) {
+      const resolvedStatusId = await resolveRemoteStatusFromUrl(
+        q,
+        c.get('federation'),
+        currentAccount?.id ?? null,
+      );
+      if (resolvedStatusId && !statusRows.some((row) => row.id === resolvedStatusId)) {
+        const resolvedRow = await fetchJoinedStatusById(resolvedStatusId);
+        if (resolvedRow) statusRows.unshift(resolvedRow);
+      }
+    }
+
+    const statusIds = statusRows.map((r) => r.id as string);
     const enrichments = await enrichStatuses(
       domain,
       statusIds,
@@ -208,7 +337,7 @@ app.get('/', authOptional, async (c) => {
       env.CACHE,
     );
 
-    statuses = (results ?? []).map((row: any) => {
+    statuses = statusRows.map((row: any) => {
       const accountRow: AccountRow = {
         id: row.a_id, username: row.a_username, domain: row.a_domain,
         display_name: row.a_display_name, note: row.a_note, uri: row.a_uri,

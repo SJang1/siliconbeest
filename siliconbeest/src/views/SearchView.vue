@@ -25,6 +25,15 @@ const loading = ref(false)
 const searched = ref(false)
 const error = ref<string | null>(null)
 
+function isUrlQuery(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 async function performSearch() {
   if (!query.value.trim()) return
   loading.value = true
@@ -39,6 +48,9 @@ async function performSearch() {
     statusesStore.cacheStatuses(data.statuses)
     statuses.value = data.statuses
     hashtags.value = data.hashtags
+    if (isUrlQuery(query.value) && data.statuses.length > 0) {
+      activeTab.value = 'statuses'
+    }
   } catch (e) {
     error.value = (e as Error).message
   } finally {
