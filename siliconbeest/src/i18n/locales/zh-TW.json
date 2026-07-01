@@ -122,6 +122,9 @@
     "poll_minutes": "分鐘",
     "poll_hours": "小時",
     "poll_days": "天",
+    "post_visibility_label": "貼文可見度",
+    "quote_permission_label": "引用權限",
+    "post_language_label": "貼文語言",
     "quote_policy": {
       "label": "引用政策",
       "public": "允許所有人",

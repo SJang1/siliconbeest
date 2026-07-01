@@ -50,3 +50,7 @@ export function quotePolicyAutomaticApproval(policy: QuotePolicy, actorUri: stri
   if (policy === 'nobody') return actorUri;
   return AS_PUBLIC;
 }
+
+export function quotePolicyAutomaticApprovals(policy: QuotePolicy, actorUri: string, followersUri: string): string[] {
+  return [quotePolicyAutomaticApproval(policy, actorUri, followersUri)];
+}

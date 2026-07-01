@@ -60,6 +60,26 @@ async function attachActivityPubAlternate(
   return withActivityPubAlternate(response, alternate);
 }
 
+function wantsActivityPub(request: Request): boolean {
+  const accept = request.headers.get('Accept') ?? '';
+  return accept.includes('application/activity+json') || accept.includes('application/ld+json');
+}
+
+async function routeActivityPubAlternate(
+  request: Request,
+  envBindings: Env,
+  db: D1Database,
+  ctx: ExecutionContext,
+): Promise<Response | null> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (!wantsActivityPub(request)) return null;
+
+  const alternate = await resolveActivityPubAlternate(new URL(request.url), db);
+  if (!alternate) return null;
+
+  return app.fetch(new Request(alternate.href, request), envBindings, ctx);
+}
+
 async function withActivityPubAlternate(
   response: Response,
   alternate: ActivityPubAlternate,
@@ -117,6 +137,9 @@ export default {
     if (isWorkerPath(pathname, request)) {
       return app.fetch(request, _env, ctx);
     }
+
+    const activityPubAlternate = await routeActivityPubAlternate(request, _env, _env.DB, ctx);
+    if (activityPubAlternate) return activityPubAlternate;
 
     // 2. Crawler on SPA paths → OG handler
     const ua = request.headers.get('User-Agent');

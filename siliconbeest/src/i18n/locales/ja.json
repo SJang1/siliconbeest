@@ -122,6 +122,9 @@
     "poll_minutes": "分",
     "poll_hours": "時間",
     "poll_days": "日",
+    "post_visibility_label": "投稿の公開範囲",
+    "quote_permission_label": "引用許可",
+    "post_language_label": "投稿の言語",
     "quote_policy": {
       "label": "引用ポリシー",
       "public": "全員に許可",

@@ -122,6 +122,9 @@
     "poll_minutes": "분",
     "poll_hours": "시간",
     "poll_days": "일",
+    "post_visibility_label": "게시글 공개범위",
+    "quote_permission_label": "인용 허용",
+    "post_language_label": "게시글 언어",
     "quote_policy": {
       "label": "인용 정책",
       "public": "모두 허용",

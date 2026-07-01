@@ -122,6 +122,9 @@
     "poll_minutes": "min",
     "poll_hours": "hr",
     "poll_days": "day",
+    "post_visibility_label": "Post visibility",
+    "quote_permission_label": "Quote permission",
+    "post_language_label": "Post language",
     "quote_policy": {
       "label": "Quote policy",
       "public": "Allow everyone",

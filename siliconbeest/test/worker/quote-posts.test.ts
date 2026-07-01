@@ -93,6 +93,29 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(body.quote_policy_allows).toBe(true);
   });
 
+  it('advertises canQuote automatic approval without unsupported manual approval', async () => {
+    const createRes = await SELF.fetch(`${BASE}/api/v1/statuses`, {
+      method: 'POST',
+      headers: authHeaders(user.token),
+      body: JSON.stringify({ status: 'AP quote policy', visibility: 'public' }),
+    });
+    expect(createRes.status).toBe(200);
+    const status = await createRes.json<Record<string, any>>();
+
+    const apRes = await SELF.fetch(`${BASE}/users/quoteuser/statuses/${status.id}`, {
+      headers: { Accept: 'application/activity+json, application/ld+json' },
+    });
+    expect(apRes.status).toBe(200);
+    const ap = await apRes.json<Record<string, any>>();
+    const canQuote = ap.interactionPolicy?.canQuote;
+    expect(canQuote).toBeDefined();
+    const automaticApproval = canQuote.automaticApproval ?? canQuote.automaticApprovals;
+    const approvals = Array.isArray(automaticApproval) ? automaticApproval : [automaticApproval];
+    expect(approvals).toEqual(expect.arrayContaining(['as:Public']));
+    expect(canQuote.manualApproval).toBeUndefined();
+    expect(canQuote.manualApprovals).toBeUndefined();
+  });
+
   it('stores the user default quote policy and applies it to new posts', async () => {
     const form = new FormData();
     form.append('source[quote_policy]', 'followers');

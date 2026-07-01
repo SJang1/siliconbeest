@@ -71,6 +71,28 @@ async function attachActivityPubAlternate(
   return alternate ? withActivityPubAlternate(response, alternate) : response;
 }
 
+function wantsActivityPub(request: Request): boolean {
+  const accept = request.headers.get('Accept') ?? '';
+  return accept.includes('application/activity+json') || accept.includes('application/ld+json');
+}
+
+async function routeActivityPubAlternate(
+  request: Request,
+  envBindings: Env | undefined,
+  db: D1Database | undefined,
+  ctx: ExecutionContext | undefined,
+): Promise<Response | null> {
+  if (!envBindings) return null;
+  if (!db) return null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (!wantsActivityPub(request)) return null;
+
+  const alternate = await resolveActivityPubAlternate(new URL(request.url), db);
+  if (!alternate) return null;
+
+  return app.fetch(new Request(alternate.href, request), envBindings, ctx);
+}
+
 function isWorkerPath(pathname: string, request: Request): boolean {
   for (const prefix of WORKER_PREFIXES) {
     if (pathname === prefix || pathname.startsWith(prefix)) {
@@ -96,6 +118,14 @@ export default defineEventHandler(async (event) => {
   if (isWorkerPath(url.pathname, request)) {
     return app.fetch(request, event.context.cloudflare?.env, event.context.cloudflare?.context);
   }
+
+  const activityPubAlternate = await routeActivityPubAlternate(
+    request,
+    event.context.cloudflare?.env,
+    db,
+    event.context.cloudflare?.context,
+  );
+  if (activityPubAlternate) return activityPubAlternate;
 
   const ua = request.headers.get('User-Agent');
   const isAsset = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|webp|avif|map|json)$/.test(url.pathname);

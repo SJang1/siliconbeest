@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { generateUlid } from '../../utils/ulid';
 import type { APNote, APObject, APQuoteAuthorization } from '../../types/activitypub';
-import { normalizeQuotePolicy, quotePolicyAutomaticApproval, type QuotePolicy } from '../../../../../packages/shared/utils/quotePolicy';
+import { normalizeQuotePolicy, quotePolicyAutomaticApprovals, type QuotePolicy } from '../../../../../packages/shared/utils/quotePolicy';
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 export const FEP044F_QUOTE = 'https://w3id.org/fep/044f#quote';
@@ -24,8 +24,8 @@ export function quoteContext(): Record<string, unknown> {
     QuoteAuthorization: FEP044F_QUOTE_AUTHORIZATION_TYPE,
     interactionPolicy: { '@id': 'gts:interactionPolicy', '@type': '@id' },
     canQuote: { '@id': 'gts:canQuote', '@type': '@id' },
-    automaticApproval: { '@id': 'gts:automaticApproval', '@type': '@id' },
-    manualApproval: { '@id': 'gts:manualApproval', '@type': '@id' },
+    automaticApproval: { '@id': 'gts:automaticApproval', '@type': '@id', '@container': '@set' },
+    manualApproval: { '@id': 'gts:manualApproval', '@type': '@id', '@container': '@set' },
     interactingObject: { '@id': 'gts:interactingObject', '@type': '@id' },
     interactionTarget: { '@id': 'gts:interactionTarget', '@type': '@id' },
     quoteUrl: 'as:quoteUrl',
@@ -114,8 +114,7 @@ export function addDefaultQuotePolicy(
   const normalized = normalizeQuotePolicy(policy);
   jsonLd.interactionPolicy = {
     canQuote: {
-      automaticApproval: quotePolicyAutomaticApproval(normalized, actorUri, `${actorUri}/followers`),
-      ...(normalized === 'nobody' ? {} : { manualApproval: actorUri }),
+      automaticApproval: quotePolicyAutomaticApprovals(normalized, actorUri, `${actorUri}/followers`),
     },
   };
   return jsonLd;

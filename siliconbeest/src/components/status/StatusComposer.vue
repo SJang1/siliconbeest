@@ -522,7 +522,7 @@ function submit() {
 <template>
   <form
     @submit.prevent="submit"
-    class="border-b border-gray-200 dark:border-gray-700 last:border-b-0 px-4 py-3 bg-white dark:bg-gray-950"
+    class="border-b border-gray-200 dark:border-gray-700 last:border-b-0 px-4 py-3 bg-transparent text-gray-900 dark:text-gray-100"
   >
     <!-- Hidden file input -->
     <input
@@ -539,12 +539,15 @@ function submit() {
       <Listbox v-model="selectedVisibility">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm font-medium text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
             :aria-label="t('compose.visibility.label')"
             :title="t('compose.visibility.label')"
           >
             <span>{{ selectedVisibility.icon }}</span>
-            <span>{{ t(selectedVisibility.label) }}</span>
+            <span class="inline-flex flex-col items-start leading-tight">
+              <span class="text-[11px] font-medium opacity-75">{{ t('compose.post_visibility_label') }}</span>
+              <span class="font-semibold">{{ t(selectedVisibility.label) }}</span>
+            </span>
           </ListboxButton>
           <ListboxOptions
             class="absolute left-0 top-full mt-1 w-56 rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20"
@@ -575,12 +578,15 @@ function submit() {
       <Listbox v-model="compose.quotePolicy">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm font-medium text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
             :aria-label="t('compose.quote_policy.label')"
             :title="t('compose.quote_policy.label')"
           >
             <span>{{ quotePolicyIcons[compose.quotePolicy] }}</span>
-            <span>{{ t(`compose.quote_policy.${compose.quotePolicy}`) }}</span>
+            <span class="inline-flex flex-col items-start leading-tight">
+              <span class="text-[11px] font-medium opacity-75">{{ t('compose.quote_permission_label') }}</span>
+              <span class="font-semibold">{{ t(`compose.quote_policy.${compose.quotePolicy}`) }}</span>
+            </span>
           </ListboxButton>
           <ListboxOptions
             class="absolute left-0 top-full mt-1 z-20 w-48 rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1"
@@ -611,12 +617,15 @@ function submit() {
       <Listbox v-model="selectedLanguage">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm font-medium text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
             :aria-label="t('compose.language')"
             :title="t('compose.language')"
           >
             <span>文</span>
-            <span>{{ selectedLanguage.label }}</span>
+            <span class="inline-flex flex-col items-start leading-tight">
+              <span class="text-[11px] font-medium opacity-75">{{ t('compose.post_language_label') }}</span>
+              <span class="font-semibold">{{ selectedLanguage.label }}</span>
+            </span>
           </ListboxButton>
           <ListboxOptions
             class="absolute left-0 top-full mt-1 w-40 max-h-56 overflow-auto rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20"
@@ -665,7 +674,7 @@ function submit() {
         v-model="content"
         :placeholder="t('compose.placeholder')"
         rows="5"
-        class="w-full px-0 py-2 text-lg leading-relaxed bg-transparent border-0 resize-none focus:outline-none placeholder-gray-400 dark:placeholder-gray-500"
+        class="w-full px-0 py-2 text-lg leading-relaxed bg-transparent border-0 resize-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         @paste="onPaste"
         @drop.prevent="onDrop"
         @dragover.prevent

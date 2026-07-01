@@ -18,18 +18,16 @@ import {
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import type { AccountRow, StatusRow, PollRow } from '../../../types/db';
-import { normalizeQuotePolicy, quotePolicyAutomaticApproval } from '../../../../../../packages/shared/utils/quotePolicy';
+import { normalizeQuotePolicy, quotePolicyAutomaticApprovals } from '../../../../../../packages/shared/utils/quotePolicy';
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 function buildCanQuoteRule(status: StatusRow, actorUri: string): InteractionRule {
   const policy = normalizeQuotePolicy(status.quote_policy);
   const values: ConstructorParameters<typeof InteractionRule>[0] = {
-    automaticApproval: new URL(quotePolicyAutomaticApproval(policy, actorUri, `${actorUri}/followers`)),
+    automaticApprovals: quotePolicyAutomaticApprovals(policy, actorUri, `${actorUri}/followers`)
+      .map((uri) => new URL(uri)),
   };
-  if (policy !== 'nobody') {
-    values.manualApproval = new URL(actorUri);
-  }
   return new InteractionRule(values);
 }
 
