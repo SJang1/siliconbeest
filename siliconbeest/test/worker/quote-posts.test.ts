@@ -114,6 +114,21 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(approvals).toEqual(expect.arrayContaining(['as:Public']));
     expect(canQuote.manualApproval).toBeUndefined();
     expect(canQuote.manualApprovals).toBeUndefined();
+    expect(ap.replies).toMatchObject({
+      id: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
+      type: 'Collection',
+      totalItems: 0,
+    });
+    expect(ap.shares).toMatchObject({
+      id: `${BASE}/users/quoteuser/statuses/${status.id}/shares`,
+      type: 'Collection',
+      totalItems: 0,
+    });
+    expect(ap.likes).toMatchObject({
+      id: `${BASE}/users/quoteuser/statuses/${status.id}/likes`,
+      type: 'Collection',
+      totalItems: 0,
+    });
   });
 
   it('stores the user default quote policy and applies it to new posts', async () => {

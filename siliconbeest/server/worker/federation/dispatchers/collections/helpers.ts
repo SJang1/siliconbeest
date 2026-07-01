@@ -15,6 +15,7 @@ import {
   Emoji as APEmoji,
   InteractionPolicy,
   InteractionRule,
+  Collection,
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import type { AccountRow, StatusRow, PollRow } from '../../../types/db';
@@ -29,6 +30,13 @@ function buildCanQuoteRule(status: StatusRow, actorUri: string): InteractionRule
       .map((uri) => new URL(uri)),
   };
   return new InteractionRule(values);
+}
+
+function buildStatusCollection(uri: string, name: 'replies' | 'shares' | 'likes', totalItems: number): Collection {
+  return new Collection({
+    id: new URL(`${uri}/${name}`),
+    totalItems,
+  });
 }
 
 /**
@@ -150,6 +158,9 @@ export function buildFedifyNote(
     ccs: ccs.map((u) => u),
     sensitive: status.sensitive === 1,
     summary: status.content_warning || null,
+    replies: buildStatusCollection(status.uri, 'replies', status.replies_count ?? 0),
+    shares: buildStatusCollection(status.uri, 'shares', status.reblogs_count ?? 0),
+    likes: buildStatusCollection(status.uri, 'likes', status.favourites_count ?? 0),
     interactionPolicy: new InteractionPolicy({
       canQuote: buildCanQuoteRule(status, actorUri),
     }),
@@ -245,6 +256,9 @@ export function buildFedifyQuestion(
     ccs: ccs.map((u) => u),
     sensitive: status.sensitive === 1,
     summary: status.content_warning || null,
+    replies: buildStatusCollection(status.uri, 'replies', status.replies_count ?? 0),
+    shares: buildStatusCollection(status.uri, 'shares', status.reblogs_count ?? 0),
+    likes: buildStatusCollection(status.uri, 'likes', status.favourites_count ?? 0),
     interactionPolicy: new InteractionPolicy({
       canQuote: buildCanQuoteRule(status, actorUri),
     }),
