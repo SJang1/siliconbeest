@@ -26,15 +26,32 @@ interface CreateProcessorOptions {
  * Determine visibility from the Note's to/cc fields.
  */
 function resolveVisibility(note: APObject): string {
-	const publicNs = 'https://www.w3.org/ns/activitystreams#Public';
-	const toArr = Array.isArray(note.to) ? note.to : note.to ? [note.to] : [];
-	const ccArr = Array.isArray(note.cc) ? note.cc : note.cc ? [note.cc] : [];
+	const toArr = idsFrom(note.to);
+	const ccArr = idsFrom(note.cc);
 
-	if (toArr.includes(publicNs)) return 'public';
-	if (ccArr.includes(publicNs)) return 'unlisted';
+	if (toArr.some(isPublicCollection)) return 'public';
+	if (ccArr.some(isPublicCollection)) return 'unlisted';
 	if (toArr.some((t) => t.endsWith('/followers'))) return 'private';
 	console.warn(`[create] Could not determine visibility for note ${note.id}, defaulting to 'direct'`);
 	return 'direct';
+}
+
+function idsFrom(value: unknown): string[] {
+	if (!value) return [];
+	if (typeof value === 'string') return [value];
+	if (value instanceof URL) return [value.href];
+	if (Array.isArray(value)) return value.flatMap(idsFrom);
+	if (typeof value === 'object') {
+		const obj = value as Record<string, unknown>;
+		return idsFrom(obj.id).concat(idsFrom(obj['@id'])).concat(idsFrom(obj.href));
+	}
+	return [];
+}
+
+function isPublicCollection(value: string): boolean {
+	return value === 'https://www.w3.org/ns/activitystreams#Public'
+		|| value === 'as:Public'
+		|| value === 'Public';
 }
 
 function firstString(value: unknown): string {

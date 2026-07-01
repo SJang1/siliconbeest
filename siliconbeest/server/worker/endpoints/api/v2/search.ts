@@ -9,10 +9,17 @@ import { getFedifyContext } from '../../../federation/helpers/send';
 import { isActor, Note, Question } from '@fedify/fedify/vocab';
 import { pickSignerUsername } from '../../../../../../packages/shared/services/signer';
 import { processCreate } from '../../../federation/inboxProcessors/create';
+import { resolveRemoteAccount } from '../../../federation/resolveRemoteAccount';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
 import type { APActivity, APObject } from '../../../types/activitypub';
 
 const app = new Hono<{ Variables: AppVariables }>();
+
+type SearchViewer = {
+  id: string;
+  username: string;
+  uri: string;
+} | null;
 
 const STATUS_SEARCH_SELECT = `
   SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
@@ -62,14 +69,94 @@ function normalizeApObject(jsonLd: unknown, fallbackId: string, fallbackType: 'N
   return obj as APObject;
 }
 
-async function findStatusIdByUriOrUrl(uriOrUrl: string): Promise<string | null> {
+function isPublicCollection(value: string): boolean {
+  return value === 'https://www.w3.org/ns/activitystreams#Public'
+    || value === 'as:Public'
+    || value === 'Public';
+}
+
+function resolveVisibilityFromObject(object: APObject): string {
+  const to = idsFrom((object as Record<string, unknown>).to);
+  const cc = idsFrom((object as Record<string, unknown>).cc);
+  if (to.some(isPublicCollection)) return 'public';
+  if (cc.some(isPublicCollection)) return 'unlisted';
+  if (to.some((target) => target.endsWith('/followers'))) return 'private';
+  return 'direct';
+}
+
+function tagMentionsActor(tag: unknown, actorUri: string): boolean {
+  const tags = Array.isArray(tag) ? tag : tag ? [tag] : [];
+  return tags.some((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const tag = item as Record<string, unknown>;
+    if (tag.type !== 'Mention') return false;
+    return idsFrom(tag.href).concat(idsFrom(tag.id)).includes(actorUri);
+  });
+}
+
+async function followsAccount(viewerAccountId: string, targetAccountId: string): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT id FROM statuses
+    'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
+  ).bind(viewerAccountId, targetAccountId).first();
+  return !!row;
+}
+
+async function canViewStoredStatus(statusId: string, viewerAccountId: string | null): Promise<boolean> {
+  const row = await env.DB.prepare(
+    'SELECT account_id, visibility FROM statuses WHERE id = ?1 AND deleted_at IS NULL LIMIT 1',
+  ).bind(statusId).first<{ account_id: string; visibility: string }>();
+  if (!row) return false;
+  if (row.visibility === 'public' || row.visibility === 'unlisted') return true;
+  if (!viewerAccountId) return false;
+  if (row.account_id === viewerAccountId) return true;
+  if (row.visibility === 'private') {
+    return followsAccount(viewerAccountId, row.account_id);
+  }
+  if (row.visibility === 'direct') {
+    const mention = await env.DB.prepare(
+      'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
+    ).bind(statusId, viewerAccountId).first();
+    return !!mention;
+  }
+  return false;
+}
+
+async function canViewRemoteObject(
+  object: APObject,
+  visibility: string,
+  actorUri: string,
+  actorAccountId: string,
+  viewer: SearchViewer,
+): Promise<boolean> {
+  if (visibility === 'public' || visibility === 'unlisted') return true;
+  if (!viewer) return false;
+  if (actorUri === viewer.uri) return true;
+
+  const obj = object as Record<string, unknown>;
+  const audience = [
+    ...idsFrom(obj.to),
+    ...idsFrom(obj.cc),
+    ...idsFrom(obj.bto),
+    ...idsFrom(obj.bcc),
+    ...idsFrom(obj.audience),
+  ];
+  if (audience.includes(viewer.uri) || tagMentionsActor(obj.tag, viewer.uri)) {
+    return true;
+  }
+  if (visibility === 'private') {
+    return followsAccount(viewer.id, actorAccountId);
+  }
+  return false;
+}
+
+async function findStatusByUriOrUrl(uriOrUrl: string): Promise<{ id: string; visibility: string } | null> {
+  const row = await env.DB.prepare(
+    `SELECT id, visibility FROM statuses
      WHERE (uri = ?1 OR url = ?1)
        AND deleted_at IS NULL
      LIMIT 1`,
-  ).bind(uriOrUrl).first<{ id: string }>();
-  return row?.id ?? null;
+  ).bind(uriOrUrl).first<{ id: string; visibility: string }>();
+  return row ?? null;
 }
 
 async function fetchJoinedStatusById(statusId: string): Promise<Record<string, unknown> | null> {
@@ -84,14 +171,14 @@ async function fetchJoinedStatusById(statusId: string): Promise<Record<string, u
 async function resolveRemoteStatusFromUrl(
   url: string,
   fed: NonNullable<AppVariables['federation']>,
-  signerAccountId: string | null,
+  viewer: SearchViewer,
 ): Promise<string | null> {
   const normalizedUrl = new URL(url).href;
-  const existing = await findStatusIdByUriOrUrl(normalizedUrl);
-  if (existing) return existing;
+  const existing = await findStatusByUriOrUrl(normalizedUrl);
+  if (existing && await canViewStoredStatus(existing.id, viewer?.id ?? null)) return existing.id;
 
   const ctx = getFedifyContext(fed);
-  const signerUsername = await pickSignerUsername(env.DB, signerAccountId);
+  const signerUsername = await pickSignerUsername(env.DB, viewer?.id ?? null);
   if (!signerUsername) {
     console.warn('[search] No local signer available, skipping remote status fetch');
     return null;
@@ -114,9 +201,6 @@ async function resolveRemoteStatusFromUrl(
   const objectId = statusObject.id?.href;
   if (!objectId) return null;
 
-  const existingByObjectId = await findStatusIdByUriOrUrl(objectId);
-  if (existingByObjectId) return existingByObjectId;
-
   const fallbackType = remoteObject instanceof Question || (remoteObject as { constructor?: { name?: string } }).constructor?.name === 'Question'
     ? 'Question'
     : 'Note';
@@ -127,6 +211,24 @@ async function resolveRemoteStatusFromUrl(
     console.warn(`[search] remote status has no attributedTo: ${objectId}`);
     return null;
   }
+  const actorAccountId = await resolveRemoteAccount(actor, viewer?.id ?? null);
+  if (!actorAccountId) return null;
+  const visibility = resolveVisibilityFromObject(object);
+  const remoteVisible = await canViewRemoteObject(object, visibility, actor, actorAccountId, viewer);
+
+  const existingByObjectId = await findStatusByUriOrUrl(objectId);
+  const existingStatus = existingByObjectId ?? existing;
+  if (existingStatus) {
+    if (!remoteVisible) return null;
+    if (visibility !== existingStatus.visibility) {
+      await env.DB.prepare(
+        'UPDATE statuses SET visibility = ?1, updated_at = ?2 WHERE id = ?3',
+      ).bind(visibility, new Date().toISOString(), existingStatus.id).run();
+    }
+    return await canViewStoredStatus(existingStatus.id, viewer?.id ?? null) ? existingStatus.id : null;
+  }
+
+  if (!remoteVisible) return null;
 
   const activity: APActivity = {
     type: 'Create',
@@ -135,8 +237,10 @@ async function resolveRemoteStatusFromUrl(
     object,
   };
 
-  await processCreate(activity, signerAccountId, { fanout: false, notify: false });
-  return await findStatusIdByUriOrUrl(objectId);
+  await processCreate(activity, viewer?.id ?? null, { fanout: false, notify: false });
+  const stored = await findStatusByUriOrUrl(objectId);
+  if (!stored || !await canViewStoredStatus(stored.id, viewer?.id ?? null)) return null;
+  return stored.id;
 }
 
 app.get('/', authOptional, async (c) => {
@@ -306,22 +410,32 @@ app.get('/', authOptional, async (c) => {
 
   // Search statuses
   if (!type || type === 'statuses') {
-    const { results } = await env.DB.prepare(`
-      ${STATUS_SEARCH_SELECT}
-      WHERE s.content LIKE ?1
-        AND s.visibility = 'public'
-        AND s.deleted_at IS NULL
-      ORDER BY s.id DESC
-      LIMIT ?2 OFFSET ?3
-    `).bind(searchTerm, limit, offset).all();
+    const urlQuery = isUrlQuery(q);
+    const { results } = urlQuery
+      ? { results: [] }
+      : await env.DB.prepare(`
+        ${STATUS_SEARCH_SELECT}
+        WHERE s.content LIKE ?1
+          AND s.visibility = 'public'
+          AND s.deleted_at IS NULL
+        ORDER BY s.id DESC
+        LIMIT ?2 OFFSET ?3
+      `).bind(searchTerm, limit, offset).all();
 
     const currentAccount = c.get('currentAccount');
+    const viewer: SearchViewer = currentAccount
+      ? {
+          id: currentAccount.id,
+          username: currentAccount.username,
+          uri: `https://${domain}/users/${currentAccount.username}`,
+        }
+      : null;
     const statusRows: Record<string, unknown>[] = [...((results ?? []) as Record<string, unknown>[])];
-    if (resolve && isUrlQuery(q)) {
+    if (resolve && urlQuery) {
       const resolvedStatusId = await resolveRemoteStatusFromUrl(
         q,
         c.get('federation'),
-        currentAccount?.id ?? null,
+        viewer,
       );
       if (resolvedStatusId && !statusRows.some((row) => row.id === resolvedStatusId)) {
         const resolvedRow = await fetchJoinedStatusById(resolvedStatusId);

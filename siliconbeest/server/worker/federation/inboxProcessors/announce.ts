@@ -33,13 +33,18 @@ function hasQuoteCommentary(activity: APActivity): boolean {
 }
 
 function resolveVisibility(activity: APActivity): string {
-	const publicNs = 'https://www.w3.org/ns/activitystreams#Public';
 	const to = Array.isArray(activity.to) ? activity.to : activity.to ? [activity.to] : [];
 	const cc = Array.isArray(activity.cc) ? activity.cc : activity.cc ? [activity.cc] : [];
-	if (to.includes(publicNs)) return 'public';
-	if (cc.includes(publicNs)) return 'unlisted';
+	if (to.some(isPublicCollection)) return 'public';
+	if (cc.some(isPublicCollection)) return 'unlisted';
 	if (to.some((target) => target.endsWith('/followers'))) return 'private';
 	return 'direct';
+}
+
+function isPublicCollection(value: string): boolean {
+	return value === 'https://www.w3.org/ns/activitystreams#Public'
+		|| value === 'as:Public'
+		|| value === 'Public';
 }
 
 class AnnounceProcessor extends BaseProcessor {
