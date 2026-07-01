@@ -175,7 +175,13 @@ async function resolveRemoteStatusFromUrl(
 ): Promise<string | null> {
   const normalizedUrl = new URL(url).href;
   const existing = await findStatusByUriOrUrl(normalizedUrl);
-  if (existing && await canViewStoredStatus(existing.id, viewer?.id ?? null)) return existing.id;
+  const isLocalUrl = new URL(normalizedUrl).host === env.INSTANCE_DOMAIN;
+  if (existing) {
+    const visible = await canViewStoredStatus(existing.id, viewer?.id ?? null);
+    if (visible) return existing.id;
+    if (isLocalUrl) return null;
+  }
+  if (isLocalUrl) return null;
 
   const ctx = getFedifyContext(fed);
   const signerUsername = await pickSignerUsername(env.DB, viewer?.id ?? null);
