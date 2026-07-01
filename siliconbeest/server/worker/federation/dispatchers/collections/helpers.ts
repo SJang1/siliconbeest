@@ -16,6 +16,7 @@ import {
   InteractionPolicy,
   InteractionRule,
   Collection,
+  CollectionPage,
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import type { AccountRow, StatusRow, PollRow } from '../../../types/db';
@@ -33,6 +34,18 @@ function buildCanQuoteRule(status: StatusRow, actorUri: string): InteractionRule
 }
 
 function buildStatusCollection(uri: string, name: 'replies' | 'shares' | 'likes', totalItems: number): Collection {
+  if (name === 'replies') {
+    const collectionUri = `${uri}/replies`;
+    return new Collection({
+      id: new URL(collectionUri),
+      first: new CollectionPage({
+        id: new URL(`${collectionUri}?page=true`),
+        partOf: new URL(collectionUri),
+        next: new URL(`${collectionUri}?only_other_accounts=true&page=true`),
+      }),
+    });
+  }
+
   return new Collection({
     id: new URL(`${uri}/${name}`),
     totalItems,

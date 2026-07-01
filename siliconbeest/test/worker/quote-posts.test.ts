@@ -117,7 +117,11 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(ap.replies).toMatchObject({
       id: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
       type: 'Collection',
-      totalItems: 0,
+      first: {
+        id: `${BASE}/users/quoteuser/statuses/${status.id}/replies?page=true`,
+        type: 'CollectionPage',
+        partOf: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
+      },
     });
     expect(ap.shares).toMatchObject({
       id: `${BASE}/users/quoteuser/statuses/${status.id}/shares`,
@@ -129,6 +133,47 @@ describe('Quote Posts (FEP-e232)', () => {
       type: 'Collection',
       totalItems: 0,
     });
+
+    const repliesRes = await SELF.fetch(`${BASE}/users/quoteuser/statuses/${status.id}/replies`, {
+      headers: { Accept: 'application/activity+json, application/ld+json' },
+    });
+    expect(repliesRes.status).toBe(200);
+    const replies = await repliesRes.json<Record<string, any>>();
+    expect(replies).toMatchObject({
+      id: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
+      type: 'Collection',
+      first: {
+        id: `${BASE}/users/quoteuser/statuses/${status.id}/replies?page=true`,
+        type: 'CollectionPage',
+        partOf: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
+      },
+    });
+
+    const repliesPageRes = await SELF.fetch(`${BASE}/users/quoteuser/statuses/${status.id}/replies?page=true`, {
+      headers: { Accept: 'application/activity+json, application/ld+json' },
+    });
+    expect(repliesPageRes.status).toBe(200);
+    const repliesPage = await repliesPageRes.json<Record<string, any>>();
+    expect(repliesPage).toMatchObject({
+      id: `${BASE}/users/quoteuser/statuses/${status.id}/replies?page=true`,
+      type: 'CollectionPage',
+      partOf: `${BASE}/users/quoteuser/statuses/${status.id}/replies`,
+      items: [],
+    });
+
+    for (const name of ['shares', 'likes']) {
+      const collectionRes = await SELF.fetch(`${BASE}/users/quoteuser/statuses/${status.id}/${name}`, {
+        headers: { Accept: 'application/activity+json, application/ld+json' },
+      });
+      expect(collectionRes.status).toBe(200);
+      const collection = await collectionRes.json<Record<string, any>>();
+      expect(collection).toMatchObject({
+        id: `${BASE}/users/quoteuser/statuses/${status.id}/${name}`,
+        type: 'Collection',
+        totalItems: 0,
+      });
+      expect(collection.items).toBeUndefined();
+    }
   });
 
   it('stores the user default quote policy and applies it to new posts', async () => {

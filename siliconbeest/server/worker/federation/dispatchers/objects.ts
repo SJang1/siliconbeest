@@ -254,6 +254,133 @@ export async function handleActivityRequest(
   });
 }
 
+type StatusCollectionName = 'replies' | 'shares' | 'likes';
+
+function collectionResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/activity+json; charset=utf-8' },
+  });
+}
+
+async function getStatusCollectionItems(
+  statusId: string,
+  collection: StatusCollectionName,
+): Promise<string[]> {
+  if (collection === 'replies') {
+    const { results } = await env.DB.prepare(
+      `SELECT uri
+       FROM statuses
+       WHERE in_reply_to_id = ?1
+         AND deleted_at IS NULL
+         AND visibility IN ('public', 'unlisted')
+       ORDER BY created_at ASC
+       LIMIT 40`,
+    ).bind(statusId).all<{ uri: string }>();
+    return (results ?? []).map((row) => row.uri);
+  }
+
+  if (collection === 'shares') {
+    const { results } = await env.DB.prepare(
+      `SELECT uri
+       FROM statuses
+       WHERE (reblog_of_id = ?1 OR quote_id = ?1)
+         AND deleted_at IS NULL
+         AND visibility IN ('public', 'unlisted')
+       ORDER BY created_at ASC
+       LIMIT 40`,
+    ).bind(statusId).all<{ uri: string }>();
+    return (results ?? []).map((row) => row.uri);
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT uri
+     FROM favourites
+     WHERE status_id = ?1
+       AND uri IS NOT NULL
+     ORDER BY created_at ASC
+     LIMIT 40`,
+  ).bind(statusId).all<{ uri: string | null }>();
+  return (results ?? [])
+    .map((row) => row.uri)
+    .filter((uri): uri is string => typeof uri === 'string' && uri.length > 0);
+}
+
+export async function handleStatusCollectionRequest(
+  identifier: string,
+  id: string,
+  collection: string,
+  page = false,
+): Promise<Response> {
+  if (collection !== 'replies' && collection !== 'shares' && collection !== 'likes') {
+    return collectionResponse({ error: 'Record not found' }, 404);
+  }
+
+  const domain = env.INSTANCE_DOMAIN;
+  const row = await env.DB.prepare(
+    `SELECT s.id, s.uri, s.replies_count, s.reblogs_count, s.favourites_count
+     FROM statuses s
+     JOIN accounts a ON a.id = s.account_id
+     WHERE s.id = ?1
+       AND a.username = ?2
+       AND a.domain IS NULL
+       AND s.deleted_at IS NULL
+       AND s.reblog_of_id IS NULL
+     LIMIT 1`,
+  ).bind(id, identifier).first<{
+    id: string;
+    uri: string;
+    replies_count: number;
+    reblogs_count: number;
+    favourites_count: number;
+  }>();
+
+  if (!row) {
+    return collectionResponse({ error: 'Record not found' }, 404);
+  }
+
+  const totalItems = collection === 'replies'
+    ? row.replies_count
+    : collection === 'shares'
+      ? row.reblogs_count
+      : row.favourites_count;
+  const items = await getStatusCollectionItems(row.id, collection);
+  const collectionUri = `https://${domain}/users/${identifier}/statuses/${id}/${collection}`;
+
+  if (collection === 'replies') {
+    if (!page) {
+      return collectionResponse({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUri,
+        type: 'Collection',
+        first: {
+          type: 'CollectionPage',
+          id: `${collectionUri}?page=true`,
+          partOf: collectionUri,
+          next: `${collectionUri}?only_other_accounts=true&page=true`,
+        },
+      });
+    }
+
+    return collectionResponse({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${collectionUri}?page=true`,
+      type: 'CollectionPage',
+      partOf: collectionUri,
+      items,
+    });
+  }
+
+  const body: Record<string, unknown> = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: collectionUri,
+    type: 'Collection',
+    totalItems: totalItems ?? 0,
+  };
+  if (items.length > 0) body.items = items;
+  return collectionResponse(body);
+}
+
 // ============================================================
 // SHARED: Load conversation, media, reply context for a status
 // ============================================================

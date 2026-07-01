@@ -20,7 +20,7 @@ import { createFed, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
 import { setupCollectionDispatchers } from './federation/dispatchers/collections';
-import { setupObjectDispatchers, handleActivityRequest } from './federation/dispatchers/objects';
+import { setupObjectDispatchers, handleActivityRequest, handleStatusCollectionRequest } from './federation/dispatchers/objects';
 import { setupWorkerInboxListeners } from './federation/listeners/inbox';
 import { getSettings } from './services/instance';
 
@@ -346,6 +346,25 @@ app.get('/users/:identifier/statuses/:id', async (c, next) => {
     return next();
   }
   return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
+});
+
+app.get('/users/:identifier/statuses/:id/:collection', async (c) => {
+  const collection = c.req.param('collection');
+  if (collection !== 'replies' && collection !== 'shares' && collection !== 'likes') {
+    return c.notFound();
+  }
+
+  const accept = c.req.header('Accept') || '';
+  if (!accept.includes('activity+json') && !accept.includes('ld+json')) {
+    return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
+  }
+
+  return handleStatusCollectionRequest(
+    c.req.param('identifier'),
+    c.req.param('id'),
+    collection,
+    c.req.query('page') === 'true',
+  );
 });
 
 app.route('/users', apActor);
