@@ -81,19 +81,19 @@ async function saveDefaultLanguage(newLocale: string) {
 
 <template>
   <div>
-    <h2 class="text-xl font-bold mb-6">{{ t('settings.account') }}</h2>
+    <h2 class="sb-heading text-xl mb-6">{{ t('settings.account') }}</h2>
 
     <div class="space-y-6">
       <!-- Default Language Section -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h3 class="text-lg font-semibold mb-1">{{ t('settings.default_language') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('settings.default_language_desc') }}</p>
+      <div class="sb-card p-6">
+        <h3 class="sb-heading text-lg mb-1">{{ t('settings.default_language') }}</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t('settings.default_language_desc') }}</p>
         <div class="flex items-center gap-3 max-w-xs">
           <select
             :value="defaultLanguage"
             @change="saveDefaultLanguage(($event.target as HTMLSelectElement).value)"
             :disabled="savingLang"
-            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            class="sb-input disabled:opacity-50"
           >
             <option v-for="loc in ALL_LOCALES" :key="loc.code" :value="loc.code">
               {{ loc.name }}
@@ -104,58 +104,58 @@ async function saveDefaultLanguage(newLocale: string) {
       </div>
 
       <!-- Change Password Section -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h3 class="text-lg font-semibold mb-4">{{ t('passwords.change_title') }}</h3>
+      <div class="sb-card p-6">
+        <h3 class="sb-heading text-lg mb-4">{{ t('passwords.change_title') }}</h3>
 
-        <div v-if="success" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+        <div v-if="success" class="mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 text-sm">
           {{ success }}
         </div>
 
-        <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+        <div v-if="error" class="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm" role="alert">
           {{ error }}
         </div>
 
         <form @submit.prevent="handleChangePassword" class="space-y-4 max-w-xl">
           <div>
-            <label for="current-password" class="block text-sm font-medium mb-1">{{ t('passwords.current_password') }}</label>
+            <label for="current-password" class="sb-label">{{ t('passwords.current_password') }}</label>
             <input
               id="current-password"
               v-model="currentPassword"
               type="password"
               required
               autocomplete="current-password"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
             />
           </div>
 
           <div>
-            <label for="new-password" class="block text-sm font-medium mb-1">{{ t('passwords.new_password') }}</label>
+            <label for="new-password" class="sb-label">{{ t('passwords.new_password') }}</label>
             <input
               id="new-password"
               v-model="newPassword"
               type="password"
               required
               autocomplete="new-password"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
             />
           </div>
 
           <div>
-            <label for="confirm-new-password" class="block text-sm font-medium mb-1">{{ t('passwords.confirm_new_password') }}</label>
+            <label for="confirm-new-password" class="sb-label">{{ t('passwords.confirm_new_password') }}</label>
             <input
               id="confirm-new-password"
               v-model="confirmPassword"
               type="password"
               required
               autocomplete="new-password"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
             />
           </div>
 
           <button
             type="submit"
             :disabled="loading"
-            class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-primary px-6"
           >
             {{ loading ? t('common.loading') : t('passwords.change_submit') }}
           </button>

@@ -64,10 +64,10 @@ const isTargetRemote = computed(() => {
 const categoryBadgeClass = computed(() => {
   if (!report.value) return ''
   switch (report.value.category) {
-    case 'spam': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-    case 'violation': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    case 'legal': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+    case 'spam': return 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+    case 'violation': return 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+    case 'legal': return 'bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
+    default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
   }
 })
 
@@ -176,36 +176,36 @@ function formatDate(dateStr: string) {
 
 function actionBadgeClass(action: string) {
   switch (action) {
-    case 'warn': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+    case 'warn': return 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
     case 'silence':
-    case 'sensitive': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    case 'sensitive': return 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300'
     case 'disable':
-    case 'suspend': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+    case 'suspend': return 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+    default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
   }
 }
 </script>
 
 <template>
   <AdminLayout>
-  <div class="w-full max-w-4xl">
+  <div class="w-full max-w-5xl animate-fade-in">
     <!-- Header -->
-    <div class="flex items-center gap-3 mb-6">
+    <div class="mb-6 flex items-center gap-3">
       <button
         @click="router.push('/admin/reports')"
-        class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+        class="rounded-full p-2 text-slate-600 transition-colors hover:bg-surface-2 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-slate-400 dark:hover:bg-surface-2-dark dark:hover:text-white"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
       </button>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+      <h1 class="sb-heading text-2xl text-slate-900 dark:text-white">
         {{ t('admin.reportDetail.title') }} #{{ id }}
       </h1>
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
       {{ error }}
     </div>
 
@@ -213,56 +213,56 @@ function actionBadgeClass(action: string) {
 
     <template v-else-if="report">
       <!-- Report Info Card -->
-      <div class="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 mb-6">
-        <div class="flex flex-wrap items-center gap-2 mb-3">
-          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">ID: {{ report.id }}</span>
+      <div class="sb-card mb-6 p-5">
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <span class="text-sm font-medium text-slate-500 dark:text-slate-400">ID: {{ report.id }}</span>
           <span
-            class="px-2 py-0.5 rounded-full text-xs font-medium"
+            class="sb-chip"
             :class="categoryBadgeClass"
           >
             {{ t('admin.reportDetail.category_' + report.category) }}
           </span>
           <span
-            class="px-2 py-0.5 rounded-full text-xs font-medium"
+            class="sb-chip"
             :class="report.action_taken
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+              : 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
             "
           >
             {{ report.action_taken ? t('admin.reportStatus.resolved') : t('admin.reportStatus.open') }}
           </span>
-          <span v-if="report.forwarded" class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">
+          <span v-if="report.forwarded" class="sb-chip bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
             {{ t('admin.reportDetail.forwarded') }}
           </span>
         </div>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <p class="mb-1 text-sm text-slate-500 dark:text-slate-400">
           {{ t('admin.reportDetail.date') }}: {{ formatDate(report.created_at) }}
         </p>
-        <p v-if="report.comment" class="text-sm text-gray-700 dark:text-gray-300 mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+        <p v-if="report.comment" class="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-slate-700 dark:bg-surface-2-dark dark:text-slate-300">
           {{ report.comment }}
         </p>
       </div>
 
       <!-- Reporter / Target Account -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <!-- Reporter -->
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+        <div class="sb-card p-4">
+          <h3 class="sb-label mb-3">
             {{ t('admin.reportDetail.reporter') }}
           </h3>
           <div class="flex items-center gap-3">
             <img
               :src="report.account.avatar"
               :alt="report.account.username"
-              class="w-10 h-10 rounded-full object-cover"
+              class="h-10 w-10 rounded-full object-cover"
             />
             <div class="min-w-0">
-              <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p class="truncate text-sm font-medium text-slate-900 dark:text-white">
                 {{ report.account.display_name || report.account.username }}
               </p>
               <router-link
                 :to="'/@' + report.account.acct"
-                class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                class="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
               >
                 @{{ report.account.acct }}
               </router-link>
@@ -271,23 +271,23 @@ function actionBadgeClass(action: string) {
         </div>
 
         <!-- Target -->
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+        <div class="sb-card p-4">
+          <h3 class="sb-label mb-3">
             {{ t('admin.reportDetail.targetAccount') }}
           </h3>
           <div class="flex items-center gap-3">
             <img
               :src="report.target_account.avatar"
               :alt="report.target_account.username"
-              class="w-10 h-10 rounded-full object-cover"
+              class="h-10 w-10 rounded-full object-cover"
             />
             <div class="min-w-0">
-              <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p class="truncate text-sm font-medium text-slate-900 dark:text-white">
                 {{ report.target_account.display_name || report.target_account.username }}
               </p>
               <router-link
                 :to="'/@' + report.target_account.acct"
-                class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                class="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
               >
                 @{{ report.target_account.acct }}
               </router-link>
@@ -298,29 +298,29 @@ function actionBadgeClass(action: string) {
 
       <!-- Reported Statuses -->
       <div class="mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+        <h2 class="sb-heading mb-3 text-lg text-slate-900 dark:text-white">
           {{ t('admin.reportDetail.reportedStatuses') }}
         </h2>
-        <div v-if="report.statuses.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-gray-400 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div v-if="report.statuses.length === 0" class="sb-card p-4 text-center text-sm text-slate-500 dark:text-slate-400">
           {{ t('admin.reportDetail.noStatuses') }}
         </div>
         <div v-else class="space-y-3">
           <div
             v-for="status in report.statuses"
             :key="status.id"
-            class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+            class="sb-card p-4"
           >
-            <div class="prose prose-sm dark:prose-invert max-w-none mb-2" v-html="status.content" />
-            <div class="flex items-center justify-between mt-3">
-              <span class="text-xs text-gray-400">{{ formatDate(status.created_at) }}</span>
+            <div class="prose pred-sm dark:pred-invert mb-2 max-w-none" v-html="status.content" />
+            <div class="mt-3 flex items-center justify-between">
+              <span class="text-xs text-slate-400 dark:text-slate-500">{{ formatDate(status.created_at) }}</span>
               <div>
-                <span v-if="!status.url && !status.content" class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-medium">
+                <span v-if="!status.url && !status.content" class="sb-chip bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300">
                   {{ t('admin.reportDetail.deleted') }}
                 </span>
                 <button
                   v-else
                   @click="deleteStatus(status.id)"
-                  class="px-3 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                  class="sb-btn sb-btn-sm bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/80"
                 >
                   {{ t('common.delete') }}
                 </button>
@@ -332,28 +332,28 @@ function actionBadgeClass(action: string) {
 
       <!-- Warning History -->
       <div class="mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+        <h2 class="sb-heading mb-3 text-lg text-slate-900 dark:text-white">
           {{ t('admin.reportDetail.warningHistory') }}
         </h2>
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div v-if="warnings.length === 0" class="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
+        <div class="sb-card p-4">
+          <div v-if="warnings.length === 0" class="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
             {{ t('admin.reportDetail.noWarnings') }}
           </div>
           <div v-else class="space-y-3">
             <div
               v-for="warning in warnings"
               :key="warning.id"
-              class="flex items-start gap-3 pb-3 border-b border-gray-100 dark:border-gray-700/50 last:border-0 last:pb-0"
+              class="flex items-start gap-3 border-b border-outline pb-3 last:border-0 last:pb-0 dark:border-outline-dark"
             >
               <span
-                class="px-2 py-0.5 rounded-full text-xs font-medium shrink-0 mt-0.5"
+                class="sb-chip mt-0.5 shrink-0"
                 :class="actionBadgeClass(warning.action)"
               >
                 {{ t('admin.reportDetail.action_' + warning.action) }}
               </span>
               <div class="min-w-0 flex-1">
-                <p v-if="warning.text" class="text-sm text-gray-700 dark:text-gray-300">{{ warning.text }}</p>
-                <p class="text-xs text-gray-400 mt-1">{{ formatDate(warning.created_at) }}</p>
+                <p v-if="warning.text" class="text-sm text-slate-700 dark:text-slate-300">{{ warning.text }}</p>
+                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ formatDate(warning.created_at) }}</p>
               </div>
             </div>
           </div>
@@ -361,59 +361,59 @@ function actionBadgeClass(action: string) {
       </div>
 
       <!-- Action Form (only if not resolved) -->
-      <div v-if="!report.action_taken" class="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+      <div v-if="!report.action_taken" class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">
           {{ t('admin.reportDetail.takeAction') }}
         </h2>
 
         <!-- Action type radio -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="sb-label mb-2">
             {{ t('admin.reportDetail.actionType') }}
           </label>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <label
               v-for="at in actionTypes"
               :key="at.value"
-              class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors"
+              class="flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-colors"
               :class="actionType === at.value
-                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                ? 'border-brand-400 bg-brand-50 dark:border-brand-600 dark:bg-brand-950/40'
+                : 'border-outline hover:bg-surface-2 dark:border-outline-dark dark:hover:bg-surface-2-dark'
               "
             >
               <input
                 v-model="actionType"
                 type="radio"
                 :value="at.value"
-                class="text-indigo-600 focus:ring-indigo-500"
+                class="h-4 w-4 accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:accent-brand-500"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(at.labelKey) }}</span>
+              <span class="text-sm text-slate-700 dark:text-slate-300">{{ t(at.labelKey) }}</span>
             </label>
           </div>
         </div>
 
         <!-- Reason textarea -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="sb-label">
             {{ t('admin.reportDetail.reason') }}
           </label>
           <textarea
             v-model="actionText"
             rows="3"
-            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="sb-input"
             :placeholder="t('admin.reportDetail.reasonPlaceholder')"
           />
         </div>
 
         <!-- Email notification checkbox (hidden for remote accounts) -->
         <div v-if="!isTargetRemote" class="mb-6">
-          <label class="flex items-center gap-2 cursor-pointer">
+          <label class="flex cursor-pointer items-center gap-2">
             <input
               v-model="sendEmail"
               type="checkbox"
-              class="rounded text-indigo-600 focus:ring-indigo-500"
+              class="h-4 w-4 rounded accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:accent-brand-500"
             />
-            <span class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="text-sm text-slate-700 dark:text-slate-300">
               {{ t('admin.reportDetail.sendEmailNotification') }}
             </span>
           </label>
@@ -424,14 +424,14 @@ function actionBadgeClass(action: string) {
           <button
             @click="handleActionAndResolve"
             :disabled="submitting"
-            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-primary"
           >
             {{ submitting ? t('common.loading') : t('admin.reportDetail.actionAndResolve') }}
           </button>
           <button
             @click="handleDismissAndResolve"
             :disabled="submitting"
-            class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-secondary"
           >
             {{ t('admin.reportDetail.dismissAndResolve') }}
           </button>

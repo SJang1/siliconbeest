@@ -62,40 +62,59 @@ async function performSearch() {
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 p-4">
-        <form @submit.prevent="performSearch" class="flex gap-2">
-          <input
-            v-model="query"
-            type="search"
-            :placeholder="t('search.placeholder')"
-            class="flex-1 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            :aria-label="t('search.placeholder')"
-          />
+      <!-- Hero search -->
+      <section class="px-4 pb-6 pt-10 sm:pt-14">
+        <h1 class="sb-heading text-center text-3xl sm:text-4xl">
+          <span class="sb-gradient-text">{{ t('search.title') }}</span>
+        </h1>
+        <form @submit.prevent="performSearch" class="mx-auto mt-6 flex w-full max-w-xl items-center gap-2">
+          <div class="relative min-w-0 flex-1">
+            <svg
+              class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              v-model="query"
+              type="search"
+              :placeholder="t('search.placeholder')"
+              class="sb-input rounded-full py-3 pl-11 pr-4 text-base shadow-soft"
+              :aria-label="t('search.placeholder')"
+            />
+          </div>
           <button
             type="submit"
-            class="px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
+            class="sb-btn sb-btn-primary shrink-0 px-5 py-3"
           >
             {{ t('search.submit') }}
           </button>
         </form>
+      </section>
 
-        <!-- Tabs -->
-        <div v-if="searched" class="flex gap-1 mt-3">
+      <!-- Tabs -->
+      <div v-if="searched" class="sb-glass sticky top-0 z-10 border-b px-4 py-2">
+        <div class="mx-auto flex w-full max-w-xl items-center gap-1 overflow-x-auto">
           <button
             v-for="tab in (['accounts', 'statuses', 'hashtags'] as SearchTab[])"
             :key="tab"
             @click="activeTab = tab"
-            class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+            class="whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             :class="activeTab === tab
-              ? 'bg-indigo-600 text-white'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
+              ? 'bg-brand-600 text-white shadow-soft dark:bg-brand-500'
+              : 'text-slate-600 hover:bg-surface-2 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white'"
+            :aria-pressed="activeTab === tab"
           >
             {{ t(`search.${tab}`) }}
           </button>
         </div>
-      </header>
+      </div>
 
-      <div v-if="error" class="p-4 text-center text-red-500">
+      <div v-if="error" class="mx-4 my-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
         {{ error }}
       </div>
 
@@ -103,44 +122,73 @@ async function performSearch() {
 
       <template v-else-if="searched">
         <!-- Accounts -->
-        <div v-if="activeTab === 'accounts'">
-          <AccountCard
-            v-for="account in accounts"
-            :key="account.id"
-            :account="account"
-            show-follow-button
-          />
-          <p v-if="accounts.length === 0" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+        <section v-if="activeTab === 'accounts'" class="px-4 py-5">
+          <h2 class="sb-heading mb-3 text-base text-slate-900 dark:text-slate-100">{{ t('search.accounts') }}</h2>
+          <div class="space-y-3">
+            <AccountCard
+              v-for="account in accounts"
+              :key="account.id"
+              :account="account"
+              show-follow-button
+            />
+          </div>
+          <p v-if="accounts.length === 0" class="sb-empty">
             {{ t('search.no_results') }}
           </p>
-        </div>
+        </section>
 
         <!-- Statuses -->
-        <div v-if="activeTab === 'statuses'">
-          <StatusCard
-            v-for="status in statuses"
-            :key="status.id"
-            :status="status"
-          />
-          <p v-if="statuses.length === 0" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+        <section v-if="activeTab === 'statuses'" class="px-4 py-5">
+          <h2 class="sb-heading mb-3 text-base text-slate-900 dark:text-slate-100">{{ t('search.statuses') }}</h2>
+          <div class="space-y-3">
+            <StatusCard
+              v-for="status in statuses"
+              :key="status.id"
+              :status="status"
+            />
+          </div>
+          <p v-if="statuses.length === 0" class="sb-empty">
             {{ t('search.no_results') }}
           </p>
-        </div>
+        </section>
 
         <!-- Hashtags -->
-        <div v-if="activeTab === 'hashtags'">
-          <router-link
-            v-for="tag in hashtags"
-            :key="tag.name"
-            :to="`/tags/${tag.name}`"
-            class="block px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-          >
-            <p class="font-bold">#{{ tag.name }}</p>
-          </router-link>
-          <p v-if="hashtags.length === 0" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+        <section v-if="activeTab === 'hashtags'" class="px-4 py-5">
+          <h2 class="sb-heading mb-3 text-base text-slate-900 dark:text-slate-100">{{ t('search.hashtags') }}</h2>
+          <div v-if="hashtags.length > 0" class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
+            <router-link
+              v-for="tag in hashtags"
+              :key="tag.name"
+              :to="`/tags/${tag.name}`"
+              class="group flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark"
+            >
+              <span class="flex min-w-0 items-center gap-3">
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-300"
+                  aria-hidden="true"
+                >
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 8.25h13.5m-14.25 7.5h13.5m-9-15L7.5 20.25m9-19.5l-2.25 19.5" />
+                  </svg>
+                </span>
+                <span class="truncate font-bold text-slate-900 dark:text-slate-100">#{{ tag.name }}</span>
+              </span>
+              <svg
+                class="h-5 w-5 shrink-0 text-slate-400 transition-colors group-hover:text-brand-500 dark:text-slate-500 dark:group-hover:text-brand-400"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </router-link>
+          </div>
+          <p v-if="hashtags.length === 0" class="sb-empty">
             {{ t('search.no_results') }}
           </p>
-        </div>
+        </section>
       </template>
     </div>
   </AppShell>

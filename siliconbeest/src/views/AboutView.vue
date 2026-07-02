@@ -17,36 +17,36 @@ const loading = computed(() => pending.value || instanceStore.loading)
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h1 class="text-xl font-bold">{{ t('about.title') }}</h1>
+      <header class="sb-glass sticky top-0 z-10 border-b px-4 py-3">
+        <h1 class="sb-heading text-lg">{{ t('about.title') }}</h1>
       </header>
 
       <LoadingSpinner v-if="loading" />
 
-      <div v-else class="p-6 space-y-6">
+      <div v-else class="mx-auto w-full max-w-3xl space-y-5 px-4 py-8 animate-fade-in">
         <div class="text-center">
-          <h2 class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-            {{ instance?.title }}
+          <h2 class="sb-heading text-3xl">
+            <span class="sb-gradient-text">{{ instance?.title }}</span>
           </h2>
-          <p class="text-gray-500 dark:text-gray-400 mt-1">{{ t('about.description') }}</p>
+          <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ t('about.description') }}</p>
         </div>
 
-        <div v-if="instance" class="space-y-4">
+        <div v-if="instance" class="space-y-5">
           <!-- Stats -->
-          <div class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
-            <h3 class="font-semibold mb-2">{{ t('about.stats') }}</h3>
+          <div class="sb-card p-6">
+            <h3 class="sb-heading mb-4 text-base">{{ t('about.stats') }}</h3>
             <dl class="grid grid-cols-3 gap-4 text-center">
               <div>
-                <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.users') }}</dt>
-                <dd class="text-lg font-bold">{{ instance.usage?.users?.active_month ?? 0 }}</dd>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ t('about.users') }}</dt>
+                <dd class="sb-heading mt-1 text-xl">{{ instance.usage?.users?.active_month ?? 0 }}</dd>
               </div>
               <div>
-                <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.version') }}</dt>
-                <dd class="text-lg font-bold">{{ instance.version }}</dd>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ t('about.version') }}</dt>
+                <dd class="sb-heading mt-1 text-xl">{{ instance.version }}</dd>
               </div>
               <div>
-                <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('about.languages') }}</dt>
-                <dd class="text-lg font-bold">{{ instance.languages?.length ?? 0 }}</dd>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ t('about.languages') }}</dt>
+                <dd class="sb-heading mt-1 text-xl">{{ instance.languages?.length ?? 0 }}</dd>
               </div>
             </dl>
           </div>
@@ -54,31 +54,31 @@ const loading = computed(() => pending.value || instanceStore.loading)
           <!-- Description -->
           <div
             v-if="instance.description"
-            class="prose prose-sm dark:prose-invert max-w-none"
+            class="sb-card prose prose-sm max-w-none p-6 dark:prose-invert"
             v-html="instance.description"
           />
 
           <!-- Rules -->
-          <div v-if="instance.rules?.length" class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
-            <h3 class="font-semibold mb-3">{{ t('about.rules') }}</h3>
-            <ol class="space-y-2">
+          <div v-if="instance.rules?.length" class="sb-card p-6">
+            <h3 class="sb-heading mb-4 text-base">{{ t('about.rules') }}</h3>
+            <ol class="space-y-3">
               <li
                 v-for="(rule, index) in instance.rules"
                 :key="rule.id"
                 class="flex gap-3 text-sm"
               >
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold">
+                <span class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300">
                   {{ index + 1 }}
                 </span>
-                <span class="whitespace-pre-line">{{ rule.text }}</span>
+                <span class="whitespace-pre-line text-slate-700 dark:text-slate-300">{{ rule.text }}</span>
               </li>
             </ol>
           </div>
 
           <!-- Registration -->
-          <div class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
-            <h3 class="font-semibold mb-2">{{ t('about.registration') }}</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="sb-card p-6">
+            <h3 class="sb-heading mb-2 text-base">{{ t('about.registration') }}</h3>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
               {{ instance.registrations?.enabled
                 ? (instance.registrations.approval_required
                   ? t('about.registration_approval')
@@ -89,36 +89,38 @@ const loading = computed(() => pending.value || instanceStore.loading)
           </div>
 
           <!-- Contact -->
-          <div class="rounded-xl bg-gray-50 dark:bg-gray-800 p-4">
-            <h3 class="font-semibold mb-2">{{ t('about.contact') }}</h3>
+          <div class="sb-card p-6">
+            <h3 class="sb-heading mb-3 text-base">{{ t('about.contact') }}</h3>
             <div v-if="instance.contact?.account" class="flex items-center gap-3">
-              <img
-                :src="instance.contact.account.avatar"
-                :alt="instance.contact.account.display_name"
-                class="w-10 h-10 rounded-full"
-              />
+              <span class="sb-avatar-ring inline-flex flex-shrink-0">
+                <img
+                  :src="instance.contact.account.avatar"
+                  :alt="instance.contact.account.display_name"
+                  class="h-10 w-10 rounded-full"
+                />
+              </span>
               <div>
                 <router-link
                   :to="`/@${instance.contact.account.acct}`"
-                  class="font-semibold text-sm hover:underline"
+                  class="text-sm font-semibold transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
                 >
                   {{ instance.contact.account.display_name }}
                 </router-link>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
                   @{{ instance.contact.account.acct }}
                 </p>
               </div>
             </div>
-            <p v-if="instance.contact?.email" class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            <p v-if="instance.contact?.email" class="mt-2 text-sm text-slate-600 dark:text-slate-400">
               {{ instance.contact.email }}
             </p>
-            <p v-if="!instance.contact?.account && !instance.contact?.email" class="text-sm text-gray-600 dark:text-gray-400">
+            <p v-if="!instance.contact?.account && !instance.contact?.email" class="text-sm text-slate-600 dark:text-slate-400">
               {{ t('about.no_contact') }}
             </p>
           </div>
         </div>
 
-        <div v-else class="text-center text-gray-500 dark:text-gray-400">
+        <div v-else class="sb-empty">
           {{ t('about.unavailable') }}
         </div>
       </div>

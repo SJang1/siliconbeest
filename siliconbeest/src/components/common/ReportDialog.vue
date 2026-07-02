@@ -89,71 +89,71 @@ async function submit() {
     <form @submit.prevent="submit" class="space-y-4">
       <!-- Category -->
       <fieldset>
-        <legend class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <legend class="sb-label">
           {{ t('report.category') }}
         </legend>
         <div class="space-y-2">
           <label
             v-for="cat in (['spam', 'violation', 'legal', 'other'] as const)"
             :key="cat"
-            class="flex items-center gap-2 cursor-pointer"
+            class="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark"
           >
             <input
               type="radio"
               :value="cat"
               v-model="category"
-              class="text-indigo-600 focus:ring-indigo-500"
+              class="h-4 w-4 accent-brand-600 dark:accent-brand-400"
             />
-            <span class="text-sm text-gray-800 dark:text-gray-200">{{ t(`report.${cat}`) }}</span>
+            <span class="text-sm text-slate-700 dark:text-slate-200">{{ t(`report.${cat}`) }}</span>
           </label>
         </div>
       </fieldset>
 
       <!-- Rules (when category is violation) -->
       <fieldset v-if="category === 'violation' && rules.length > 0">
-        <legend class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <legend class="sb-label">
           {{ t('report.select_rules') }}
         </legend>
-        <div class="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+        <div class="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-outline bg-surface-2/50 p-3 dark:border-outline-dark dark:bg-surface-2-dark/50">
           <label
             v-for="rule in rules"
             :key="rule.id"
-            class="flex items-start gap-2 cursor-pointer"
+            class="flex cursor-pointer items-start gap-2.5"
           >
             <input
               type="checkbox"
               :checked="selectedRules.includes(rule.id)"
               @change="toggleRule(rule.id)"
-              class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+              class="mt-0.5 h-4 w-4 rounded accent-brand-600 dark:accent-brand-400"
             />
-            <span class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ rule.text }}</span>
+            <span class="text-sm whitespace-pre-line text-slate-700 dark:text-slate-200">{{ rule.text }}</span>
           </label>
         </div>
       </fieldset>
 
       <!-- Comment -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('report.comment') }}
         </label>
         <textarea
           v-model="comment"
           :placeholder="t('report.comment_placeholder')"
           rows="3"
-          class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          class="sb-input resize-none"
         />
       </div>
 
       <!-- Forward checkbox (remote users only) -->
-      <label v-if="isRemote()" class="flex items-start gap-2 cursor-pointer">
+      <label v-if="isRemote()" class="flex cursor-pointer items-start gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark">
         <input
           type="checkbox"
           v-model="forward"
-          class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+          class="mt-0.5 h-4 w-4 rounded accent-brand-600 dark:accent-brand-400"
         />
         <div>
-          <span class="text-sm text-gray-800 dark:text-gray-200">{{ t('report.forward') }}</span>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('report.forward_hint') }}</p>
+          <span class="text-sm text-slate-700 dark:text-slate-200">{{ t('report.forward') }}</span>
+          <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('report.forward_hint') }}</p>
         </div>
       </label>
 
@@ -165,14 +165,14 @@ async function submit() {
         <button
           type="button"
           @click="emit('close')"
-          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          class="sb-btn sb-btn-secondary"
         >
           {{ t('report.cancel') }}
         </button>
         <button
           type="submit"
           :disabled="loading"
-          class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-danger"
         >
           {{ t('report.submit') }}
         </button>

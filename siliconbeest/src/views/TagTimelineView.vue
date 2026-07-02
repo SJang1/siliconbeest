@@ -61,14 +61,22 @@ watch(tag, () => {
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
-        <button @click="$router.back()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      <header class="sb-glass sticky top-0 z-10 flex items-center gap-3 border-b px-4 py-3">
+        <button
+          @click="$router.back()"
+          class="shrink-0 rounded-full p-2 text-slate-600 transition-colors hover:bg-surface-2 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white"
+          :aria-label="t('common.back')"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
         </button>
-        <h1 class="text-xl font-bold">#{{ tag }}</h1>
+        <h1 class="sb-heading min-w-0 text-lg">
+          <span class="sb-chip max-w-full px-3 py-1 text-sm font-semibold">
+            <span class="truncate">#{{ tag }}</span>
+          </span>
+        </h1>
       </header>
 
-      <div v-if="timeline.error" class="p-4 text-center text-red-500">
+      <div v-if="timeline.error" class="mx-4 my-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
         {{ timeline.error }}
       </div>
 

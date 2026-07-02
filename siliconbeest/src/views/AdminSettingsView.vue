@@ -115,29 +115,31 @@ async function handleTestSmtp() {
   }
 }
 
-const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500'
-const labelClass = 'block text-sm font-medium mb-1'
+const inputClass = 'sb-input'
+const labelClass = 'sb-label'
+const toggleClass =
+  "peer h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline after:bg-white after:transition-all after:content-[''] peer-checked:bg-brand-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-700 dark:after:border-outline-dark dark:peer-checked:bg-brand-500 dark:peer-focus-visible:ring-offset-surface-dark"
 </script>
 
 <template>
   <AdminLayout>
-  <div class="w-full p-6">
-    <h1 class="text-2xl font-bold mb-6">{{ t('admin_settings.title') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">{{ t('admin_settings.title') }}</h1>
 
-    <div v-if="loading" class="text-gray-500">{{ t('common.loading') }}</div>
+    <div v-if="loading" class="text-sm text-slate-500 dark:text-slate-400">{{ t('common.loading') }}</div>
 
-    <form v-else @submit.prevent="handleSave" class="space-y-8">
+    <form v-else @submit.prevent="handleSave" class="space-y-6">
       <!-- Global messages -->
-      <div v-if="success" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+      <div v-if="success" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
         {{ success }}
       </div>
-      <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+      <div v-if="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" role="alert">
         {{ error }}
       </div>
 
       <!-- Site Info -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.site_info') }}</h2>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.site_info') }}</h2>
         <div class="space-y-4">
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.site_title') }}</label>
@@ -147,7 +149,7 @@ const labelClass = 'block text-sm font-medium mb-1'
             <label :class="labelClass">{{ t('admin_settings.fields.site_description') }}</label>
             <textarea v-model="settings.site_description" rows="3" :class="inputClass" />
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label :class="labelClass">{{ t('admin_settings.fields.contact_email') }}</label>
               <input v-model="settings.site_contact_email" type="email" :class="inputClass" />
@@ -161,35 +163,35 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- Branding -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.branding') }}</h2>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.branding') }}</h2>
         <div class="space-y-4">
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.favicon') }}</label>
             <div class="flex items-center gap-2">
               <input v-model="settings.site_favicon_url" type="url" :class="inputClass" class="flex-1" placeholder="https://..." />
-              <label class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap" :class="faviconUploading ? 'opacity-50 pointer-events-none' : ''">
+              <label class="sb-btn sb-btn-secondary cursor-pointer whitespace-nowrap" :class="faviconUploading ? 'pointer-events-none opacity-50' : ''">
                 {{ faviconUploading ? '...' : t('common.upload') }}
                 <input type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_favicon_url')" />
               </label>
-              <img :src="settings.site_favicon_url || '/favicon.ico'" class="w-8 h-8 rounded object-contain border border-gray-200 dark:border-gray-700" alt="favicon" />
+              <img :src="settings.site_favicon_url || '/favicon.ico'" class="h-9 w-9 rounded-lg border border-outline object-contain dark:border-outline-dark" alt="favicon" />
             </div>
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.logo') }}</label>
             <div class="flex items-center gap-2">
               <input v-model="settings.site_logo_url" type="url" :class="inputClass" class="flex-1" placeholder="https://..." />
-              <label class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap" :class="logoUploading ? 'opacity-50 pointer-events-none' : ''">
+              <label class="sb-btn sb-btn-secondary cursor-pointer whitespace-nowrap" :class="logoUploading ? 'pointer-events-none opacity-50' : ''">
                 {{ logoUploading ? '...' : t('common.upload') }}
                 <input type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_logo_url')" />
               </label>
-              <img :src="settings.site_logo_url || '/thumbnail.png'" class="w-8 h-8 rounded object-contain border border-gray-200 dark:border-gray-700" alt="logo" />
+              <img :src="settings.site_logo_url || '/thumbnail.png'" class="h-9 w-9 rounded-lg border border-outline object-contain dark:border-outline-dark" alt="logo" />
             </div>
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.theme_color') }}</label>
             <div class="flex items-center gap-3">
-              <input v-model="settings.site_theme_color" type="color" class="h-10 w-14 rounded border border-gray-300 dark:border-gray-600 cursor-pointer" />
+              <input v-model="settings.site_theme_color" type="color" class="h-10 w-14 cursor-pointer rounded-xl border border-outline bg-surface dark:border-outline-dark dark:bg-surface-2-dark" />
               <input v-model="settings.site_theme_color" :class="inputClass" class="!w-40" />
             </div>
           </div>
@@ -197,30 +199,30 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- Landing Page & Legal -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.landing_legal') }}</h2>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.landing_legal') }}</h2>
         <div class="space-y-4">
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.site_landing_markdown') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.site_landing_markdown_desc') }}</p>
+            <p class="mb-1.5 text-xs text-slate-500 dark:text-slate-400">{{ t('admin_settings.fields.site_landing_markdown_desc') }}</p>
             <textarea v-model="settings.site_landing_markdown" rows="6" :class="inputClass" :placeholder="t('admin_settings.fields.site_landing_markdown_placeholder')" />
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.terms_of_service') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.terms_of_service_desc') }}</p>
+            <p class="mb-1.5 text-xs text-slate-500 dark:text-slate-400">{{ t('admin_settings.fields.terms_of_service_desc') }}</p>
             <textarea v-model="settings.terms_of_service" rows="8" :class="inputClass" />
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.privacy_policy') }}</label>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.privacy_policy_desc') }}</p>
+            <p class="mb-1.5 text-xs text-slate-500 dark:text-slate-400">{{ t('admin_settings.fields.privacy_policy_desc') }}</p>
             <textarea v-model="settings.privacy_policy" rows="8" :class="inputClass" />
           </div>
         </div>
       </section>
 
       <!-- Registration -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.registration') }}</h2>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.registration') }}</h2>
         <div class="space-y-4">
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.registration_mode') }}</label>
@@ -238,9 +240,9 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- Limits -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.limits') }}</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.limits') }}</h2>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.max_chars') }}</label>
             <input v-model="settings.max_toot_chars" type="number" min="1" :class="inputClass" />
@@ -253,10 +255,10 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- SMTP -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.smtp') }}</h2>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.smtp') }}</h2>
         <div class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label :class="labelClass">{{ t('admin_settings.fields.smtp_host') }}</label>
               <input v-model="settings.smtp_host" :class="inputClass" placeholder="smtp.example.com" />
@@ -266,7 +268,7 @@ const labelClass = 'block text-sm font-medium mb-1'
               <input v-model="settings.smtp_port" type="number" :class="inputClass" />
             </div>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label :class="labelClass">{{ t('admin_settings.fields.smtp_username') }}</label>
               <input v-model="settings.smtp_username" :class="inputClass" />
@@ -284,7 +286,7 @@ const labelClass = 'block text-sm font-medium mb-1'
             <div>
               <label :class="labelClass">{{ t('admin_settings.fields.smtp_auth_type') }}</label>
               <select v-model="settings.smtp_auth_type" :class="inputClass">
-                <option value="auto">Auto</option>
+                <option value="auto">{{ t('common.auto') }}</option>
                 <option value="plain">PLAIN</option>
                 <option value="login">LOGIN</option>
                 <option value="cram-md5">CRAM-MD5</option>
@@ -303,11 +305,11 @@ const labelClass = 'block text-sm font-medium mb-1'
               type="button"
               :disabled="smtpTesting"
               @click="handleTestSmtp"
-              class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              class="sb-btn sb-btn-secondary"
             >
               {{ smtpTesting ? t('common.loading') : t('admin_settings.smtp_test') }}
             </button>
-            <span v-if="smtpTestResult" class="text-sm" :class="smtpTestResult === t('admin_settings.smtp_test_success') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+            <span v-if="smtpTestResult" class="text-sm font-medium" :class="smtpTestResult === t('admin_settings.smtp_test_success') ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
               {{ smtpTestResult }}
             </span>
           </div>
@@ -315,21 +317,21 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- Turnstile (CAPTCHA) -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('turnstile.title') }}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('turnstile.description') }}</p>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-2 text-lg text-slate-900 dark:text-white">{{ t('turnstile.title') }}</h2>
+        <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">{{ t('turnstile.description') }}</p>
         <div class="space-y-4">
           <div class="flex items-center gap-3">
-            <label class="relative inline-flex items-center cursor-pointer">
+            <label class="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
                 :checked="settings.turnstile_enabled === '1'"
                 @change="settings.turnstile_enabled = ($event.target as HTMLInputElement).checked ? '1' : '0'"
-                class="sr-only peer"
+                class="peer sr-only"
               />
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+              <div :class="toggleClass"></div>
             </label>
-            <span class="text-sm font-medium">{{ t('turnstile.enabled') }}</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('turnstile.enabled') }}</span>
           </div>
           <div>
             <label :class="labelClass">{{ t('turnstile.site_key') }}</label>
@@ -343,7 +345,7 @@ const labelClass = 'block text-sm font-medium mb-1'
             href="https://dash.cloudflare.com/?to=/:account/turnstile"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            class="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
           >
             {{ t('turnstile.get_keys') }} &rarr;
           </a>
@@ -351,31 +353,31 @@ const labelClass = 'block text-sm font-medium mb-1'
       </section>
 
       <!-- Web Push -->
-      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.web_push') }}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('admin_settings.web_push_description') }}</p>
+      <section class="sb-card p-6">
+        <h2 class="sb-heading mb-2 text-lg text-slate-900 dark:text-white">{{ t('admin_settings.web_push') }}</h2>
+        <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">{{ t('admin_settings.web_push_description') }}</p>
         <div class="space-y-4">
           <div class="flex items-center gap-3">
-            <label class="relative inline-flex items-center cursor-pointer">
+            <label class="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
                 :checked="settings.web_push_enabled === '1'"
                 @change="settings.web_push_enabled = ($event.target as HTMLInputElement).checked ? '1' : '0'"
-                class="sr-only peer"
+                class="peer sr-only"
               />
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+              <div :class="toggleClass"></div>
             </label>
-            <span class="text-sm font-medium">{{ t('admin_settings.web_push_enabled') }}</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('admin_settings.web_push_enabled') }}</span>
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.vapid_public_key') }}</label>
-            <input v-model="settings.vapid_public_key" :class="inputClass" placeholder="Base64url-encoded P-256 public key (65 bytes)" />
+            <input v-model="settings.vapid_public_key" :class="inputClass" :placeholder="t('admin_settings.vapid_public_key_placeholder')" />
           </div>
           <div>
             <label :class="labelClass">{{ t('admin_settings.fields.vapid_private_key') }}</label>
-            <input v-model="settings.vapid_private_key" type="password" :class="inputClass" placeholder="Base64url-encoded P-256 private key (32 bytes)" />
+            <input v-model="settings.vapid_private_key" type="password" :class="inputClass" :placeholder="t('admin_settings.vapid_private_key_placeholder')" />
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-xs text-slate-500 dark:text-slate-400">
             {{ t('admin_settings.vapid_help') }}
           </p>
         </div>
@@ -386,7 +388,7 @@ const labelClass = 'block text-sm font-medium mb-1'
         <button
           type="submit"
           :disabled="saving"
-          class="px-8 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+          class="sb-btn sb-btn-primary px-8"
         >
           {{ saving ? t('common.loading') : t('common.save') }}
         </button>

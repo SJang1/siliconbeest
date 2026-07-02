@@ -91,8 +91,34 @@ watch(
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h1 class="text-xl font-bold">{{ activeTab === 'federated' ? t('nav.federated_timeline') : t('nav.local_timeline') }}</h1>
+      <header class="sb-glass sticky top-0 z-10 border-b px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h1 class="sb-heading text-lg">{{ activeTab === 'federated' ? t('nav.federated_timeline') : t('nav.local_timeline') }}</h1>
+          <div class="inline-flex items-center gap-1 rounded-full border border-outline bg-surface-2 p-1 dark:border-outline-dark dark:bg-surface-2-dark">
+            <button
+              type="button"
+              class="rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              :class="activeTab === 'local'
+                ? 'bg-brand-600 text-white shadow-soft dark:bg-brand-500'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
+              :aria-pressed="activeTab === 'local'"
+              @click="switchTab('local')"
+            >
+              {{ t('timeline.local') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              :class="activeTab === 'federated'
+                ? 'bg-brand-600 text-white shadow-soft dark:bg-brand-500'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
+              :aria-pressed="activeTab === 'federated'"
+              @click="switchTab('federated')"
+            >
+              {{ t('timeline.federated') }}
+            </button>
+          </div>
+        </div>
       </header>
 
       <DismissibleBanner
@@ -108,7 +134,7 @@ watch(
         {{ t('timeline.federated_banner') }}
       </DismissibleBanner>
 
-      <div v-if="timeline.error" class="p-4 text-center text-red-500">
+      <div v-if="timeline.error" class="mx-4 my-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
         {{ timeline.error }}
       </div>
 

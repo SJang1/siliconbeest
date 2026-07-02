@@ -62,22 +62,23 @@ function handlePasskeyLogin() {
     @submit.prevent.stop="handleSubmit"
     class="space-y-4"
   >
-    <h1 class="text-2xl font-bold text-center">{{ t('auth.sign_in') }}</h1>
+    <h1 class="sb-heading text-center text-2xl">{{ t('auth.sign_in') }}</h1>
 
     <div
       id="login-static-error"
-      class="hidden p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm"
+      class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
       role="alert"
     ></div>
 
     <!-- Error -->
-    <div v-if="error || props.serverError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
-      {{ error || props.serverError }}
+    <div v-if="error || props.serverError" class="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400" role="alert">
+      <svg class="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" /></svg>
+      <span>{{ error || props.serverError }}</span>
     </div>
 
     <!-- Username -->
     <div>
-      <label for="login-username" class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
+      <label for="login-username" class="sb-label">{{ t('auth.username') }}</label>
       <input
         id="login-username"
         name="username"
@@ -85,14 +86,14 @@ function handlePasskeyLogin() {
         type="text"
         required
         autocomplete="username"
-        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="sb-input"
         :placeholder="t('auth.username_placeholder')"
       />
     </div>
 
     <!-- Password -->
     <div>
-      <label for="login-password" class="block text-sm font-medium mb-1">{{ t('auth.password') }}</label>
+      <label for="login-password" class="sb-label">{{ t('auth.password') }}</label>
       <input
         id="login-password"
         name="password"
@@ -100,17 +101,17 @@ function handlePasskeyLogin() {
         type="password"
         required
         autocomplete="current-password"
-        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="sb-input"
         :placeholder="t('auth.password_placeholder')"
       />
     </div>
 
     <!-- Forgot password / Find username -->
     <div class="flex justify-between text-sm">
-      <router-link to="/auth/find-username" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+      <router-link to="/auth/find-username" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
         {{ t('auth.find_username') }}
       </router-link>
-      <router-link to="/auth/forgot-password" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+      <router-link to="/auth/forgot-password" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>
@@ -123,17 +124,17 @@ function handlePasskeyLogin() {
       type="button"
       data-login-submit
       :disabled="loading"
-      class="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+      class="sb-btn sb-btn-primary w-full"
       @click="handleSubmit"
     >
       {{ loading ? t('common.loading') : t('auth.sign_in') }}
     </button>
 
     <!-- Divider -->
-    <div class="flex items-center gap-3 text-gray-400 dark:text-gray-500">
-      <hr class="flex-1 border-gray-200 dark:border-gray-700" />
-      <span class="text-xs">{{ t('auth.or') }}</span>
-      <hr class="flex-1 border-gray-200 dark:border-gray-700" />
+    <div class="flex items-center gap-3">
+      <hr class="flex-1 border-outline dark:border-outline-dark" />
+      <span class="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('auth.or') }}</span>
+      <hr class="flex-1 border-outline dark:border-outline-dark" />
     </div>
 
     <!-- Passkey login -->
@@ -142,15 +143,16 @@ function handlePasskeyLogin() {
       type="button"
       @click="handlePasskeyLogin"
       :disabled="passkeyLoading"
-      class="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+      class="sb-btn sb-btn-secondary w-full"
     >
+      <svg class="h-5 w-5 text-brand-500 dark:text-brand-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
       {{ passkeyLoading ? t('common.loading') : t('webauthn.sign_in_with_passkey') }}
     </button>
 
     <!-- Register link -->
-    <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+    <p class="text-center text-sm text-slate-500 dark:text-slate-400">
       {{ t('auth.no_account') }}
-      <router-link to="/register" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+      <router-link to="/register" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
         {{ t('auth.sign_up') }}
       </router-link>
     </p>

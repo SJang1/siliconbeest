@@ -39,7 +39,7 @@ const gridClass = computed(() => {
     <!-- Visual media (images, video) -->
     <div
       v-if="visualAttachments.length"
-      class="grid gap-1 rounded-xl overflow-hidden"
+      class="grid gap-1.5 overflow-hidden rounded-xl ring-1 ring-outline/60 dark:ring-outline-dark/60"
       :class="gridClass"
       role="group"
       :aria-label="t('status.media_gallery')"
@@ -48,14 +48,14 @@ const gridClass = computed(() => {
         v-for="(attachment, index) in visualAttachments.slice(0, 4)"
         :key="attachment.id"
         @click="emit('expand', index)"
-        class="group relative aspect-video bg-gray-200 dark:bg-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-zoom-in"
+        class="group relative aspect-video cursor-zoom-in overflow-hidden bg-surface-2 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500 dark:bg-surface-2-dark"
         :class="{ 'row-span-2': visualAttachments.length === 3 && index === 0 }"
       >
         <img
           v-if="attachment.type === 'image' || attachment.type === 'gifv'"
           :src="attachment.preview_url ?? attachment.url"
           :alt="attachment.description || t('status.media_no_alt')"
-          class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+          class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           loading="lazy"
         />
         <video
@@ -73,7 +73,7 @@ const gridClass = computed(() => {
           v-if="attachment.type === 'video'"
           class="absolute inset-0 flex items-center justify-center"
         >
-          <div class="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center group-hover:bg-black/70 transition-colors">
+          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/50 backdrop-blur-sm transition-colors group-hover:bg-slate-950/70">
             <svg class="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
@@ -83,7 +83,7 @@ const gridClass = computed(() => {
         <!-- Hover overlay with zoom icon (images only) -->
         <div
           v-if="attachment.type !== 'video'"
-          class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center"
+          class="absolute inset-0 flex items-center justify-center bg-slate-950/0 transition-colors duration-200 group-hover:bg-slate-950/25"
         >
           <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-80 transition-opacity duration-200 drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
@@ -93,7 +93,7 @@ const gridClass = computed(() => {
         <!-- Alt badge -->
         <span
           v-if="attachment.description"
-          class="absolute bottom-1 left-1 px-1.5 py-0.5 text-[10px] font-bold bg-black/70 text-white rounded"
+          class="absolute bottom-1.5 left-1.5 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white backdrop-blur-sm"
         >
           ALT
         </span>
@@ -104,8 +104,8 @@ const gridClass = computed(() => {
     <div
       v-for="attachment in audioAttachments"
       :key="attachment.id"
-      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3"
-      :class="{ 'mt-1': visualAttachments.length > 0 }"
+      class="rounded-xl border border-outline bg-surface-2/60 p-3 dark:border-outline-dark dark:bg-surface-2-dark/60"
+      :class="{ 'mt-1.5': visualAttachments.length > 0 }"
     >
       <div class="flex items-center gap-2 min-w-0">
         <audio
@@ -117,7 +117,7 @@ const gridClass = computed(() => {
         <a
           :href="attachment.url"
           download
-          class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors shrink-0"
+          class="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-surface-2 hover:text-brand-600 dark:hover:bg-white/10 dark:hover:text-brand-400"
           :title="t('status.download')"
           @click.stop
         >
@@ -126,7 +126,7 @@ const gridClass = computed(() => {
           </svg>
         </a>
       </div>
-      <p v-if="attachment.description" class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+      <p v-if="attachment.description" class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
         {{ attachment.description }}
       </p>
     </div>

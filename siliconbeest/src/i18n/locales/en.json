@@ -16,7 +16,12 @@
     "copied": "Copied to clipboard",
     "upload": "Upload",
     "uploading": "Uploading...",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "previous": "Previous",
+    "remove": "Remove",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "auto": "Auto"
   },
   "auth": {
     "login": "Log in",
@@ -165,7 +170,9 @@
     "followed_tags": "Followed Tags",
     "directory": "Directory",
     "local_timeline": "Local Timeline",
-    "federated_timeline": "Federated Timeline"
+    "federated_timeline": "Federated Timeline",
+    "main_navigation": "Main navigation",
+    "mobile_navigation": "Mobile navigation"
   },
   "explore": {
     "trending": "Trending",
@@ -705,7 +712,9 @@
       "privacy_policy": "Privacy Policy",
       "privacy_policy_desc": "Write your privacy policy in Markdown."
     },
-    "registration_message_help": "This message is shown to users on the registration page."
+    "registration_message_help": "This message is shown to users on the registration page.",
+    "vapid_public_key_placeholder": "Base64url-encoded P-256 public key (65 bytes)",
+    "vapid_private_key_placeholder": "Base64url-encoded P-256 private key (32 bytes)"
   },
   "legal": {
     "terms_of_service": "Terms of Service",
@@ -842,7 +851,8 @@
     "backup_codes_description": "Save these backup codes in a safe place. Each code can only be used once.",
     "backup_codes_warning": "These codes will not be shown again.",
     "invalid_code": "Invalid code. Please try again.",
-    "copied": "Copied!"
+    "copied": "Copied!",
+    "qr_alt": "TOTP QR code"
   },
   "turnstile": {
     "title": "Turnstile (CAPTCHA)",
@@ -941,5 +951,27 @@
       "admin:read": "View admin data",
       "admin:write": "Modify admin data"
     }
+  },
+  "design": {
+    "classicBanner": "You're viewing the classic design",
+    "switchToNew": "Try the new look",
+    "backToClassic": "Classic design"
+  },
+  "setup": {
+    "subtitle": "Create the first administrator account.",
+    "unavailable": "Initial setup is no longer available because a user already exists.",
+    "admin_username": "Admin username",
+    "admin_email": "Admin email",
+    "password": "Password",
+    "confirm_password": "Confirm password",
+    "create": "Create admin",
+    "creating": "Creating...",
+    "create_failed": "Failed to create the admin account.",
+    "username_required": "Please enter a username.",
+    "username_invalid": "Usernames can only contain letters, numbers, and underscores.",
+    "email_required": "Please enter an email address.",
+    "password_required": "Please enter a password.",
+    "password_too_short": "Password must be at least 8 characters long.",
+    "password_mismatch": "Passwords do not match."
   }
 }

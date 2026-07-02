@@ -111,21 +111,28 @@ watch(() => props.statusId, () => {
 
 <template>
   <div>
-    <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
-      <button @click="emit('back')" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    <header class="sb-glass sticky top-0 z-10 flex items-center gap-3 border-b px-4 py-3">
+      <button
+        @click="emit('back')"
+        class="rounded-full p-1.5 text-slate-600 transition hover:bg-surface-2 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white"
+        :aria-label="t('common.back')"
+      >
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
       </button>
-      <h2 class="text-lg font-bold">{{ t('status.thread') }}</h2>
+      <h2 class="sb-heading text-lg">{{ t('status.thread') }}</h2>
     </header>
 
     <LoadingSpinner v-if="loading" />
 
     <template v-else-if="status">
       <!-- Ancestors -->
-      <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @navigate="handleNavigate" @deleted="handleDeleted" />
+      <div v-if="ancestors.length > 0" class="border-l-2 border-brand-200/80 dark:border-brand-800/60">
+        <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @navigate="handleNavigate" @deleted="handleDeleted" />
+      </div>
 
       <!-- Main status -->
-      <div class="border-l-4 border-indigo-500">
+      <div class="relative bg-brand-50/40 dark:bg-brand-950/15">
+        <span class="absolute inset-y-0 left-0 w-1 bg-linear-to-b from-brand-500 via-violet-500 to-fuchsia-500" aria-hidden="true"></span>
         <StatusCard :status="status" @navigate="handleNavigate" @deleted="handleDeleted" />
       </div>
 
@@ -134,13 +141,13 @@ watch(() => props.statusId, () => {
         v-for="item in threadedDescendants"
         :key="item.status.id"
         :style="{ marginLeft: `${item.depth * 24}px` }"
-        :class="item.depth > 0 ? 'border-l-2 border-gray-200 dark:border-gray-700' : ''"
+        :class="item.depth > 0 ? 'border-l-2 border-brand-200/70 dark:border-brand-800/50' : ''"
       >
         <StatusCard :status="item.status" @navigate="handleNavigate" @deleted="handleDeleted" />
       </div>
     </template>
 
-    <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">
+    <div v-else class="sb-empty px-6">
       {{ error || t('status.not_found') }}
     </div>
   </div>

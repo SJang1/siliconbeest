@@ -66,48 +66,52 @@ onMounted(fetchRelays);
 
 <template>
   <AdminLayout>
-  <div class="w-full p-4">
-    <h1 class="text-2xl font-bold mb-6">{{ $t('admin.relays') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">{{ $t('admin.relays') }}</h1>
 
     <!-- Add relay form -->
     <div class="mb-6 flex gap-2">
       <input v-model="newInboxUrl"
              :placeholder="$t('admin.relayInboxPlaceholder')"
-             class="flex-1 rounded-lg border px-3 py-2 dark:bg-gray-800 dark:border-gray-700" />
+             class="sb-input flex-1" />
       <button @click="addRelay" :disabled="loading || !newInboxUrl"
-              class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              class="sb-btn sb-btn-primary shrink-0">
         {{ $t('admin.addRelay') }}
       </button>
     </div>
 
     <!-- Error message -->
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">{{ error }}</p>
 
     <!-- Relay list -->
-    <div v-if="relays.length === 0 && !loading" class="text-gray-500 py-8 text-center">
-      {{ $t('admin.noRelays') }}
+    <div v-if="relays.length === 0 && !loading" class="sb-card">
+      <div class="sb-empty">
+        {{ $t('admin.noRelays') }}
+      </div>
     </div>
 
-    <div v-for="relay in relays" :key="relay.id"
-         class="flex items-center justify-between p-4 border rounded-lg mb-2 dark:border-gray-700">
-      <div>
-        <div class="font-mono text-sm">{{ relay.inbox_url }}</div>
-        <div class="text-xs mt-1">
-          <span :class="{
-            'text-green-500': relay.state === 'accepted',
-            'text-yellow-500': relay.state === 'pending',
-            'text-red-500': relay.state === 'rejected',
-            'text-gray-500': relay.state === 'idle',
-          }">
-            {{ $t('admin.relayState.' + relay.state) }}
-          </span>
-          <span class="text-gray-400 ml-2">{{ new Date(relay.created_at).toLocaleDateString() }}</span>
+    <div v-else-if="relays.length > 0" class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
+      <div v-for="relay in relays" :key="relay.id"
+           class="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-2/70 dark:hover:bg-surface-2-dark/70">
+        <div class="min-w-0">
+          <div class="truncate font-mono text-sm text-slate-900 dark:text-white">{{ relay.inbox_url }}</div>
+          <div class="mt-1.5 flex items-center gap-2 text-xs">
+            <span class="sb-chip" :class="{
+              'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300': relay.state === 'accepted',
+              'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300': relay.state === 'pending',
+              'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300': relay.state === 'rejected',
+              'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300': relay.state === 'idle',
+            }">
+              {{ $t('admin.relayState.' + relay.state) }}
+            </span>
+            <span class="text-slate-400 dark:text-slate-500">{{ new Date(relay.created_at).toLocaleDateString() }}</span>
+          </div>
         </div>
+        <button @click="removeRelay(relay.id)"
+                class="sb-btn sb-btn-ghost sb-btn-sm shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300">
+          {{ $t('common.delete') }}
+        </button>
       </div>
-      <button @click="removeRelay(relay.id)"
-              class="text-red-500 hover:text-red-700 text-sm">
-        {{ $t('common.delete') }}
-      </button>
     </div>
   </div>
   </AdminLayout>

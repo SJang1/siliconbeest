@@ -122,27 +122,28 @@ async function authorize(decision: 'approve' | 'deny') {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <div class="w-full max-w-md">
+  <div class="sb-app relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+    <div class="sb-aurora" aria-hidden="true"></div>
+    <div class="relative z-10 w-full max-w-md animate-rise-in">
       <!-- Loading -->
-      <div v-if="loading" class="text-center py-12 text-gray-500 dark:text-gray-400">
+      <div v-if="loading" class="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
         {{ t('common.loading') }}
       </div>
 
       <!-- Error -->
-      <div v-else-if="error && !appInfo" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+      <div v-else-if="error && !appInfo" class="sb-card p-8">
         <div class="text-center">
-          <div class="text-red-500 text-lg font-semibold mb-2">{{ t('oauth.error_title') }}</div>
-          <p class="text-gray-600 dark:text-gray-400 text-sm">{{ error }}</p>
+          <div class="sb-heading mb-2 text-lg text-red-600 dark:text-red-400">{{ t('oauth.error_title') }}</div>
+          <p class="text-sm text-slate-600 dark:text-slate-400">{{ error }}</p>
         </div>
       </div>
 
       <!-- Authorization form -->
-      <div v-else-if="appInfo" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div v-else-if="appInfo" class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
         <!-- Header -->
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('oauth.authorize_app') }}</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <div class="p-8 pb-6">
+          <h1 class="sb-heading text-xl text-slate-900 dark:text-white">{{ t('oauth.authorize_app') }}</h1>
+          <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
             {{ t('oauth.app_wants_access', { name: appInfo.name }) }}
           </p>
           <a
@@ -150,26 +151,27 @@ async function authorize(decision: 'approve' | 'deny') {
             :href="appInfo.website"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-1 inline-block"
+            class="mt-1.5 inline-block text-xs font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
           >
             {{ appInfo.website }}
           </a>
         </div>
 
         <!-- Logged in as -->
-        <div v-if="auth.currentUser" class="px-6 py-3 bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700">
+        <div v-if="auth.currentUser" class="bg-surface-2 px-8 py-3 dark:bg-surface-2-dark">
           <div class="flex items-center gap-3">
-            <img
-              v-if="auth.currentUser.avatar"
-              :src="auth.currentUser.avatar"
-              :alt="auth.currentUser.display_name || auth.currentUser.username"
-              class="w-8 h-8 rounded-full"
-            />
+            <span v-if="auth.currentUser.avatar" class="sb-avatar-ring shrink-0">
+              <img
+                :src="auth.currentUser.avatar"
+                :alt="auth.currentUser.display_name || auth.currentUser.username"
+                class="block h-8 w-8 rounded-full"
+              />
+            </span>
             <div class="text-sm">
-              <div class="font-medium text-gray-900 dark:text-white">
+              <div class="font-medium text-slate-900 dark:text-white">
                 {{ auth.currentUser.display_name || auth.currentUser.username }}
               </div>
-              <div class="text-gray-500 dark:text-gray-400">
+              <div class="text-slate-500 dark:text-slate-400">
                 @{{ auth.currentUser.acct }}
               </div>
             </div>
@@ -177,43 +179,43 @@ async function authorize(decision: 'approve' | 'deny') {
         </div>
 
         <!-- Requested permissions -->
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">{{ t('oauth.requested_permissions') }}</h2>
+        <div class="p-8 py-6">
+          <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ t('oauth.requested_permissions') }}</h2>
           <ul class="space-y-2">
-            <li v-for="s in scopeList" :key="s" class="flex items-start gap-2 text-sm">
-              <svg class="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              <span class="text-gray-700 dark:text-gray-300">
-                {{ scopeDescription(s) }}
+            <li v-for="s in scopeList" :key="s">
+              <span class="sb-chip w-full justify-start gap-2 whitespace-normal rounded-xl px-3 py-2 text-sm">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+                <span>{{ scopeDescription(s) }}</span>
               </span>
             </li>
           </ul>
         </div>
 
-        <!-- Error -->
-        <div v-if="error" class="px-6 pt-4">
-          <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+        <div class="p-8 pt-6">
+          <!-- Error -->
+          <div v-if="error" class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
             {{ error }}
           </div>
-        </div>
 
-        <!-- Buttons -->
-        <div class="p-6 flex gap-3">
-          <button
-            @click="authorize('deny')"
-            :disabled="submitting"
-            class="flex-1 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            {{ t('oauth.deny') }}
-          </button>
-          <button
-            @click="authorize('approve')"
-            :disabled="submitting"
-            class="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
-          >
-            {{ submitting ? t('oauth.authorizing') : t('oauth.authorize') }}
-          </button>
+          <!-- Buttons -->
+          <div class="flex gap-3">
+            <button
+              @click="authorize('deny')"
+              :disabled="submitting"
+              class="sb-btn sb-btn-secondary flex-1"
+            >
+              {{ t('oauth.deny') }}
+            </button>
+            <button
+              @click="authorize('approve')"
+              :disabled="submitting"
+              class="sb-btn sb-btn-primary flex-1"
+            >
+              {{ submitting ? t('oauth.authorizing') : t('oauth.authorize') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>

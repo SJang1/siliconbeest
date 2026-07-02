@@ -78,18 +78,20 @@ function percentage(count: number | null): number {
   <div class="mt-3 space-y-2">
     <div v-for="(option, idx) in poll.options" :key="idx">
       <!-- Results view -->
-      <div v-if="showResults" class="relative">
+      <div v-if="showResults" class="relative overflow-hidden rounded-xl bg-surface-2/60 dark:bg-surface-2-dark/60">
         <div
-          class="absolute inset-0 rounded-md transition-all"
-          :class="poll.own_votes?.includes(idx) ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-gray-100 dark:bg-gray-800'"
+          class="absolute inset-y-0 left-0 rounded-xl transition-all duration-500"
+          :class="poll.own_votes?.includes(idx)
+            ? 'bg-linear-to-r from-brand-500/30 via-violet-500/30 to-fuchsia-500/30 dark:from-brand-400/35 dark:via-violet-400/35 dark:to-fuchsia-400/35'
+            : 'bg-linear-to-r from-slate-400/25 to-slate-400/10 dark:from-slate-500/30 dark:to-slate-500/15'"
           :style="{ width: `${percentage(option.votes_count)}%` }"
         />
-        <div class="relative flex items-center justify-between px-3 py-2 text-sm">
-          <span class="font-medium" :class="poll.own_votes?.includes(idx) ? 'text-indigo-700 dark:text-indigo-300' : ''">
+        <div class="relative flex items-center justify-between px-3.5 py-2 text-sm">
+          <span :class="poll.own_votes?.includes(idx) ? 'font-semibold text-brand-700 dark:text-brand-300' : 'font-medium text-slate-700 dark:text-slate-200'">
             {{ option.title }}
             <span v-if="poll.own_votes?.includes(idx)" class="text-xs ml-1">✓</span>
           </span>
-          <span class="text-gray-500 dark:text-gray-400 text-xs ml-2">{{ percentage(option.votes_count) }}%</span>
+          <span class="ml-2 text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ percentage(option.votes_count) }}%</span>
         </div>
       </div>
 
@@ -98,16 +100,19 @@ function percentage(count: number | null): number {
         v-else
         type="button"
         @click="toggleChoice(idx)"
-        class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md border transition-colors"
+        class="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         :class="selectedChoices.includes(idx)
-          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'"
+          ? 'border-brand-400 bg-brand-50 text-brand-700 shadow-soft dark:border-brand-500 dark:bg-brand-950/40 dark:text-brand-300'
+          : 'border-outline text-slate-700 hover:border-brand-300 hover:bg-surface-2/60 dark:border-outline-dark dark:text-slate-300 dark:hover:border-brand-700 dark:hover:bg-surface-2-dark/60'"
       >
         <span
-          class="flex-shrink-0 w-4 h-4 border-2 flex items-center justify-center"
-          :class="poll.multiple ? 'rounded' : 'rounded-full'"
+          class="flex-shrink-0 w-4 h-4 border-2 flex items-center justify-center transition-colors"
+          :class="[
+            poll.multiple ? 'rounded' : 'rounded-full',
+            selectedChoices.includes(idx) ? 'border-brand-500 dark:border-brand-400' : 'border-slate-300 dark:border-slate-600',
+          ]"
         >
-          <span v-if="selectedChoices.includes(idx)" class="w-2 h-2 bg-indigo-600 dark:bg-indigo-400" :class="poll.multiple ? 'rounded-sm' : 'rounded-full'" />
+          <span v-if="selectedChoices.includes(idx)" class="w-2 h-2 bg-linear-to-br from-brand-500 to-violet-500" :class="poll.multiple ? 'rounded-sm' : 'rounded-full'" />
         </span>
         <span>{{ option.title }}</span>
       </button>
@@ -118,19 +123,19 @@ function percentage(count: number | null): number {
       v-if="!showResults && auth.isAuthenticated"
       :disabled="selectedChoices.length === 0 || voting"
       @click="vote"
-      class="px-4 py-1.5 text-sm font-medium rounded-md border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      class="sb-btn sb-btn-primary sb-btn-sm"
     >
-      <svg v-if="voting" class="w-4 h-4 animate-spin inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      <svg v-if="voting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
       {{ t('poll.vote') }}
     </button>
 
     <!-- Meta info -->
-    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+    <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
       <span>{{ t('poll.total_votes', { n: totalVotes }) }}</span>
       <span v-if="timeRemaining">&middot;</span>
       <span v-if="timeRemaining">{{ timeRemaining }}</span>
     </div>
 
-    <div v-if="error" class="text-xs text-red-500">{{ error }}</div>
+    <div v-if="error" class="text-xs font-medium text-red-500">{{ error }}</div>
   </div>
 </template>

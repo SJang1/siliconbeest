@@ -24,6 +24,8 @@
 		"@fedify/hono": "^2.1.5",
 		"@fedify/vocab": "^2.1.5",
 		"@fedify/webfinger": "^2.1.5",
+		"@fontsource-variable/inter": "^5.2.8",
+		"@fontsource-variable/space-grotesk": "^5.2.10",
 		"@headlessui/vue": "^1.7.23",
 		"@js-temporal/polyfill": "^0.5.1",
 		"@logtape/logtape": "^2.0.5",

@@ -112,37 +112,38 @@ watch(() => route.params.statusId, (newId) => {
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
-        <button @click="router.back()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      <header class="sb-glass sticky top-0 z-10 flex items-center gap-2 border-b px-4 py-3">
+        <button @click="router.back()" class="sb-btn sb-btn-ghost -ml-2 shrink-0 rounded-full p-2" :aria-label="t('common.back')">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
         </button>
-        <h1 class="text-xl font-bold">{{ t('status.thread') }}</h1>
+        <h1 class="sb-heading truncate text-lg">{{ t('status.thread') }}</h1>
       </header>
 
       <LoadingSpinner v-if="loading" />
 
-      <template v-else-if="status">
-        <!-- Ancestors -->
+      <div v-else-if="status" class="mx-auto w-full max-w-2xl animate-fade-in px-4 py-4">
+        <!-- Ancestors (quiet) -->
         <StatusCard v-for="s in ancestors" :key="s.id" :status="s" @navigate="handleNavigate" @deleted="handleDeleted" />
 
-        <!-- Main status -->
-        <div class="border-l-4 border-indigo-500">
+        <!-- Main status (elevated focal card) -->
+        <div class="sb-card my-3 animate-rise-in overflow-hidden shadow-lift ring-1 ring-brand-500/20 dark:ring-brand-400/25">
           <StatusCard :status="status" @navigate="handleNavigate" @deleted="handleDeleted" />
         </div>
 
-        <!-- Descendants (threaded with indentation) -->
+        <!-- Descendants (threaded with indentation, quiet) -->
         <div
           v-for="item in threadedDescendants"
           :key="item.status.id"
-          :style="{ marginLeft: `${item.depth * 24}px` }"
-          :class="item.depth > 0 ? 'border-l-2 border-gray-200 dark:border-gray-700' : ''"
+          :style="{ marginLeft: `${item.depth * 16}px` }"
+          :class="item.depth > 0 ? 'border-l-2 border-outline dark:border-outline-dark' : ''"
         >
           <StatusCard :status="item.status" @navigate="handleNavigate" @deleted="handleDeleted" />
         </div>
-      </template>
+      </div>
 
-      <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">
-        {{ error || t('status.not_found') }}
+      <div v-else class="sb-empty px-4">
+        <svg class="h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/></svg>
+        <p>{{ error || t('status.not_found') }}</p>
       </div>
     </div>
   </AppShell>

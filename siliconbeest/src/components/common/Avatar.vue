@@ -37,7 +37,7 @@ const hasImage = computed(() => true) // always show image (default or custom)
 
 <template>
   <div
-    class="rounded-full overflow-hidden flex-shrink-0 inline-flex items-center justify-center bg-gray-200 dark:bg-gray-700"
+    class="inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 ring-1 ring-slate-900/10 dark:bg-surface-2-dark dark:ring-white/15"
     :class="sizeClasses[size]"
   >
     <img
@@ -47,7 +47,7 @@ const hasImage = computed(() => true) // always show image (default or custom)
       class="w-full h-full object-cover"
       loading="lazy"
     />
-    <span v-else class="font-semibold text-gray-600 dark:text-gray-300" aria-hidden="true">
+    <span v-else class="font-semibold text-slate-500 dark:text-slate-300" aria-hidden="true">
       {{ initials }}
     </span>
   </div>

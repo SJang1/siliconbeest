@@ -23,23 +23,23 @@ function dismiss() {
 <template>
   <div
     v-if="!dismissed"
-    class="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-3 flex items-start gap-3"
+    class="flex items-start gap-3 border-b border-brand-100 bg-brand-50/80 px-4 py-3 dark:border-brand-900/60 dark:bg-brand-950/40"
   >
-    <span class="text-blue-500 flex-shrink-0 mt-0.5">
-      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+    <span class="mt-0.5 flex-shrink-0 text-brand-500 dark:text-brand-400">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
       </svg>
     </span>
-    <div class="flex-1 text-sm text-blue-800 dark:text-blue-200">
+    <div class="flex-1 text-sm text-brand-950 dark:text-brand-100">
       <slot />
     </div>
     <button
       @click="dismiss"
-      class="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 dark:text-blue-500 flex-shrink-0"
+      class="flex-shrink-0 rounded-full p-1 text-brand-400 transition-colors hover:bg-brand-100 hover:text-brand-600 dark:text-brand-500 dark:hover:bg-brand-900/50 dark:hover:text-brand-300"
       :aria-label="t('common.dismiss')"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </button>
   </div>

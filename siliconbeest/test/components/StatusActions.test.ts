@@ -16,15 +16,15 @@ describe('StatusActions', () => {
   it('renders all action buttons', () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    // reply, reblog, favourite, bookmark, share, more menu = 6 buttons
-    expect(buttons.length).toBe(6);
+    // reply, reblog, quote, favourite, bookmark, share, more menu = 7 buttons
+    expect(buttons.length).toBe(7);
   });
 
   it('emits favourite event on favourite button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    // favourite is the 3rd button (index 2)
-    await buttons[2].trigger('click');
+    // favourite is the 4th button (index 3, after reply/reblog/quote)
+    await buttons[3].trigger('click');
     expect(wrapper.emitted('favourite')).toBeTruthy();
     expect(wrapper.emitted('favourite')![0]).toEqual(['123']);
   });
@@ -48,7 +48,7 @@ describe('StatusActions', () => {
   it('emits bookmark event on bookmark button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    await buttons[3].trigger('click');
+    await buttons[4].trigger('click');
     expect(wrapper.emitted('bookmark')).toBeTruthy();
     expect(wrapper.emitted('bookmark')![0]).toEqual(['123']);
   });
@@ -56,7 +56,7 @@ describe('StatusActions', () => {
   it('emits share event on share button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    await buttons[4].trigger('click');
+    await buttons[5].trigger('click');
     expect(wrapper.emitted('share')).toBeTruthy();
     expect(wrapper.emitted('share')![0]).toEqual(['123']);
   });
@@ -66,9 +66,9 @@ describe('StatusActions', () => {
       props: { ...baseProps, favourited: true },
     });
     const buttons = wrapper.findAll('button');
-    const favButton = buttons[2];
+    const favButton = buttons[3];
     expect(favButton.attributes('aria-pressed')).toBe('true');
-    expect(favButton.html()).toContain('text-yellow-500');
+    expect(favButton.html()).toContain('text-rose-500');
   });
 
   it('shows active state when reblogged', () => {
@@ -86,9 +86,9 @@ describe('StatusActions', () => {
       props: { ...baseProps, bookmarked: true },
     });
     const buttons = wrapper.findAll('button');
-    const bookmarkButton = buttons[3];
+    const bookmarkButton = buttons[4];
     expect(bookmarkButton.attributes('aria-pressed')).toBe('true');
-    expect(bookmarkButton.html()).toContain('text-indigo-600');
+    expect(bookmarkButton.html()).toContain('text-amber-500');
   });
 
   it('displays formatted counts', () => {

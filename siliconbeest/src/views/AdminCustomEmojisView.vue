@@ -179,12 +179,12 @@ async function saveCategory(emoji: CustomEmoji) {
 
 <template>
   <AdminLayout>
-  <div class="w-full">
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('admin.customEmojis') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <div class="mb-6 flex items-center justify-between">
+      <h1 class="sb-heading text-2xl text-slate-900 dark:text-white">{{ t('admin.customEmojis') }}</h1>
       <button
         v-if="!showForm"
-        class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+        class="sb-btn sb-btn-primary"
         @click="openUploadForm"
       >
         {{ t('admin.addEmoji') }}
@@ -192,49 +192,49 @@ async function saveCategory(emoji: CustomEmoji) {
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
       {{ error }}
     </div>
 
     <!-- Upload Form -->
-    <div v-if="showForm" class="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+    <div v-if="showForm" class="sb-card mb-6 space-y-4 p-6 animate-rise-in">
+      <h3 class="sb-heading text-lg text-slate-900 dark:text-white">
         {{ t('admin.addEmoji') }}
       </h3>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('admin.emojiShortcode') }}
         </label>
         <input
           v-model="formShortcode"
           type="text"
           placeholder="custom_emoji"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         />
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.emojiShortcodeHint') }}</p>
+        <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ t('admin.emojiShortcodeHint') }}</p>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('admin.emojiImage') }}
         </label>
         <input
           type="file"
           accept="image/png,image/gif,image/webp"
-          class="w-full text-sm text-gray-500 dark:text-gray-400
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-lg file:border-0
-            file:text-sm file:font-medium
-            file:bg-indigo-50 file:text-indigo-700
-            dark:file:bg-indigo-900/30 dark:file:text-indigo-400
-            hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50"
+          class="w-full text-sm text-slate-500 dark:text-slate-400
+            file:mr-4 file:cursor-pointer file:rounded-full file:border-0
+            file:bg-brand-50 file:px-4 file:py-2
+            file:text-sm file:font-semibold file:text-brand-700
+            file:transition-colors hover:file:bg-brand-100
+            dark:file:bg-brand-950/50 dark:file:text-brand-300
+            dark:hover:file:bg-brand-950/80"
           @change="onFileChange"
         />
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('admin.emojiCategory') }}
         </label>
         <input
@@ -242,7 +242,7 @@ async function saveCategory(emoji: CustomEmoji) {
           type="text"
           list="emoji-categories"
           :placeholder="t('admin.emojiCategoryPlaceholder')"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         />
         <datalist id="emoji-categories">
           <option v-for="cat in existingCategories" :key="cat" :value="cat" />
@@ -252,13 +252,13 @@ async function saveCategory(emoji: CustomEmoji) {
       <div class="flex gap-2">
         <button
           :disabled="formSaving || !formShortcode.trim() || !formFile"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-primary"
           @click="uploadEmoji"
         >
           {{ formSaving ? t('common.uploading') : t('common.upload') }}
         </button>
         <button
-          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          class="sb-btn sb-btn-secondary"
           @click="cancelForm"
         >
           {{ t('common.cancel') }}
@@ -268,8 +268,10 @@ async function saveCategory(emoji: CustomEmoji) {
 
     <LoadingSpinner v-if="loading" />
 
-    <div v-else-if="emojis.length === 0 && !showForm" class="text-center py-12 text-gray-500 dark:text-gray-400">
-      <p>{{ t('admin.noEmojis') }}</p>
+    <div v-else-if="emojis.length === 0 && !showForm" class="sb-card">
+      <div class="sb-empty">
+        <p>{{ t('admin.noEmojis') }}</p>
+      </div>
     </div>
 
     <!-- Grouped by category -->
@@ -277,49 +279,49 @@ async function saveCategory(emoji: CustomEmoji) {
       <div
         v-for="catName in categoryNames"
         :key="catName"
-        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
+        class="sb-card overflow-hidden"
       >
         <!-- Category header -->
         <button
           type="button"
-          class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          class="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-surface-2/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400 dark:hover:bg-surface-2-dark/70"
           @click="toggleCategory(catName)"
         >
           <div class="flex items-center gap-2">
             <svg
-              class="w-4 h-4 text-gray-400 transition-transform"
+              class="h-4 w-4 text-slate-400 transition-transform dark:text-slate-500"
               :class="{ '-rotate-90': collapsedCategories.has(catName) }"
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
-            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ catName }}</span>
-            <span class="text-xs text-gray-400 dark:text-gray-500">{{ emojisByCategory.get(catName)?.length ?? 0 }}</span>
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ catName }}</span>
+            <span class="sb-chip">{{ emojisByCategory.get(catName)?.length ?? 0 }}</span>
           </div>
         </button>
 
         <!-- Emoji list (collapsible) -->
-        <div v-if="!collapsedCategories.has(catName)" class="border-t border-gray-100 dark:border-gray-700">
-          <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
+        <div v-if="!collapsedCategories.has(catName)" class="border-t border-outline dark:border-outline-dark">
+          <div class="divide-y divide-outline dark:divide-outline-dark">
             <div
               v-for="emoji in emojisByCategory.get(catName)"
               :key="emoji.id"
-              class="px-4 py-3 flex items-center gap-4"
+              class="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-2/70 dark:hover:bg-surface-2-dark/70"
             >
               <img
                 :src="emoji.url"
                 :alt="emoji.shortcode"
-                class="w-8 h-8 object-contain flex-shrink-0 rounded"
+                class="h-8 w-8 flex-shrink-0 rounded object-contain"
               />
-              <div class="flex-1 min-w-0">
-                <code class="text-sm text-gray-900 dark:text-white">:{{ emoji.shortcode }}:</code>
+              <div class="min-w-0 flex-1">
+                <code class="text-sm text-slate-900 dark:text-white">:{{ emoji.shortcode }}:</code>
                 <!-- Category inline edit -->
                 <div v-if="editingId === emoji.id" class="mt-1 flex items-center gap-1">
                   <input
                     v-model="editCategory"
                     type="text"
                     list="emoji-categories-edit"
-                    class="w-40 px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    class="w-40 rounded-lg border border-outline bg-surface px-2 py-0.5 text-xs text-slate-900 transition placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-100 dark:placeholder:text-slate-500"
                     :placeholder="t('admin.emojiCategoryPlaceholder')"
                     @keyup.enter="saveCategory(emoji)"
                     @keyup.escape="cancelEditCategory"
@@ -327,23 +329,30 @@ async function saveCategory(emoji: CustomEmoji) {
                   <datalist id="emoji-categories-edit">
                     <option v-for="cat in existingCategories" :key="cat" :value="cat" />
                   </datalist>
-                  <button class="p-1 text-green-600 hover:text-green-700" :disabled="editSaving" @click="saveCategory(emoji)">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  <button
+                    class="rounded-full p-1 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                    :disabled="editSaving"
+                    @click="saveCategory(emoji)"
+                  >
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   </button>
-                  <button class="p-1 text-gray-400 hover:text-gray-600" @click="cancelEditCategory">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <button
+                    class="rounded-full p-1 text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-surface-2-dark dark:hover:text-slate-300"
+                    @click="cancelEditCategory"
+                  >
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                 </div>
-                <button v-else class="block mt-0.5 text-xs text-gray-400 hover:text-indigo-500 transition-colors" @click="startEditCategory(emoji)">
+                <button v-else class="mt-0.5 block text-xs text-slate-400 transition-colors hover:text-brand-500 dark:text-slate-500 dark:hover:text-brand-400" @click="startEditCategory(emoji)">
                   {{ emoji.category || t('admin.emojiCategoryPlaceholder') }}
                 </button>
               </div>
               <button
-                class="p-1.5 text-gray-400 hover:text-red-500 flex-shrink-0"
+                class="flex-shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
                 :title="t('common.delete')"
                 @click="deleteEmoji(emoji.id)"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
               </button>

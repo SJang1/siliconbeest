@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   images: Array<{
@@ -66,24 +69,24 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div
-      class="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
+      class="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center"
       @click.self="emit('close')"
     >
       <!-- Close button -->
       <button
         @click="emit('close')"
-        class="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-        aria-label="Close"
+        class="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        :aria-label="t('common.close')"
       >
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6M6 6l12 12"/>
         </svg>
       </button>
 
       <!-- Counter -->
       <div
         v-if="hasMultiple"
-        class="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-black/50 text-white text-sm"
+        class="absolute top-4 left-1/2 -translate-x-1/2 z-10 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white backdrop-blur-md"
       >
         {{ currentIndex + 1 }} / {{ images.length }}
       </div>
@@ -92,11 +95,11 @@ onUnmounted(() => {
       <button
         v-if="hasMultiple && currentIndex > 0"
         @click.stop="prev"
-        class="absolute left-4 z-10 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-        aria-label="Previous"
+        class="absolute left-4 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        :aria-label="t('common.previous')"
       >
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 19.5 8.25 12l7.5-7.5"/>
         </svg>
       </button>
 
@@ -127,18 +130,18 @@ onUnmounted(() => {
       <button
         v-if="hasMultiple && currentIndex < images.length - 1"
         @click.stop="next"
-        class="absolute right-4 z-10 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-        aria-label="Next"
+        class="absolute right-4 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        :aria-label="t('common.next')"
       >
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
         </svg>
       </button>
 
       <!-- Alt text -->
       <div
         v-if="currentImage?.description"
-        class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 max-w-[80vw] px-4 py-2 rounded-lg bg-black/70 text-white text-sm text-center"
+        class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 max-w-[80vw] rounded-2xl bg-slate-950/80 px-4 py-2.5 text-sm text-center text-slate-100 backdrop-blur-md"
       >
         {{ currentImage.description }}
       </div>

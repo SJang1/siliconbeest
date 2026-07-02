@@ -23,13 +23,13 @@ const domain = computed(() => {
     :href="card.url"
     target="_blank"
     rel="noopener noreferrer"
-    class="block mt-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+    class="sb-card sb-card-hover mt-3 block overflow-hidden"
   >
     <div class="flex" :class="{ 'flex-col': !showImage, 'flex-row': showImage }">
       <!-- Image -->
       <div
         v-if="showImage"
-        class="flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-gray-100 dark:bg-gray-800"
+        class="flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-surface-2 dark:bg-surface-2-dark"
       >
         <img
           :src="card.image!"
@@ -41,16 +41,16 @@ const domain = computed(() => {
       </div>
 
       <!-- Text content -->
-      <div class="flex-1 min-w-0 p-3">
+      <div class="min-w-0 flex-1 p-3.5">
         <!-- Provider -->
-        <div class="text-xs text-gray-500 dark:text-gray-400 truncate mb-0.5">
+        <div class="mb-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-500">
           {{ card.provider_name || domain }}
         </div>
 
         <!-- Title -->
         <div
           v-if="card.title"
-          class="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2"
+          class="text-sm font-semibold text-slate-900 line-clamp-2 dark:text-slate-100"
         >
           {{ card.title }}
         </div>
@@ -58,7 +58,7 @@ const domain = computed(() => {
         <!-- Description -->
         <div
           v-if="card.description"
-          class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5"
+          class="mt-0.5 text-xs text-slate-500 line-clamp-2 dark:text-slate-400"
         >
           {{ card.description }}
         </div>

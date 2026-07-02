@@ -306,19 +306,19 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 <template>
   <div class="w-full">
-    <h2 class="text-xl font-bold mb-6 text-gray-900 dark:text-white">{{ t('settings.notifications') }}</h2>
+    <h2 class="sb-heading text-xl mb-6">{{ t('settings.notifications') }}</h2>
 
     <LoadingSpinner v-if="loading" />
 
-    <div v-else class="space-y-8">
+    <div v-else class="space-y-6">
       <!-- Web Push Notification Settings -->
-      <section class="space-y-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('settings.push_title') }}</h3>
+      <section class="sb-card p-6 space-y-4">
+        <h3 class="sb-heading text-lg">{{ t('settings.push_title') }}</h3>
 
         <!-- iOS PWA notice -->
         <div
           v-if="isIOS"
-          class="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300"
+          class="p-3 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-900 text-sm text-brand-700 dark:text-brand-300"
         >
           {{ t('settings.ios_pwa_notice') }}
         </div>
@@ -326,7 +326,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         <!-- Push not supported -->
         <div
           v-if="!pushSupported"
-          class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400"
+          class="p-3 rounded-xl bg-surface-2 dark:bg-surface-2-dark border border-outline dark:border-outline-dark text-sm text-slate-500 dark:text-slate-400"
         >
           {{ t('settings.push_not_supported') }}
         </div>
@@ -336,12 +336,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
         <!-- Push enable button (no subscription) -->
         <div v-else-if="!pushSubscription" class="space-y-3">
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-sm text-slate-500 dark:text-slate-400">
             {{ t('settings.push_description') }}
           </p>
           <button
             :disabled="pushEnabling"
-            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            class="sb-btn sb-btn-primary"
             @click="enablePush"
           >
             {{ pushEnabling ? t('common.loading') : t('settings.push_enable') }}
@@ -355,7 +355,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
               {{ t('settings.push_active') }}
             </p>
             <button
-              class="text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+              class="text-xs font-medium text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors disabled:opacity-50"
               @click="disablePush"
               :disabled="pushSaving"
             >
@@ -367,22 +367,22 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
             <div
               v-for="alertType in pushAlertTypes"
               :key="alertType.key"
-              class="flex items-center justify-between py-2.5 border-b border-gray-100 dark:border-gray-800 last:border-0"
+              class="flex items-center justify-between py-2.5 border-b border-outline/60 dark:border-outline-dark/60 last:border-0"
             >
-              <span class="text-sm text-gray-900 dark:text-white">
+              <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
                 {{ t(alertType.label) }}
               </span>
               <button
                 type="button"
                 role="switch"
                 :aria-checked="pushSubscription.alerts[alertType.key] ?? false"
-                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-                :class="pushSubscription.alerts[alertType.key] ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'"
+                class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-50 dark:focus-visible:ring-offset-surface-dark"
+                :class="pushSubscription.alerts[alertType.key] ? 'bg-linear-to-r from-brand-600 to-violet-600' : 'bg-slate-300 dark:bg-slate-600'"
                 @click="togglePushAlert(alertType.key)"
                 :disabled="pushSaving"
               >
                 <span
-                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform"
                   :class="pushSubscription.alerts[alertType.key] ? 'translate-x-6' : 'translate-x-1'"
                 />
               </button>
@@ -391,33 +391,30 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         </div>
 
         <!-- Push error/success -->
-        <div v-if="pushError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+        <div v-if="pushError" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
           {{ pushError }}
         </div>
-        <div v-if="pushSuccess" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+        <div v-if="pushSuccess" class="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 text-sm">
           {{ t('settings.saved') }}
         </div>
       </section>
 
-      <!-- Divider -->
-      <hr class="border-gray-200 dark:border-gray-700" />
-
       <!-- Local notification filter -->
-      <section class="space-y-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('settings.notif_filter_title') }}</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('settings.notif_filter_description') }}</p>
+      <section class="sb-card p-6 space-y-4">
+        <h3 class="sb-heading text-lg">{{ t('settings.notif_filter_title') }}</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('settings.notif_filter_description') }}</p>
 
         <div class="space-y-1">
           <div
             v-for="nt in notificationTypes"
             :key="nt.key"
-            class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
+            class="flex items-center justify-between py-3 border-b border-outline/60 dark:border-outline-dark/60 last:border-0"
           >
             <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-200">
                 {{ t(`settings.notif_${nt.key}`) }}
               </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-slate-500 dark:text-slate-400">
                 {{ t(`settings.notif_${nt.key}_desc`) }}
               </p>
             </div>
@@ -425,12 +422,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
               type="button"
               role="switch"
               :aria-checked="nt.enabled"
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-              :class="nt.enabled ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'"
+              class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-dark"
+              :class="nt.enabled ? 'bg-linear-to-r from-brand-600 to-violet-600' : 'bg-slate-300 dark:bg-slate-600'"
               @click="toggleNotification(nt.key)"
             >
               <span
-                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform"
                 :class="nt.enabled ? 'translate-x-6' : 'translate-x-1'"
               />
             </button>
@@ -438,16 +435,16 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         </div>
 
         <!-- Error / Success -->
-        <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+        <div v-if="error" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
           {{ error }}
         </div>
-        <div v-if="success" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+        <div v-if="success" class="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 text-sm">
           {{ t('settings.saved') }}
         </div>
 
         <button
           :disabled="saving"
-          class="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-primary w-full"
           @click="savePreferences"
         >
           {{ saving ? t('common.loading') : t('common.save') }}

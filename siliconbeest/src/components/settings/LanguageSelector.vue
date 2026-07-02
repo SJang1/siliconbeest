@@ -17,21 +17,23 @@ function handleLocaleChange(newLocale: string) {
     <Listbox :model-value="locale" @update:model-value="handleLocaleChange">
       <div class="relative w-full max-w-xs">
         <ListboxButton
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input flex items-center justify-between gap-2 text-left"
         >
-          {{ localeMap[locale] || locale }}
+          <span class="truncate">{{ localeMap[locale] || locale }}</span>
+          <svg class="h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
         </ListboxButton>
         <ListboxOptions
-          class="absolute mt-1 w-full rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 max-h-60 overflow-auto"
+          class="sb-menu absolute z-10 mt-1.5 max-h-60 w-full overflow-auto focus:outline-none"
         >
           <ListboxOption
             v-for="loc in SUPPORTED_LOCALES"
             :key="loc.code"
             :value="loc.code"
-            class="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-            :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 font-medium': loc.code === locale }"
+            class="sb-menu-item cursor-pointer justify-between"
+            :class="{ 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-950/50 dark:text-brand-300': loc.code === locale }"
           >
-            {{ loc.name }}
+            <span class="truncate">{{ loc.name }}</span>
+            <svg v-if="loc.code === locale" class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
           </ListboxOption>
         </ListboxOptions>
       </div>

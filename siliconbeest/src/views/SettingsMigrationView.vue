@@ -164,13 +164,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="w-full p-4 md:p-6 space-y-8">
-    <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('migration.title') }}</h2>
+  <div class="w-full space-y-6">
+    <h2 class="sb-heading text-xl">{{ t('migration.title') }}</h2>
 
     <!-- Section 1: Account Aliases -->
-    <section class="space-y-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('migration.aliases') }}</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('migration.aliases_hint') }}</p>
+    <section class="sb-card p-6 space-y-4">
+      <h3 class="sb-heading text-lg">{{ t('migration.aliases') }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('migration.aliases_hint') }}</p>
 
       <LoadingSpinner v-if="aliasLoading" />
 
@@ -178,19 +178,19 @@ onMounted(() => {
         <div
           v-for="alias in aliases"
           :key="alias.acct"
-          class="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-2-dark"
         >
-          <span class="text-sm text-gray-900 dark:text-white">{{ alias.acct }}</span>
+          <span class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ alias.acct }}</span>
           <button
             type="button"
-            class="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+            class="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
             @click="removeAlias(alias.acct)"
           >
             {{ t('migration.remove_alias') }}
           </button>
         </div>
 
-        <div v-if="aliases.length === 0" class="text-sm text-gray-400 dark:text-gray-500">
+        <div v-if="aliases.length === 0" class="text-sm text-slate-400 dark:text-slate-500">
           {{ t('migration.aliases_hint') }}
         </div>
       </div>
@@ -200,40 +200,38 @@ onMounted(() => {
           v-model="aliasInput"
           type="text"
           placeholder="@user@domain"
-          class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input flex-1"
         />
         <button
           type="submit"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+          class="sb-btn sb-btn-primary shrink-0"
         >
           {{ t('migration.add_alias') }}
         </button>
       </form>
 
-      <div v-if="aliasError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="aliasError" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ aliasError }}
       </div>
     </section>
 
-    <hr class="border-gray-200 dark:border-gray-700" />
-
     <!-- Section 2: Account Migration -->
-    <section class="space-y-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('migration.move_account') }}</h3>
+    <section class="sb-card p-6 space-y-4 border-red-200 dark:border-red-900/60">
+      <h3 class="sb-heading text-lg">{{ t('migration.move_account') }}</h3>
 
-      <div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+      <div class="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900">
         <p class="text-sm text-red-700 dark:text-red-400 font-medium">{{ t('migration.move_warning') }}</p>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('migration.target_acct') }}
         </label>
         <input
           v-model="moveTarget"
           type="text"
           placeholder="@user@domain"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         />
       </div>
 
@@ -241,40 +239,38 @@ onMounted(() => {
         <input
           v-model="moveConfirmed"
           type="checkbox"
-          class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500"
+          class="w-4 h-4 rounded border-outline text-red-600 focus:ring-red-500 dark:border-outline-dark dark:bg-surface-2-dark"
         />
-        <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('migration.confirm_move') }}</span>
+        <span class="text-sm text-slate-700 dark:text-slate-200">{{ t('migration.confirm_move') }}</span>
       </label>
 
       <button
         type="button"
         :disabled="!moveConfirmed || !moveTarget.trim() || moveLoading"
-        class="w-full px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="sb-btn sb-btn-danger w-full"
         @click="moveAccount"
       >
         {{ moveLoading ? t('common.loading') : t('migration.move_account') }}
       </button>
 
-      <div v-if="moveError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="moveError" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ moveError }}
       </div>
-      <div v-if="moveSuccess" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+      <div v-if="moveSuccess" class="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 text-sm">
         {{ t('settings.saved') }}
       </div>
     </section>
 
-    <hr class="border-gray-200 dark:border-gray-700" />
-
     <!-- Section 3: Data Export -->
-    <section class="space-y-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('migration.export') }}</h3>
+    <section class="sb-card p-6 space-y-4">
+      <h3 class="sb-heading text-lg">{{ t('migration.export') }}</h3>
 
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <button
           v-for="exp in exportTypes"
           :key="exp.key"
           type="button"
-          class="px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          class="px-4 py-3 rounded-xl border border-outline bg-surface text-slate-700 text-sm font-medium transition-colors hover:border-brand-300 hover:bg-surface-2 hover:text-slate-900 dark:border-outline-dark dark:bg-surface-dark dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-surface-2-dark dark:hover:text-white"
           @click="downloadExport(exp.endpoint, `${exp.key}.csv`)"
         >
           {{ t(`migration.export_${exp.key}`) }}
@@ -282,19 +278,17 @@ onMounted(() => {
       </div>
     </section>
 
-    <hr class="border-gray-200 dark:border-gray-700" />
-
     <!-- Section 4: Data Import -->
-    <section class="space-y-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('migration.import') }}</h3>
+    <section class="sb-card p-6 space-y-4">
+      <h3 class="sb-heading text-lg">{{ t('migration.import') }}</h3>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('migration.import_type') }}
         </label>
         <select
           v-model="importType"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         >
           <option v-for="it in importTypes" :key="it.value" :value="it.value">
             {{ t(it.labelKey) }}
@@ -303,13 +297,13 @@ onMounted(() => {
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('migration.import_file') }}
         </label>
         <input
           type="file"
           accept=".csv"
-          class="text-sm text-gray-600 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-400 hover:file:bg-indigo-100"
+          class="text-sm text-slate-500 dark:text-slate-400 file:mr-3 file:rounded-full file:border-0 file:px-4 file:py-1.5 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-950/60 dark:file:text-brand-300 dark:hover:file:bg-brand-900/60 file:transition-colors"
           @change="onImportFileChange"
         />
       </div>
@@ -317,16 +311,16 @@ onMounted(() => {
       <button
         type="button"
         :disabled="!importFile || importLoading"
-        class="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="sb-btn sb-btn-primary w-full"
         @click="startImport"
       >
         {{ importLoading ? t('migration.import_processing') : t('migration.import_start') }}
       </button>
 
-      <div v-if="importError" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="importError" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ importError }}
       </div>
-      <div v-if="importSuccess" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+      <div v-if="importSuccess" class="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 text-sm">
         {{ t('migration.import_success') }}
       </div>
     </section>

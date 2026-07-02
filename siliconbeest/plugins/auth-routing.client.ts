@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
+import { isOldDesignPath, stripOldPrefix } from '@/utils/designVersion';
 
 const AUTH_ONLY_PREFIXES = [
   '/home',
@@ -31,15 +32,17 @@ export default defineNuxtPlugin((nuxtApp) => {
     const auth = useAuthStore();
     auth.syncTokenFromCookie();
     const currentRoute = router.currentRoute.value;
-    const path = currentRoute.path;
+    // /old/* mirrors the canonical routes with the classic design.
+    const old = isOldDesignPath(currentRoute.path);
+    const path = stripOldPrefix(currentRoute.path);
 
     if ((isAuthOnly(path) || isAdminOnly(path)) && !auth.isAuthenticated) {
-      router.replace({ path: '/login', query: { redirect: currentRoute.fullPath } });
+      router.replace({ path: old ? '/old/login' : '/login', query: { redirect: currentRoute.fullPath } });
       return;
     }
 
     if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path)) {
-      router.replace('/home');
+      router.replace(old ? '/old/home' : '/home');
     }
   }
 
@@ -47,27 +50,32 @@ export default defineNuxtPlugin((nuxtApp) => {
     const auth = useAuthStore();
     auth.syncTokenFromCookie();
 
-    if ((isAuthOnly(to.path) || isAdminOnly(to.path)) && !auth.isAuthenticated) {
-      return { path: '/login', query: { redirect: to.fullPath } };
+    const old = isOldDesignPath(to.path);
+    const path = stripOldPrefix(to.path);
+    const loginPath = old ? '/old/login' : '/login';
+    const homePath = old ? '/old/home' : '/home';
+
+    if ((isAuthOnly(path) || isAdminOnly(path)) && !auth.isAuthenticated) {
+      return { path: loginPath, query: { redirect: to.fullPath } };
     }
 
     if (auth.isAuthenticated && !auth.currentUser) {
       void auth.fetchCurrentUser();
     }
 
-    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(to.path)) {
-      return '/home';
+    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path)) {
+      return homePath;
     }
 
-    if (isAdminOnly(to.path)) {
+    if (isAdminOnly(path)) {
       if (auth.isAuthenticated && !auth.currentUser) {
         await auth.fetchCurrentUser();
       }
       if (!auth.isAuthenticated) {
-        return { path: '/login', query: { redirect: to.fullPath } };
+        return { path: loginPath, query: { redirect: to.fullPath } };
       }
       if (!auth.isAdmin && !auth.isModerator) {
-        return '/home';
+        return homePath;
       }
     }
   });

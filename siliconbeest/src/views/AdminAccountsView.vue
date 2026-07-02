@@ -193,25 +193,25 @@ function formatDate(dateStr: string) {
 }
 
 function statusBadge(account: AdminAccount) {
-  if (account.suspended) return { text: t('admin_accounts.status_suspended'), color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
-  if (account.silenced) return { text: t('admin_accounts.status_silenced'), color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
-  if (!account.approved) return { text: t('admin_accounts.status_pending'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
-  if (account.disabled) return { text: t('admin_accounts.status_disabled'), color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400' }
-  return { text: t('admin_accounts.status_active'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (account.suspended) return { text: t('admin_accounts.status_suspended'), color: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' }
+  if (account.silenced) return { text: t('admin_accounts.status_silenced'), color: 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300' }
+  if (!account.approved) return { text: t('admin_accounts.status_pending'), color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' }
+  if (account.disabled) return { text: t('admin_accounts.status_disabled'), color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }
+  return { text: t('admin_accounts.status_active'), color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' }
 }
 
 const tabClass = (active: boolean) =>
   active
-    ? 'px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white'
-    : 'px-4 py-2 text-sm font-medium rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+    ? 'rounded-full px-4 py-1.5 text-sm font-medium bg-brand-600 text-white shadow-soft transition-colors dark:bg-brand-500'
+    : 'rounded-full px-4 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-surface-2 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white'
 
-const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputClass = 'sb-input'
 </script>
 
 <template>
   <AdminLayout>
-  <div class="w-full">
-    <h1 class="text-2xl font-bold mb-6">{{ t('admin.accounts') }}</h1>
+  <div class="w-full max-w-6xl animate-fade-in">
+    <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">{{ t('admin.accounts') }}</h1>
 
     <!-- Search -->
     <form @submit.prevent="handleSearch" class="mb-4">
@@ -220,11 +220,11 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
           v-model="searchQuery"
           type="text"
           :placeholder="t('admin_accounts.search_placeholder')"
-          class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input flex-1"
         />
         <button
           type="submit"
-          class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+          class="sb-btn sb-btn-primary shrink-0"
         >
           {{ t('common.search') }}
         </button>
@@ -232,7 +232,7 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
     </form>
 
     <!-- Filter tabs -->
-    <div class="flex gap-2 mb-4">
+    <div class="mb-4 inline-flex gap-1 rounded-full border border-outline bg-surface p-1 shadow-soft dark:border-outline-dark dark:bg-surface-dark">
       <button :class="tabClass(filter === 'all')" @click="changeFilter('all')">{{ t('admin_accounts.filter_all') }}</button>
       <button :class="tabClass(filter === 'local')" @click="changeFilter('local')">{{ t('admin_accounts.filter_local') }}</button>
       <button :class="tabClass(filter === 'remote')" @click="changeFilter('remote')">{{ t('admin_accounts.filter_remote') }}</button>
@@ -240,131 +240,133 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
     </div>
 
     <!-- Messages -->
-    <div v-if="actionMessage" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+    <div v-if="actionMessage" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
       {{ actionMessage }}
     </div>
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" role="alert">
       {{ error }}
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="text-gray-500">{{ t('common.loading') }}</div>
+    <div v-if="loading" class="text-sm text-slate-500 dark:text-slate-400">{{ t('common.loading') }}</div>
 
     <!-- Table -->
-    <div v-else class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-gray-200 dark:border-gray-700 text-left">
-            <th class="px-4 py-3 font-medium">{{ t('auth.username') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('auth.email') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.role') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.status') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.created') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="account in accounts"
-            :key="account.id"
-            class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30"
-          >
-            <td class="px-4 py-3">
-              <div class="font-medium">
-                {{ account.username }}
-                <span v-if="account.domain" class="text-gray-400">@{{ account.domain }}</span>
-              </div>
-              <div v-if="!account.approved && account.invite_request" class="mt-1 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1">
-                <span class="font-medium text-gray-600 dark:text-gray-300">{{ t('auth.signup_reason') }}</span>
-                {{ account.invite_request }}
-              </div>
-            </td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ account.email || '-' }}</td>
-            <td class="px-4 py-3">
-              <select
-                :value="typeof account.role === 'string' ? account.role : (account.role?.name || 'user')"
-                @change="handleRoleChange(account, ($event.target as HTMLSelectElement).value)"
-                class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="user">user</option>
-                <option value="moderator">moderator</option>
-                <option value="admin">admin</option>
-              </select>
-            </td>
-            <td class="px-4 py-3">
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium" :class="statusBadge(account).color">
-                {{ statusBadge(account).text }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ formatDate(account.created_at) }}</td>
-            <td class="px-4 py-3">
-              <div class="flex gap-1 flex-wrap">
-                <template v-if="!account.approved">
-                  <button
-                    @click="handleAction(account, 'approve')"
-                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    {{ t('admin_accounts.approve') }}
-                  </button>
-                  <button
-                    @click="handleAction(account, 'reject')"
-                    class="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-                  >
-                    {{ t('admin_accounts.reject') }}
-                  </button>
-                </template>
-                <template v-else>
-                  <button
-                    v-if="account.suspended"
-                    @click="handleAction(account, 'unsuspend')"
-                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    {{ t('admin_accounts.unsuspend') }}
-                  </button>
-                  <button
-                    v-if="account.silenced"
-                    @click="handleAction(account, 'unsilence')"
-                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    {{ t('admin_accounts.unsilence') }}
-                  </button>
-                  <button
-                    v-if="account.disabled"
-                    @click="handleAction(account, 'enable')"
-                    class="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    {{ t('admin_accounts.enable') }}
-                  </button>
-                  <button
-                    v-if="!account.silenced && !account.suspended"
-                    @click="handleAction(account, 'silence')"
-                    class="px-2 py-1 text-xs rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
-                  >
-                    {{ t('admin.accountAction.silence') }}
-                  </button>
-                  <button
-                    v-if="!account.suspended"
-                    @click="handleAction(account, 'suspend')"
-                    class="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-                  >
-                    {{ t('admin.accountAction.suspend') }}
-                  </button>
-                </template>
-                <button
-                  v-if="account.email"
-                  @click="openEmailModal(account)"
-                  class="px-2 py-1 text-xs rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/50"
+    <div v-else class="sb-card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left">
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('auth.username') }}</th>
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('auth.email') }}</th>
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin_accounts.role') }}</th>
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin_accounts.status') }}</th>
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin_accounts.created') }}</th>
+              <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin_accounts.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="account in accounts"
+              :key="account.id"
+              class="border-b border-outline transition-colors last:border-0 hover:bg-surface-2/70 dark:border-outline-dark dark:hover:bg-surface-2-dark/70"
+            >
+              <td class="px-4 py-3">
+                <div class="font-medium text-slate-900 dark:text-white">
+                  {{ account.username }}
+                  <span v-if="account.domain" class="font-normal text-slate-400 dark:text-slate-500">@{{ account.domain }}</span>
+                </div>
+                <div v-if="!account.approved && account.invite_request" class="mt-1 rounded-lg bg-surface-2 px-2 py-1 text-xs text-slate-500 dark:bg-surface-2-dark dark:text-slate-400">
+                  <span class="font-medium text-slate-600 dark:text-slate-300">{{ t('auth.signup_reason') }}</span>
+                  {{ account.invite_request }}
+                </div>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ account.email || '-' }}</td>
+              <td class="px-4 py-3">
+                <select
+                  :value="typeof account.role === 'string' ? account.role : (account.role?.name || 'user')"
+                  @change="handleRoleChange(account, ($event.target as HTMLSelectElement).value)"
+                  class="rounded-lg border border-outline bg-surface px-2 py-1 text-sm text-slate-900 transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-100"
                 >
-                  {{ t('admin_accounts.send_email') }}
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="accounts.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-gray-500">{{ t('admin_accounts.no_accounts') }}</td>
-          </tr>
-        </tbody>
-      </table>
+                  <option value="user">user</option>
+                  <option value="moderator">moderator</option>
+                  <option value="admin">admin</option>
+                </select>
+              </td>
+              <td class="px-4 py-3">
+                <span class="sb-chip" :class="statusBadge(account).color">
+                  {{ statusBadge(account).text }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ formatDate(account.created_at) }}</td>
+              <td class="px-4 py-3">
+                <div class="flex flex-wrap gap-1">
+                  <template v-if="!account.approved">
+                    <button
+                      @click="handleAction(account, 'approve')"
+                      class="sb-btn sb-btn-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                    >
+                      {{ t('admin_accounts.approve') }}
+                    </button>
+                    <button
+                      @click="handleAction(account, 'reject')"
+                      class="sb-btn sb-btn-sm bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/80"
+                    >
+                      {{ t('admin_accounts.reject') }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="account.suspended"
+                      @click="handleAction(account, 'unsuspend')"
+                      class="sb-btn sb-btn-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                    >
+                      {{ t('admin_accounts.unsuspend') }}
+                    </button>
+                    <button
+                      v-if="account.silenced"
+                      @click="handleAction(account, 'unsilence')"
+                      class="sb-btn sb-btn-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                    >
+                      {{ t('admin_accounts.unsilence') }}
+                    </button>
+                    <button
+                      v-if="account.disabled"
+                      @click="handleAction(account, 'enable')"
+                      class="sb-btn sb-btn-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                    >
+                      {{ t('admin_accounts.enable') }}
+                    </button>
+                    <button
+                      v-if="!account.silenced && !account.suspended"
+                      @click="handleAction(account, 'silence')"
+                      class="sb-btn sb-btn-sm bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-950/80"
+                    >
+                      {{ t('admin.accountAction.silence') }}
+                    </button>
+                    <button
+                      v-if="!account.suspended"
+                      @click="handleAction(account, 'suspend')"
+                      class="sb-btn sb-btn-sm bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-950/80"
+                    >
+                      {{ t('admin.accountAction.suspend') }}
+                    </button>
+                  </template>
+                  <button
+                    v-if="account.email"
+                    @click="openEmailModal(account)"
+                    class="sb-btn sb-btn-sm bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-950/50 dark:text-brand-300 dark:hover:bg-brand-950/80"
+                  >
+                    {{ t('admin_accounts.send_email') }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="accounts.length === 0">
+              <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">{{ t('admin_accounts.no_accounts') }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Load More -->
@@ -372,7 +374,7 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
       <button
         @click="loadNextPage"
         :disabled="loadingMore"
-        class="px-6 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+        class="sb-btn sb-btn-secondary px-6"
       >
         {{ loadingMore ? t('common.loading') : t('common.load_more') }}
       </button>
@@ -380,36 +382,36 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
 
     <!-- Email Modal -->
     <Teleport to="body">
-      <div v-if="emailModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="emailModalOpen = false">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-md mx-4 border border-gray-200 dark:border-gray-700">
-          <h3 class="text-lg font-semibold mb-4">
+      <div v-if="emailModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="emailModalOpen = false">
+        <div class="sb-card mx-4 w-full max-w-md p-6 shadow-lift animate-rise-in">
+          <h3 class="sb-heading mb-4 text-lg text-slate-900 dark:text-white">
             {{ t('admin_accounts.send_email') }} - {{ emailTarget?.username }}
           </h3>
           <form @submit.prevent="handleSendEmail" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_to') }}</label>
-              <input :value="emailTarget?.email" disabled :class="inputClass" class="!bg-gray-100 dark:!bg-gray-600" />
+              <label class="sb-label">{{ t('admin_accounts.email_to') }}</label>
+              <input :value="emailTarget?.email" disabled :class="inputClass" class="!bg-surface-2 opacity-70 dark:!bg-canvas-dark" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_subject') }}</label>
+              <label class="sb-label">{{ t('admin_accounts.email_subject') }}</label>
               <input v-model="emailSubject" required :class="inputClass" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_body') }}</label>
+              <label class="sb-label">{{ t('admin_accounts.email_body') }}</label>
               <textarea v-model="emailBody" required rows="5" :class="inputClass" />
             </div>
             <div class="flex justify-end gap-3">
               <button
                 type="button"
                 @click="emailModalOpen = false"
-                class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
+                class="sb-btn sb-btn-secondary"
               >
                 {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="emailSending"
-                class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
+                class="sb-btn sb-btn-primary"
               >
                 {{ emailSending ? t('common.loading') : t('admin_accounts.send_email') }}
               </button>

@@ -94,166 +94,189 @@ watch(() => auth.currentUser?.source?.language, (lang) => {
 
 <template>
   <div class="w-full">
-    <h2 class="text-xl font-bold mb-6 text-gray-900 dark:text-white">{{ t('settings.appearance') }}</h2>
+    <h2 class="sb-heading text-xl mb-6">{{ t('settings.appearance') }}</h2>
 
-    <div class="space-y-8">
+    <div class="space-y-6">
       <!-- Theme (localStorage) -->
-      <div>
+      <div class="sb-card p-6">
         <div class="flex items-center gap-2 mb-3">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label class="sb-label mb-0">
             {{ t('settings.theme') }}
           </label>
-          <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('settings.local_hint') }}</span>
+          <span class="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-surface-2-dark dark:text-slate-400">{{ t('settings.local_hint') }}</span>
         </div>
         <div class="grid grid-cols-3 gap-3">
           <button
             v-for="theme in themes"
             :key="theme.value"
-            class="px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors"
+            class="px-4 py-3 rounded-xl border-2 text-sm font-medium transition-colors"
             :class="
               uiStore.theme === theme.value
-                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
-                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/40 dark:text-brand-300'
+                : 'border-outline text-slate-600 hover:border-brand-300 hover:text-slate-900 dark:border-outline-dark dark:text-slate-300 dark:hover:border-brand-700 dark:hover:text-white'
             "
             @click="selectTheme(theme.value)"
           >
             {{ t(theme.labelKey) }}
           </button>
         </div>
-      </div>
-
-      <!-- Display Language (localStorage) -->
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.display_language') }}</h3>
-          <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('settings.local_hint') }}</span>
+        <div class="mt-4">
+          <a
+            href="/old/settings/appearance"
+            class="text-sm font-medium text-slate-500 underline decoration-outline underline-offset-4 transition-colors hover:text-brand-600 hover:decoration-brand-400 dark:text-slate-400 dark:decoration-outline-dark dark:hover:text-brand-400 dark:hover:decoration-brand-500"
+          >{{ $t('design.backToClassic') }}</a>
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.display_language_desc') }}</p>
-        <LanguageSelector />
       </div>
 
-      <!-- Default Language (server-side, users.locale) -->
-      <div>
-        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.default_language') }}</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.default_language_desc') }}</p>
-        <div class="flex items-center gap-3">
-          <Listbox :model-value="defaultLanguage" @update:model-value="saveDefaultLanguage" :disabled="savingDefaultLang">
-            <div class="relative w-full max-w-xs">
-              <ListboxButton
-                class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {{ localeMap[defaultLanguage] || defaultLanguage }}
-              </ListboxButton>
-              <ListboxOptions
-                class="absolute mt-1 w-full rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 max-h-60 overflow-auto"
-              >
-                <ListboxOption
-                  v-for="loc in ALL_LOCALES"
-                  :key="loc.code"
-                  :value="loc.code"
-                  class="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                  :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 font-medium': loc.code === defaultLanguage }"
+      <!-- Language -->
+      <div class="sb-card p-6 space-y-6">
+        <!-- Display Language (localStorage) -->
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h3 class="sb-label mb-0">{{ t('settings.display_language') }}</h3>
+            <span class="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-surface-2-dark dark:text-slate-400">{{ t('settings.local_hint') }}</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('settings.display_language_desc') }}</p>
+          <LanguageSelector />
+        </div>
+
+        <hr class="sb-divider" />
+
+        <!-- Default Language (server-side, users.locale) -->
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h3 class="sb-label mb-0">{{ t('settings.default_language') }}</h3>
+            <span class="sb-chip text-[11px]">{{ t('settings.synced_hint') }}</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('settings.default_language_desc') }}</p>
+          <div class="flex items-center gap-3">
+            <Listbox :model-value="defaultLanguage" @update:model-value="saveDefaultLanguage" :disabled="savingDefaultLang">
+              <div class="relative w-full max-w-xs">
+                <ListboxButton
+                  class="sb-input text-left disabled:opacity-50"
                 >
-                  {{ loc.name }}
-                </ListboxOption>
-              </ListboxOptions>
+                  {{ localeMap[defaultLanguage] || defaultLanguage }}
+                </ListboxButton>
+                <ListboxOptions
+                  class="sb-menu absolute mt-1.5 w-full z-10 max-h-60 overflow-auto"
+                >
+                  <ListboxOption
+                    v-for="loc in ALL_LOCALES"
+                    :key="loc.code"
+                    :value="loc.code"
+                    class="sb-menu-item cursor-pointer"
+                    :class="{ 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-950/50 dark:text-brand-300': loc.code === defaultLanguage }"
+                  >
+                    {{ loc.name }}
+                  </ListboxOption>
+                </ListboxOptions>
+              </div>
+            </Listbox>
+            <span v-if="defaultLangSuccess" class="text-sm text-green-600 dark:text-green-400">{{ t('settings.saved') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layout -->
+      <div class="sb-card p-6 space-y-6">
+        <!-- Trending Panel (server-synced) -->
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="sb-label mb-0">{{ t('settings.show_trending') }}</span>
+            <span class="sb-chip text-[11px]">{{ t('settings.synced_hint') }}</span>
+          </div>
+          <label class="flex items-center justify-between gap-4 px-2 py-2.5 rounded-xl cursor-pointer hover:bg-surface-2 dark:hover:bg-surface-2-dark transition-colors">
+            <div>
+              <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('settings.show_trending_desc') }}</p>
             </div>
-          </Listbox>
-          <span v-if="defaultLangSuccess" class="text-sm text-green-600 dark:text-green-400">{{ t('settings.saved') }}</span>
-        </div>
-      </div>
-
-      <!-- Trending Panel (server-synced) -->
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.show_trending') }}</span>
-          <span class="text-xs text-indigo-500 dark:text-indigo-400">{{ t('settings.synced_hint') }}</span>
-        </div>
-        <label class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-          <input
-            type="checkbox"
-            :checked="uiStore.showTrending"
-            @change="uiStore.setShowTrending(!uiStore.showTrending)"
-            class="w-4 h-4 text-indigo-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
-          />
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('settings.show_trending_desc') }}</p>
-          </div>
-        </label>
-      </div>
-
-      <!-- Columns (server-synced) -->
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('settings.columns') }}</h3>
-          <span class="text-xs text-indigo-500 dark:text-indigo-400">{{ t('settings.synced_hint') }}</span>
-        </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ t('settings.columns_desc') }}</p>
-
-        <!-- Active columns list -->
-        <div v-if="uiStore.columns.length > 0" class="space-y-1 mb-4">
-          <div
-            v-for="(col, index) in uiStore.columns"
-            :key="`col-${index}`"
-            class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
-          >
-            <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">
-              {{ columnLabel(col) }}
+            <span class="relative inline-flex shrink-0">
+              <input
+                type="checkbox"
+                :checked="uiStore.showTrending"
+                @change="uiStore.setShowTrending(!uiStore.showTrending)"
+                class="peer sr-only"
+              />
+              <span class="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-linear-to-r peer-checked:from-brand-600 peer-checked:to-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-600 dark:peer-focus-visible:ring-offset-surface-dark"></span>
+              <span class="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
             </span>
-            <button
-              @click="moveColumnUp(index)"
-              :disabled="index === 0"
-              class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Move up"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-              </svg>
-            </button>
-            <button
-              @click="moveColumnDown(index)"
-              :disabled="index === uiStore.columns.length - 1"
-              class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Move down"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <button
-              @click="uiStore.removeColumnAt(index)"
-              class="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300"
-              aria-label="Remove"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+          </label>
         </div>
 
-        <!-- Add column buttons -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="col in availableColumns"
-            :key="col.type"
-            @click="uiStore.addColumn(col.type)"
-            class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            + {{ t(col.labelKey) }}
-          </button>
+        <hr class="sb-divider" />
+
+        <!-- Columns (server-synced) -->
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h3 class="sb-label mb-0">{{ t('settings.columns') }}</h3>
+            <span class="sb-chip text-[11px]">{{ t('settings.synced_hint') }}</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('settings.columns_desc') }}</p>
+
+          <!-- Active columns list -->
+          <div v-if="uiStore.columns.length > 0" class="space-y-1.5 mb-4">
+            <div
+              v-for="(col, index) in uiStore.columns"
+              :key="`col-${index}`"
+              class="flex items-center gap-2 px-3 py-2 bg-surface-2 dark:bg-surface-2-dark rounded-xl"
+            >
+              <span class="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+                {{ columnLabel(col) }}
+              </span>
+              <button
+                @click="moveColumnUp(index)"
+                :disabled="index === 0"
+                class="p-1.5 rounded-lg text-slate-400 transition-colors hover:bg-surface hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed dark:hover:bg-surface-dark dark:hover:text-slate-200"
+                :aria-label="t('common.move_up')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
+              <button
+                @click="moveColumnDown(index)"
+                :disabled="index === uiStore.columns.length - 1"
+                class="p-1.5 rounded-lg text-slate-400 transition-colors hover:bg-surface hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed dark:hover:bg-surface-dark dark:hover:text-slate-200"
+                :aria-label="t('common.move_down')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button
+                @click="uiStore.removeColumnAt(index)"
+                class="p-1.5 rounded-lg text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                :aria-label="t('common.remove')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Add column buttons -->
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="col in availableColumns"
+              :key="col.type"
+              @click="uiStore.addColumn(col.type)"
+              class="sb-btn sb-btn-secondary sb-btn-sm"
+            >
+              + {{ t(col.labelKey) }}
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Clear Cache -->
-      <div>
-        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('settings.clear_cache') }}</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('settings.clear_cache_desc') }}</p>
+      <div class="sb-card p-6">
+        <h3 class="sb-label">{{ t('settings.clear_cache') }}</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('settings.clear_cache_desc') }}</p>
         <div class="flex items-center gap-3">
           <button
             @click="clearCache"
             :disabled="clearingCache"
-            class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-danger"
           >
             {{ t('settings.clear_cache_button') }}
           </button>

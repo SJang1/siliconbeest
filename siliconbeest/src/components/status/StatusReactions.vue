@@ -146,13 +146,13 @@ function getShortcode(name: string): string {
         :key="reaction.name"
         @click="!isRemoteCustomEmoji(reaction) && toggleReaction(reaction)"
         :disabled="loading || !authStore.isAuthenticated || isRemoteCustomEmoji(reaction)"
-        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-all duration-200 select-none"
+        class="inline-flex select-none items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         :class="[
           isRemoteCustomEmoji(reaction)
-            ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70'
+            ? 'cursor-not-allowed border-outline bg-surface-2/60 text-slate-400 opacity-70 dark:border-outline-dark dark:bg-surface-2-dark/60 dark:text-slate-500'
             : reaction.me
-              ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
-              : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600/50',
+              ? 'border-brand-300 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950/40 dark:text-brand-300 dark:hover:bg-brand-900/50'
+              : 'border-outline bg-surface-2/60 text-slate-600 hover:border-brand-200 hover:bg-surface-2 dark:border-outline-dark dark:bg-surface-2-dark/60 dark:text-slate-300 dark:hover:border-brand-800 dark:hover:bg-surface-2-dark',
           isRemoteCustomEmoji(reaction) ? '' : loading ? 'opacity-60 cursor-wait' : authStore.isAuthenticated ? 'cursor-pointer' : 'cursor-default',
         ]"
         :title="isRemoteCustomEmoji(reaction) ? `${reaction.name} (다른 서버의 이모지)` : reaction.name"
@@ -178,7 +178,7 @@ function getShortcode(name: string): string {
         ref="pickerBtnRef"
         @click.stop="togglePicker"
         :disabled="loading"
-        class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+        class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-outline text-slate-400 transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-outline-dark dark:text-slate-500 dark:hover:border-brand-500 dark:hover:bg-brand-950/30 dark:hover:text-brand-400"
         :class="loading ? 'opacity-60 cursor-wait' : 'cursor-pointer'"
         title="리액션 추가"
       >

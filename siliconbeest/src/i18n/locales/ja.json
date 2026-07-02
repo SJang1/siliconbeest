@@ -16,7 +16,12 @@
     "copied": "クリップボードにコピーしました",
     "upload": "アップロード",
     "uploading": "アップロード中...",
-    "load_more": "もっと見る"
+    "load_more": "もっと見る",
+    "previous": "前へ",
+    "remove": "削除",
+    "move_up": "上に移動",
+    "move_down": "下に移動",
+    "auto": "自動"
   },
   "auth": {
     "login": "ログイン",
@@ -165,7 +170,9 @@
     "followed_tags": "フォロー中のハッシュタグ",
     "directory": "ディレクトリ",
     "local_timeline": "ローカルタイムライン",
-    "federated_timeline": "連合タイムライン"
+    "federated_timeline": "連合タイムライン",
+    "main_navigation": "メインナビゲーション",
+    "mobile_navigation": "モバイルナビゲーション"
   },
   "explore": {
     "trending": "トレンド",
@@ -705,7 +712,9 @@
       "privacy_policy": "プライバシーポリシー",
       "privacy_policy_desc": "Markdownでプライバシーポリシーを記述してください。"
     },
-    "registration_message_help": "このメッセージは登録ページでユーザーに表示されます。"
+    "registration_message_help": "このメッセージは登録ページでユーザーに表示されます。",
+    "vapid_public_key_placeholder": "Base64urlエンコードされたP-256公開鍵（65バイト）",
+    "vapid_private_key_placeholder": "Base64urlエンコードされたP-256秘密鍵（32バイト）"
   },
   "legal": {
     "terms_of_service": "利用規約",
@@ -842,7 +851,8 @@
     "backup_codes_description": "これらのバックアップコードを安全な場所に保存してください。各コードは一度だけ使用できます。",
     "backup_codes_warning": "これらのコードは再表示されません。",
     "invalid_code": "無効なコードです。もう一度お試しください。",
-    "copied": "コピーしました！"
+    "copied": "コピーしました！",
+    "qr_alt": "TOTP QRコード"
   },
   "turnstile": {
     "title": "Turnstile（CAPTCHA）",
@@ -941,5 +951,27 @@
       "admin:read": "管理データの閲覧",
       "admin:write": "管理データの変更"
     }
+  },
+  "design": {
+    "classicBanner": "クラシックデザインを表示中です",
+    "switchToNew": "新しいデザインを試す",
+    "backToClassic": "クラシックデザイン"
+  },
+  "setup": {
+    "subtitle": "最初の管理者アカウントを作成します。",
+    "unavailable": "すでにユーザーが作成されているため、初期セットアップは利用できません。",
+    "admin_username": "管理者ユーザー名",
+    "admin_email": "管理者メールアドレス",
+    "password": "パスワード",
+    "confirm_password": "パスワード（確認）",
+    "create": "管理者を作成",
+    "creating": "作成中...",
+    "create_failed": "管理者の作成に失敗しました。",
+    "username_required": "ユーザー名を入力してください。",
+    "username_invalid": "ユーザー名には英数字とアンダースコアのみ使用できます。",
+    "email_required": "メールアドレスを入力してください。",
+    "password_required": "パスワードを入力してください。",
+    "password_too_short": "パスワードは8文字以上である必要があります。",
+    "password_mismatch": "パスワードが一致しません。"
   }
 }

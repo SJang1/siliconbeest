@@ -522,7 +522,7 @@ function submit() {
 <template>
   <form
     @submit.prevent="submit"
-    class="border-b border-gray-200 dark:border-gray-700 last:border-b-0 px-4 py-3 bg-transparent text-gray-900 dark:text-gray-100"
+    class="border-b border-outline dark:border-outline-dark last:border-b-0 px-4 py-4 bg-transparent text-slate-900 dark:text-slate-100"
   >
     <!-- Hidden file input -->
     <input
@@ -539,18 +539,18 @@ function submit() {
       <Listbox v-model="selectedVisibility">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline bg-surface px-3 py-1.5 text-sm text-slate-700 shadow-soft transition-all hover:border-brand-300 hover:bg-brand-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
             :aria-label="t('compose.visibility.label')"
             :title="t('compose.visibility.label')"
           >
             <span>{{ selectedVisibility.icon }}</span>
             <span class="inline-flex flex-col items-start leading-tight">
-              <span class="text-[11px] font-medium opacity-75">{{ t('compose.post_visibility_label') }}</span>
+              <span class="text-[11px] font-medium text-slate-400 dark:text-slate-500">{{ t('compose.post_visibility_label') }}</span>
               <span class="font-semibold">{{ t(selectedVisibility.label) }}</span>
             </span>
           </ListboxButton>
           <ListboxOptions
-            class="absolute left-0 top-full mt-1 w-56 rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20"
+            class="sb-menu absolute left-0 top-full z-20 mt-1.5 w-56"
           >
             <ListboxOption
               v-for="option in visibilityOptions"
@@ -560,10 +560,10 @@ function submit() {
             >
               <button
                 type="button"
-                class="w-full flex items-center gap-3 px-3 py-2 text-left text-sm"
+                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors"
                 :class="[
-                  active ? 'bg-gray-100 dark:bg-gray-800' : '',
-                  selected ? 'font-semibold text-indigo-600 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-200',
+                  active ? 'bg-surface-2 dark:bg-white/5' : '',
+                  selected ? 'font-semibold text-brand-600 dark:text-brand-300' : 'text-slate-700 dark:text-slate-200',
                 ]"
               >
                 <span>{{ option.icon }}</span>
@@ -578,18 +578,18 @@ function submit() {
       <Listbox v-model="compose.quotePolicy">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline bg-surface px-3 py-1.5 text-sm text-slate-700 shadow-soft transition-all hover:border-brand-300 hover:bg-brand-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
             :aria-label="t('compose.quote_policy.label')"
             :title="t('compose.quote_policy.label')"
           >
             <span>{{ quotePolicyIcons[compose.quotePolicy] }}</span>
             <span class="inline-flex flex-col items-start leading-tight">
-              <span class="text-[11px] font-medium opacity-75">{{ t('compose.quote_permission_label') }}</span>
+              <span class="text-[11px] font-medium text-slate-400 dark:text-slate-500">{{ t('compose.quote_permission_label') }}</span>
               <span class="font-semibold">{{ t(`compose.quote_policy.${compose.quotePolicy}`) }}</span>
             </span>
           </ListboxButton>
           <ListboxOptions
-            class="absolute left-0 top-full mt-1 z-20 w-48 rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1"
+            class="sb-menu absolute left-0 top-full z-20 mt-1.5 w-52"
           >
             <ListboxOption
               v-for="opt in quotePolicyOptions"
@@ -599,10 +599,10 @@ function submit() {
             >
               <button
                 type="button"
-                class="w-full flex items-center gap-3 px-3 py-2 text-left text-sm"
+                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors"
                 :class="[
-                  active ? 'bg-gray-100 dark:bg-gray-800' : '',
-                  selected ? 'font-semibold text-indigo-600 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-200',
+                  active ? 'bg-surface-2 dark:bg-white/5' : '',
+                  selected ? 'font-semibold text-brand-600 dark:text-brand-300' : 'text-slate-700 dark:text-slate-200',
                 ]"
               >
                 <span>{{ quotePolicyIcons[opt.value] }}</span>
@@ -617,18 +617,18 @@ function submit() {
       <Listbox v-model="selectedLanguage">
         <div class="relative">
           <ListboxButton
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/70 text-sm text-indigo-700 dark:text-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline bg-surface px-3 py-1.5 text-sm text-slate-700 shadow-soft transition-all hover:border-brand-300 hover:bg-brand-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
             :aria-label="t('compose.language')"
             :title="t('compose.language')"
           >
             <span>文</span>
             <span class="inline-flex flex-col items-start leading-tight">
-              <span class="text-[11px] font-medium opacity-75">{{ t('compose.post_language_label') }}</span>
+              <span class="text-[11px] font-medium text-slate-400 dark:text-slate-500">{{ t('compose.post_language_label') }}</span>
               <span class="font-semibold">{{ selectedLanguage.label }}</span>
             </span>
           </ListboxButton>
           <ListboxOptions
-            class="absolute left-0 top-full mt-1 w-40 max-h-56 overflow-auto rounded-lg bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20"
+            class="sb-menu absolute left-0 top-full z-20 mt-1.5 max-h-56 w-44 overflow-auto"
           >
             <ListboxOption
               v-for="lang in languageOptions"
@@ -638,13 +638,13 @@ function submit() {
             >
               <button
                 type="button"
-                class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm"
+                class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
                 :class="[
-                  active ? 'bg-gray-100 dark:bg-gray-800' : '',
-                  selected ? 'font-semibold text-indigo-600 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-200',
+                  active ? 'bg-surface-2 dark:bg-white/5' : '',
+                  selected ? 'font-semibold text-brand-600 dark:text-brand-300' : 'text-slate-700 dark:text-slate-200',
                 ]"
               >
-                <span class="uppercase font-mono text-xs text-gray-400 w-6">{{ lang.code }}</span>
+                <span class="w-6 font-mono text-xs uppercase text-slate-400 dark:text-slate-500">{{ lang.code }}</span>
                 <span>{{ lang.label }}</span>
               </button>
             </ListboxOption>
@@ -654,7 +654,7 @@ function submit() {
     </div>
 
     <!-- Reply indicator -->
-    <div v-if="replyTo" class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+    <div v-if="replyTo" class="mb-2 text-sm text-slate-500 dark:text-slate-400">
       {{ t('compose.replying_to', { name: `@${replyTo.account.acct}` }) }}
     </div>
 
@@ -664,7 +664,7 @@ function submit() {
       v-model="spoilerText"
       type="text"
       :placeholder="t('compose.cw_placeholder')"
-      class="w-full mb-2 px-3 py-2 text-sm border-x-4 border-y border-amber-400 dark:border-amber-500 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-gray-900 dark:text-gray-100 placeholder-amber-700/70 dark:placeholder-amber-300/70 focus:outline-none focus:ring-2 focus:ring-amber-500"
+      class="mb-2 w-full rounded-xl border border-amber-300 bg-amber-50/70 px-3.5 py-2.5 text-sm text-slate-900 transition placeholder:text-amber-700/60 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-slate-100 dark:placeholder:text-amber-300/60"
     />
 
     <!-- Main textarea with autocomplete container -->
@@ -674,7 +674,7 @@ function submit() {
         v-model="content"
         :placeholder="t('compose.placeholder')"
         rows="5"
-        class="w-full px-0 py-2 text-lg leading-relaxed bg-transparent border-0 resize-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+        class="w-full resize-none rounded-xl border border-outline bg-surface px-3.5 py-3 text-base leading-relaxed text-slate-900 transition placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-100 dark:placeholder:text-slate-500"
         @paste="onPaste"
         @drop.prevent="onDrop"
         @dragover.prevent
@@ -687,16 +687,16 @@ function submit() {
       <div
         v-if="autocompleteVisible && autocompleteItems.length > 0"
         ref="autocompleteRef"
-        class="absolute left-2 right-2 bottom-full mb-1 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden max-h-52 overflow-y-auto"
+        class="sb-menu absolute left-0 right-0 bottom-full z-20 mb-1.5 max-h-52 overflow-y-auto"
       >
         <button
           v-for="(item, idx) in autocompleteItems"
           :key="item.key"
           type="button"
-          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
           :class="idx === autocompleteIndex
-            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'"
+            ? 'bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-300'
+            : 'text-slate-700 dark:text-slate-300'"
           @click="selectAutocompleteItem(item)"
           @mouseenter="autocompleteIndex = idx"
         >
@@ -704,11 +704,11 @@ function submit() {
             v-if="item.image"
             :src="item.image"
             :alt="item.label"
-            class="w-6 h-6 rounded object-cover flex-shrink-0"
+            class="h-6 w-6 flex-shrink-0 rounded-md object-cover"
             loading="lazy"
           />
           <span class="truncate">{{ item.label }}</span>
-          <span v-if="item.sublabel" class="text-xs text-gray-400 dark:text-gray-500 truncate">{{ item.sublabel }}</span>
+          <span v-if="item.sublabel" class="truncate text-xs text-slate-400 dark:text-slate-500">{{ item.sublabel }}</span>
         </button>
       </div>
     </div>
@@ -718,7 +718,7 @@ function submit() {
       <div
         v-for="media in compose.mediaAttachments"
         :key="media.id"
-        class="relative group w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+        class="group relative h-24 w-24 overflow-hidden rounded-xl ring-1 ring-outline dark:ring-outline-dark"
       >
         <img
           v-if="media.type === 'image' || media.type === 'gifv'"
@@ -726,15 +726,15 @@ function submit() {
           :alt="media.description ?? ''"
           class="w-full h-full object-cover"
         />
-        <div v-else class="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-2xl">
+        <div v-else class="flex h-full w-full items-center justify-center bg-surface-2 text-2xl dark:bg-surface-2-dark">
           {{ media.type === 'video' ? '🎬' : '🎵' }}
         </div>
         <!-- ALT button -->
         <button
           type="button"
           @click="openAltEditor(media)"
-          class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-opacity"
-          :class="media.description ? 'bg-indigo-500 text-white opacity-90' : 'bg-black/60 text-white opacity-0 group-hover:opacity-100'"
+          class="absolute bottom-1 left-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide backdrop-blur-sm transition-opacity"
+          :class="media.description ? 'bg-brand-600/90 text-white opacity-95' : 'bg-slate-950/60 text-white opacity-0 group-hover:opacity-100'"
         >
           ALT
         </button>
@@ -742,8 +742,8 @@ function submit() {
         <button
           type="button"
           @click="compose.removeMedia(media.id)"
-          class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-          aria-label="Remove"
+          class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/60 text-xs text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-slate-950/80"
+          :aria-label="t('common.remove')"
         >
           ✕
         </button>
@@ -753,21 +753,21 @@ function submit() {
     <!-- Quote preview -->
     <div
       v-if="compose.quoteStatus"
-      class="mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50"
+      class="mt-3 rounded-xl border border-outline bg-surface-2/60 p-3 dark:border-outline-dark dark:bg-surface-2-dark/60"
     >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
+          <div class="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
             @{{ compose.quoteStatus.account.acct }}
           </div>
           <div
-            class="mt-1 text-sm text-gray-800 dark:text-gray-100 line-clamp-3"
+            class="mt-1 text-sm text-slate-800 dark:text-slate-100 line-clamp-3"
             v-html="compose.quoteStatus.content"
           />
         </div>
         <button
           type="button"
-          class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
+          class="rounded-lg p-1 text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
           :aria-label="t('common.cancel')"
           @click="compose.clearQuote()"
         >
@@ -777,30 +777,30 @@ function submit() {
     </div>
 
     <!-- ALT text editor modal -->
-    <div v-if="altEditMedia" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="altEditMedia = null">
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-bold text-sm">{{ t('compose.alt_text') }}</h3>
-          <button type="button" @click="altEditMedia = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+    <div v-if="altEditMedia" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm" @click.self="altEditMedia = null">
+      <div class="sb-card mx-4 w-full max-w-md p-5">
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="sb-heading text-sm">{{ t('compose.alt_text') }}</h3>
+          <button type="button" @click="altEditMedia = null" class="rounded-lg p-1 text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300">✕</button>
         </div>
         <img
           v-if="altEditMedia.type === 'image' || altEditMedia.type === 'gifv'"
           :src="altEditMedia.preview_url ?? altEditMedia.url"
-          class="w-full h-40 object-contain rounded-lg bg-gray-100 dark:bg-gray-900 mb-3"
+          class="mb-3 h-40 w-full rounded-xl bg-surface-2 object-contain dark:bg-canvas-dark"
         />
         <textarea
           v-model="altEditText"
           :placeholder="t('compose.alt_placeholder')"
           rows="3"
-          class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input resize-none"
           maxlength="1500"
         />
-        <div class="flex justify-between items-center mt-2">
-          <span class="text-xs text-gray-400">{{ altEditText.length }}/1500</span>
+        <div class="mt-3 flex items-center justify-between">
+          <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500">{{ altEditText.length }}/1500</span>
           <button
             type="button"
             @click="saveAlt"
-            class="px-4 py-1.5 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
+            class="sb-btn sb-btn-primary sb-btn-sm"
           >
             {{ t('common.save') }}
           </button>
@@ -809,21 +809,21 @@ function submit() {
     </div>
 
     <!-- Poll editor -->
-    <div v-if="compose.showPoll" class="mt-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
+    <div v-if="compose.showPoll" class="mt-3 space-y-2.5 rounded-xl border border-outline bg-surface-2/50 p-3.5 dark:border-outline-dark dark:bg-surface-2-dark/40">
       <div v-for="(_, idx) in compose.pollOptions" :key="idx" class="flex items-center gap-2">
-        <span class="text-xs text-gray-400 w-4">{{ idx + 1 }}</span>
+        <span class="w-4 text-xs font-semibold tabular-nums text-slate-400 dark:text-slate-500">{{ idx + 1 }}</span>
         <input
           v-model="compose.pollOptions[idx]"
           type="text"
           :placeholder="t('compose.poll_option_placeholder', { n: idx + 1 })"
           maxlength="50"
-          class="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input flex-1"
         />
         <button
           v-if="compose.pollOptions.length > 2"
           type="button"
           @click="compose.pollOptions.splice(idx, 1)"
-          class="p-1 text-gray-400 hover:text-red-500 transition-colors"
+          class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -833,20 +833,20 @@ function submit() {
         v-if="compose.pollOptions.length < 4"
         type="button"
         @click="compose.pollOptions.push('')"
-        class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        class="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
       >
         + {{ t('compose.poll_add_option') }}
       </button>
 
-      <div class="flex items-center gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
-        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input v-model="compose.pollMultiple" type="checkbox" class="rounded border-gray-300 dark:border-gray-600" />
+      <div class="flex items-center gap-4 border-t border-outline pt-2.5 dark:border-outline-dark">
+        <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+          <input v-model="compose.pollMultiple" type="checkbox" class="h-4 w-4 rounded border-outline accent-brand-600 dark:border-outline-dark" />
           {{ t('compose.poll_multiple') }}
         </label>
 
         <select
           v-model.number="compose.pollExpiresIn"
-          class="text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          class="rounded-xl border border-outline bg-surface px-2.5 py-1.5 text-sm text-slate-900 transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-100"
         >
           <option :value="300">5 {{ t('compose.poll_minutes') }}</option>
           <option :value="1800">30 {{ t('compose.poll_minutes') }}</option>
@@ -861,20 +861,20 @@ function submit() {
     </div>
 
     <!-- Upload progress -->
-    <div v-if="compose.uploading" class="flex items-center gap-2 mt-2 text-sm text-gray-500 dark:text-gray-400">
-      <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+    <div v-if="compose.uploading" class="mt-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <svg class="h-4 w-4 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
       {{ t('compose.uploading') }}
     </div>
 
     <!-- Toolbar -->
-    <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-800">
+    <div class="mt-3 flex items-center justify-between border-t border-outline pt-3 dark:border-outline-dark">
       <div class="flex items-center gap-1.5 flex-wrap">
         <!-- Media upload -->
         <button
           type="button"
           @click="triggerFileInput"
           :disabled="compose.mediaAttachments.length >= 4 || compose.uploading || compose.showPoll"
-          class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-indigo-600 dark:text-indigo-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-ghost rounded-xl p-2 text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-950/40 dark:hover:text-brand-300"
           :aria-label="t('compose.add_media')"
           :title="t('compose.add_media')"
         >
@@ -885,10 +885,10 @@ function submit() {
         <button
           type="button"
           @click="showCw = !showCw"
-          class="p-2 rounded-lg transition-colors"
+          class="sb-btn sb-btn-ghost rounded-xl p-2"
           :class="showCw
-            ? 'bg-indigo-600 text-white'
-            : 'text-indigo-600 dark:text-indigo-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
+            ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500 dark:hover:bg-brand-500'
+            : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-950/40 dark:hover:text-brand-300'"
           :aria-label="t('compose.toggle_cw')"
           :title="t('compose.toggle_cw')"
         >
@@ -900,8 +900,10 @@ function submit() {
           type="button"
           @click="togglePoll"
           :disabled="compose.mediaAttachments.length > 0"
-          class="p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          :class="compose.showPoll ? 'bg-indigo-600 text-white' : 'text-indigo-600 dark:text-indigo-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
+          class="sb-btn sb-btn-ghost rounded-xl p-2"
+          :class="compose.showPoll
+            ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500 dark:hover:bg-brand-500'
+            : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-950/40 dark:hover:text-brand-300'"
           :aria-label="t('compose.poll_toggle')"
           :title="t('compose.poll_toggle')"
         >
@@ -914,8 +916,10 @@ function submit() {
             type="button"
             ref="emojiButtonRef"
             @click.stop="toggleEmojiPicker"
-            class="p-2 rounded-lg text-indigo-600 dark:text-indigo-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            :class="showEmojiPicker ? 'bg-indigo-600 text-white hover:bg-indigo-600' : ''"
+            class="sb-btn sb-btn-ghost rounded-xl p-2"
+            :class="showEmojiPicker
+              ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500 dark:hover:bg-brand-500'
+              : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-950/40 dark:hover:text-brand-300'"
             :aria-label="t('compose.emoji_picker')"
             :title="t('compose.emoji_picker')"
           >
@@ -934,7 +938,7 @@ function submit() {
         </div>
 
         <!-- Media count -->
-        <span v-if="compose.mediaAttachments.length > 0" class="text-xs text-gray-400 dark:text-gray-500">
+        <span v-if="compose.mediaAttachments.length > 0" class="sb-chip tabular-nums">
           {{ compose.mediaAttachments.length }}/4
         </span>
       </div>
@@ -942,8 +946,8 @@ function submit() {
       <div class="flex items-center gap-3">
         <!-- Char counter -->
         <span
-          class="text-sm"
-          :class="charsRemaining < 0 ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'"
+          class="text-sm tabular-nums"
+          :class="charsRemaining < 0 ? 'font-semibold text-red-500' : 'text-slate-400 dark:text-slate-500'"
         >
           {{ charsRemaining }}
         </span>
@@ -952,7 +956,7 @@ function submit() {
         <button
           type="submit"
           :disabled="!canSubmit || compose.publishing"
-          class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          class="sb-btn sb-btn-primary"
         >
           <svg v-if="compose.publishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           {{ t('compose.submit') }}

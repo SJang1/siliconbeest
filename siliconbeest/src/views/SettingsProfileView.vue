@@ -110,130 +110,151 @@ async function saveProfile() {
 
 <template>
   <div class="w-full">
-    <h2 class="text-xl font-bold mb-6 text-gray-900 dark:text-white">{{ t('settings.profile') }}</h2>
+    <h2 class="sb-heading text-xl mb-6">{{ t('settings.profile') }}</h2>
 
     <LoadingSpinner v-if="loading" />
 
     <form v-else class="space-y-6" @submit.prevent="saveProfile">
-      <!-- Avatar -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          {{ t('settings.avatar') }}
-        </label>
-        <div class="flex items-center gap-4">
-          <img
-            v-if="avatarPreview"
-            :src="avatarPreview"
-            :alt="t('settings.avatar')"
-            class="w-20 h-20 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700"
-          />
-          <div
-            v-else
-            class="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
-          >
-            <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
-            </svg>
+      <!-- Identity images -->
+      <div class="sb-card p-6 space-y-6">
+        <!-- Avatar -->
+        <div>
+          <label class="sb-label">
+            {{ t('settings.avatar') }}
+          </label>
+          <div class="flex items-center gap-4">
+            <span v-if="avatarPreview" class="sb-avatar-ring inline-flex shrink-0">
+              <img
+                :src="avatarPreview"
+                :alt="t('settings.avatar')"
+                class="w-20 h-20 rounded-full object-cover ring-2 ring-surface dark:ring-surface-dark"
+              />
+            </span>
+            <div
+              v-else
+              class="w-20 h-20 rounded-full bg-surface-2 dark:bg-surface-2-dark flex items-center justify-center shrink-0"
+            >
+              <svg class="w-8 h-8 text-slate-400 dark:text-slate-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+              </svg>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              class="text-sm text-slate-500 dark:text-slate-400 file:mr-3 file:rounded-full file:border-0 file:px-4 file:py-1.5 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-950/60 dark:file:text-brand-300 dark:hover:file:bg-brand-900/60 file:transition-colors"
+              @change="onAvatarChange"
+            />
           </div>
+        </div>
+
+        <hr class="sb-divider" />
+
+        <!-- Header -->
+        <div>
+          <label class="sb-label">
+            {{ t('settings.header') }}
+          </label>
+          <div class="space-y-3">
+            <div
+              v-if="headerPreview"
+              class="w-full h-32 rounded-xl overflow-hidden border border-outline dark:border-outline-dark shadow-soft"
+            >
+              <img :src="headerPreview" :alt="t('settings.header')" class="w-full h-full object-cover" />
+            </div>
+            <div
+              v-else
+              class="w-full h-32 rounded-xl bg-surface-2 dark:bg-surface-2-dark flex items-center justify-center"
+            >
+              <span class="text-sm text-slate-400 dark:text-slate-500">{{ t('settings.noHeader') }}</span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              class="text-sm text-slate-500 dark:text-slate-400 file:mr-3 file:rounded-full file:border-0 file:px-4 file:py-1.5 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-950/60 dark:file:text-brand-300 dark:hover:file:bg-brand-900/60 file:transition-colors"
+              @change="onHeaderChange"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- About you -->
+      <div class="sb-card p-6 space-y-4">
+        <!-- Display Name -->
+        <div>
+          <label class="sb-label">
+            {{ t('settings.displayName') }}
+          </label>
           <input
-            type="file"
-            accept="image/*"
-            class="text-sm text-gray-600 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-400 hover:file:bg-indigo-100"
-            @change="onAvatarChange"
+            v-model="displayName"
+            type="text"
+            class="sb-input"
+          />
+        </div>
+
+        <!-- Bio -->
+        <div>
+          <label class="sb-label">
+            {{ t('settings.bio') }}
+          </label>
+          <textarea
+            v-model="note"
+            rows="4"
+            class="sb-input resize-none"
           />
         </div>
       </div>
 
-      <!-- Header -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          {{ t('settings.header') }}
-        </label>
-        <div class="space-y-2">
-          <div
-            v-if="headerPreview"
-            class="w-full h-32 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
-          >
-            <img :src="headerPreview" :alt="t('settings.header')" class="w-full h-full object-cover" />
-          </div>
-          <div
-            v-else
-            class="w-full h-32 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
-          >
-            <span class="text-sm text-gray-400">{{ t('settings.noHeader') }}</span>
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            class="text-sm text-gray-600 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-400 hover:file:bg-indigo-100"
-            @change="onHeaderChange"
-          />
-        </div>
-      </div>
-
-      <!-- Display Name -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          {{ t('settings.displayName') }}
-        </label>
-        <input
-          v-model="displayName"
-          type="text"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <!-- Bio -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          {{ t('settings.bio') }}
-        </label>
-        <textarea
-          v-model="note"
-          rows="4"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-        />
-      </div>
-
-      <!-- Checkboxes -->
-      <div class="space-y-3">
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input
-            v-model="locked"
-            type="checkbox"
-            class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.lockAccount') }}</span>
+      <!-- Privacy toggles -->
+      <div class="sb-card p-6 space-y-1">
+        <label class="flex items-center justify-between gap-4 cursor-pointer rounded-xl px-2 py-2.5 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('settings.lockAccount') }}</span>
+          <span class="relative inline-flex shrink-0">
+            <input
+              v-model="locked"
+              type="checkbox"
+              class="peer sr-only"
+            />
+            <span class="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-linear-to-r peer-checked:from-brand-600 peer-checked:to-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-600 dark:peer-focus-visible:ring-offset-surface-dark"></span>
+            <span class="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
+          </span>
         </label>
 
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input
-            v-model="bot"
-            type="checkbox"
-            class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.botAccount') }}</span>
+        <label class="flex items-center justify-between gap-4 cursor-pointer rounded-xl px-2 py-2.5 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('settings.botAccount') }}</span>
+          <span class="relative inline-flex shrink-0">
+            <input
+              v-model="bot"
+              type="checkbox"
+              class="peer sr-only"
+            />
+            <span class="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-linear-to-r peer-checked:from-brand-600 peer-checked:to-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-600 dark:peer-focus-visible:ring-offset-surface-dark"></span>
+            <span class="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
+          </span>
         </label>
 
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input
-            v-model="discoverable"
-            type="checkbox"
-            class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.discoverable') }}</span>
+        <label class="flex items-center justify-between gap-4 cursor-pointer rounded-xl px-2 py-2.5 transition-colors hover:bg-surface-2 dark:hover:bg-surface-2-dark">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('settings.discoverable') }}</span>
+          <span class="relative inline-flex shrink-0">
+            <input
+              v-model="discoverable"
+              type="checkbox"
+              class="peer sr-only"
+            />
+            <span class="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-linear-to-r peer-checked:from-brand-600 peer-checked:to-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-600 dark:peer-focus-visible:ring-offset-surface-dark"></span>
+            <span class="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
+          </span>
         </label>
       </div>
 
       <!-- Profile Fields -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <div class="sb-card p-6">
+        <div class="flex items-center justify-between mb-3">
+          <label class="sb-label mb-0">
             {{ t('settings.profileFields') }}
           </label>
           <button
             type="button"
-            class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            class="text-sm font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
             @click="addField"
           >
             {{ t('settings.addField') }}
@@ -244,17 +265,17 @@ async function saveProfile() {
             v-model="field.name"
             type="text"
             :placeholder="t('settings.fieldName')"
-            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="sb-input flex-1"
           />
           <input
             v-model="field.value"
             type="text"
             :placeholder="t('settings.fieldValue')"
-            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="sb-input flex-1"
           />
           <button
             type="button"
-            class="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+            class="sb-btn sb-btn-ghost !px-2 text-red-500 hover:!bg-red-50 hover:!text-red-600 dark:text-red-400 dark:hover:!bg-red-950/40 dark:hover:!text-red-300"
             @click="removeField(index)"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,10 +286,10 @@ async function saveProfile() {
       </div>
 
       <!-- Error / Success -->
-      <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="error" class="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ error }}
       </div>
-      <div v-if="success" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+      <div v-if="success" class="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 text-sm">
         {{ t('settings.saved') }}
       </div>
 
@@ -276,7 +297,7 @@ async function saveProfile() {
       <button
         type="submit"
         :disabled="saving"
-        class="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="sb-btn sb-btn-primary w-full"
       >
         {{ saving ? t('common.loading') : t('common.save') }}
       </button>

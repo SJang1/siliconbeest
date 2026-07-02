@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth';
+import { isOldDesignPath, stripOldPrefix } from '@/utils/designVersion';
 
 const AUTH_TOKEN_COOKIE = 'siliconbeest_token';
 
@@ -32,11 +33,16 @@ export default defineNuxtRouteMiddleware((to) => {
   const auth = useAuthStore();
   auth.syncTokenFromCookie(token.value ?? null);
 
-  if (GUEST_ONLY_PATHS.has(to.path) && token.value) {
-    return navigateTo('/home');
+  // /old/* mirrors the canonical routes with the classic design; apply the
+  // same rules and keep redirect targets inside the /old tree.
+  const old = isOldDesignPath(to.path);
+  const path = stripOldPrefix(to.path);
+
+  if (GUEST_ONLY_PATHS.has(path) && token.value) {
+    return navigateTo(old ? '/old/home' : '/home');
   }
 
-  if (isAuthOnly(to.path) && !token.value) {
-    return navigateTo({ path: '/login', query: { redirect: to.fullPath } });
+  if (isAuthOnly(path) && !token.value) {
+    return navigateTo({ path: old ? '/old/login' : '/login', query: { redirect: to.fullPath } });
   }
 });

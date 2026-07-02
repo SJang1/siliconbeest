@@ -138,20 +138,20 @@ async function deleteBlock(id: string) {
 }
 
 const severityColors: Record<string, string> = {
-  noop: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-  silence: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  suspend: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  noop: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  silence: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
+  suspend: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300',
 }
 </script>
 
 <template>
   <AdminLayout>
-  <div class="w-full">
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('admin.domainBlocks') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <div class="mb-6 flex items-center justify-between">
+      <h1 class="sb-heading text-2xl text-slate-900 dark:text-white">{{ t('admin.domainBlocks') }}</h1>
       <button
         v-if="!showForm"
-        class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+        class="sb-btn sb-btn-primary"
         @click="openCreateForm"
       >
         {{ t('admin.addDomainBlock') }}
@@ -159,18 +159,18 @@ const severityColors: Record<string, string> = {
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
       {{ error }}
     </div>
 
     <!-- Create/Edit Form -->
-    <div v-if="showForm" class="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+    <div v-if="showForm" class="sb-card mb-6 space-y-4 p-6 animate-rise-in">
+      <h3 class="sb-heading text-lg text-slate-900 dark:text-white">
         {{ editingId ? t('admin.editDomainBlock') : t('admin.addDomainBlock') }}
       </h3>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('admin.domain') }}
         </label>
         <input
@@ -178,71 +178,71 @@ const severityColors: Record<string, string> = {
           type="text"
           placeholder="example.com"
           :disabled="!!editingId"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+          class="sb-input disabled:opacity-50"
         />
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label class="sb-label mb-2">
           {{ t('admin.severity') }}
         </label>
         <div class="flex gap-4">
           <label
             v-for="sev in severities"
             :key="sev.value"
-            class="flex items-center gap-2 cursor-pointer"
+            class="flex cursor-pointer items-center gap-2"
           >
             <input
               v-model="formSeverity"
               type="radio"
               :value="sev.value"
-              class="text-indigo-600 focus:ring-indigo-500"
+              class="h-4 w-4 accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:accent-brand-500"
             />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t(sev.labelKey) }}</span>
+            <span class="text-sm text-slate-700 dark:text-slate-300">{{ t(sev.labelKey) }}</span>
           </label>
         </div>
       </div>
 
       <div class="space-y-3">
-        <label class="flex items-center gap-3 cursor-pointer">
+        <label class="flex cursor-pointer items-center gap-3">
           <input
             v-model="formRejectMedia"
             type="checkbox"
-            class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+            class="h-4 w-4 rounded accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:accent-brand-500"
           />
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('admin.rejectMedia') }}</span>
+          <span class="text-sm text-slate-700 dark:text-slate-300">{{ t('admin.rejectMedia') }}</span>
         </label>
-        <label class="flex items-center gap-3 cursor-pointer">
+        <label class="flex cursor-pointer items-center gap-3">
           <input
             v-model="formRejectReports"
             type="checkbox"
-            class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+            class="h-4 w-4 rounded accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:accent-brand-500"
           />
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('admin.rejectReports') }}</span>
+          <span class="text-sm text-slate-700 dark:text-slate-300">{{ t('admin.rejectReports') }}</span>
         </label>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('admin.privateComment') }}
         </label>
         <textarea
           v-model="formComment"
           rows="2"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          class="sb-input resize-none"
         />
       </div>
 
       <div class="flex gap-2">
         <button
           :disabled="formSaving || !formDomain.trim()"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-primary"
           @click="saveBlock"
         >
           {{ formSaving ? t('common.loading') : t('common.save') }}
         </button>
         <button
-          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          class="sb-btn sb-btn-secondary"
           @click="cancelForm"
         >
           {{ t('common.cancel') }}
@@ -252,49 +252,51 @@ const severityColors: Record<string, string> = {
 
     <LoadingSpinner v-if="loading" />
 
-    <div v-else-if="blocks.length === 0 && !showForm" class="text-center py-12 text-gray-500 dark:text-gray-400">
-      <p>{{ t('admin.noDomainBlocks') }}</p>
+    <div v-else-if="blocks.length === 0 && !showForm" class="sb-card">
+      <div class="sb-empty">
+        <p>{{ t('admin.noDomainBlocks') }}</p>
+      </div>
     </div>
 
-    <div v-else class="space-y-3">
+    <div v-else class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
       <div
         v-for="block in blocks"
         :key="block.id"
-        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+        class="p-4 transition-colors hover:bg-surface-2/70 dark:hover:bg-surface-2-dark/70"
       >
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="font-medium text-gray-900 dark:text-white">{{ block.domain }}</span>
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="mb-1 flex items-center gap-2">
+              <span class="truncate font-medium text-slate-900 dark:text-white">{{ block.domain }}</span>
               <span
-                class="px-2 py-0.5 rounded-full text-xs font-medium"
+                class="sb-chip shrink-0"
                 :class="severityColors[block.severity]"
               >
                 {{ t(`admin.severity${block.severity.charAt(0).toUpperCase() + block.severity.slice(1)}`) }}
               </span>
             </div>
-            <div class="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
               <span v-if="block.reject_media">{{ t('admin.rejectMedia') }}</span>
               <span v-if="block.reject_reports">{{ t('admin.rejectReports') }}</span>
             </div>
-            <p v-if="block.private_comment" class="text-xs text-gray-400 mt-1">
+            <p v-if="block.private_comment" class="mt-1 text-xs text-slate-400 dark:text-slate-500">
               {{ block.private_comment }}
             </p>
           </div>
-          <div class="flex gap-2">
+          <div class="flex shrink-0 gap-1">
             <button
-              class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              class="rounded-full p-2 text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-surface-2-dark dark:hover:text-slate-200"
               @click="openEditForm(block)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
               </svg>
             </button>
             <button
-              class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+              class="rounded-full p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               @click="deleteBlock(block.id)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
               </svg>
             </button>

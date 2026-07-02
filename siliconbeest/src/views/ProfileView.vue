@@ -133,16 +133,16 @@ watch(() => route.params.acct, (acct) => {
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
-        <button @click="$router.back()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      <header class="sb-glass sticky top-0 z-10 flex items-center gap-2 border-b px-4 py-3">
+        <button @click="$router.back()" class="sb-btn sb-btn-ghost -ml-2 shrink-0 rounded-full p-2" :aria-label="t('common.back')">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
         </button>
-        <h1 class="text-xl font-bold">{{ t('nav.profile') }}</h1>
+        <h1 class="sb-heading truncate text-lg">{{ t('nav.profile') }}</h1>
       </header>
 
       <LoadingSpinner v-if="loading" />
 
-      <template v-else-if="account">
+      <div v-else-if="account" class="mx-auto w-full max-w-2xl animate-fade-in px-4 pb-10 pt-4">
         <AccountHeader
           :account="account"
           :is-own="isOwn"
@@ -150,16 +150,29 @@ watch(() => route.params.acct, (acct) => {
           @toggle-follow="handleFollowToggle"
           @relationship-updated="(r) => { relationship = r; accountsStore.updateRelationship(r) }"
         />
-        <TimelineFeed
-          :statuses="statuses"
-          :loading="feedLoading"
-          :done="feedDone"
-          @load-more="loadMoreStatuses"
-        />
-      </template>
 
-      <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">
-        {{ error || t('profile.not_found') }}
+        <!-- Feed section marker (pill treatment) -->
+        <div class="mt-5">
+          <div class="inline-flex items-center rounded-full border border-outline bg-surface-2 p-1 dark:border-outline-dark dark:bg-surface-2-dark">
+            <span class="rounded-full bg-surface px-4 py-1.5 text-xs font-semibold text-brand-700 shadow-soft dark:bg-surface-dark dark:text-brand-300">
+              {{ t('profile.posts') }}
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <TimelineFeed
+            :statuses="statuses"
+            :loading="feedLoading"
+            :done="feedDone"
+            @load-more="loadMoreStatuses"
+          />
+        </div>
+      </div>
+
+      <div v-else class="sb-empty px-4">
+        <svg class="h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+        <p>{{ error || t('profile.not_found') }}</p>
       </div>
     </div>
   </AppShell>

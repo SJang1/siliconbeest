@@ -1,7 +1,87 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/space-grotesk";
 
 /* Enable class-based dark mode (toggleable via JS adding .dark to <html>) */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+ * "Aurora" design system tokens (new design only).
+ * The classic design under /old/* uses plain Tailwind utilities and the
+ * legacy classes further below — everything in @theme is additive.
+ * ------------------------------------------------------------------------- */
+@theme {
+  --font-ui:
+    'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Noto Color Emoji';
+  --font-display:
+    'Space Grotesk Variable', 'Inter Variable', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Noto Color Emoji';
+
+  /* Brand: indigo anchor (matches the #6366f1 theme-color) */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  /* Surfaces */
+  --color-canvas: #f6f7fb;
+  --color-canvas-dark: #0a0e1e;
+  --color-surface: #ffffff;
+  --color-surface-dark: #12162b;
+  --color-surface-2: #eef0f8;
+  --color-surface-2-dark: #1a1f3a;
+  --color-outline: #e4e7f2;
+  --color-outline-dark: #262c4a;
+
+  /* Elevation */
+  --shadow-soft: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-lift: 0 4px 6px -2px rgb(16 24 40 / 0.05), 0 12px 28px -6px rgb(79 70 229 / 0.14);
+  --shadow-glow: 0 0 0 1px rgb(99 102 241 / 0.2), 0 8px 40px -8px rgb(139 92 246 / 0.45);
+
+  /* Motion */
+  --animate-fade-in: sb-fade-in 0.3s ease both;
+  --animate-rise-in: sb-rise-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-aurora: sb-aurora 16s ease-in-out infinite alternate;
+
+  @keyframes sb-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sb-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes sb-aurora {
+    from {
+      transform: translate3d(-6%, -4%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(6%, 6%, 0) scale(1.15);
+    }
+  }
+}
 
 /* Base styles for dark mode */
 @layer base {
@@ -109,5 +189,156 @@
 
   .status-content a:hover {
     text-decoration: underline;
+  }
+
+  /* -------------------------------------------------------------------------
+   * "Aurora" component recipes (new design only, sb- prefix).
+   * Every redesigned page sits inside an .sb-app root.
+   * ----------------------------------------------------------------------- */
+
+  .sb-app {
+    font-family: var(--font-ui);
+    font-feature-settings: 'cv02', 'cv03', 'cv11';
+    @apply bg-canvas text-slate-900 antialiased dark:bg-canvas-dark dark:text-slate-100;
+  }
+
+  .sb-heading {
+    font-family: var(--font-display);
+    @apply font-bold tracking-tight;
+  }
+
+  .sb-gradient-text {
+    @apply bg-linear-to-r from-brand-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-brand-400 dark:via-violet-400 dark:to-fuchsia-400;
+  }
+
+  .sb-card {
+    @apply rounded-2xl border border-outline bg-surface shadow-soft dark:border-outline-dark dark:bg-surface-dark;
+  }
+
+  /* Combine with .sb-card for interactive cards */
+  .sb-card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lift dark:hover:border-brand-800;
+  }
+
+  .sb-glass {
+    @apply border-outline/60 bg-white/75 backdrop-blur-xl dark:border-outline-dark/60 dark:bg-canvas-dark/75;
+  }
+
+  .sb-btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-surface-dark;
+  }
+
+  .sb-btn-primary {
+    @apply bg-linear-to-r from-brand-600 via-violet-600 to-fuchsia-600 text-white shadow-soft hover:shadow-glow hover:brightness-110 active:scale-[0.98];
+  }
+
+  .sb-btn-secondary {
+    @apply border border-outline bg-surface text-slate-700 hover:bg-surface-2 hover:text-slate-900 active:scale-[0.98] dark:border-outline-dark dark:bg-surface-dark dark:text-slate-200 dark:hover:bg-surface-2-dark dark:hover:text-white;
+  }
+
+  .sb-btn-ghost {
+    @apply text-slate-600 hover:bg-surface-2 hover:text-slate-900 active:scale-[0.98] dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white;
+  }
+
+  .sb-btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-500 active:scale-[0.98];
+  }
+
+  .sb-btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .sb-input {
+    @apply w-full rounded-xl border border-outline bg-surface px-3.5 py-2.5 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+
+  .sb-label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+  }
+
+  .sb-chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950/60 dark:text-brand-300;
+  }
+
+  .sb-nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-surface-2 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white;
+  }
+
+  .sb-nav-item-active {
+    @apply bg-brand-50 font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:bg-brand-950/50 dark:text-brand-300 dark:hover:bg-brand-950/50 dark:hover:text-brand-300;
+  }
+
+  .sb-menu {
+    @apply rounded-xl border border-outline bg-surface p-1.5 shadow-lift dark:border-outline-dark dark:bg-surface-2-dark;
+  }
+
+  .sb-menu-item {
+    @apply flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-surface-2 dark:text-slate-200 dark:hover:bg-white/5;
+  }
+
+  .sb-divider {
+    @apply border-t border-outline dark:border-outline-dark;
+  }
+
+  .sb-empty {
+    @apply flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .sb-avatar-ring {
+    @apply rounded-full bg-linear-to-tr from-brand-500 via-violet-500 to-fuchsia-500 p-0.5;
+  }
+
+  /* Decorative animated backdrop for landing/auth pages. Place inside a
+     relative overflow-hidden container; content goes in a sibling with z-10. */
+  .sb-aurora {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .sb-aurora::before,
+  .sb-aurora::after {
+    content: '';
+    position: absolute;
+    border-radius: 100%;
+    filter: blur(80px);
+    opacity: 0.3;
+    animation: var(--animate-aurora);
+  }
+
+  .sb-aurora::before {
+    width: 60%;
+    height: 60%;
+    top: -12%;
+    left: -10%;
+    background: radial-gradient(closest-side, #818cf8, transparent 70%);
+  }
+
+  .sb-aurora::after {
+    width: 55%;
+    height: 55%;
+    right: -10%;
+    bottom: -15%;
+    background: radial-gradient(closest-side, #d946ef, transparent 70%);
+    animation-delay: -8s;
+  }
+
+  .dark .sb-aurora::before,
+  .dark .sb-aurora::after {
+    opacity: 0.22;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sb-aurora::before,
+    .sb-aurora::after {
+      animation: none;
+    }
+  }
+
+  /* Subtle scrollbars, scoped to the new design */
+  .sb-app * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184 / 0.4) transparent;
   }
 }

@@ -47,15 +47,15 @@ async function handleToggle() {
 </script>
 
 <template>
-  <div class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-    <router-link :to="`/@${account.acct}`" class="flex-shrink-0 w-10 h-10">
+  <div class="flex items-center gap-3 p-3 transition-colors hover:bg-surface-2/70 dark:hover:bg-surface-2-dark/60">
+    <router-link :to="`/@${account.acct}`" class="h-10 w-10 flex-shrink-0">
       <Avatar :src="account.avatar" :alt="account.display_name" size="md" />
     </router-link>
 
-    <div class="flex-1 min-w-0">
+    <div class="min-w-0 flex-1">
       <router-link :to="`/@${account.acct}`" class="block">
-        <p class="font-semibold text-sm truncate hover:underline" v-html="emojifiedName" />
-        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">@{{ account.acct }}</p>
+        <p class="truncate text-sm font-semibold text-slate-900 hover:underline dark:text-slate-100" v-html="emojifiedName" />
+        <p class="truncate text-xs text-slate-500 dark:text-slate-400">@{{ account.acct }}</p>
       </router-link>
     </div>
 
@@ -65,7 +65,7 @@ async function handleToggle() {
       :following="accountsStore.getRelationship(account.id)?.following"
       :requested="accountsStore.getRelationship(account.id)?.requested"
       :blocked="accountsStore.getRelationship(account.id)?.blocking"
-      class="flex-shrink-0"
+      class="sb-btn-sm flex-shrink-0"
       @toggle="handleToggle"
     />
   </div>

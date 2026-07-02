@@ -85,15 +85,15 @@ watch(
   <div class="h-full min-h-0 overflow-y-auto overscroll-contain" @scroll.passive="handleScroll">
     <!-- Timeline view -->
     <template v-if="activeView === 'timeline'">
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 class="text-lg font-bold">{{ title }}</h2>
+      <header class="sb-glass sticky top-0 z-10 border-b px-4 py-3">
+        <h2 class="sb-heading text-lg">{{ title }}</h2>
       </header>
 
       <DismissibleBanner v-if="bannerStorageKey" :storage-key="bannerStorageKey">
         {{ bannerText }}
       </DismissibleBanner>
 
-      <div v-if="timeline.error" class="p-4 text-center text-red-500">
+      <div v-if="timeline.error" class="mx-4 my-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
         {{ timeline.error }}
       </div>
 

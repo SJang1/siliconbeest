@@ -32,58 +32,59 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <div class="w-full max-w-sm">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('passwords.forgot_title') }}</p>
+  <div class="sb-app relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+    <div class="sb-aurora" aria-hidden="true"></div>
+    <div class="relative z-10 w-full max-w-md animate-rise-in">
+      <div class="mb-8 text-center">
+        <h1 class="sb-heading sb-gradient-text text-4xl">{{ instanceTitle }}</h1>
+        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ t('passwords.forgot_title') }}</p>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+      <div class="sb-card p-8">
         <!-- Success message -->
         <div v-if="sent" class="space-y-4">
-          <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+          <div class="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
             {{ t('passwords.reset_sent') }}
           </div>
           <router-link
             to="/login"
-            class="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+            class="block text-center text-sm font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
           >
             {{ t('auth.sign_in') }}
           </router-link>
         </div>
 
         <!-- Form -->
-        <form v-else @submit.prevent="handleSubmit" class="space-y-4">
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+        <form v-else @submit.prevent="handleSubmit" class="space-y-5">
+          <p class="text-sm text-slate-600 dark:text-slate-400">
             {{ t('passwords.forgot_description') }}
           </p>
 
-          <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+          <div v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400" role="alert">
             {{ error }}
           </div>
 
           <div>
-            <label for="forgot-username" class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
+            <label for="forgot-username" class="sb-label">{{ t('auth.username') }}</label>
             <input
               id="forgot-username"
               v-model="username"
               type="text"
               required
               autocomplete="username"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
               :placeholder="t('auth.username_placeholder')"
             />
           </div>
 
           <div>
-            <label for="forgot-email" class="block text-sm font-medium mb-1">{{ t('auth.email') }}</label>
+            <label for="forgot-email" class="sb-label">{{ t('auth.email') }}</label>
             <input
               id="forgot-email"
               v-model="email"
               type="email"
               required
               autocomplete="email"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
               :placeholder="t('auth.email_placeholder')"
             />
           </div>
@@ -91,16 +92,16 @@ async function handleSubmit() {
           <button
             type="submit"
             :disabled="loading"
-            class="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-primary w-full"
           >
             {{ loading ? t('common.loading') : t('passwords.send_reset') }}
           </button>
 
           <div class="flex justify-between text-sm">
-            <router-link to="/auth/find-username" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+            <router-link to="/auth/find-username" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.find_username') }}
             </router-link>
-            <router-link to="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+            <router-link to="/login" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.sign_in') }}
             </router-link>
           </div>

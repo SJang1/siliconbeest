@@ -68,10 +68,10 @@ function formatDate(dateStr: string) {
 
 function categoryBadgeClass(category: string) {
   switch (category) {
-    case 'spam': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-    case 'violation': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    case 'legal': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+    case 'spam': return 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+    case 'violation': return 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+    case 'legal': return 'bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
+    default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
   }
 }
 
@@ -82,28 +82,28 @@ function goToReport(id: string) {
 
 <template>
   <AdminLayout>
-  <div class="w-full">
-    <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">{{ t('admin.reports') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">{{ t('admin.reports') }}</h1>
 
     <!-- Filter tabs -->
-    <div class="flex gap-2 mb-6">
+    <div class="mb-6 inline-flex gap-1 rounded-full border border-outline bg-surface p-1 shadow-soft dark:border-outline-dark dark:bg-surface-dark">
       <button
-        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
         :class="
           filter === 'unresolved'
-            ? 'bg-indigo-600 text-white'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            ? 'bg-brand-600 text-white shadow-soft dark:bg-brand-500'
+            : 'text-slate-600 hover:bg-surface-2 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white'
         "
         @click="filter = 'unresolved'"
       >
         {{ t('admin.reportStatus.open') }}
       </button>
       <button
-        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
         :class="
           filter === 'resolved'
-            ? 'bg-indigo-600 text-white'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            ? 'bg-brand-600 text-white shadow-soft dark:bg-brand-500'
+            : 'text-slate-600 hover:bg-surface-2 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-surface-2-dark dark:hover:text-white'
         "
         @click="filter = 'resolved'"
       >
@@ -112,54 +112,56 @@ function goToReport(id: string) {
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
       {{ error }}
     </div>
 
     <LoadingSpinner v-if="loading" />
 
-    <div v-else-if="filteredReports.length === 0" class="text-center py-12 text-gray-500 dark:text-gray-400">
-      <p>{{ t('admin.noReports') }}</p>
+    <div v-else-if="filteredReports.length === 0" class="sb-card">
+      <div class="sb-empty">
+        <p>{{ t('admin.noReports') }}</p>
+      </div>
     </div>
 
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-3">
       <div
         v-for="report in filteredReports"
         :key="report.id"
-        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+        class="sb-card sb-card-hover cursor-pointer p-4"
         @click="goToReport(report.id)"
       >
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3 min-w-0">
-            <span class="text-sm font-medium text-gray-900 dark:text-white shrink-0">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="shrink-0 text-sm font-semibold text-slate-900 dark:text-white">
               #{{ report.id }}
             </span>
             <span
               v-if="report.category"
-              class="px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+              class="sb-chip shrink-0"
               :class="categoryBadgeClass(report.category)"
             >
               {{ t('admin.reportDetail.category_' + report.category) }}
             </span>
             <span
-              class="px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+              class="sb-chip shrink-0"
               :class="
                 report.action_taken
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                  : 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'
               "
             >
               {{ report.action_taken ? t('admin.reportStatus.resolved') : t('admin.reportStatus.open') }}
             </span>
           </div>
-          <span class="text-xs text-gray-400 shrink-0 ml-3">{{ formatDate(report.created_at) }}</span>
+          <span class="ml-3 shrink-0 text-xs text-slate-400 dark:text-slate-500">{{ formatDate(report.created_at) }}</span>
         </div>
-        <div class="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+        <div class="mt-2 flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
           <span>
-            {{ t('admin.reportTarget') }}: <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.target_account.acct }}</span>
+            {{ t('admin.reportTarget') }}: <span class="font-medium text-slate-700 dark:text-slate-300">@{{ report.target_account.acct }}</span>
           </span>
           <span>
-            {{ t('admin.reportedBy') }}: <span class="font-medium text-gray-700 dark:text-gray-300">@{{ report.account.acct }}</span>
+            {{ t('admin.reportedBy') }}: <span class="font-medium text-slate-700 dark:text-slate-300">@{{ report.account.acct }}</span>
           </span>
         </div>
       </div>

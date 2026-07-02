@@ -53,37 +53,38 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <div class="w-full max-w-sm">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
+  <div class="sb-app relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+    <div class="sb-aurora" aria-hidden="true"></div>
+    <div class="relative z-10 w-full max-w-md animate-rise-in">
+      <div class="mb-8 text-center">
+        <h1 class="sb-heading sb-gradient-text text-4xl">{{ instanceTitle }}</h1>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <div class="text-center space-y-4">
+      <div class="sb-card p-8">
+        <div class="space-y-4 text-center">
           <!-- Mail icon -->
-          <div class="text-5xl">
-            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
             </svg>
           </div>
 
           <!-- Title -->
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+          <h2 class="sb-heading text-xl text-slate-900 dark:text-white">
             {{ t('auth.confirmation_required') }}
           </h2>
 
           <!-- Message -->
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-sm text-slate-600 dark:text-slate-400">
             {{ t('auth.confirmation_sent', { email }) }}
           </p>
 
           <!-- Success message -->
-          <div v-if="resent" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+          <div v-if="resent" class="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
             {{ t('auth.resend_success') }}
           </div>
 
           <!-- Error -->
-          <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+          <div v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400" role="alert">
             {{ error }}
           </div>
 
@@ -91,7 +92,7 @@ onUnmounted(() => {
           <button
             @click="handleResend"
             :disabled="loading || cooldown > 0"
-            class="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-primary w-full"
           >
             <template v-if="loading">{{ t('common.loading') }}</template>
             <template v-else-if="cooldown > 0">{{ t('auth.resend_cooldown') }} ({{ cooldown }}s)</template>
@@ -99,8 +100,8 @@ onUnmounted(() => {
           </button>
 
           <!-- Back to login -->
-          <p class="text-center text-sm text-gray-500 dark:text-gray-400">
-            <router-link to="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          <p class="text-center text-sm text-slate-500 dark:text-slate-400">
+            <router-link to="/login" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.sign_in') }}
             </router-link>
           </p>

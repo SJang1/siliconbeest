@@ -32,12 +32,12 @@ function label(): string {
 }
 
 function buttonClasses(): string {
-  if (props.blocked) return 'bg-red-600 hover:bg-red-700 text-white'
+  if (props.blocked) return 'sb-btn-danger'
   if (props.requested)
-    return 'border border-yellow-500 text-yellow-600 dark:text-yellow-400 hover:border-red-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950'
+    return 'border border-amber-300 bg-amber-50 text-amber-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:border-rose-500/40 dark:hover:bg-rose-500/10 dark:hover:text-rose-400'
   if (props.following)
-    return 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-red-500 hover:text-red-500'
-  return 'bg-indigo-600 hover:bg-indigo-700 text-white'
+    return 'sb-btn-secondary hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:border-rose-500/40 dark:hover:bg-rose-500/10 dark:hover:text-rose-400'
+  return 'sb-btn-primary'
 }
 </script>
 
@@ -47,11 +47,11 @@ function buttonClasses(): string {
     :disabled="loading || blocked"
     @mouseenter="hovering = true"
     @mouseleave="hovering = false"
-    class="px-4 py-1.5 rounded-full text-sm font-bold transition-colors disabled:opacity-50"
+    class="sb-btn min-w-24"
     :class="buttonClasses()"
     :aria-label="label()"
   >
-    <span v-if="loading" class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+    <span v-if="loading" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
     <span v-else>{{ label() }}</span>
   </button>
 </template>

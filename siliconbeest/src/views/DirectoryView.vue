@@ -39,52 +39,52 @@ onMounted(loadDirectory);
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h1 class="text-xl font-bold">{{ t('discovery.directory') }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      <header class="sb-glass sticky top-0 z-10 border-b px-4 py-3">
+        <h1 class="sb-heading text-lg">{{ t('discovery.directory') }}</h1>
+        <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
           {{ t('discovery.directory_description') }}
         </p>
       </header>
 
-      <div class="flex gap-4 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-4">
         <select
           v-model="order"
-          class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm"
+          class="sb-input w-auto pr-9"
         >
           <option value="active">{{ t('discovery.directory_order_active') }}</option>
           <option value="new">{{ t('discovery.directory_order_new') }}</option>
         </select>
-        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
           <input
             v-model="localOnly"
             type="checkbox"
-            class="rounded border-gray-300 dark:border-gray-600"
+            class="h-4 w-4 rounded border-outline accent-brand-600 dark:border-outline-dark"
           />
           {{ t('discovery.directory_local_only') }}
         </label>
       </div>
 
-      <div v-if="loading" class="text-center py-8 text-gray-500">
+      <div v-if="loading" class="sb-empty">
         {{ t('common.loading') }}
       </div>
 
-      <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
+      <div v-else class="grid grid-cols-1 gap-3 px-4 pb-6 sm:grid-cols-2">
         <router-link
           v-for="account in accounts"
           :key="account.id"
           :to="`/@${account.acct}`"
-          class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+          class="sb-card sb-card-hover flex items-center gap-3 p-4"
         >
           <img
             :src="account.avatar"
             :alt="account.display_name || account.username"
-            class="w-12 h-12 rounded-full object-cover"
+            class="h-12 w-12 shrink-0 rounded-full object-cover"
           />
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-gray-900 dark:text-gray-100 truncate">
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-semibold text-slate-900 dark:text-slate-100">
               {{ account.display_name || account.username }}
             </div>
-            <div class="text-sm text-gray-500 dark:text-gray-400 truncate">
+            <div class="truncate text-sm text-slate-500 dark:text-slate-400">
               @{{ account.acct }}
             </div>
           </div>

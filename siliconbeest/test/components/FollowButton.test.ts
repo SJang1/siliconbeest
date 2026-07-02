@@ -45,20 +45,20 @@ describe('FollowButton', () => {
     const wrapper = mountWithPlugins(FollowButton, {
       props: { accountId: '1', following: false },
     });
-    expect(wrapper.find('button').html()).toContain('bg-indigo-600');
+    expect(wrapper.find('button').html()).toContain('sb-btn-primary');
   });
 
   it('applies different styling when following', () => {
     const wrapper = mountWithPlugins(FollowButton, {
       props: { accountId: '1', following: true },
     });
-    expect(wrapper.find('button').html()).toContain('border');
+    expect(wrapper.find('button').html()).toContain('sb-btn-secondary');
   });
 
   it('applies red styling when blocked', () => {
     const wrapper = mountWithPlugins(FollowButton, {
       props: { accountId: '1', blocked: true },
     });
-    expect(wrapper.find('button').html()).toContain('bg-red-600');
+    expect(wrapper.find('button').html()).toContain('sb-btn-danger');
   });
 });

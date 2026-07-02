@@ -54,23 +54,23 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="current" class="bg-indigo-600 dark:bg-indigo-700 text-white">
+  <div v-if="current" class="bg-linear-to-r from-brand-600 via-violet-600 to-fuchsia-600 text-white dark:from-brand-800 dark:via-violet-800 dark:to-fuchsia-800">
     <div class="px-4 py-3 flex items-center gap-3">
       <!-- Navigation -->
       <button
         v-if="total > 1"
         @click="prev"
         :disabled="currentIndex === 0"
-        class="p-1 rounded hover:bg-indigo-500 disabled:opacity-30 flex-shrink-0"
+        class="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-30"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
       </button>
 
       <!-- Content -->
-      <div class="flex-1 min-w-0 text-sm" v-html="current.content" />
+      <div class="flex-1 min-w-0 text-sm [&_a]:font-medium [&_a]:text-white [&_a]:underline" v-html="current.content" />
 
       <!-- Counter -->
-      <span v-if="total > 1" class="text-xs opacity-75 flex-shrink-0">
+      <span v-if="total > 1" class="flex-shrink-0 text-xs font-medium text-white/75">
         {{ currentIndex + 1 }}/{{ total }}
       </span>
 
@@ -79,9 +79,9 @@ onMounted(async () => {
         v-if="total > 1"
         @click="next"
         :disabled="currentIndex === total - 1"
-        class="p-1 rounded hover:bg-indigo-500 disabled:opacity-30 flex-shrink-0"
+        class="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-30"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
       </button>
 
       <!-- Dismiss -->
@@ -89,10 +89,10 @@ onMounted(async () => {
         v-if="auth.isAuthenticated"
         @click="dismiss"
         :disabled="dismissing"
-        class="p-1 rounded hover:bg-indigo-500 flex-shrink-0 opacity-75 hover:opacity-100"
+        class="flex-shrink-0 rounded-full p-1 opacity-75 transition hover:bg-white/20 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         :title="t('common.dismiss')"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
       </button>
     </div>
   </div>

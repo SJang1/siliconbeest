@@ -20,7 +20,7 @@ type SetupResponse = {
 };
 
 const router = useRouter();
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 const auth = useAuthStore();
 const setupStatus = useState<SetupStatus | null>('setup-status', () => null);
 const { data: instance } = await usePublicInstance();
@@ -62,14 +62,14 @@ onMounted(() => {
 });
 
 function validateForm(): string | null {
-  if (!form.username.trim()) return '사용자 이름을 입력해 주세요.';
+  if (!form.username.trim()) return t('setup.username_required');
   if (!/^[a-zA-Z0-9_]+$/.test(form.username.trim())) {
-    return '사용자 이름은 영문, 숫자, 밑줄만 사용할 수 있습니다.';
+    return t('setup.username_invalid');
   }
-  if (!form.email.trim()) return '이메일을 입력해 주세요.';
-  if (!form.password) return '비밀번호를 입력해 주세요.';
-  if (form.password.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
-  if (form.password !== form.confirmPassword) return '비밀번호 확인이 일치하지 않습니다.';
+  if (!form.email.trim()) return t('setup.email_required');
+  if (!form.password) return t('setup.password_required');
+  if (form.password.length < 8) return t('setup.password_too_short');
+  if (form.password !== form.confirmPassword) return t('setup.password_mismatch');
   return null;
 }
 
@@ -105,7 +105,7 @@ async function createAdmin() {
     if (fetchError.data?.error || fetchError.data?.error_description) {
       error.value = fetchError.data.error_description ?? fetchError.data.error ?? null;
     } else {
-      error.value = fetchError.message ?? '관리자 생성에 실패했습니다.';
+      error.value = fetchError.message ?? t('setup.create_failed');
     }
     await refreshStatus().catch(() => {});
   } finally {
@@ -115,23 +115,25 @@ async function createAdmin() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 px-4 py-12 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-    <div class="mx-auto w-full max-w-md">
+  <div class="sb-app relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+    <div class="sb-aurora" aria-hidden="true"></div>
+
+    <div class="relative z-10 mx-auto w-full max-w-md animate-rise-in">
       <div class="mb-8 text-center">
-        <h1 v-if="instanceTitle" class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+        <h1 v-if="instanceTitle" class="sb-heading sb-gradient-text text-3xl">
           {{ instanceTitle }}
         </h1>
-        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          첫 관리자 계정을 생성합니다.
+        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          {{ t('setup.subtitle') }}
         </p>
       </div>
 
-      <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div class="sb-card p-6 sm:p-8">
         <div
           v-if="!setupAvailable"
-          class="rounded-lg bg-gray-100 p-4 text-sm text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+          class="rounded-xl bg-surface-2 p-4 text-sm text-slate-700 dark:bg-surface-2-dark dark:text-slate-200"
         >
-          이미 사용자가 생성되어 초기 설정을 사용할 수 없습니다.
+          {{ t('setup.unavailable') }}
         </div>
 
         <form
@@ -139,68 +141,68 @@ async function createAdmin() {
           id="setup-admin-form"
           data-setup-endpoint="/api/v1/setup"
           novalidate
-          class="space-y-4"
+          class="space-y-5"
           @submit.prevent.stop="createAdmin"
         >
           <div
             id="setup-static-error"
-            class="hidden rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+            class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400"
           ></div>
 
           <div
             v-if="error"
-            class="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+            class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400"
           >
             {{ error }}
           </div>
 
           <div>
-            <label for="setup-username" class="mb-1 block text-sm font-medium">관리자 사용자 이름</label>
+            <label for="setup-username" class="sb-label">{{ t('setup.admin_username') }}</label>
             <input
               id="setup-username"
               v-model="form.username"
               name="username"
               autocomplete="username"
-              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900"
+              class="sb-input"
               required
             />
           </div>
 
           <div>
-            <label for="setup-email" class="mb-1 block text-sm font-medium">관리자 이메일</label>
+            <label for="setup-email" class="sb-label">{{ t('setup.admin_email') }}</label>
             <input
               id="setup-email"
               v-model="form.email"
               name="email"
               type="email"
               autocomplete="email"
-              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900"
+              class="sb-input"
               required
             />
           </div>
 
           <div>
-            <label for="setup-password" class="mb-1 block text-sm font-medium">비밀번호</label>
+            <label for="setup-password" class="sb-label">{{ t('setup.password') }}</label>
             <input
               id="setup-password"
               v-model="form.password"
               name="password"
               type="password"
               autocomplete="new-password"
-              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900"
+              class="sb-input"
               required
             />
           </div>
 
           <div>
-            <label for="setup-confirm-password" class="mb-1 block text-sm font-medium">비밀번호 확인</label>
+            <label for="setup-confirm-password" class="sb-label">{{ t('setup.confirm_password') }}</label>
             <input
               id="setup-confirm-password"
               v-model="form.confirmPassword"
               name="confirmPassword"
               type="password"
               autocomplete="new-password"
-              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900"
+              class="sb-input"
               required
             />
           </div>
@@ -211,10 +213,10 @@ async function createAdmin() {
             type="button"
             data-setup-submit
             :disabled="loading"
-            class="w-full rounded-full bg-indigo-600 px-4 py-3 font-bold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            class="sb-btn sb-btn-primary w-full py-3 text-base"
             @click="createAdmin"
           >
-            {{ loading ? '생성 중...' : '관리자 생성' }}
+            {{ loading ? t('setup.creating') : t('setup.create') }}
           </button>
         </form>
       </div>

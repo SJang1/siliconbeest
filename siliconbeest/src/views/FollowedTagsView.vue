@@ -49,38 +49,43 @@ onMounted(loadTags);
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h1 class="text-xl font-bold">{{ t('discovery.followed_tags') }}</h1>
+      <header class="sb-glass sticky top-0 z-10 border-b px-4 py-3">
+        <h1 class="sb-heading text-lg">{{ t('discovery.followed_tags') }}</h1>
       </header>
 
-      <div v-if="loading" class="text-center py-8 text-gray-500">
+      <div v-if="loading" class="sb-empty">
         {{ t('common.loading') }}
       </div>
 
-      <div v-else-if="tags.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+      <div v-else-if="tags.length === 0" class="sb-empty">
+        <svg class="h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 8.25h13.5m-14.25 7.5h13.5m-9-15L7.5 20.25m9-19.5l-2.25 19.5" />
+        </svg>
         {{ t('discovery.followed_tags_empty') }}
       </div>
 
-      <ul v-else class="divide-y divide-gray-200 dark:divide-gray-700">
-        <li
-          v-for="tag in tags"
-          :key="tag.name"
-          class="flex items-center justify-between px-4 py-3"
-        >
-          <router-link
-            :to="`/tags/${tag.name}`"
-            class="text-lg font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+      <div v-else class="p-4">
+        <ul class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
+          <li
+            v-for="tag in tags"
+            :key="tag.name"
+            class="flex items-center justify-between gap-3 px-4 py-3"
           >
-            #{{ tag.name }}
-          </router-link>
-          <button
-            class="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            @click="unfollowTag(tag.name)"
-          >
-            {{ t('discovery.unfollow_tag') }}
-          </button>
-        </li>
-      </ul>
+            <router-link
+              :to="`/tags/${tag.name}`"
+              class="sb-chip min-w-0 px-3 py-1 text-sm font-semibold transition-colors hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-brand-900/60"
+            >
+              <span class="truncate">#{{ tag.name }}</span>
+            </router-link>
+            <button
+              class="sb-btn sb-btn-secondary sb-btn-sm shrink-0"
+              @click="unfollowTag(tag.name)"
+            >
+              {{ t('discovery.unfollow_tag') }}
+            </button>
+          </li>
+        </ul>
+      </div>
     </div>
   </AppShell>
 </template>

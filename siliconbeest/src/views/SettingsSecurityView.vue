@@ -289,28 +289,28 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <h2 class="text-xl font-bold">{{ t('settings.security') }}</h2>
+    <h2 class="sb-heading text-xl">{{ t('settings.security') }}</h2>
 
     <!-- ═══ Two-Factor Authentication ═══ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold mb-1">{{ t('totp.title') }}</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('totp.description') }}</p>
+    <div class="sb-card p-6">
+      <h3 class="sb-heading text-lg mb-1">{{ t('totp.title') }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t('totp.description') }}</p>
 
       <!-- Success -->
-      <div v-if="totpSuccess" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+      <div v-if="totpSuccess" class="mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 text-sm">
         {{ totpSuccess }}
       </div>
 
       <!-- Error -->
-      <div v-if="totpError" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="totpError" class="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ totpError }}
       </div>
 
       <!-- Idle: show status + action button -->
       <template v-if="totpStep === 'idle'">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-3 h-3 rounded-full flex-shrink-0" :class="otpEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'" />
-          <span class="text-sm" :class="otpEnabled ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'">
+          <div class="w-3 h-3 rounded-full flex-shrink-0" :class="otpEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'" />
+          <span class="text-sm" :class="otpEnabled ? 'text-green-700 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'">
             {{ otpEnabled ? t('totp.enabled') : t('totp.disabled') }}
           </span>
         </div>
@@ -319,7 +319,7 @@ onMounted(() => {
           v-if="!otpEnabled"
           @click="startSetup"
           :disabled="totpLoading"
-          class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+          class="sb-btn sb-btn-primary px-6"
         >
           {{ totpLoading ? t('common.loading') : t('totp.setup') }}
         </button>
@@ -327,7 +327,7 @@ onMounted(() => {
         <button
           v-else
           @click="totpStep = 'disable'; totpError = ''; totpSuccess = ''"
-          class="px-6 py-2.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          class="sb-btn border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40 px-6"
         >
           {{ t('totp.disable') }}
         </button>
@@ -337,32 +337,32 @@ onMounted(() => {
       <template v-if="totpStep === 'setup'">
         <!-- Step 1: QR Code -->
         <div class="mb-6">
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">{{ t('totp.step1') }}</p>
+          <p class="text-sm text-slate-700 dark:text-slate-200 mb-3">{{ t('totp.step1') }}</p>
           <div class="flex justify-center mb-3">
-            <img :src="generateQrSvg(totpUri)" alt="TOTP QR Code" class="w-48 h-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white" />
+            <img :src="generateQrSvg(totpUri)" :alt="t('totp.qr_alt')" class="w-48 h-48 rounded-xl border border-outline dark:border-outline-dark bg-white shadow-soft" />
           </div>
           <div class="text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('totp.secret_label') }}</p>
-            <code class="text-sm font-mono bg-gray-100 dark:bg-gray-900 px-3 py-1.5 rounded select-all break-all">{{ totpSecret }}</code>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ t('totp.secret_label') }}</p>
+            <code class="text-sm font-mono bg-surface-2 dark:bg-surface-2-dark px-3 py-1.5 rounded-lg select-all break-all">{{ totpSecret }}</code>
           </div>
         </div>
 
         <!-- Backup codes -->
-        <div class="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <h4 class="font-semibold text-sm text-yellow-800 dark:text-yellow-300 mb-1">{{ t('totp.backup_codes_title') }}</h4>
-          <p class="text-xs text-yellow-700 dark:text-yellow-400 mb-2">{{ t('totp.backup_codes_description') }}</p>
+        <div class="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl">
+          <h4 class="font-semibold text-sm text-amber-800 dark:text-amber-300 mb-1">{{ t('totp.backup_codes_title') }}</h4>
+          <p class="text-xs text-amber-700 dark:text-amber-400 mb-2">{{ t('totp.backup_codes_description') }}</p>
           <p class="text-xs text-red-600 dark:text-red-400 font-medium mb-3">{{ t('totp.backup_codes_warning') }}</p>
           <div class="grid grid-cols-2 gap-1 mb-3">
             <code
               v-for="code in totpBackupCodes"
               :key="code"
-              class="text-sm font-mono bg-white dark:bg-gray-900 px-2 py-1 rounded text-center"
+              class="text-sm font-mono bg-surface dark:bg-surface-2-dark px-2 py-1 rounded-lg text-center"
             >{{ code }}</code>
           </div>
           <button
             @click="copyBackupCodes"
-            class="text-sm font-medium transition-colors"
-            :class="backupCodesCopied ? 'text-green-600 dark:text-green-400' : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700'"
+            class="text-sm font-semibold transition-colors"
+            :class="backupCodesCopied ? 'text-green-600 dark:text-green-400' : 'text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300'"
           >
             {{ backupCodesCopied ? t('totp.copied') : t('status.copyLink') }}
           </button>
@@ -370,7 +370,7 @@ onMounted(() => {
 
         <!-- Step 2: Verify code -->
         <div class="mb-4">
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">{{ t('totp.step2') }}</p>
+          <p class="text-sm text-slate-700 dark:text-slate-200 mb-2">{{ t('totp.step2') }}</p>
           <input
             v-model="totpCode"
             type="text"
@@ -378,7 +378,7 @@ onMounted(() => {
             autocomplete="one-time-code"
             maxlength="6"
             :placeholder="t('totp.code_placeholder')"
-            class="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-lg tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="sb-input max-w-xs font-mono text-lg tracking-widest text-center"
             @keyup.enter="confirmSetup"
           />
         </div>
@@ -387,13 +387,13 @@ onMounted(() => {
           <button
             @click="confirmSetup"
             :disabled="totpLoading || totpCode.length !== 6"
-            class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-primary px-6"
           >
             {{ totpLoading ? t('common.loading') : t('totp.confirm') }}
           </button>
           <button
             @click="cancelSetup"
-            class="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="sb-btn sb-btn-secondary"
           >
             {{ t('totp.cancel_setup') }}
           </button>
@@ -402,25 +402,25 @@ onMounted(() => {
 
       <!-- Disable: password confirmation -->
       <template v-if="totpStep === 'disable'">
-        <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">{{ t('totp.disable_confirm') }}</p>
+        <p class="text-sm text-slate-700 dark:text-slate-200 mb-3">{{ t('totp.disable_confirm') }}</p>
         <input
           v-model="disablePassword"
           type="password"
           :placeholder="t('totp.disable_password')"
-          class="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+          class="sb-input max-w-xs mb-4"
           @keyup.enter="disableTotp"
         />
         <div class="flex gap-2">
           <button
             @click="disableTotp"
             :disabled="totpLoading || !disablePassword"
-            class="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:opacity-50"
+            class="sb-btn sb-btn-danger px-6"
           >
             {{ totpLoading ? t('common.loading') : t('totp.disable_submit') }}
           </button>
           <button
             @click="cancelSetup"
-            class="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="sb-btn sb-btn-secondary"
           >
             {{ t('common.cancel') }}
           </button>
@@ -429,22 +429,22 @@ onMounted(() => {
     </div>
 
     <!-- ═══ Passkeys ═══ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold mb-1">{{ t('webauthn.title') }}</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('webauthn.description') }}</p>
+    <div class="sb-card p-6">
+      <h3 class="sb-heading text-lg mb-1">{{ t('webauthn.title') }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t('webauthn.description') }}</p>
 
       <!-- Success -->
-      <div v-if="success" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+      <div v-if="success" class="mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 text-sm">
         {{ success }}
       </div>
 
       <!-- Error -->
-      <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+      <div v-if="error" class="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm" role="alert">
         {{ error }}
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="text-center py-4 text-gray-500 dark:text-gray-400">
+      <div v-if="loading" class="text-center py-4 text-slate-500 dark:text-slate-400">
         {{ t('common.loading') }}
       </div>
 
@@ -453,13 +453,13 @@ onMounted(() => {
         <div
           v-for="cred in credentials"
           :key="cred.id"
-          class="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+          class="flex items-center justify-between p-3 rounded-xl border border-outline dark:border-outline-dark"
         >
           <div class="min-w-0">
-            <p class="font-medium text-sm text-gray-900 dark:text-white truncate">
+            <p class="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
               {{ cred.name || cred.device_type || 'Passkey' }}
             </p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
+            <p class="text-xs text-slate-500 dark:text-slate-400">
               {{ formatDate(cred.created_at) }}
               <template v-if="cred.last_used_at"> &middot; Last used {{ formatDate(cred.last_used_at) }}</template>
             </p>
@@ -469,14 +469,14 @@ onMounted(() => {
               v-if="confirmRemoveId === cred.id"
               @click="handleRemovePasskey(cred.id)"
               :disabled="removingId === cred.id"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+              class="sb-btn sb-btn-sm border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40"
             >
               {{ removingId === cred.id ? t('common.loading') : t('common.confirm') }}
             </button>
             <button
               v-else
               @click="confirmRemoveId = cred.id"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              class="sb-btn sb-btn-secondary sb-btn-sm"
             >
               {{ t('webauthn.remove') }}
             </button>
@@ -485,7 +485,7 @@ onMounted(() => {
       </div>
 
       <!-- Empty state -->
-      <div v-else class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm mb-4">
+      <div v-else class="text-center py-6 text-slate-500 dark:text-slate-400 text-sm mb-4">
         {{ t('webauthn.no_passkeys') }}
       </div>
 
@@ -493,26 +493,26 @@ onMounted(() => {
       <div v-if="supportsPasskeys">
         <div v-if="showNameInput" class="space-y-3">
           <div>
-            <label for="passkey-name" class="block text-sm font-medium mb-1">{{ t('webauthn.name_label') }}</label>
+            <label for="passkey-name" class="sb-label">{{ t('webauthn.name_label') }}</label>
             <input
               id="passkey-name"
               v-model="passkeyName"
               type="text"
               :placeholder="t('webauthn.name_placeholder')"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="sb-input"
             />
           </div>
           <div class="flex gap-2">
             <button
               @click="handleAddPasskey"
               :disabled="addingPasskey"
-              class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
+              class="sb-btn sb-btn-primary px-6"
             >
               {{ addingPasskey ? t('common.loading') : t('common.confirm') }}
             </button>
             <button
               @click="showNameInput = false; passkeyName = ''"
-              class="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              class="sb-btn sb-btn-secondary"
             >
               {{ t('common.cancel') }}
             </button>
@@ -522,34 +522,34 @@ onMounted(() => {
         <button
           v-else
           @click="showNameInput = true"
-          class="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          class="sb-btn sb-btn-secondary w-full"
         >
           {{ t('webauthn.add') }}
         </button>
       </div>
 
-      <div v-else class="text-sm text-gray-500 dark:text-gray-400">
+      <div v-else class="text-sm text-slate-500 dark:text-slate-400">
         {{ t('webauthn.error_not_supported') }}
       </div>
     </div>
 
     <!-- ═══ Active Sessions ═══ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold mb-1">{{ t('sessions.title') }}</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('sessions.description') }}</p>
+    <div class="sb-card p-6">
+      <h3 class="sb-heading text-lg mb-1">{{ t('sessions.title') }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t('sessions.description') }}</p>
 
       <!-- Success -->
-      <div v-if="sessionsSuccess" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+      <div v-if="sessionsSuccess" class="mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 text-sm">
         {{ sessionsSuccess }}
       </div>
 
       <!-- Error -->
-      <div v-if="sessionsError" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="sessionsError" class="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
         {{ sessionsError }}
       </div>
 
       <!-- Loading -->
-      <div v-if="sessionsLoading" class="text-center py-4 text-gray-500 dark:text-gray-400">
+      <div v-if="sessionsLoading" class="text-center py-4 text-slate-500 dark:text-slate-400">
         {{ t('common.loading') }}
       </div>
 
@@ -558,22 +558,22 @@ onMounted(() => {
         <div
           v-for="session in sessions"
           :key="session.id"
-          class="p-3 rounded-lg border transition-colors"
+          class="p-3 rounded-xl border transition-colors"
           :class="session.current
-            ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-900/10'
-            : 'border-gray-200 dark:border-gray-700'"
+            ? 'border-brand-300 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/20'
+            : 'border-outline dark:border-outline-dark'"
         >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 mb-1">
-                <p class="font-medium text-sm text-gray-900 dark:text-white">
+                <p class="font-medium text-sm text-slate-900 dark:text-slate-100">
                   {{ session.application_name }}
                 </p>
-                <span v-if="session.current" class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium">
+                <span v-if="session.current" class="sb-chip">
                   {{ t('sessions.current') }}
                 </span>
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+              <div class="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
                 <p><span class="font-medium">{{ t('sessions.device') }}:</span> {{ parseUserAgent(session.user_agent) }}</p>
                 <p><span class="font-medium">{{ t('sessions.ip') }}:</span> {{ session.ip || t('sessions.unknown') }}</p>
                 <p><span class="font-medium">{{ t('sessions.created') }}:</span> {{ formatSessionDate(session.created_at) }}</p>
@@ -585,14 +585,14 @@ onMounted(() => {
                 v-if="confirmRevokeId === session.id"
                 @click="handleRevokeSession(session.id)"
                 :disabled="revokingId === session.id"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                class="sb-btn sb-btn-sm border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40"
               >
                 {{ revokingId === session.id ? t('common.loading') : t('common.confirm') }}
               </button>
               <button
                 v-else
                 @click="confirmRevokeId = session.id"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                class="sb-btn sb-btn-secondary sb-btn-sm"
               >
                 {{ t('sessions.revoke') }}
               </button>
@@ -602,7 +602,7 @@ onMounted(() => {
       </div>
 
       <!-- Empty state -->
-      <div v-else class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm mb-4">
+      <div v-else class="text-center py-6 text-slate-500 dark:text-slate-400 text-sm mb-4">
         {{ t('sessions.no_sessions') }}
       </div>
 
@@ -610,7 +610,7 @@ onMounted(() => {
       <button
         v-if="sessions.filter(s => !s.current).length > 0"
         @click="handleRevokeAll"
-        class="w-full py-2.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        class="sb-btn w-full border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40"
       >
         {{ t('sessions.revoke_all') }}
       </button>

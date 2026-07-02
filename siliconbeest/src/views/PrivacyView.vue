@@ -18,13 +18,20 @@ const html = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-    <div class="max-w-3xl mx-auto px-4 py-12">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-8">{{ t('legal.privacy_policy') }}</h1>
-      <div v-if="html" class="prose dark:prose-invert max-w-none" v-html="html" />
-      <p v-else class="text-gray-500 dark:text-gray-400">{{ t('legal.no_content') }}</p>
+  <div class="sb-app min-h-dvh">
+    <div class="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16 animate-fade-in">
+      <h1 class="sb-heading mb-8 text-3xl sm:text-4xl">{{ t('legal.privacy_policy') }}</h1>
+      <div class="sb-card p-6 sm:p-8">
+        <div v-if="html" class="prose max-w-none dark:prose-invert" v-html="html" />
+        <p v-else class="text-sm text-slate-500 dark:text-slate-400">{{ t('legal.no_content') }}</p>
+      </div>
       <div class="mt-8">
-        <router-link to="/" class="text-indigo-600 dark:text-indigo-400 hover:underline">&larr; {{ t('common.back') }}</router-link>
+        <router-link to="/" class="sb-btn sb-btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          {{ t('common.back') }}
+        </router-link>
       </div>
     </div>
   </div>

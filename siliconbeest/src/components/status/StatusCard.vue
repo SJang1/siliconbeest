@@ -294,82 +294,86 @@ async function handleDelete() {
 <template>
   <article
     v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
-    class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+    class="cursor-pointer border-b border-outline px-4 py-3.5 transition-colors hover:bg-surface-2/60 dark:border-outline-dark dark:hover:bg-surface-2-dark/40 sm:px-5"
     :aria-label="t('status.by', { name: displayStatus.account.display_name })"
     @click="handleCardClick"
   >
     <!-- Reblog indicator -->
-    <div v-if="isReblog" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-2 ml-12">
-      <svg class="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M23.77 15.67a.749.749 0 00-1.06 0l-2.22 2.22V7.65a3.755 3.755 0 00-3.75-3.75h-5.85a.75.75 0 000 1.5h5.85a2.25 2.25 0 012.25 2.25v10.24l-2.22-2.22a.749.749 0 10-1.06 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5a.747.747 0 000-1.06zm-10.66 1.47H7.26a2.25 2.25 0 01-2.25-2.25V4.65l2.22 2.22a.744.744 0 001.06 0 .749.749 0 000-1.06l-3.5-3.5a.747.747 0 00-1.06 0l-3.5 3.5a.749.749 0 101.06 1.06l2.22-2.22v10.24a3.755 3.755 0 003.75 3.75h5.85a.75.75 0 000-1.5z"/>
+    <div v-if="isReblog" class="mb-2 ml-[3.25rem] flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <svg class="h-3.5 w-3.5 flex-shrink-0 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l-3 3m3-3l3 3"/>
       </svg>
-      <router-link :to="`/@${cachedStatus.account.acct}`" class="font-semibold hover:underline" @click.stop>
+      <router-link :to="`/@${cachedStatus.account.acct}`" class="truncate font-semibold text-slate-600 transition-colors hover:text-brand-600 hover:underline dark:text-slate-300 dark:hover:text-brand-400" @click.stop>
         {{ cachedStatus.account.display_name || cachedStatus.account.username }}
       </router-link>
-      <span>{{ t('status.reblogged') }}</span>
+      <span class="flex-shrink-0">{{ t('status.reblogged') }}</span>
     </div>
 
     <!-- Reply indicator -->
-    <div v-if="displayStatus.in_reply_to_id" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1 ml-12">
-      <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+    <div v-if="displayStatus.in_reply_to_id" class="mb-1.5 ml-[3.25rem] flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <svg class="h-3.5 w-3.5 flex-shrink-0 text-brand-500 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
       </svg>
       <router-link
         v-if="displayStatus.in_reply_to_account_id"
         :to="displayStatus.in_reply_to_id ? `/@${displayStatus.account.acct}/${displayStatus.in_reply_to_id}` : '#'"
-        class="hover:underline"
+        class="truncate transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
         @click.stop
       >
         {{ t('status.repliedTo', { user: replyToDisplay }) }}
       </router-link>
-      <span v-else>{{ t('status.repliedTo', { user: '...' }) }}</span>
+      <span v-else class="truncate">{{ t('status.repliedTo', { user: '...' }) }}</span>
     </div>
 
     <div class="flex gap-3">
       <!-- Avatar -->
-      <router-link :to="`/@${displayStatus.account.acct}`" class="flex-shrink-0 w-10 h-10" @click.stop>
+      <router-link
+        :to="`/@${displayStatus.account.acct}`"
+        class="h-10 w-10 flex-shrink-0 rounded-full ring-2 ring-transparent transition duration-150 hover:ring-brand-400/60 dark:hover:ring-brand-500/50"
+        @click.stop
+      >
         <Avatar :src="displayStatus.account.avatar" :alt="displayStatus.account.display_name" size="md" />
       </router-link>
 
-      <div class="flex-1 min-w-0">
+      <div class="min-w-0 flex-1">
         <!-- Header -->
-        <div class="flex items-center gap-1 text-sm">
-          <router-link :to="`/@${displayStatus.account.acct}`" class="font-bold hover:underline truncate" @click.stop>
+        <div class="flex min-w-0 items-center gap-1.5 text-sm">
+          <router-link :to="`/@${displayStatus.account.acct}`" class="min-w-0 truncate font-semibold text-slate-900 hover:underline dark:text-slate-50" @click.stop>
             <span v-if="hasAccountEmojis" v-html="emojifiedDisplayName" />
             <template v-else>{{ displayStatus.account.display_name || displayStatus.account.username }}</template>
           </router-link>
-          <span class="text-gray-500 dark:text-gray-400 truncate">@{{ displayStatus.account.acct }}</span>
-          <span class="text-gray-400 dark:text-gray-500 mx-1" aria-hidden="true">&middot;</span>
-          <time :datetime="displayStatus.created_at" class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
+          <span class="min-w-0 truncate text-slate-500 dark:text-slate-400">@{{ displayStatus.account.acct }}</span>
+          <span class="flex-shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true">&middot;</span>
+          <time :datetime="displayStatus.created_at" class="flex-shrink-0 whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
             {{ relativeTime }}
           </time>
           <span
             v-if="displayStatus.visibility && displayStatus.visibility !== 'public'"
-            class="text-xs ml-1"
+            class="ml-0.5 inline-flex flex-shrink-0 items-center"
             :class="{
-              'text-blue-500 dark:text-blue-400': displayStatus.visibility === 'unlisted',
-              'text-green-500 dark:text-green-400': displayStatus.visibility === 'private',
-              'text-yellow-500 dark:text-yellow-400': displayStatus.visibility === 'direct',
+              'text-sky-500 dark:text-sky-400': displayStatus.visibility === 'unlisted',
+              'text-emerald-500 dark:text-emerald-400': displayStatus.visibility === 'private',
+              'text-amber-500 dark:text-amber-400': displayStatus.visibility === 'direct',
             }"
             :title="t(`status.visibility_${displayStatus.visibility}`)"
           >
-            <template v-if="displayStatus.visibility === 'unlisted'">🔓</template>
-            <template v-else-if="displayStatus.visibility === 'private'">🔒</template>
-            <template v-else-if="displayStatus.visibility === 'direct'">✉️</template>
+            <template v-if="displayStatus.visibility === 'unlisted'"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg></template>
+            <template v-else-if="displayStatus.visibility === 'private'"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg></template>
+            <template v-else-if="displayStatus.visibility === 'direct'"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg></template>
           </span>
-          <span v-if="displayStatus.edited_at" class="text-gray-400 dark:text-gray-500 text-xs ml-1" :title="displayStatus.edited_at">
+          <span v-if="displayStatus.edited_at" class="ml-0.5 flex-shrink-0 text-xs text-slate-400 dark:text-slate-500" :title="displayStatus.edited_at">
             ({{ t('status.edited') }})
           </span>
         </div>
 
         <!-- Edit mode -->
-        <div v-if="isEditing" class="mt-2">
-          <div class="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">
+        <div v-if="isEditing" class="mt-2 space-y-2">
+          <div class="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
             {{ t('status.editing') }}
           </div>
           <textarea
             v-model="editText"
-            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            class="sb-input resize-none"
             rows="3"
           />
           <input
@@ -377,33 +381,33 @@ async function handleDelete() {
             v-model="editSpoilerText"
             type="text"
             :placeholder="t('compose.cw_placeholder')"
-            class="w-full mt-1 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            class="sb-input"
           />
           <!-- Existing media attachments preview -->
-          <div v-if="displayStatus.media_attachments?.length" class="flex gap-2 mt-2 flex-wrap">
+          <div v-if="displayStatus.media_attachments?.length" class="flex flex-wrap gap-2">
             <div
               v-for="media in displayStatus.media_attachments"
               :key="media.id"
-              class="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600"
+              class="relative h-20 w-20 overflow-hidden rounded-xl border border-outline dark:border-outline-dark"
             >
               <img
                 :src="media.preview_url || media.url"
                 :alt="media.description || ''"
-                class="w-full h-full object-cover"
+                class="h-full w-full object-cover"
               />
             </div>
           </div>
-          <div class="flex items-center gap-2 mt-2">
+          <div class="flex items-center gap-2">
             <button
               @click="submitEdit"
               :disabled="editLoading || !editText.trim()"
-              class="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="sb-btn sb-btn-primary sb-btn-sm"
             >
               {{ t('common.save') }}
             </button>
             <button
               @click="cancelEdit"
-              class="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              class="sb-btn sb-btn-secondary sb-btn-sm"
             >
               {{ t('common.cancel') }}
             </button>
@@ -446,12 +450,12 @@ async function handleDelete() {
 
           <div
             v-if="displayStatus.quote"
-            class="mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800"
+            class="mt-3 cursor-pointer rounded-xl border border-outline bg-surface-2/40 p-3 transition-colors hover:border-brand-200 hover:bg-surface-2/70 dark:border-outline-dark dark:bg-surface-2-dark/30 dark:hover:border-brand-800 dark:hover:bg-surface-2-dark/60"
             @click.stop="emit('navigate', displayStatus.quote)"
           >
-            <div class="flex items-center gap-1 text-sm min-w-0">
-              <span class="font-semibold truncate">{{ displayStatus.quote.account.display_name || displayStatus.quote.account.username }}</span>
-              <span class="text-gray-500 dark:text-gray-400 truncate">@{{ displayStatus.quote.account.acct }}</span>
+            <div class="flex min-w-0 items-center gap-1.5 text-sm">
+              <span class="truncate font-semibold text-slate-900 dark:text-slate-100">{{ displayStatus.quote.account.display_name || displayStatus.quote.account.username }}</span>
+              <span class="truncate text-slate-500 dark:text-slate-400">@{{ displayStatus.quote.account.acct }}</span>
             </div>
             <StatusContent
               :content="displayStatus.quote.content"
@@ -514,12 +518,15 @@ async function handleDelete() {
     <!-- Share Modal -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="showShareModal" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" @click.self="showShareModal = false">
-          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-5" @click.stop>
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ t('status.share') }}</h3>
-              <button @click="showShareModal = false" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <div v-if="showShareModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" @click.self="showShareModal = false">
+          <div class="sb-card w-full max-w-md p-5 shadow-lift animate-rise-in" @click.stop>
+            <div class="mb-4 flex items-center justify-between">
+              <h3 class="sb-heading text-lg text-slate-900 dark:text-white">{{ t('status.share') }}</h3>
+              <button
+                @click="showShareModal = false"
+                class="rounded-full p-1.5 text-slate-500 transition-colors hover:bg-surface-2 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-slate-400 dark:hover:bg-surface-2-dark dark:hover:text-slate-200"
+              >
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             </div>
             <div class="flex gap-2">
@@ -527,15 +534,15 @@ async function handleDelete() {
                 type="text"
                 readonly
                 :value="shareUrl"
-                class="share-url-input flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 select-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                class="share-url-input sb-input flex-1 select-all"
                 @focus="($event.target as HTMLInputElement).select()"
               />
               <button
                 @click="copyShareUrl"
-                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+                class="sb-btn flex-shrink-0"
                 :class="shareCopied
-                  ? 'bg-green-600 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'"
+                  ? 'bg-emerald-600 text-white'
+                  : 'sb-btn-primary'"
               >
                 {{ shareCopied ? t('common.copied') : t('status.copyLink') }}
               </button>

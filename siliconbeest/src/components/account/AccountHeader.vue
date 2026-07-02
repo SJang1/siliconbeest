@@ -109,35 +109,35 @@ function handleToggle() {
 </script>
 
 <template>
-  <div>
+  <div class="sb-card animate-rise-in">
     <!-- Banner -->
-    <div class="h-48 relative overflow-hidden" :class="account.header ? '' : 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 dark:from-indigo-700 dark:via-purple-700 dark:to-pink-600'">
+    <div class="relative h-48 overflow-hidden rounded-t-[calc(1rem-1px)] bg-linear-to-br from-brand-500 via-violet-500 to-fuchsia-400 dark:from-brand-800 dark:via-violet-800 dark:to-fuchsia-700">
       <img
         v-if="account.header"
         :src="account.header"
         :alt="t('profile.banner')"
-        class="w-full h-full object-cover"
+        class="h-full w-full object-cover"
       />
       <!-- Blocked overlay on banner -->
-      <div v-if="!isOwn && relationship?.blocking" class="absolute inset-0 bg-black/60 flex items-center justify-center">
-        <div class="flex items-center gap-2 text-white text-sm font-medium bg-red-600/80 px-4 py-2 rounded-full">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+      <div v-if="!isOwn && relationship?.blocking" class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="flex items-center gap-2 rounded-full bg-red-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lift">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
           {{ t('profile.blocked_banner') }}
         </div>
       </div>
     </div>
 
     <!-- Profile info -->
-    <div class="px-4 pb-4 relative">
+    <div class="relative px-5 pb-5">
       <!-- Avatar + follow button row -->
-      <div class="flex items-end justify-between -mt-16 mb-3">
-        <Avatar :src="account.avatar" :alt="account.display_name" size="xl"
-          class="ring-4 ring-white dark:ring-gray-900 relative z-10"
-        />
+      <div class="-mt-14 mb-3 flex items-end justify-between">
+        <div class="sb-avatar-ring relative z-10 shadow-lift ring-4 ring-surface dark:ring-surface-dark">
+          <Avatar :src="account.avatar" :alt="account.display_name" size="xl" />
+        </div>
         <div class="flex items-center gap-2 pt-16">
           <span
             v-if="!isOwn && relationship?.followed_by"
-            class="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            class="sb-chip"
           >{{ t('profile.follows_you') }}</span>
           <FollowButton
             v-if="!isOwn"
@@ -152,36 +152,36 @@ function handleToggle() {
             <button
               type="button"
               @click="showMoreMenu = !showMoreMenu"
-              class="p-2 rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              class="sb-btn sb-btn-secondary h-9 w-9 p-0"
               :aria-label="t('status.more_actions')"
             >
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
+              <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
             </button>
             <div
               v-if="showMoreMenu"
-              class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
+              class="sb-menu absolute right-0 top-full z-50 mt-2 w-52 animate-fade-in"
             >
               <button
                 @click="toggleBlock"
-                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                :class="relationship?.blocking ? 'text-gray-700 dark:text-gray-200' : 'text-red-600 dark:text-red-400'"
+                class="sb-menu-item"
+                :class="relationship?.blocking ? '' : 'text-red-600 dark:text-red-400'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                 {{ relationship?.blocking ? t('profile.unblock_user', { user: account.acct }) : t('profile.block_user', { user: account.acct }) }}
               </button>
               <button
                 @click="toggleMute"
-                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                :class="relationship?.muting ? 'text-gray-700 dark:text-gray-200' : 'text-orange-600 dark:text-orange-400'"
+                class="sb-menu-item"
+                :class="relationship?.muting ? '' : 'text-amber-600 dark:text-amber-400'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
                 {{ relationship?.muting ? t('profile.unmute_user', { user: account.acct }) : t('profile.mute_user', { user: account.acct }) }}
               </button>
               <button
                 @click="openReport"
-                class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                class="sb-menu-item text-red-600 dark:text-red-400"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" /></svg>
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" /></svg>
                 {{ t('profile.report_user') }}
               </button>
             </div>
@@ -189,7 +189,7 @@ function handleToggle() {
           <router-link
             v-if="isOwn"
             to="/settings/profile"
-            class="px-4 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            class="sb-btn sb-btn-secondary"
           >
             {{ t('profile.edit') }}
           </router-link>
@@ -197,11 +197,11 @@ function handleToggle() {
       </div>
 
       <!-- Name -->
-      <h1 class="text-xl font-bold" v-html="emojifiedName" />
-      <p class="text-gray-500 dark:text-gray-400 text-sm">@{{ account.acct }}</p>
+      <h1 class="sb-heading text-xl text-slate-900 dark:text-white" v-html="emojifiedName" />
+      <p class="text-sm text-slate-500 dark:text-slate-400">@{{ account.acct }}</p>
       <span
         v-if="remoteDomain"
-        class="inline-flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-gray-500 mt-1"
+        class="mt-1.5 inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-surface-2-dark dark:text-slate-400"
       >
         🌐 {{ remoteDomain }}
       </span>
@@ -214,34 +214,34 @@ function handleToggle() {
       />
 
       <!-- Fields -->
-      <dl v-if="emojifiedFields.length" class="mt-3 space-y-1">
+      <dl v-if="emojifiedFields.length" class="mt-4 divide-y divide-outline overflow-hidden rounded-xl border border-outline dark:divide-outline-dark dark:border-outline-dark">
         <div
           v-for="field in emojifiedFields"
           :key="field.name"
-          class="flex text-sm border border-gray-200 dark:border-gray-700 rounded overflow-hidden"
+          class="flex text-sm"
         >
-          <dt class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 font-medium w-1/3 truncate" v-html="field.nameHtml" />
+          <dt class="w-1/3 truncate bg-surface-2 px-3 py-2 font-semibold text-slate-600 dark:bg-surface-2-dark dark:text-slate-300" v-html="field.nameHtml" />
           <dd
-            class="px-3 py-1.5 flex-1 truncate"
-            :class="{ 'text-green-600 dark:text-green-400': field.verified_at }"
+            class="flex-1 truncate px-3 py-2"
+            :class="field.verified_at ? 'font-medium text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'"
             v-html="field.valueHtml"
           />
         </div>
       </dl>
 
       <!-- Stats -->
-      <div class="flex gap-4 mt-4 text-sm">
-        <router-link :to="`/@${account.acct}`" class="hover:underline">
-          <span class="font-bold">{{ formatStat(account.statuses_count) }}</span>
-          <span class="text-gray-500 dark:text-gray-400 ml-1">{{ t('profile.posts') }}</span>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <router-link :to="`/@${account.acct}`" class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:bg-surface-2-dark dark:text-slate-400 dark:hover:bg-brand-950/50 dark:hover:text-brand-300">
+          <span class="text-sm font-bold text-slate-900 dark:text-white">{{ formatStat(account.statuses_count) }}</span>
+          <span>{{ t('profile.posts') }}</span>
         </router-link>
-        <router-link :to="`/@${account.acct}/following`" class="hover:underline">
-          <span class="font-bold">{{ formatStat(account.following_count) }}</span>
-          <span class="text-gray-500 dark:text-gray-400 ml-1">{{ t('profile.following') }}</span>
+        <router-link :to="`/@${account.acct}/following`" class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:bg-surface-2-dark dark:text-slate-400 dark:hover:bg-brand-950/50 dark:hover:text-brand-300">
+          <span class="text-sm font-bold text-slate-900 dark:text-white">{{ formatStat(account.following_count) }}</span>
+          <span>{{ t('profile.following') }}</span>
         </router-link>
-        <router-link :to="`/@${account.acct}/followers`" class="hover:underline">
-          <span class="font-bold">{{ formatStat(account.followers_count) }}</span>
-          <span class="text-gray-500 dark:text-gray-400 ml-1">{{ t('profile.followers') }}</span>
+        <router-link :to="`/@${account.acct}/followers`" class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-700 dark:bg-surface-2-dark dark:text-slate-400 dark:hover:bg-brand-950/50 dark:hover:text-brand-300">
+          <span class="text-sm font-bold text-slate-900 dark:text-white">{{ formatStat(account.followers_count) }}</span>
+          <span>{{ t('profile.followers') }}</span>
         </router-link>
       </div>
     </div>

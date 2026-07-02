@@ -16,7 +16,12 @@
     "copied": "已複製到剪貼簿",
     "upload": "上傳",
     "uploading": "上傳中...",
-    "load_more": "載入更多"
+    "load_more": "載入更多",
+    "previous": "上一個",
+    "remove": "移除",
+    "move_up": "上移",
+    "move_down": "下移",
+    "auto": "自動"
   },
   "auth": {
     "login": "登入",
@@ -165,7 +170,9 @@
     "followed_tags": "追蹤的標籤",
     "directory": "名錄",
     "local_timeline": "本站時間軸",
-    "federated_timeline": "聯邦時間軸"
+    "federated_timeline": "聯邦時間軸",
+    "main_navigation": "主導覽",
+    "mobile_navigation": "行動版導覽"
   },
   "explore": {
     "trending": "熱門",
@@ -705,7 +712,9 @@
       "privacy_policy": "隱私權政策",
       "privacy_policy_desc": "以 Markdown 撰寫隱私權政策。"
     },
-    "registration_message_help": "此訊息將顯示在註冊頁面上。"
+    "registration_message_help": "此訊息將顯示在註冊頁面上。",
+    "vapid_public_key_placeholder": "Base64url 編碼的 P-256 公鑰（65 位元組）",
+    "vapid_private_key_placeholder": "Base64url 編碼的 P-256 私鑰（32 位元組）"
   },
   "legal": {
     "terms_of_service": "服務條款",
@@ -842,7 +851,8 @@
     "backup_codes_description": "請將這些備用代碼儲存在安全的地方。每個代碼只能使用一次。",
     "backup_codes_warning": "這些代碼不會再次顯示。",
     "invalid_code": "代碼無效，請重試。",
-    "copied": "已複製！"
+    "copied": "已複製！",
+    "qr_alt": "TOTP 二維碼"
   },
   "turnstile": {
     "title": "Turnstile（CAPTCHA）",
@@ -941,5 +951,27 @@
       "admin:read": "檢視管理資料",
       "admin:write": "修改管理資料"
     }
+  },
+  "design": {
+    "classicBanner": "您正在瀏覽經典版介面",
+    "switchToNew": "試試全新設計",
+    "backToClassic": "經典版介面"
+  },
+  "setup": {
+    "subtitle": "建立第一個管理員帳號。",
+    "unavailable": "已有使用者存在，無法使用初始設定。",
+    "admin_username": "管理員使用者名稱",
+    "admin_email": "管理員電子郵件",
+    "password": "密碼",
+    "confirm_password": "確認密碼",
+    "create": "建立管理員",
+    "creating": "建立中...",
+    "create_failed": "建立管理員失敗。",
+    "username_required": "請輸入使用者名稱。",
+    "username_invalid": "使用者名稱只能包含英文字母、數字與底線。",
+    "email_required": "請輸入電子郵件地址。",
+    "password_required": "請輸入密碼。",
+    "password_too_short": "密碼長度至少需 8 個字元。",
+    "password_mismatch": "兩次輸入的密碼不一致。"
   }
 }

@@ -106,46 +106,46 @@ async function deleteRule(id: string) {
 
 <template>
   <AdminLayout>
-  <div class="w-full">
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('admin.rules') }}</h1>
+  <div class="w-full max-w-5xl animate-fade-in">
+    <div class="mb-6 flex items-center justify-between">
+      <h1 class="sb-heading text-2xl text-slate-900 dark:text-white">{{ t('admin.rules') }}</h1>
       <button
         v-if="!showForm"
-        class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+        class="sb-btn sb-btn-primary"
         @click="openCreate"
       >
         {{ t('admin.addRule') }}
       </button>
     </div>
 
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
       {{ error }}
     </div>
 
     <!-- Form -->
-    <div v-if="showForm" class="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+    <div v-if="showForm" class="sb-card mb-6 space-y-4 p-6 animate-rise-in">
+      <h3 class="sb-heading text-lg text-slate-900 dark:text-white">
         {{ editingId ? t('admin.editRule') : t('admin.addRule') }}
       </h3>
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ t('admin.ruleText') }}</label>
+        <label class="sb-label">{{ t('admin.ruleText') }}</label>
         <textarea
           v-model="formText"
           rows="3"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          class="sb-input resize-none"
           :placeholder="t('admin.ruleTextPlaceholder')"
         />
       </div>
       <div class="flex gap-2">
         <button
           :disabled="formSaving || !formText.trim()"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          class="sb-btn sb-btn-primary"
           @click="saveRule"
         >
           {{ formSaving ? t('common.loading') : t('common.save') }}
         </button>
         <button
-          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          class="sb-btn sb-btn-secondary"
           @click="cancelForm"
         >
           {{ t('common.cancel') }}
@@ -155,28 +155,36 @@ async function deleteRule(id: string) {
 
     <LoadingSpinner v-if="loading" />
 
-    <div v-else-if="rules.length === 0 && !showForm" class="text-center py-12 text-gray-500 dark:text-gray-400">
-      {{ t('admin.noRules') }}
+    <div v-else-if="rules.length === 0 && !showForm" class="sb-card">
+      <div class="sb-empty">
+        {{ t('admin.noRules') }}
+      </div>
     </div>
 
-    <div v-else class="space-y-3">
+    <div v-else class="sb-card divide-y divide-outline overflow-hidden dark:divide-outline-dark">
       <div
         v-for="(rule, index) in rules"
         :key="rule.id"
-        class="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+        class="flex items-center gap-4 p-4 transition-colors hover:bg-surface-2/70 dark:hover:bg-surface-2-dark/70"
       >
-        <span class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-bold">
+        <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600 dark:bg-brand-950/60 dark:text-brand-400">
           {{ index + 1 }}
         </span>
-        <p class="flex-1 text-sm text-gray-900 dark:text-white whitespace-pre-line">{{ rule.text }}</p>
+        <p class="flex-1 whitespace-pre-line text-sm text-slate-900 dark:text-white">{{ rule.text }}</p>
         <div class="flex gap-1">
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" @click="openEdit(rule)">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button
+            class="rounded-full p-2 text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-surface-2-dark dark:hover:text-slate-200"
+            @click="openEdit(rule)"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
           </button>
-          <button class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400" @click="deleteRule(rule.id)">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button
+            class="rounded-full p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+            @click="deleteRule(rule.id)"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
             </svg>
           </button>

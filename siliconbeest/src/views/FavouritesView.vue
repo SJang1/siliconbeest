@@ -44,20 +44,27 @@ onMounted(loadFavourites)
 <template>
   <AppShell>
     <div>
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h1 class="text-xl font-bold">{{ t('nav.favourites') }}</h1>
+      <header class="sb-glass sticky top-0 z-10 flex items-center gap-2.5 border-b px-4 py-3">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-400">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4.5 w-4.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+          </svg>
+        </span>
+        <h1 class="sb-heading text-lg">{{ t('nav.favourites') }}</h1>
       </header>
 
-      <div v-if="error" class="p-4 text-center text-red-500">
-        {{ error }}
-      </div>
+      <div class="mx-auto w-full max-w-2xl">
+        <div v-if="error" class="px-4 py-3 text-center text-sm font-medium text-red-600 dark:text-red-400">
+          {{ error }}
+        </div>
 
-      <TimelineFeed
-        :statuses="statuses"
-        :loading="loading"
-        :done="done"
-        @load-more="loadFavourites"
-      />
+        <TimelineFeed
+          :statuses="statuses"
+          :loading="loading"
+          :done="done"
+          @load-more="loadFavourites"
+        />
+      </div>
     </div>
   </AppShell>
 </template>

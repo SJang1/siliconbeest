@@ -64,14 +64,15 @@ async function handleRegister(data: {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <div class="w-full max-w-sm">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('auth.join_us') }}</p>
+  <div class="sb-app relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+    <div class="sb-aurora" aria-hidden="true"></div>
+    <div class="relative z-10 w-full max-w-md animate-rise-in">
+      <div class="mb-8 text-center">
+        <h1 class="sb-heading sb-gradient-text text-4xl">{{ instanceTitle }}</h1>
+        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ t('auth.join_us') }}</p>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div class="sb-card p-8">
+        <div v-if="error" class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
           {{ error }}
         </div>
         <RegisterForm

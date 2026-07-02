@@ -137,10 +137,10 @@ async function deleteFilter(id: string) {
 <template>
   <div class="w-full">
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('settings.filters') }}</h2>
+      <h2 class="sb-heading text-xl">{{ t('settings.filters') }}</h2>
       <button
         v-if="!showForm"
-        class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+        class="sb-btn sb-btn-primary sb-btn-sm"
         @click="openCreateForm"
       >
         {{ t('settings.addFilter') }}
@@ -148,41 +148,41 @@ async function deleteFilter(id: string) {
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" class="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
       {{ error }}
     </div>
 
     <!-- Create/Edit Form -->
-    <div v-if="showForm" class="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-4">
-      <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+    <div v-if="showForm" class="sb-card mb-6 p-6 space-y-4 animate-rise-in">
+      <h3 class="sb-heading text-lg">
         {{ editingId ? t('settings.editFilter') : t('settings.addFilter') }}
       </h3>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('settings.filterTitle') }}
         </label>
         <input
           v-model="formTitle"
           type="text"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         />
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label class="sb-label">
           {{ t('settings.filterKeywords') }}
         </label>
         <input
           v-model="formKeywords"
           type="text"
           :placeholder="t('settings.filterKeywordsHint')"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
         />
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label class="sb-label">
           {{ t('settings.filterContext') }}
         </label>
         <div class="flex flex-wrap gap-2">
@@ -193,8 +193,8 @@ async function deleteFilter(id: string) {
             class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
             :class="
               formContexts.includes(ctx)
-                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                ? 'bg-brand-100 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300'
+                : 'bg-surface-2 text-slate-500 hover:text-slate-700 dark:bg-surface-2-dark dark:text-slate-400 dark:hover:text-slate-200'
             "
             @click="toggleContext(ctx)"
           >
@@ -204,7 +204,7 @@ async function deleteFilter(id: string) {
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label class="sb-label">
           {{ t('settings.filterAction') }}
         </label>
         <div class="flex gap-4">
@@ -213,18 +213,18 @@ async function deleteFilter(id: string) {
               v-model="formAction"
               type="radio"
               value="warn"
-              class="text-indigo-600 focus:ring-indigo-500"
+              class="border-outline text-brand-600 focus:ring-brand-500 dark:border-outline-dark dark:bg-surface-2-dark"
             />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.filterActionWarn') }}</span>
+            <span class="text-sm text-slate-700 dark:text-slate-200">{{ t('settings.filterActionWarn') }}</span>
           </label>
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               v-model="formAction"
               type="radio"
               value="hide"
-              class="text-indigo-600 focus:ring-indigo-500"
+              class="border-outline text-brand-600 focus:ring-brand-500 dark:border-outline-dark dark:bg-surface-2-dark"
             />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('settings.filterActionHide') }}</span>
+            <span class="text-sm text-slate-700 dark:text-slate-200">{{ t('settings.filterActionHide') }}</span>
           </label>
         </div>
       </div>
@@ -232,13 +232,13 @@ async function deleteFilter(id: string) {
       <div class="flex gap-2">
         <button
           :disabled="formSaving || !formTitle.trim()"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="sb-btn sb-btn-primary"
           @click="saveFilter"
         >
           {{ formSaving ? t('common.loading') : t('common.save') }}
         </button>
         <button
-          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          class="sb-btn sb-btn-secondary"
           @click="cancelForm"
         >
           {{ t('common.cancel') }}
@@ -249,7 +249,7 @@ async function deleteFilter(id: string) {
     <LoadingSpinner v-if="loading" />
 
     <!-- Filter List -->
-    <div v-else-if="filters.length === 0 && !showForm" class="text-center py-12 text-gray-500 dark:text-gray-400">
+    <div v-else-if="filters.length === 0 && !showForm" class="sb-empty">
       <p>{{ t('settings.noFilters') }}</p>
     </div>
 
@@ -257,37 +257,37 @@ async function deleteFilter(id: string) {
       <div
         v-for="filter in filters"
         :key="filter.id"
-        class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+        class="sb-card p-5"
       >
         <div class="flex items-start justify-between">
           <div>
-            <h3 class="font-medium text-gray-900 dark:text-white">{{ filter.title }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <h3 class="font-semibold text-slate-900 dark:text-slate-100">{{ filter.title }}</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
               {{ filter.keywords.map((k) => k.keyword).join(', ') }}
             </p>
-            <div class="flex gap-1 mt-2">
+            <div class="flex flex-wrap gap-1 mt-2">
               <span
                 v-for="ctx in filter.context"
                 :key="ctx"
-                class="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                class="px-2 py-0.5 rounded-full text-xs font-medium bg-surface-2 text-slate-500 dark:bg-surface-2-dark dark:text-slate-400"
               >
                 {{ t(`settings.filterCtx_${ctx}`) }}
               </span>
               <span
-                class="px-2 py-0.5 rounded-full text-xs"
+                class="px-2 py-0.5 rounded-full text-xs font-medium"
                 :class="
                   filter.filter_action === 'hide'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
                 "
               >
                 {{ t(`settings.filterAction${filter.filter_action === 'hide' ? 'Hide' : 'Warn'}`) }}
               </span>
             </div>
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-1">
             <button
-              class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              class="p-2 rounded-lg text-slate-400 transition-colors hover:bg-surface-2 hover:text-slate-700 dark:hover:bg-surface-2-dark dark:hover:text-slate-200"
               @click="openEditForm(filter)"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,7 +295,7 @@ async function deleteFilter(id: string) {
               </svg>
             </button>
             <button
-              class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+              class="p-2 rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               @click="deleteFilter(filter.id)"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

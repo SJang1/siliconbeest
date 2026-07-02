@@ -34,18 +34,18 @@ function statusBadge(failureCount: number): { label: string; classes: string } {
   if (failureCount === 0) {
     return {
       label: t('admin.federation.healthy'),
-      classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+      classes: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
     }
   }
   if (failureCount <= 3) {
     return {
       label: t('admin.federation.degraded'),
-      classes: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+      classes: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
     }
   }
   return {
     label: t('admin.federation.down'),
-    classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    classes: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300',
   }
 }
 
@@ -114,28 +114,28 @@ onMounted(() => {
 
 <template>
   <AdminLayout>
-    <div class="w-full">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+    <div class="w-full max-w-6xl animate-fade-in">
+      <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">
         {{ t('admin.federation.title') }}
       </h1>
 
       <!-- Stats cards -->
-      <div v-if="stats" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total }}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.federation.total') }}</div>
+      <div v-if="stats" class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="sb-card p-4">
+          <div class="sb-heading text-2xl text-slate-900 dark:text-white">{{ stats.total }}</div>
+          <div class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.federation.total') }}</div>
         </div>
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ stats.active }}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.federation.active') }}</div>
+        <div class="sb-card p-4">
+          <div class="sb-heading text-2xl text-emerald-600 dark:text-emerald-400">{{ stats.active }}</div>
+          <div class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.federation.active') }}</div>
         </div>
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div class="text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.unreachable }}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.federation.unreachable') }}</div>
+        <div class="sb-card p-4">
+          <div class="sb-heading text-2xl text-red-600 dark:text-red-400">{{ stats.unreachable }}</div>
+          <div class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.federation.unreachable') }}</div>
         </div>
-        <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ stats.remote_accounts }}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.federation.remote_accounts') }}</div>
+        <div class="sb-card p-4">
+          <div class="sb-heading text-2xl text-brand-600 dark:text-brand-400">{{ stats.remote_accounts }}</div>
+          <div class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.federation.remote_accounts') }}</div>
         </div>
       </div>
 
@@ -145,111 +145,115 @@ onMounted(() => {
           v-model="searchQuery"
           type="text"
           :placeholder="t('admin.federation.search_placeholder')"
-          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="sb-input"
           @input="onSearchInput"
         />
       </div>
 
       <!-- Error -->
-      <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
         {{ error }}
       </div>
 
       <LoadingSpinner v-if="loading && instances.length === 0" />
 
       <!-- Empty state -->
-      <div v-else-if="filteredInstances.length === 0 && !loading" class="text-center py-12 text-gray-500 dark:text-gray-400">
-        <p>{{ t('admin.federation.no_instances') }}</p>
+      <div v-else-if="filteredInstances.length === 0 && !loading" class="sb-card">
+        <div class="sb-empty">
+          <p>{{ t('admin.federation.no_instances') }}</p>
+        </div>
       </div>
 
       <!-- Instance table -->
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 text-left">
-              <th class="pb-2 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.domain') }}</th>
-              <th class="pb-2 font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">{{ t('admin.federation.software') }}</th>
-              <th class="pb-2 font-medium text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ t('admin.federation.accounts') }}</th>
-              <th class="pb-2 font-medium text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ t('admin.federation.last_active') }}</th>
-              <th class="pb-2 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.status') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="instance in filteredInstances" :key="instance.domain">
-              <tr
-                class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                @click="toggleExpand(instance.domain)"
-              >
-                <td class="py-3 pr-4">
-                  <span class="font-medium text-gray-900 dark:text-white">{{ instance.domain }}</span>
-                </td>
-                <td class="py-3 pr-4 text-gray-600 dark:text-gray-400 hidden sm:table-cell">
-                  {{ instance.software ?? '-' }}
-                </td>
-                <td class="py-3 pr-4 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                  {{ instance.account_count }}
-                </td>
-                <td class="py-3 pr-4 text-gray-600 dark:text-gray-400 hidden lg:table-cell">
-                  {{ formatDate(instance.last_successful_at) }}
-                </td>
-                <td class="py-3">
-                  <span
-                    class="px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="statusBadge(instance.failure_count).classes"
-                  >
-                    {{ statusBadge(instance.failure_count).label }}
-                  </span>
-                </td>
+      <div v-else class="sb-card overflow-hidden">
+        <div class="max-h-[70vh] overflow-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left">
+                <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin.domain') }}</th>
+                <th class="sticky top-0 z-10 hidden border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400 sm:table-cell">{{ t('admin.federation.software') }}</th>
+                <th class="sticky top-0 z-10 hidden border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400 md:table-cell">{{ t('admin.federation.accounts') }}</th>
+                <th class="sticky top-0 z-10 hidden border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400 lg:table-cell">{{ t('admin.federation.last_active') }}</th>
+                <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin.federation.status') }}</th>
               </tr>
-              <!-- Expanded detail panel -->
-              <tr v-if="expandedDomain === instance.domain">
-                <td colspan="5" class="pb-4 pt-1">
-                  <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 space-y-2 text-sm">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.domain') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">{{ instance.domain }}</span>
+            </thead>
+            <tbody>
+              <template v-for="instance in filteredInstances" :key="instance.domain">
+                <tr
+                  class="cursor-pointer border-b border-outline transition-colors last:border-0 hover:bg-surface-2/70 dark:border-outline-dark dark:hover:bg-surface-2-dark/70"
+                  @click="toggleExpand(instance.domain)"
+                >
+                  <td class="px-4 py-3">
+                    <span class="font-medium text-slate-900 dark:text-white">{{ instance.domain }}</span>
+                  </td>
+                  <td class="hidden px-4 py-3 text-slate-600 dark:text-slate-400 sm:table-cell">
+                    {{ instance.software ?? '-' }}
+                  </td>
+                  <td class="hidden px-4 py-3 text-slate-600 dark:text-slate-400 md:table-cell">
+                    {{ instance.account_count }}
+                  </td>
+                  <td class="hidden px-4 py-3 text-slate-600 dark:text-slate-400 lg:table-cell">
+                    {{ formatDate(instance.last_successful_at) }}
+                  </td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="sb-chip"
+                      :class="statusBadge(instance.failure_count).classes"
+                    >
+                      {{ statusBadge(instance.failure_count).label }}
+                    </span>
+                  </td>
+                </tr>
+                <!-- Expanded detail panel -->
+                <tr v-if="expandedDomain === instance.domain" class="border-b border-outline last:border-0 dark:border-outline-dark">
+                  <td colspan="5" class="px-4 pb-4 pt-1">
+                    <div class="space-y-2 rounded-xl border border-outline bg-surface-2 p-4 text-sm dark:border-outline-dark dark:bg-surface-2-dark">
+                      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.domain') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">{{ instance.domain }}</span>
+                        </div>
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.software') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">{{ instance.software ?? '-' }} {{ instance.version ?? '' }}</span>
+                        </div>
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.accounts') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">{{ instance.account_count }}</span>
+                        </div>
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.registrations') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">
+                            {{ instance.open_registrations === null ? '-' : instance.open_registrations ? 'Yes' : 'No' }}
+                          </span>
+                        </div>
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.first_seen') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">{{ formatDate(instance.created_at) }}</span>
+                        </div>
+                        <div>
+                          <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.last_active') }}:</span>
+                          <span class="ml-2 text-slate-900 dark:text-white">{{ formatDate(instance.last_successful_at) }}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.software') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">{{ instance.software ?? '-' }} {{ instance.version ?? '' }}</span>
-                      </div>
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.accounts') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">{{ instance.account_count }}</span>
-                      </div>
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.registrations') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">
-                          {{ instance.open_registrations === null ? '-' : instance.open_registrations ? 'Yes' : 'No' }}
-                        </span>
-                      </div>
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.first_seen') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">{{ formatDate(instance.created_at) }}</span>
-                      </div>
-                      <div>
-                        <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.last_active') }}:</span>
-                        <span class="ml-2 text-gray-900 dark:text-white">{{ formatDate(instance.last_successful_at) }}</span>
+                      <div v-if="instance.description">
+                        <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.description') }}:</span>
+                        <p class="mt-1 text-slate-700 dark:text-slate-300">{{ instance.description }}</p>
                       </div>
                     </div>
-                    <div v-if="instance.description">
-                      <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('admin.federation.description') }}:</span>
-                      <p class="mt-1 text-gray-700 dark:text-gray-300">{{ instance.description }}</p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Load more -->
       <div v-if="hasMore && filteredInstances.length > 0" class="mt-4 text-center">
         <button
           :disabled="loading"
-          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+          class="sb-btn sb-btn-secondary"
           @click="loadMore"
         >
           {{ loading ? t('common.loading') : t('common.next') }}
