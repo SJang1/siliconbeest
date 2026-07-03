@@ -230,6 +230,8 @@ function isRouteActive(path: string): boolean {
       <span class="dk-rail-label">{{ t(entry.labelKey) }}</span>
     </router-link>
 
+    <div class="dk-hairline-b my-1 w-10" aria-hidden="true" />
+
     <!-- Alerts (notifications) -->
     <router-link
       v-if="auth.isAuthenticated"
