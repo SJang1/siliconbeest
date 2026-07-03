@@ -441,7 +441,26 @@
       "detail": "インスタンスの詳細",
       "registrations": "登録受付中",
       "first_seen": "初回確認",
-      "description": "説明"
+      "description": "説明",
+      "dlq": {
+        "title": "デッドレターキュー",
+        "link": "失敗メッセージ",
+        "description": "再試行をすべて使い切った連合メッセージです。再送はキューに再投入し、破棄は処理済みとして扱います。",
+        "parked": "保管中",
+        "replayed": "再送済み",
+        "discarded": "破棄済み",
+        "activity": "アクティビティ",
+        "actor": "アクター",
+        "error": "エラー",
+        "attempts": "試行回数",
+        "parked_at": "保管日時",
+        "message_type": "メッセージ種別",
+        "body": "メッセージ本文",
+        "replay": "再送",
+        "discard": "破棄",
+        "discard_confirm": "このメッセージを破棄しますか？再処理されません。",
+        "empty": "メッセージはありません"
+      }
     },
     "domainBlocks": "ドメインブロック",
     "emailDomainBlocks": "メールドメインブロック",
@@ -1021,5 +1040,86 @@
     "nav_alerts": "通知",
     "nav_requests": "リクエスト",
     "section_timelines": "タイムライン"
+  },
+  "airport": {
+    "pageTitle": "空港 — このサーバーのライブマップ",
+    "title": "空港",
+    "subtitle": "このサーバーの直近24時間を空港の風景として描きました。すべての経路は実際の配線と一致し、数字はすべて本物です。",
+    "backHome": "ホームへ",
+    "updatedAt": "{time} 時点",
+    "window24h": "直近24時間",
+    "fetchError": "数字を取得できませんでした。空港のかたちはそのままです。",
+    "honesty": "この地図のすべての経路はサーバーの実際の配線と1:1で対応しています。",
+    "sceneLabel": "このサーバーの直近24時間の活動を表した空港の図",
+    "board": {
+      "departures": "出発旅客",
+      "arrivals": "到着旅客",
+      "transfers": "乗り継ぎ",
+      "cargoOut": "貨物(出発)",
+      "cargoIn": "貨物(到着)",
+      "registrations": "パスポート発行"
+    },
+    "delays": {
+      "title": "遅延・欠航のご案内",
+      "none": "すべての路線が正常に運航しています。良い知らせです。",
+      "failures": "配送失敗 {count}回"
+    },
+    "scene": {
+      "cloudflare": "Cloudflareゲート",
+      "checkin": "チェックイン",
+      "passport": "パスポートデスク",
+      "security": "保安検査場",
+      "gate": "搭乗口",
+      "runwayDep": "出発滑走路(連合送信)",
+      "runwayArr": "到着滑走路(inbox)",
+      "immigration": "入国審査(署名検証)",
+      "baggage": "手荷物受取",
+      "cargoTerminal": "貨物ターミナル(R2)",
+      "tower": "管制塔(ストリーミング)",
+      "destinations": "連合の空",
+      "dlq": "欠航貨物置き場"
+    },
+    "ops": {
+      "title": "運行状況",
+      "gate": {
+        "title": "正面ゲート・ターミナル",
+        "status": "営業中",
+        "desc": "あなたと{title}をつなぐ正門です。このページもこの門を通ってきました。新しい投稿(出発旅客)、直近1日で{departures}人。"
+      },
+      "federation": {
+        "title": "国際線(連合)",
+        "statusOk": "運航中",
+        "statusDelayed": "一部遅延",
+        "desc": "直近1日で{arrivals}人が{destinations}か所の空港から到着しました。新しい投稿はここで連合の空へ出発手続きをします。",
+        "delayedNote": "次の路線で配送失敗が積み上がっています:"
+      },
+      "transfer": {
+        "title": "乗り継ぎ通路",
+        "status": "営業中",
+        "desc": "直近1日で{transfers}人が到着後、乗り継ぎ通路を通って再び出発便に乗りました。ブーストがこの通路を使います。"
+      },
+      "cargo": {
+        "title": "貨物ターミナル(R2)",
+        "status": "稼働中",
+        "desc": "直近1日で預け荷物{out}個({bytes})が倉庫に入り、到着荷物{in}個が受取所に出ました。"
+      },
+      "passport": {
+        "title": "パスポートデスク",
+        "status": "営業中",
+        "desc": "直近1日で{count}人が新しいパスポートを受け取りました。新しいアカウントが新しいパスポートです。"
+      },
+      "tower": {
+        "title": "管制塔の放送",
+        "status": "放送中",
+        "desc": "新しい投稿が生まれると、管制塔が接続中の画面へすぐに案内放送をします。直近1日の放送は{total}件でした。"
+      },
+      "dlq": {
+        "title": "欠航貨物置き場",
+        "statusEmpty": "空",
+        "statusParked": "欠航{count}件",
+        "emptyDesc": "置き場はがらんとしています。良い知らせです。",
+        "parkedDesc": "{count}件の荷物がどうしても届けられず置き場に停まっています。管理画面から再送や整理ができます。"
+      }
+    }
   }
 }

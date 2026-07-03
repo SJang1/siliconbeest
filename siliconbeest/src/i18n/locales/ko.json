@@ -441,7 +441,26 @@
       "detail": "인스턴스 상세",
       "registrations": "가입 허용",
       "first_seen": "최초 발견",
-      "description": "설명"
+      "description": "설명",
+      "dlq": {
+        "title": "실패 메시지 (DLQ)",
+        "link": "실패 메시지",
+        "description": "재시도를 모두 소진한 연합 메시지입니다. 재전송은 연합 큐에 다시 넣고, 폐기는 처리 완료로 표시합니다.",
+        "parked": "보관됨",
+        "replayed": "재전송됨",
+        "discarded": "폐기됨",
+        "activity": "활동",
+        "actor": "행위자",
+        "error": "오류",
+        "attempts": "시도 횟수",
+        "parked_at": "보관 시각",
+        "message_type": "메시지 유형",
+        "body": "메시지 본문",
+        "replay": "재전송",
+        "discard": "폐기",
+        "discard_confirm": "이 메시지를 폐기할까요? 다시 처리되지 않습니다.",
+        "empty": "메시지가 없습니다"
+      }
     },
     "domainBlocks": "도메인 차단",
     "emailDomainBlocks": "이메일 도메인 차단",
@@ -1021,5 +1040,86 @@
     "nav_alerts": "알림",
     "nav_requests": "팔로우 요청",
     "section_timelines": "타임라인"
+  },
+  "airport": {
+    "pageTitle": "공항 — 이 서버의 실시간 지도",
+    "title": "공항",
+    "subtitle": "이 서버의 지난 24시간을 공항 풍경으로 그렸어요. 모든 경로는 실제 배선과 일치하고, 숫자는 전부 진짜예요.",
+    "backHome": "홈으로",
+    "updatedAt": "{time} 기준",
+    "window24h": "지난 24시간",
+    "fetchError": "숫자를 지금 가져오지 못했어요. 공항 모양은 그대로예요.",
+    "honesty": "이 지도의 모든 경로는 서버의 실제 배선과 1:1로 대응해요.",
+    "sceneLabel": "이 서버의 지난 24시간 활동을 나타낸 공항 그림",
+    "board": {
+      "departures": "출발 승객",
+      "arrivals": "도착 승객",
+      "transfers": "환승",
+      "cargoOut": "화물 출발",
+      "cargoIn": "화물 도착",
+      "registrations": "여권 발급"
+    },
+    "delays": {
+      "title": "지연·결항 안내",
+      "none": "모든 노선이 정상 운항 중이에요. 좋은 일이에요.",
+      "failures": "배달 실패 {count}회"
+    },
+    "scene": {
+      "cloudflare": "Cloudflare 게이트",
+      "checkin": "발권 카운터",
+      "passport": "여권 데스크",
+      "security": "보안검색대",
+      "gate": "탑승구",
+      "runwayDep": "출발 활주로 (연합 발신)",
+      "runwayArr": "도착 활주로 (inbox)",
+      "immigration": "입국심사 (서명 검증)",
+      "baggage": "짐 찾기",
+      "cargoTerminal": "화물터미널 (R2)",
+      "tower": "관제탑 (스트리밍)",
+      "destinations": "연합 하늘",
+      "dlq": "결항 화물 보관소"
+    },
+    "ops": {
+      "title": "운행 상황",
+      "gate": {
+        "title": "정문·여객터미널",
+        "status": "운영 중",
+        "desc": "나와 {title}을(를) 잇는 정문이에요. 이 페이지도 이 문을 지나 여기까지 왔어요. 새 글(출발 승객), 지난 하루 {departures}명."
+      },
+      "federation": {
+        "title": "국제선 (연합 노선)",
+        "statusOk": "운항 중",
+        "statusDelayed": "일부 지연",
+        "desc": "지난 하루 {arrivals}명이 {destinations}곳의 공항에서 도착했어요. 새 글은 여기서 연합 하늘로 출발 수속을 밟아요.",
+        "delayedNote": "아래 노선에 배달 실패가 쌓여 있어요:"
+      },
+      "transfer": {
+        "title": "환승 통로",
+        "status": "운영 중",
+        "desc": "지난 하루 {transfers}명이 도착 후 환승 통로를 지나 다시 출발편에 올랐어요. 부스트가 이 통로를 써요."
+      },
+      "cargo": {
+        "title": "화물터미널 (R2)",
+        "status": "가동 중",
+        "desc": "지난 하루 위탁 화물 {out}개({bytes})가 창고로 들어갔고, 도착 화물 {in}개가 짐 찾는 곳에 나왔어요."
+      },
+      "passport": {
+        "title": "여권 데스크",
+        "status": "운영 중",
+        "desc": "지난 하루 {count}명이 새 여권을 발급받았어요. 새 계정이 곧 새 여권이에요."
+      },
+      "tower": {
+        "title": "관제탑 방송",
+        "status": "방송 중",
+        "desc": "새 글이 생기면 접속 중인 화면으로 곧바로 안내 방송을 해요. 지난 하루 방송 거리는 {total}건이었어요."
+      },
+      "dlq": {
+        "title": "결항 화물 보관소",
+        "statusEmpty": "비어 있음",
+        "statusParked": "결항 {count}건",
+        "emptyDesc": "보관소는 텅 비어 있어요. 좋은 일이에요.",
+        "parkedDesc": "{count}건의 화물이 끝내 배달되지 못하고 보관소에 서 있어요. 관리자 화면에서 재발송하거나 정리할 수 있어요."
+      }
+    }
   }
 }

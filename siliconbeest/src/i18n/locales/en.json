@@ -441,7 +441,26 @@
       "detail": "Instance Details",
       "registrations": "Open Registration",
       "first_seen": "First Seen",
-      "description": "Description"
+      "description": "Description",
+      "dlq": {
+        "title": "Dead Letter Queue",
+        "link": "Dead letters",
+        "description": "Federation messages that failed all retries. Replay re-enqueues them to the federation queue; discard marks them as handled.",
+        "parked": "Parked",
+        "replayed": "Replayed",
+        "discarded": "Discarded",
+        "activity": "Activity",
+        "actor": "Actor",
+        "error": "Error",
+        "attempts": "Attempts",
+        "parked_at": "Parked At",
+        "message_type": "Message Type",
+        "body": "Message Body",
+        "replay": "Replay",
+        "discard": "Discard",
+        "discard_confirm": "Discard this message? It will not be processed again.",
+        "empty": "No messages"
+      }
     },
     "domainBlocks": "Domain blocks",
     "emailDomainBlocks": "Email domain blocks",
@@ -1021,5 +1040,86 @@
     "nav_alerts": "Alerts",
     "nav_requests": "Requests",
     "section_timelines": "timelines"
+  },
+  "airport": {
+    "pageTitle": "Airport — a live map of this server",
+    "title": "Airport",
+    "subtitle": "The last 24 hours of this server, drawn as an airport. Every path matches the real wiring, and every number is real.",
+    "backHome": "Back home",
+    "updatedAt": "as of {time}",
+    "window24h": "Last 24 hours",
+    "fetchError": "We couldn't fetch the numbers right now. The airport layout is still accurate.",
+    "honesty": "Every route on this map corresponds 1:1 to the server's real wiring.",
+    "sceneLabel": "An airport diagram showing this server's activity in the last 24 hours",
+    "board": {
+      "departures": "Departures",
+      "arrivals": "Arrivals",
+      "transfers": "Transfers",
+      "cargoOut": "Cargo out",
+      "cargoIn": "Cargo in",
+      "registrations": "New passports"
+    },
+    "delays": {
+      "title": "Delays & cancellations",
+      "none": "All routes are operating normally. That's good news.",
+      "failures": "{count} failed deliveries"
+    },
+    "scene": {
+      "cloudflare": "Cloudflare gate",
+      "checkin": "Check-in",
+      "passport": "Passport desk",
+      "security": "Security",
+      "gate": "Gate",
+      "runwayDep": "Departure runway (federation out)",
+      "runwayArr": "Arrival runway (inbox)",
+      "immigration": "Immigration (signature check)",
+      "baggage": "Baggage claim",
+      "cargoTerminal": "Cargo terminal (R2)",
+      "tower": "Control tower (streaming)",
+      "destinations": "Federated sky",
+      "dlq": "Grounded cargo yard"
+    },
+    "ops": {
+      "title": "Operations",
+      "gate": {
+        "title": "Front gate & terminal",
+        "status": "Open",
+        "desc": "The front door between you and {title} — this very page came through it. New posts (departing passengers): {departures} in the last day."
+      },
+      "federation": {
+        "title": "International routes (federation)",
+        "statusOk": "Operating",
+        "statusDelayed": "Partial delays",
+        "desc": "{arrivals} passengers arrived from {destinations} airports in the last day. New posts check in here for departure into the federated sky.",
+        "delayedNote": "These routes have accumulated delivery failures:"
+      },
+      "transfer": {
+        "title": "Transfer corridor",
+        "status": "Open",
+        "desc": "{transfers} arriving passengers took the transfer corridor back to a departure gate in the last day. Boosts travel this way."
+      },
+      "cargo": {
+        "title": "Cargo terminal (R2)",
+        "status": "Operating",
+        "desc": "{out} checked bags ({bytes}) entered the warehouse and {in} arriving bags reached baggage claim in the last day."
+      },
+      "passport": {
+        "title": "Passport desk",
+        "status": "Open",
+        "desc": "{count} new passports were issued in the last day. A new account is a new passport."
+      },
+      "tower": {
+        "title": "Control tower broadcast",
+        "status": "On air",
+        "desc": "When a new post lands, the tower announces it straight to connected screens. {total} announcements in the last day."
+      },
+      "dlq": {
+        "title": "Grounded cargo yard",
+        "statusEmpty": "Empty",
+        "statusParked": "{count} grounded",
+        "emptyDesc": "The yard is completely empty. That's good news.",
+        "parkedDesc": "{count} deliveries never made it and are parked in the yard. An admin can replay or clear them."
+      }
+    }
   }
 }

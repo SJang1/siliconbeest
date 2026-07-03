@@ -97,6 +97,7 @@ import changePassword from './endpoints/api/v1/accounts/change_password';
 import instanceV1 from './endpoints/api/v1/instance';
 import instancePeers from './endpoints/api/v1/instance/peers';
 import instanceActivity from './endpoints/api/v1/instance/activity';
+import airport from './endpoints/api/airport';
 
 // -- Admin API --
 import admin from './endpoints/api/v1/admin/index';
@@ -303,6 +304,7 @@ app.route('/api/v1/instance/activity', instanceActivity);
 app.route('/api/v1/instance', instanceV1);
 app.route('/api/v1/instance/rules', rules);
 app.route('/api/v1/trends', trends);
+app.route('/api/airport', airport);
 app.use('/api/v1/auth/passwords/*', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/passwords', passwords);
 app.use('/api/v1/auth/login', createRateLimit(RATE_LIMIT_AUTH));

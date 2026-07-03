@@ -1,4 +1,4 @@
-import { ulid, decodeTime } from 'ulid';
+import { ulid, decodeTime, encodeTime } from 'ulid';
 
 /**
  * Generate a new ULID (Universally Unique Lexicographically Sortable Identifier).
@@ -26,4 +26,14 @@ export function isValidUlid(id: string): boolean {
 export function ulidToDate(id: string): Date {
 	const timestamp = decodeTime(id);
 	return new Date(timestamp);
+}
+
+/**
+ * Lowest possible ULID for a given timestamp (in ms).
+ * ULIDs sort lexicographically by creation time, so `id >= ulidLowerBound(t)`
+ * selects rows created at or after `t` via the primary-key index — useful on
+ * tables that have no created_at index (e.g. media_attachments).
+ */
+export function ulidLowerBound(timestampMs: number): string {
+	return encodeTime(timestampMs, 10) + '0000000000000000';
 }

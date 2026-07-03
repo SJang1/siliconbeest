@@ -1,4 +1,4 @@
-import { SELF } from 'cloudflare:test';
+import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser } from './helpers';
 
@@ -149,5 +149,32 @@ describe('GET /api/v1/instance', () => {
       expect(ca).toHaveProperty('emojis');
       expect(ca).toHaveProperty('fields');
     }
+  });
+
+  describe('GET /api/v2/instance contact', () => {
+    it('fills contact.account with the first admin when the setting is empty', async () => {
+      const res = await SELF.fetch(`${BASE}/api/v2/instance`);
+      const body = await res.json<any>();
+      expect(body.contact.account).not.toBeNull();
+      expect(body.contact.account.username).toBe('admin');
+      expect(body.contact.account.acct).toBe('admin');
+      expect(body.contact.account.id).toBeDefined();
+    });
+
+    it('prefers an explicitly configured contact username', async () => {
+      await createTestUser('admin2', { role: 'admin' });
+      await env.DB.prepare(
+        "UPDATE settings SET value = 'admin2' WHERE key = 'site_contact_username'",
+      ).run();
+      try {
+        const res = await SELF.fetch(`${BASE}/api/v2/instance`);
+        const body = await res.json<any>();
+        expect(body.contact.account.username).toBe('admin2');
+      } finally {
+        await env.DB.prepare(
+          "UPDATE settings SET value = '' WHERE key = 'site_contact_username'",
+        ).run();
+      }
+    });
   });
 });

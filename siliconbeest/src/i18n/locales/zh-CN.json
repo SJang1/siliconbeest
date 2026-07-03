@@ -441,7 +441,26 @@
       "detail": "实例详情",
       "registrations": "开放注册",
       "first_seen": "首次发现",
-      "description": "描述"
+      "description": "描述",
+      "dlq": {
+        "title": "死信队列",
+        "link": "失败消息",
+        "description": "已用尽所有重试的联邦消息。重放会将其重新加入联邦队列，丢弃则标记为已处理。",
+        "parked": "已搁置",
+        "replayed": "已重放",
+        "discarded": "已丢弃",
+        "activity": "活动",
+        "actor": "操作者",
+        "error": "错误",
+        "attempts": "尝试次数",
+        "parked_at": "搁置时间",
+        "message_type": "消息类型",
+        "body": "消息内容",
+        "replay": "重放",
+        "discard": "丢弃",
+        "discard_confirm": "确定丢弃此消息？它将不会再被处理。",
+        "empty": "暂无消息"
+      }
     },
     "domainBlocks": "域名屏蔽",
     "emailDomainBlocks": "邮箱域名屏蔽",
@@ -1021,5 +1040,86 @@
     "nav_alerts": "通知",
     "nav_requests": "请求",
     "section_timelines": "时间线"
+  },
+  "airport": {
+    "pageTitle": "机场 — 本服务器的实时地图",
+    "title": "机场",
+    "subtitle": "把本服务器最近24小时画成一座机场。每条线路都与真实架构一致，每个数字都是真的。",
+    "backHome": "返回首页",
+    "updatedAt": "截至 {time}",
+    "window24h": "最近24小时",
+    "fetchError": "暂时无法获取数字。机场的样子保持不变。",
+    "honesty": "这张地图上的每条线路都与服务器的真实架构一一对应。",
+    "sceneLabel": "展示本服务器最近24小时活动的机场示意图",
+    "board": {
+      "departures": "出发旅客",
+      "arrivals": "到达旅客",
+      "transfers": "中转",
+      "cargoOut": "货物(出港)",
+      "cargoIn": "货物(进港)",
+      "registrations": "护照签发"
+    },
+    "delays": {
+      "title": "延误·取消信息",
+      "none": "所有航线运行正常。这是好消息。",
+      "failures": "投递失败 {count} 次"
+    },
+    "scene": {
+      "cloudflare": "Cloudflare 闸口",
+      "checkin": "值机柜台",
+      "passport": "护照柜台",
+      "security": "安检",
+      "gate": "登机口",
+      "runwayDep": "出发跑道(联邦发送)",
+      "runwayArr": "到达跑道(inbox)",
+      "immigration": "入境检查(签名验证)",
+      "baggage": "行李提取",
+      "cargoTerminal": "货运站(R2)",
+      "tower": "塔台(流媒体)",
+      "destinations": "联邦天空",
+      "dlq": "滞留货物停放区"
+    },
+    "ops": {
+      "title": "运行状况",
+      "gate": {
+        "title": "正门·航站楼",
+        "status": "运营中",
+        "desc": "连接你和{title}的正门——这个页面也是从这扇门进来的。新帖子(出发旅客),最近一天 {departures} 人。"
+      },
+      "federation": {
+        "title": "国际航线(联邦)",
+        "statusOk": "运行中",
+        "statusDelayed": "部分延误",
+        "desc": "最近一天有 {arrivals} 人从 {destinations} 座机场抵达。新帖子在这里办理飞向联邦天空的手续。",
+        "delayedNote": "以下航线积累了投递失败:"
+      },
+      "transfer": {
+        "title": "中转通道",
+        "status": "运营中",
+        "desc": "最近一天有 {transfers} 人抵达后经中转通道再次登上出发航班。转发走的就是这条路。"
+      },
+      "cargo": {
+        "title": "货运站(R2)",
+        "status": "运转中",
+        "desc": "最近一天有 {out} 件托运货物({bytes})进入仓库,{in} 件到达货物送到了行李提取处。"
+      },
+      "passport": {
+        "title": "护照柜台",
+        "status": "运营中",
+        "desc": "最近一天签发了 {count} 本新护照。新账号就是新护照。"
+      },
+      "tower": {
+        "title": "塔台广播",
+        "status": "播报中",
+        "desc": "有新帖子时,塔台会立刻向在线的屏幕播报。最近一天播报了 {total} 条。"
+      },
+      "dlq": {
+        "title": "滞留货物停放区",
+        "statusEmpty": "空",
+        "statusParked": "滞留 {count} 件",
+        "emptyDesc": "停放区空空如也。这是好消息。",
+        "parkedDesc": "有 {count} 件货物始终未能送达,停在停放区。管理员可以重发或清理。"
+      }
+    }
   }
 }

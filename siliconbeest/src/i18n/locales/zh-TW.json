@@ -441,7 +441,26 @@
       "detail": "站台詳情",
       "registrations": "開放註冊",
       "first_seen": "首次出現",
-      "description": "描述"
+      "description": "描述",
+      "dlq": {
+        "title": "死信佇列",
+        "link": "失敗訊息",
+        "description": "已用盡所有重試的聯邦訊息。重播會將其重新排入聯邦佇列，捨棄則標記為已處理。",
+        "parked": "已擱置",
+        "replayed": "已重播",
+        "discarded": "已捨棄",
+        "activity": "活動",
+        "actor": "操作者",
+        "error": "錯誤",
+        "attempts": "嘗試次數",
+        "parked_at": "擱置時間",
+        "message_type": "訊息類型",
+        "body": "訊息內容",
+        "replay": "重播",
+        "discard": "捨棄",
+        "discard_confirm": "確定捨棄此訊息？它將不會再被處理。",
+        "empty": "暫無訊息"
+      }
     },
     "domainBlocks": "網域封鎖",
     "emailDomainBlocks": "電子郵件網域封鎖",
@@ -1021,5 +1040,86 @@
     "nav_alerts": "通知",
     "nav_requests": "請求",
     "section_timelines": "時間軸"
+  },
+  "airport": {
+    "pageTitle": "機場 — 本伺服器的即時地圖",
+    "title": "機場",
+    "subtitle": "把本伺服器最近24小時畫成一座機場。每條路線都與真實架構一致，每個數字都是真的。",
+    "backHome": "返回首頁",
+    "updatedAt": "截至 {time}",
+    "window24h": "最近24小時",
+    "fetchError": "暫時無法取得數字。機場的樣子保持不變。",
+    "honesty": "這張地圖上的每條路線都與伺服器的真實架構一一對應。",
+    "sceneLabel": "展示本伺服器最近24小時活動的機場示意圖",
+    "board": {
+      "departures": "出發旅客",
+      "arrivals": "抵達旅客",
+      "transfers": "轉機",
+      "cargoOut": "貨物(出境)",
+      "cargoIn": "貨物(入境)",
+      "registrations": "護照簽發"
+    },
+    "delays": {
+      "title": "延誤·取消資訊",
+      "none": "所有航線運作正常。這是好消息。",
+      "failures": "投遞失敗 {count} 次"
+    },
+    "scene": {
+      "cloudflare": "Cloudflare 閘口",
+      "checkin": "報到櫃檯",
+      "passport": "護照櫃檯",
+      "security": "安檢",
+      "gate": "登機門",
+      "runwayDep": "出發跑道(聯邦送出)",
+      "runwayArr": "抵達跑道(inbox)",
+      "immigration": "入境審查(簽章驗證)",
+      "baggage": "行李提領",
+      "cargoTerminal": "貨運站(R2)",
+      "tower": "塔台(串流)",
+      "destinations": "聯邦天空",
+      "dlq": "滯留貨物停放區"
+    },
+    "ops": {
+      "title": "營運狀況",
+      "gate": {
+        "title": "正門·航廈",
+        "status": "營運中",
+        "desc": "連接你與{title}的正門——這個頁面也是從這扇門進來的。新貼文(出發旅客),最近一天 {departures} 人。"
+      },
+      "federation": {
+        "title": "國際航線(聯邦)",
+        "statusOk": "營運中",
+        "statusDelayed": "部分誤點",
+        "desc": "最近一天有 {arrivals} 人從 {destinations} 座機場抵達。新貼文在這裡辦理飛向聯邦天空的手續。",
+        "delayedNote": "以下航線累積了投遞失敗:"
+      },
+      "transfer": {
+        "title": "轉機通道",
+        "status": "營運中",
+        "desc": "最近一天有 {transfers} 人抵達後經轉機通道再次登上出發航班。轉發走的就是這條路。"
+      },
+      "cargo": {
+        "title": "貨運站(R2)",
+        "status": "運轉中",
+        "desc": "最近一天有 {out} 件託運貨物({bytes})進入倉庫,{in} 件抵達貨物送到了行李提領處。"
+      },
+      "passport": {
+        "title": "護照櫃檯",
+        "status": "營運中",
+        "desc": "最近一天簽發了 {count} 本新護照。新帳號就是新護照。"
+      },
+      "tower": {
+        "title": "塔台廣播",
+        "status": "播報中",
+        "desc": "有新貼文時,塔台會立刻向線上的螢幕播報。最近一天播報了 {total} 則。"
+      },
+      "dlq": {
+        "title": "滯留貨物停放區",
+        "statusEmpty": "空",
+        "statusParked": "滯留 {count} 件",
+        "emptyDesc": "停放區空空如也。這是好消息。",
+        "parkedDesc": "有 {count} 件貨物始終未能送達,停在停放區。管理員可以重發或清理。"
+      }
+    }
   }
 }

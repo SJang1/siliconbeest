@@ -97,3 +97,43 @@ export function getFederationInstance(token: string, domain: string) {
 export function getFederationStats(token: string) {
   return apiFetch<FederationStats>('/v1/admin/federation/stats', { token });
 }
+
+export interface FederationDlqMessage {
+  id: string;
+  queue: string;
+  message_id: string | null;
+  body: unknown;
+  message_type: string | null;
+  activity_type: string | null;
+  activity_id: string | null;
+  actor: string | null;
+  error: string | null;
+  attempts: number;
+  status: string;
+  parked_at: string;
+  updated_at: string;
+}
+
+export interface FederationDlqList {
+  counts: Record<string, number>;
+  items: FederationDlqMessage[];
+}
+
+export function getFederationDlq(token: string, params?: Record<string, string>) {
+  const qs = params ? buildQueryString(params) : '';
+  return apiFetch<FederationDlqList>(`/v1/admin/federation/dlq${qs}`, { token });
+}
+
+export function replayFederationDlqMessage(token: string, id: string) {
+  return apiFetch<{ id: string; status: string }>(`/v1/admin/federation/dlq/${id}/replay`, {
+    method: 'POST',
+    token,
+  });
+}
+
+export function discardFederationDlqMessage(token: string, id: string) {
+  return apiFetch<{ id: string; status: string }>(`/v1/admin/federation/dlq/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+}

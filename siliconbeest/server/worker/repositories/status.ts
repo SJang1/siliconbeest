@@ -148,7 +148,7 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 			poll_id: input.poll_id ?? null,
 			quote_id: input.quote_id ?? null,
 			quote_authorization_uri: input.quote_authorization_uri ?? null,
-			quote_approval_status: input.quote_approval_status ?? null,
+			quote_approval_status: input.quote_approval_status ?? 'none',
 			quote_request_uri: input.quote_request_uri ?? null,
 			quote_policy: input.quote_policy ?? 'public',
 			quote_policy_automatic_approvals: input.quote_policy_automatic_approvals ?? null,

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   getFederationInstances,
   getFederationStats,
+  getFederationDlq,
   type FederationInstance,
   type FederationStats,
 } from '@/api/mastodon/admin'
@@ -67,6 +68,17 @@ async function loadStats() {
   }
 }
 
+const dlqParkedCount = ref(0)
+
+async function loadDlqCount() {
+  try {
+    const res = await getFederationDlq(auth.token!, { limit: '1' })
+    dlqParkedCount.value = res.data.counts.parked ?? 0
+  } catch {
+    // DLQ count is optional, don't block the view
+  }
+}
+
 async function loadInstances(append = false) {
   loading.value = true
   error.value = null
@@ -108,6 +120,7 @@ function onSearchInput() {
 
 onMounted(() => {
   loadStats()
+  loadDlqCount()
   loadInstances()
 })
 </script>
@@ -115,9 +128,20 @@ onMounted(() => {
 <template>
   <DeckAdminLayout>
     <div class="w-full max-w-6xl animate-fade-in">
-      <h1 class="sb-heading mb-6 text-2xl text-slate-900 dark:text-white">
-        {{ t('admin.federation.title') }}
-      </h1>
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 class="sb-heading text-2xl text-slate-900 dark:text-white">
+          {{ t('admin.federation.title') }}
+        </h1>
+        <router-link to="/admin/federation-dlq" class="sb-btn sb-btn-secondary no-underline">
+          {{ t('admin.federation.dlq.link') }}
+          <span
+            v-if="dlqParkedCount > 0"
+            class="sb-chip ml-1.5 bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+          >
+            {{ dlqParkedCount }}
+          </span>
+        </router-link>
+      </div>
 
       <!-- Stats cards -->
       <div v-if="stats" class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

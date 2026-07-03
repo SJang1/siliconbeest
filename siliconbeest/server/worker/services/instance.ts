@@ -269,6 +269,16 @@ export async function getContactAccount(username: string): Promise<AccountRow | 
 	).bind(username, 'admin').first<AccountRow>();
 }
 
+/**
+ * The first (oldest) local admin account — used as the instance contact
+ * when the site_contact_username setting is empty.
+ */
+export async function getFirstAdminAccount(): Promise<AccountRow | null> {
+	return env.DB.prepare(
+		'SELECT a.* FROM accounts a JOIN users u ON u.account_id = a.id WHERE a.domain IS NULL AND u.role = ?1 ORDER BY u.created_at ASC, u.id ASC LIMIT 1',
+	).bind('admin').first<AccountRow>();
+}
+
 // ----------------------------------------------------------------
 // OAuth Application Lookup
 // ----------------------------------------------------------------

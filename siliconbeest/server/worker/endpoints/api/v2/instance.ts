@@ -3,8 +3,9 @@ import { env } from 'cloudflare:workers';
 import type { AppVariables } from '../../../types';
 import { getTurnstileSettings } from '../../../utils/turnstile';
 import { MASTODON_V2_VERSION } from '../../../version';
-import { getSettings, getInstanceTitle, getRules, getStats } from '../../../services/instance';
+import { getSettings, getInstanceTitle, getRules, getStats, getContactAccount, getFirstAdminAccount } from '../../../services/instance';
 import { getRepositoryUrl } from '../../../utils/repository';
+import { serializeAccount } from '../../../utils/mastodonSerializer';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -34,6 +35,13 @@ app.get('/', async (c) => {
     id: r.id,
     text: r.text,
   }));
+
+  // Contact account — same resolution as v1: an explicitly configured
+  // username wins; with no setting, the oldest admin serves as the contact.
+  const contactUsername = dbSettings.site_contact_username;
+  const contactRow = contactUsername
+    ? await getContactAccount(contactUsername).catch(() => null)
+    : await getFirstAdminAccount().catch(() => null);
 
   return c.json({
     domain,
@@ -100,7 +108,7 @@ app.get('/', async (c) => {
     },
     contact: {
       email: dbSettings.site_contact_email || null,
-      account: null,
+      account: contactRow ? serializeAccount(contactRow, { instanceDomain: domain }) : null,
     },
     rules,
     site_landing_markdown: dbSettings.site_landing_markdown || '',

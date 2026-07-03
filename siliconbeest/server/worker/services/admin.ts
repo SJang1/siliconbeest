@@ -776,3 +776,65 @@ export async function getFederationStats(): Promise<{
 		remote_accounts: remoteAccounts?.cnt ?? 0,
 	};
 }
+
+// ----------------------------------------------------------------
+// Federation DLQ (parked dead-letter messages)
+// ----------------------------------------------------------------
+
+export interface DlqParkedRow {
+	id: string;
+	queue: string;
+	message_id: string | null;
+	body: string;
+	message_type: string | null;
+	activity_type: string | null;
+	activity_id: string | null;
+	actor: string | null;
+	error: string | null;
+	attempts: number;
+	status: string;
+	parked_at: string;
+	updated_at: string;
+}
+
+export async function listDlqParked(options: {
+	status?: string;
+	limit: number;
+	offset: number;
+}): Promise<{ items: DlqParkedRow[]; counts: Record<string, number> }> {
+	const status = options.status ?? 'parked';
+	const [{ results }, { results: countRows }] = await Promise.all([
+		env.DB.prepare(
+			`SELECT * FROM federation_dlq_parked
+			 WHERE status = ?1
+			 ORDER BY parked_at DESC
+			 LIMIT ?2 OFFSET ?3`,
+		).bind(status, options.limit, options.offset).all<DlqParkedRow>(),
+		env.DB.prepare(
+			'SELECT status, COUNT(*) AS cnt FROM federation_dlq_parked GROUP BY status',
+		).all<{ status: string; cnt: number }>(),
+	]);
+	const counts: Record<string, number> = Object.fromEntries(
+		(countRows ?? []).map((row) => [row.status, row.cnt]),
+	);
+	return { items: results ?? [], counts };
+}
+
+export async function getDlqParked(id: string): Promise<DlqParkedRow> {
+	const row = await env.DB.prepare('SELECT * FROM federation_dlq_parked WHERE id = ?1')
+		.bind(id)
+		.first<DlqParkedRow>();
+	if (!row) throw new AppError(404, 'Parked message not found');
+	return row;
+}
+
+export async function markDlqParked(
+	id: string,
+	status: 'replayed' | 'discarded',
+): Promise<void> {
+	await env.DB.prepare(
+		'UPDATE federation_dlq_parked SET status = ?2, updated_at = ?3 WHERE id = ?1',
+	)
+		.bind(id, status, new Date().toISOString())
+		.run();
+}

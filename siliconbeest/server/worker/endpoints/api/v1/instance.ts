@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import type { AppVariables } from '../../../types';
 import { getVapidPublicKey } from '../../../utils/vapid';
 import { MASTODON_V1_VERSION } from '../../../version';
-import { getSettings, getInstanceTitle, getRules, getStats, getContactAccount } from '../../../services/instance';
+import { getSettings, getInstanceTitle, getRules, getStats, getContactAccount, getFirstAdminAccount } from '../../../services/instance';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -30,12 +30,13 @@ app.get('/', async (c) => {
   ]);
   const rules = ruleRows.map((r) => ({ id: r.id, text: r.text }));
 
-  // Contact account (admin)
+  // Contact account (admin) — an explicitly configured username wins;
+  // with no setting, the oldest admin serves as the contact.
   let contactAccount = null;
   const contactUsername = dbSettings.site_contact_username;
   const adminRow = contactUsername
     ? await getContactAccount(contactUsername).catch(() => null)
-    : null;
+    : await getFirstAdminAccount().catch(() => null);
 
   if (adminRow) {
     contactAccount = {
