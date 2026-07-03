@@ -5,6 +5,7 @@ import App from './App.vue';
 import router from './router';
 import { i18n, loadLocale, getDisplayLocale } from './i18n';
 import './assets/main.css';
+import './assets/deck.css';
 
 const app = createApp(App);
 const pinia = createPinia();

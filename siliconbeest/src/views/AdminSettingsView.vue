@@ -26,6 +26,7 @@ const settings = ref({
   site_favicon_url: '',
   site_logo_url: '',
   site_theme_color: '#6366f1',
+  accent_color: '#c6f24e',
   site_landing_markdown: '',
   terms_of_service: '',
   privacy_policy: '',
@@ -117,6 +118,7 @@ async function handleTestSmtp() {
 
 const inputClass = 'sb-input'
 const labelClass = 'sb-label'
+const ACCENT_PRESETS = ['#c6f24e', '#4ed9c6', '#ff8a5c']
 const toggleClass =
   "peer h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline after:bg-white after:transition-all after:content-[''] peer-checked:bg-brand-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:bg-slate-700 dark:after:border-outline-dark dark:peer-checked:bg-brand-500 dark:peer-focus-visible:ring-offset-surface-dark"
 </script>
@@ -194,6 +196,27 @@ const toggleClass =
               <input v-model="settings.site_theme_color" type="color" class="h-10 w-14 cursor-pointer rounded-xl border border-outline bg-surface dark:border-outline-dark dark:bg-surface-2-dark" />
               <input v-model="settings.site_theme_color" :class="inputClass" class="!w-40" />
             </div>
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.accent_color') }}</label>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-1.5" role="group" :aria-label="t('admin_settings.fields.accent_color')">
+                <button
+                  v-for="preset in ACCENT_PRESETS"
+                  :key="preset"
+                  type="button"
+                  class="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                  :class="settings.accent_color === preset ? 'border-slate-900 dark:border-white' : 'border-outline dark:border-outline-dark'"
+                  :style="{ backgroundColor: preset }"
+                  :aria-label="preset"
+                  :aria-pressed="settings.accent_color === preset"
+                  @click="settings.accent_color = preset"
+                />
+              </div>
+              <input v-model="settings.accent_color" type="color" class="h-10 w-14 cursor-pointer rounded-xl border border-outline bg-surface dark:border-outline-dark dark:bg-surface-2-dark" />
+              <input v-model="settings.accent_color" :class="inputClass" class="!w-40" placeholder="#c6f24e" />
+            </div>
+            <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ t('admin_settings.accent_color_hint') }}</p>
           </div>
         </div>
       </section>

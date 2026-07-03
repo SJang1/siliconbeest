@@ -710,11 +710,13 @@
       "terms_of_service": "服務條款",
       "terms_of_service_desc": "以 Markdown 撰寫服務條款。",
       "privacy_policy": "隱私權政策",
-      "privacy_policy_desc": "以 Markdown 撰寫隱私權政策。"
+      "privacy_policy_desc": "以 Markdown 撰寫隱私權政策。",
+      "accent_color": "Deck 強調色"
     },
     "registration_message_help": "此訊息將顯示在註冊頁面上。",
     "vapid_public_key_placeholder": "Base64url 編碼的 P-256 公鑰（65 位元組）",
-    "vapid_private_key_placeholder": "Base64url 編碼的 P-256 私鑰（32 位元組）"
+    "vapid_private_key_placeholder": "Base64url 編碼的 P-256 私鑰（32 位元組）",
+    "accent_color_hint": "套用於所有訪客的 Deck 介面(按鈕、作用中狀態、即時指示器)。"
   },
   "legal": {
     "terms_of_service": "服務條款",
@@ -973,5 +975,19 @@
     "password_required": "請輸入密碼。",
     "password_too_short": "密碼長度至少需 8 個字元。",
     "password_mismatch": "兩次輸入的密碼不一致。"
+  },
+  "deck": {
+    "col_home": "~/home",
+    "col_local": "~/local",
+    "col_federated": "~/federated",
+    "scope_following": "追蹤中",
+    "scope_federated": "已知網路",
+    "live": "LIVE",
+    "streaming": "即時",
+    "note": "發文",
+    "columns_empty": "所有欄位皆已隱藏。請從左側欄重新開啟時間軸。",
+    "toggle_column": "切換 {name} 欄位",
+    "design_aurora": "Aurora 介面",
+    "design_classic": "經典介面"
   }
 }

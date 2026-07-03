@@ -15,7 +15,7 @@ app.get('/', async (c) => {
   const dbSettings = await getSettings([
     'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'site_landing_markdown',
-    'terms_of_service', 'privacy_policy',
+    'terms_of_service', 'privacy_policy', 'accent_color',
   ]).catch((): Record<string, string> => ({}));
 
   // Turnstile settings (cached in KV)
@@ -106,6 +106,7 @@ app.get('/', async (c) => {
     site_landing_markdown: dbSettings.site_landing_markdown || '',
     terms_of_service: dbSettings.terms_of_service || '',
     privacy_policy: dbSettings.privacy_policy || '',
+    accent_color: dbSettings.accent_color || null,
   });
 });
 

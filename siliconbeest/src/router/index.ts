@@ -15,10 +15,23 @@ const router = createRouter({
       component: () => import('@/views/LandingView.vue'),
       beforeEnter: redirectIfAuthenticated,
     },
-    // Authenticated home
+    // Authenticated home — Deck Mode (the new default UI)
     {
       path: '/home',
       name: 'home',
+      component: () => import('@/deck/views/DeckView.vue'),
+      beforeEnter: requireAuth,
+      meta: { titleKey: 'Home' },
+    },
+    // Aurora UI preserved under /aurora/* (like classic under /old/*).
+    // More /aurora routes land as their Deck replacements ship.
+    {
+      path: '/aurora',
+      redirect: '/aurora/home',
+    },
+    {
+      path: '/aurora/home',
+      name: 'aurora-home',
       component: () => import('@/views/HomeView.vue'),
       beforeEnter: requireAuth,
       meta: { titleKey: 'Home' },

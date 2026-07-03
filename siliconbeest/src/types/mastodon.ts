@@ -259,6 +259,7 @@ export interface Instance {
   site_landing_markdown?: string;
   terms_of_service?: string;
   privacy_policy?: string;
+  accent_color?: string | null;
 }
 
 export interface InstanceConfiguration {

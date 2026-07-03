@@ -710,11 +710,13 @@
       "terms_of_service": "Terms of Service",
       "terms_of_service_desc": "Write your terms of service in Markdown.",
       "privacy_policy": "Privacy Policy",
-      "privacy_policy_desc": "Write your privacy policy in Markdown."
+      "privacy_policy_desc": "Write your privacy policy in Markdown.",
+      "accent_color": "Deck accent color"
     },
     "registration_message_help": "This message is shown to users on the registration page.",
     "vapid_public_key_placeholder": "Base64url-encoded P-256 public key (65 bytes)",
-    "vapid_private_key_placeholder": "Base64url-encoded P-256 private key (32 bytes)"
+    "vapid_private_key_placeholder": "Base64url-encoded P-256 private key (32 bytes)",
+    "accent_color_hint": "Used across the Deck UI for every visitor (buttons, active states, live indicators)."
   },
   "legal": {
     "terms_of_service": "Terms of Service",
@@ -973,5 +975,19 @@
     "password_required": "Please enter a password.",
     "password_too_short": "Password must be at least 8 characters long.",
     "password_mismatch": "Passwords do not match."
+  },
+  "deck": {
+    "col_home": "~/home",
+    "col_local": "~/local",
+    "col_federated": "~/federated",
+    "scope_following": "following",
+    "scope_federated": "known network",
+    "live": "LIVE",
+    "streaming": "streaming",
+    "note": "Note",
+    "columns_empty": "All columns are hidden. Toggle a timeline back on from the rail.",
+    "toggle_column": "Toggle {name} column",
+    "design_aurora": "Aurora UI",
+    "design_classic": "Classic UI"
   }
 }

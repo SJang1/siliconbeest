@@ -23,6 +23,13 @@ app.get('/', async (c) => {
  */
 app.patch('/', async (c) => {
 	const body = await c.req.json<Record<string, string>>();
+
+	// accent_color drives the Deck UI for every visitor — reject anything
+	// that is not a #rrggbb hex so a typo can't break the client-side parser.
+	if (body.accent_color !== undefined && body.accent_color !== '' && !/^#[0-9a-fA-F]{6}$/.test(body.accent_color)) {
+		return c.json({ error: 'accent_color must be a #rrggbb hex color' }, 422);
+	}
+
 	await setSettings(body);
 
 	// Return the full settings after update

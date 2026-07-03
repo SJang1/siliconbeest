@@ -1,0 +1,304 @@
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* ---------------------------------------------------------------------------
+ * "Deck" design system tokens (the deck UI under src/deck/ only).
+ * Scoped under .dk-app so Aurora (/aurora) and classic (/old) are unaffected.
+ *
+ * The admin-selected accent arrives as --dk-acc-raw on <html> (see
+ * src/utils/accent.ts). Light theme derives a slightly darker accent for
+ * contrast on paper; dark theme uses it as-is.
+ * ------------------------------------------------------------------------- */
+
+.dk-app {
+  /* Light theme (default when <html> lacks .dark) */
+  --dk-bg: oklch(0.955 0.01 95);
+  --dk-surface: oklch(0.995 0.004 95);
+  --dk-surface2: oklch(0.925 0.012 95);
+  --dk-border: oklch(0.865 0.015 95);
+  --dk-text: oklch(0.24 0.02 300);
+  --dk-dim: oklch(0.5 0.02 300);
+  --dk-acc: color-mix(in oklab, var(--dk-acc-raw, #c6f24e) 86%, black);
+  --dk-acc2: oklch(0.58 0.18 305);
+
+  --dk-pad: 16px;
+  --dk-gap: 12px;
+  --dk-fs: 15px;
+
+  --dk-font:
+    'Bricolage Grotesque Variable', 'Inter Variable', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Noto Color Emoji';
+  --dk-mono:
+    'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
+    monospace;
+
+  color: var(--dk-text);
+  font-family: var(--dk-font);
+  font-size: var(--dk-fs);
+  background:
+    radial-gradient(1100px 560px at 88% -12%, color-mix(in oklab, var(--dk-acc2) 15%, transparent), transparent 62%),
+    radial-gradient(900px 520px at -8% 112%, color-mix(in oklab, var(--dk-acc) 11%, transparent), transparent 60%),
+    var(--dk-bg);
+}
+
+.dark .dk-app {
+  --dk-bg: oklch(0.15 0.02 300);
+  --dk-surface: oklch(0.205 0.025 300);
+  --dk-surface2: oklch(0.26 0.03 300);
+  --dk-border: oklch(0.32 0.03 300);
+  --dk-text: oklch(0.95 0.01 300);
+  --dk-dim: oklch(0.68 0.02 300);
+  --dk-acc: var(--dk-acc-raw, #c6f24e);
+  --dk-acc2: oklch(0.74 0.17 305);
+}
+
+.dk-app[data-density='compact'] {
+  --dk-pad: 11px;
+  --dk-gap: 9px;
+  --dk-fs: 14px;
+}
+
+/* --------------------------------- Recipes -------------------------------- */
+
+.dk-mono {
+  font-family: var(--dk-mono);
+}
+
+.dk-text {
+  color: var(--dk-text);
+}
+.dk-dim-text {
+  color: var(--dk-dim);
+}
+.dk-hairline-b {
+  border-bottom: 1px solid var(--dk-border);
+}
+.dk-hairline-t {
+  border-top: 1px solid var(--dk-border);
+}
+.dk-hairline-r {
+  border-right: 1px solid var(--dk-border);
+}
+
+.dk-card {
+  background: var(--dk-surface);
+  border: 1px solid var(--dk-border);
+  border-radius: 16px;
+}
+
+.dk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--dk-mono);
+  font-size: 10.5px;
+  color: var(--dk-dim);
+  border: 1px solid var(--dk-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  width: max-content;
+}
+
+/* Pill button on surface (theme toggle, streaming pill, secondary actions) */
+.dk-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--dk-mono);
+  font-size: 11px;
+  color: var(--dk-text);
+  border: 1px solid var(--dk-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--dk-surface);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dk-pill-btn:hover {
+  background: var(--dk-surface2);
+}
+.dk-pill-btn:focus-visible,
+.dk-btn-accent:focus-visible,
+.dk-rail-item:focus-visible,
+.dk-menu-item:focus-visible {
+  outline: 2px solid var(--dk-acc);
+  outline-offset: 2px;
+}
+
+/* Primary accent button (＋ Note) */
+.dk-btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--dk-acc);
+  color: var(--dk-acc-ink, #181322);
+  border: none;
+  border-radius: 999px;
+  padding: 9px 17px;
+  font-weight: 700;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.dk-btn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 18px color-mix(in oklab, var(--dk-acc) 40%, transparent);
+}
+.dk-btn-accent:disabled {
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* Left rail entries */
+.dk-rail-item {
+  position: relative;
+  width: 58px;
+  padding: 9px 0 7px;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: var(--dk-surface);
+  border: 1px solid var(--dk-border);
+  color: var(--dk-dim);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.dk-rail-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--dk-acc);
+}
+.dk-rail-item-active {
+  background: color-mix(in oklab, var(--dk-acc) 22%, transparent);
+  border-color: var(--dk-acc);
+  color: var(--dk-text);
+}
+.dk-rail-label {
+  font-family: var(--dk-mono);
+  font-size: 8.5px;
+}
+.dk-rail-badge {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  background: var(--dk-acc2);
+  color: #fff;
+  font-family: var(--dk-mono);
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 5px;
+}
+
+/* Dropdown menus */
+.dk-menu {
+  background: var(--dk-surface);
+  border: 1px solid var(--dk-border);
+  border-radius: 14px;
+  padding: 5px;
+  box-shadow: 0 8px 28px color-mix(in oklab, var(--dk-bg) 60%, black);
+  animation: dk-note-in 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.dk-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--dk-text);
+  background: none;
+  border: none;
+  border-radius: 9px;
+  padding: 8px 11px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.dk-menu-item:hover {
+  background: var(--dk-surface2);
+}
+
+/* Form fields (deck edit mode, later deck settings) */
+.dk-input {
+  width: 100%;
+  background: var(--dk-surface2);
+  border: 1px solid var(--dk-border);
+  border-radius: 10px;
+  padding: 8px 11px;
+  color: var(--dk-text);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+.dk-input:focus-visible {
+  outline: 2px solid var(--dk-acc);
+  outline-offset: 0;
+}
+.dk-label {
+  display: block;
+  font-family: var(--dk-mono);
+  font-size: 10.5px;
+  color: var(--dk-dim);
+  margin-bottom: 4px;
+}
+
+/* Pulsing live dot */
+.dk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dk-acc);
+  animation: dk-pulse 2s infinite;
+}
+.dk-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--dk-mono);
+  font-size: 10px;
+  color: var(--dk-acc);
+}
+
+@keyframes dk-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dk-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--dk-acc) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+.dk-note-in {
+  animation: dk-note-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* Scrollbars inside the deck */
+.dk-app ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.dk-app ::-webkit-scrollbar-thumb {
+  background: var(--dk-border);
+  border-radius: 99px;
+}
+.dk-app ::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -710,11 +710,13 @@
       "terms_of_service": "이용약관",
       "terms_of_service_desc": "마크다운으로 이용약관을 작성하세요.",
       "privacy_policy": "개인정보처리방침",
-      "privacy_policy_desc": "마크다운으로 개인정보처리방침을 작성하세요."
+      "privacy_policy_desc": "마크다운으로 개인정보처리방침을 작성하세요.",
+      "accent_color": "Deck 강조 색상"
     },
     "registration_message_help": "이 메시지는 가입 페이지에서 사용자에게 표시됩니다.",
     "vapid_public_key_placeholder": "Base64url로 인코딩된 P-256 공개 키 (65바이트)",
-    "vapid_private_key_placeholder": "Base64url로 인코딩된 P-256 개인 키 (32바이트)"
+    "vapid_private_key_placeholder": "Base64url로 인코딩된 P-256 개인 키 (32바이트)",
+    "accent_color_hint": "모든 방문자의 Deck UI(버튼, 활성 상태, 라이브 표시)에 적용됩니다."
   },
   "legal": {
     "terms_of_service": "이용약관",
@@ -973,5 +975,19 @@
     "password_required": "비밀번호를 입력해 주세요.",
     "password_too_short": "비밀번호는 8자 이상이어야 합니다.",
     "password_mismatch": "비밀번호 확인이 일치하지 않습니다."
+  },
+  "deck": {
+    "col_home": "~/home",
+    "col_local": "~/local",
+    "col_federated": "~/federated",
+    "scope_following": "팔로잉",
+    "scope_federated": "연합 네트워크",
+    "live": "LIVE",
+    "streaming": "스트리밍",
+    "note": "노트",
+    "columns_empty": "모든 컬럼이 숨겨져 있습니다. 왼쪽 레일에서 타임라인을 다시 켜세요.",
+    "toggle_column": "{name} 컬럼 표시/숨기기",
+    "design_aurora": "Aurora UI",
+    "design_classic": "클래식 UI"
   }
 }

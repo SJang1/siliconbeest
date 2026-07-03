@@ -710,11 +710,13 @@
       "terms_of_service": "服务条款",
       "terms_of_service_desc": "用 Markdown 编写服务条款。",
       "privacy_policy": "隐私政策",
-      "privacy_policy_desc": "用 Markdown 编写隐私政策。"
+      "privacy_policy_desc": "用 Markdown 编写隐私政策。",
+      "accent_color": "Deck 强调色"
     },
     "registration_message_help": "此信息将在注册页面上显示给用户。",
     "vapid_public_key_placeholder": "Base64url 编码的 P-256 公钥（65 字节）",
-    "vapid_private_key_placeholder": "Base64url 编码的 P-256 私钥（32 字节）"
+    "vapid_private_key_placeholder": "Base64url 编码的 P-256 私钥（32 字节）",
+    "accent_color_hint": "应用于所有访客的 Deck 界面(按钮、活动状态、实时指示器)。"
   },
   "legal": {
     "terms_of_service": "服务条款",
@@ -973,5 +975,19 @@
     "password_required": "请输入密码。",
     "password_too_short": "密码长度至少为 8 个字符。",
     "password_mismatch": "两次输入的密码不一致。"
+  },
+  "deck": {
+    "col_home": "~/home",
+    "col_local": "~/local",
+    "col_federated": "~/federated",
+    "scope_following": "关注中",
+    "scope_federated": "已知网络",
+    "live": "LIVE",
+    "streaming": "实时",
+    "note": "发帖",
+    "columns_empty": "所有栏目均已隐藏。请从左侧栏重新打开时间线。",
+    "toggle_column": "切换 {name} 栏目",
+    "design_aurora": "Aurora 界面",
+    "design_classic": "经典界面"
   }
 }
