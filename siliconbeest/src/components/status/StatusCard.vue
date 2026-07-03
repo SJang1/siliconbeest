@@ -279,6 +279,12 @@ function handleReactionUpdate(updatedStatus: Status) {
   statusesStore.cacheStatus(updatedStatus)
 }
 
+// 액션 메뉴의 "이모지로 반응" → 리액션 이모지 피커 열기
+const reactionsRef = ref<InstanceType<typeof StatusReactions> | null>(null)
+function handleReact() {
+  reactionsRef.value?.openPicker()
+}
+
 async function handleDelete() {
   if (!confirm(t('status.delete_confirm'))) return
   try {
@@ -468,6 +474,7 @@ async function handleDelete() {
 
         <!-- 이모지 리액션 -->
         <StatusReactions
+          ref="reactionsRef"
           :status="displayStatus"
           class="mt-2"
           @updated="handleReactionUpdate"
@@ -496,6 +503,7 @@ async function handleDelete() {
           @favourite="handleFavourite"
           @reblog="handleReblog"
           @quote="handleQuote"
+          @react="handleReact"
           @bookmark="handleBookmark"
           @reply="handleReply"
           @share="handleShare"

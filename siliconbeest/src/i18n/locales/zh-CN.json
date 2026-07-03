@@ -197,8 +197,11 @@
   "status": {
     "reply": "回复",
     "boost": "转发",
+    "unboost": "取消转发",
     "quote": "引用",
     "favourite": "收藏",
+    "unfavourite": "取消收藏",
+    "react": "使用表情回应",
     "bookmark": "书签",
     "share": "分享",
     "copyLink": "复制链接",

@@ -19,6 +19,7 @@ const loading = ref(false)
 const showPicker = ref(false)
 const pickerRef = ref<HTMLElement | null>(null)
 const pickerBtnRef = ref<HTMLElement | null>(null)
+const pickerAnchorRef = ref<HTMLElement | null>(null)
 const pickerAbove = ref(true)
 
 // 리액션이 있는지 확인
@@ -86,24 +87,38 @@ async function handleEmojiSelect(emoji: string) {
   }
 }
 
-function togglePicker() {
-  showPicker.value = !showPicker.value
-  if (showPicker.value) {
-    nextTick(() => {
-      if (pickerBtnRef.value) {
-        const rect = pickerBtnRef.value.getBoundingClientRect()
-        // 피커 높이 약 300px. 위에 공간이 부족하면 아래로 표시
-        pickerAbove.value = rect.top > 320
-      }
-    })
+async function updatePickerPosition() {
+  await nextTick()
+  const anchor = pickerBtnRef.value ?? pickerAnchorRef.value
+  if (anchor) {
+    const rect = anchor.getBoundingClientRect()
+    // 피커 높이 약 300px. 위에 공간이 부족하면 아래로 표시
+    pickerAbove.value = rect.top > 320
   }
 }
 
+function togglePicker() {
+  showPicker.value = !showPicker.value
+  if (showPicker.value) {
+    void updatePickerPosition()
+  }
+}
+
+// 외부(액션 메뉴의 "이모지로 반응")에서 피커 열기
+function openPicker() {
+  if (!authStore.isAuthenticated || loading.value) return
+  showPicker.value = true
+  void updatePickerPosition()
+}
+
+defineExpose({ openPicker })
+
 // 피커 외부 클릭 시 닫기
 function handleClickOutside(e: MouseEvent) {
+  const target = e.target as Node
   if (
-    pickerRef.value && !pickerRef.value.contains(e.target as Node) &&
-    pickerBtnRef.value && !pickerBtnRef.value.contains(e.target as Node)
+    pickerRef.value && !pickerRef.value.contains(target) &&
+    (!pickerBtnRef.value || !pickerBtnRef.value.contains(target))
   ) {
     showPicker.value = false
   }
@@ -138,7 +153,7 @@ function getShortcode(name: string): string {
 </script>
 
 <template>
-  <div v-if="hasReactions || authStore.isAuthenticated" class="flex flex-wrap items-center gap-1.5">
+  <div v-if="hasReactions || showPicker" class="flex flex-wrap items-center gap-1.5">
     <!-- 리액션 칩들 -->
     <TransitionGroup name="reaction">
       <button
@@ -172,9 +187,10 @@ function getShortcode(name: string): string {
       </button>
     </TransitionGroup>
 
-    <!-- + 버튼 (이모지 피커 열기) -->
-    <div v-if="authStore.isAuthenticated" class="relative">
+    <!-- + 버튼 (이모지 피커 열기) — 리액션이 있을 때만 표시, 없을 땐 액션 메뉴에서 열기 -->
+    <div v-if="authStore.isAuthenticated" ref="pickerAnchorRef" class="relative">
       <button
+        v-if="hasReactions"
         ref="pickerBtnRef"
         @click.stop="togglePicker"
         :disabled="loading"

@@ -197,8 +197,11 @@
   "status": {
     "reply": "Reply",
     "boost": "Boost",
+    "unboost": "Undo boost",
     "quote": "Quote",
     "favourite": "Favourite",
+    "unfavourite": "Undo favourite",
+    "react": "React with emoji",
     "bookmark": "Bookmark",
     "share": "Share",
     "copyLink": "Copy link",

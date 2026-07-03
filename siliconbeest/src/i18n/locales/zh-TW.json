@@ -197,8 +197,11 @@
   "status": {
     "reply": "回覆",
     "boost": "轉發",
+    "unboost": "取消轉發",
     "quote": "引用",
     "favourite": "最愛",
+    "unfavourite": "取消最愛",
+    "react": "使用表情回應",
     "bookmark": "書籤",
     "share": "分享",
     "copyLink": "複製連結",

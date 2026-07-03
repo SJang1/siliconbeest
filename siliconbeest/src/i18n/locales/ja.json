@@ -197,8 +197,11 @@
   "status": {
     "reply": "返信",
     "boost": "ブースト",
+    "unboost": "ブースト解除",
     "quote": "引用",
     "favourite": "お気に入り",
+    "unfavourite": "お気に入り解除",
+    "react": "絵文字でリアクション",
     "bookmark": "ブックマーク",
     "share": "共有",
     "copyLink": "リンクをコピー",

@@ -197,8 +197,11 @@
   "status": {
     "reply": "답글",
     "boost": "부스트",
+    "unboost": "부스트 취소",
     "quote": "인용",
     "favourite": "좋아요",
+    "unfavourite": "좋아요 취소",
+    "react": "이모지로 반응",
     "bookmark": "북마크",
     "share": "공유",
     "copyLink": "링크 복사",

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore, ALL_COLUMNS, type ColumnType } from '@/stores/ui'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useInstanceStore } from '@/stores/instance'
 import AppShell from '@/components/layout/AppShell.vue'
 import TimelineColumn from '@/components/timeline/TimelineColumn.vue'
 import NotificationsColumn from '@/components/timeline/NotificationsColumn.vue'
@@ -13,6 +14,17 @@ const { t } = useI18n()
 const auth = useAuthStore()
 const ui = useUiStore()
 const notifStore = useNotificationsStore()
+const instanceStore = useInstanceStore()
+
+// Instance identity for the mobile deck header
+const instanceTitle = computed(
+  () => instanceStore.instance?.title || instanceStore.instance?.domain || '',
+)
+const thumbnailFailed = ref(false)
+const instanceThumbnail = computed(() =>
+  thumbnailFailed.value ? null : instanceStore.instance?.thumbnail?.url || null,
+)
+const instanceInitial = computed(() => (instanceTitle.value ? [...instanceTitle.value][0] : 'S'))
 
 const MIN_COLUMN_WIDTH = 320
 const gridContainer = ref<HTMLElement | null>(null)
@@ -42,13 +54,19 @@ const visibleColumns = computed(() => {
 // ---------------------------------------------------------------------------
 const mobileColumns = ALL_COLUMNS
 const visitedMobileColumns = ref<Set<ColumnType>>(new Set([ui.mobileColumn]))
+const tabStrip = ref<HTMLElement | null>(null)
 
 watch(
   () => ui.mobileColumn,
-  (col) => {
+  async (col) => {
     if (!visitedMobileColumns.value.has(col)) {
       visitedMobileColumns.value = new Set([...visitedMobileColumns.value, col])
     }
+    // Keep the active tab visible when the strip overflows
+    await nextTick()
+    tabStrip.value
+      ?.querySelector('[aria-pressed="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
   },
 )
 
@@ -116,8 +134,32 @@ function getBannerText(type: ColumnType): string {
   <AppShell contained-main>
     <!-- Mobile deck: tab strip + one column, all column types selectable -->
     <div v-if="showMobileDeck" class="flex h-full min-h-0 flex-col">
-      <header class="sb-glass sticky top-0 z-10 flex items-center gap-1 border-b px-2 py-1.5">
+      <header class="sb-glass sticky top-0 z-10 flex items-center gap-1.5 border-b px-2 py-1.5">
+        <!-- Instance logo — so users can tell which server they're on -->
+        <router-link
+          to="/about"
+          class="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          :aria-label="instanceTitle || t('nav.about')"
+        >
+          <img
+            v-if="instanceThumbnail"
+            :src="instanceThumbnail"
+            :alt="instanceTitle"
+            class="h-7 w-7 shrink-0 rounded-lg object-cover"
+            @error="thumbnailFailed = true"
+          />
+          <span
+            v-else
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-brand-600 via-violet-600 to-fuchsia-600 text-sm font-bold text-white dark:from-brand-500 dark:via-violet-500 dark:to-fuchsia-500"
+            aria-hidden="true"
+          >{{ instanceInitial }}</span>
+          <span class="sb-heading sb-gradient-text max-w-[5.5rem] truncate text-base leading-tight">{{ instanceTitle }}</span>
+        </router-link>
+
+        <div class="h-6 w-px shrink-0 bg-outline dark:bg-outline-dark" aria-hidden="true" />
+
         <nav
+          ref="tabStrip"
           class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
           :aria-label="t('settings.columns')"
         >
