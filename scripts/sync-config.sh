@@ -284,7 +284,7 @@ cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"\$schema": "node_modules/wrangler/config-schema.json",
 	"name": "${MAIN_WORKER_NAME}",
 	"main": "server/index.ts",
-	"compatibility_date": "2026-03-17",
+	"compatibility_date": "2026-06-16",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"directory": "./dist/client",
@@ -392,7 +392,7 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"\$schema": "node_modules/wrangler/config-schema.json",
 	"name": "${CONSUMER_NAME}",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-03-17",
+	"compatibility_date": "2026-06-16",
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
@@ -483,7 +483,7 @@ cat > "$EMAIL_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"\$schema": "node_modules/wrangler/config-schema.json",
 	"name": "${EMAIL_SENDER_NAME}",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-03-17",
+	"compatibility_date": "2026-06-16",
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
