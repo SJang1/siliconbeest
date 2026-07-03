@@ -50,13 +50,18 @@ function toggleTheme() {
       <span class="hidden sm:inline">{{ ui.isDark ? t('settings.themeLight') : t('settings.themeDark') }}</span>
     </button>
 
+    <!-- Compose: compact pen icon on mobile, "+ Note" pill on wider screens -->
     <button
       v-if="auth.isAuthenticated"
       type="button"
-      class="dk-btn-accent"
+      class="dk-btn-accent h-9 w-9 !p-0 sm:h-auto sm:w-auto sm:!px-[17px] sm:!py-[9px]"
+      :aria-label="t('deck.note')"
       @click="ui.openComposeModal()"
     >
-      <span aria-hidden="true">＋</span>{{ t('deck.note') }}
+      <svg class="h-[18px] w-[18px] sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+      </svg>
+      <span class="hidden items-center gap-1.5 sm:inline-flex"><span aria-hidden="true">＋</span>{{ t('deck.note') }}</span>
     </button>
     <router-link v-else to="/login" class="dk-btn-accent no-underline">
       {{ t('auth.login') }}
