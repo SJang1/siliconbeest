@@ -997,6 +997,10 @@
     "move_up": "위로 이동",
     "move_down": "아래로 이동",
     "drag_to_reorder": "끌어서 순서 변경",
-    "live_toggle": "실시간 업데이트 켜기/끄기"
+    "live_toggle": "실시간 업데이트 켜기/끄기",
+    "react": "이모지로 반응",
+    "unboost": "부스트 취소",
+    "unfavourite": "즐겨찾기 해제",
+    "remote_reaction_hint": "다른 서버의 이모지"
   }
 }

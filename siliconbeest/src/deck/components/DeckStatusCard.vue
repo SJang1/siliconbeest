@@ -14,11 +14,11 @@ import { useInstanceStore } from '@/stores/instance'
 import { useNow } from '@/composables/useNow'
 import Avatar from '@/components/common/Avatar.vue'
 import StatusContent from '@/components/status/StatusContent.vue'
-import StatusActions from '@/components/status/StatusActions.vue'
+import DeckStatusActions from './DeckStatusActions.vue'
 import MediaGallery from '@/components/status/MediaGallery.vue'
 import PreviewCard from '@/components/status/PreviewCard.vue'
 import StatusPoll from '@/components/status/StatusPoll.vue'
-import StatusReactions from '@/components/status/StatusReactions.vue'
+import DeckStatusReactions from './DeckStatusReactions.vue'
 import ReportDialog from '@/components/common/ReportDialog.vue'
 import ImageViewer from '@/components/common/ImageViewer.vue'
 import { emojifyPlainText } from '@/utils/customEmoji'
@@ -283,6 +283,17 @@ function handleReactionUpdate(updatedStatus: Status) {
   statusesStore.cacheStatus(updatedStatus)
 }
 
+// Each deck card is a stacking context (entrance animation), so popovers
+// can't escape above later sibling cards — raise this card while one is open.
+const reactionsRef = ref<InstanceType<typeof DeckStatusReactions> | null>(null)
+const actionsOverlayOpen = ref(false)
+const reactionsOverlayOpen = ref(false)
+const overlayOpen = computed(() => actionsOverlayOpen.value || reactionsOverlayOpen.value)
+
+function handleReact() {
+  reactionsRef.value?.openPicker()
+}
+
 async function handleDelete() {
   if (!confirm(t('status.delete_confirm'))) return
   try {
@@ -298,7 +309,8 @@ async function handleDelete() {
 <template>
   <article
     v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
-    class="dk-card dk-note-in cursor-pointer"
+    class="dk-card dk-note-in relative cursor-pointer"
+    :class="{ 'z-30': overlayOpen }"
     style="padding: var(--dk-pad)"
     :aria-label="t('status.by', { name: displayStatus.account.display_name })"
     @click="handleCardClick"
@@ -486,15 +498,17 @@ async function handleDelete() {
     </template>
 
     <!-- Emoji reactions -->
-    <StatusReactions
+    <DeckStatusReactions
+      ref="reactionsRef"
       :status="displayStatus"
       class="mt-2.5"
       @updated="handleReactionUpdate"
+      @overlay="reactionsOverlayOpen = $event"
       @click.stop
     />
 
     <!-- Actions -->
-    <StatusActions @click.stop
+    <DeckStatusActions @click.stop
       :status-id="displayStatus.id"
       :replies-count="displayStatus.replies_count"
       :reblogs-count="displayStatus.reblogs_count"
@@ -521,6 +535,8 @@ async function handleDelete() {
       @edit="handleEdit"
       @delete="handleDelete"
       @report="handleReport"
+      @react="handleReact"
+      @overlay="actionsOverlayOpen = $event"
     />
 
     <!-- Report dialog -->

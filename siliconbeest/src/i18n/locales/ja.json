@@ -997,6 +997,10 @@
     "move_up": "上へ移動",
     "move_down": "下へ移動",
     "drag_to_reorder": "ドラッグで並べ替え",
-    "live_toggle": "リアルタイム更新の切り替え"
+    "live_toggle": "リアルタイム更新の切り替え",
+    "react": "絵文字でリアクション",
+    "unboost": "ブースト解除",
+    "unfavourite": "お気に入り解除",
+    "remote_reaction_hint": "他のサーバーの絵文字"
   }
 }

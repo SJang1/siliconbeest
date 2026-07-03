@@ -997,6 +997,10 @@
     "move_up": "上移",
     "move_down": "下移",
     "drag_to_reorder": "拖曳以重新排序",
-    "live_toggle": "切換即時更新"
+    "live_toggle": "切換即時更新",
+    "react": "用表情符號回應",
+    "unboost": "取消轉發",
+    "unfavourite": "取消最愛",
+    "remote_reaction_hint": "來自其他伺服器的表情符號"
   }
 }

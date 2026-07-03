@@ -997,6 +997,10 @@
     "move_up": "Move up",
     "move_down": "Move down",
     "drag_to_reorder": "Drag to reorder",
-    "live_toggle": "Toggle live updates"
+    "live_toggle": "Toggle live updates",
+    "react": "React with emoji",
+    "unboost": "Undo boost",
+    "unfavourite": "Remove favourite",
+    "remote_reaction_hint": "Emoji from another server"
   }
 }
