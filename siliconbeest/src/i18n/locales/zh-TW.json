@@ -1010,6 +1010,13 @@
     "scope_social": "首頁 + 本站",
     "scope_alerts": "動態",
     "scope_requests": "追蹤請求",
-    "scope_search": "全部"
+    "scope_search": "全部",
+    "nav_home": "首頁",
+    "nav_social": "社交",
+    "nav_local": "本站",
+    "nav_federated": "跨站",
+    "nav_alerts": "通知",
+    "nav_requests": "請求",
+    "section_timelines": "timelines"
   }
 }

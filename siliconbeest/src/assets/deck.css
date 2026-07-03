@@ -182,6 +182,21 @@
 .dk-rail-label {
   font-family: var(--dk-mono);
   font-size: 8.5px;
+  max-width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tiny section caption between rail groups */
+.dk-rail-caption {
+  font-family: var(--dk-mono);
+  font-size: 8.5px;
+  color: var(--dk-dim);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  margin: 2px 0;
 }
 .dk-rail-badge {
   position: absolute;

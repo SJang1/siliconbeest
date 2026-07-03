@@ -1010,6 +1010,13 @@
     "scope_social": "home + local",
     "scope_alerts": "activity",
     "scope_requests": "follow requests",
-    "scope_search": "everywhere"
+    "scope_search": "everywhere",
+    "nav_home": "Home",
+    "nav_social": "Social",
+    "nav_local": "Local",
+    "nav_federated": "Federated",
+    "nav_alerts": "Alerts",
+    "nav_requests": "Requests",
+    "section_timelines": "timelines"
   }
 }

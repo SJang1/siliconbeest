@@ -42,7 +42,7 @@ function isActive(path: string): boolean {
       :aria-label="t('nav.notifications')"
     >
       <span class="text-lg" aria-hidden="true">🔔</span>
-      <span class="dk-rail-label">{{ t('nav.notifications') }}</span>
+      <span class="dk-rail-label">{{ t('deck.nav_alerts') }}</span>
       <span v-if="unreadBadge" class="dk-rail-badge">{{ unreadBadge }}</span>
     </router-link>
 

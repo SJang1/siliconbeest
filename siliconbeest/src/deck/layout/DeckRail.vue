@@ -19,22 +19,23 @@ const notifStore = useNotificationsStore()
 const instanceIcon = computed(() => instanceStore.instance?.thumbnail?.url || '/thumbnail.png')
 const { columns, configRows, isEnabled, toggle, move, reorder } = useDeckColumns()
 
+// Short labels — the rail buttons are 58px wide, long labels overflow
 const COLUMN_META: Record<ColumnType, { emoji: string; labelKey: string }> = {
-  home: { emoji: '🏠', labelKey: 'nav.home' },
-  social: { emoji: '🫂', labelKey: 'nav.social_timeline' },
-  local: { emoji: '🦬', labelKey: 'nav.local_timeline' },
-  federated: { emoji: '📡', labelKey: 'nav.federated_timeline' },
-  notifications: { emoji: '🔔', labelKey: 'nav.notifications' },
+  home: { emoji: '🏠', labelKey: 'deck.nav_home' },
+  social: { emoji: '🫂', labelKey: 'deck.nav_social' },
+  local: { emoji: '🦬', labelKey: 'deck.nav_local' },
+  federated: { emoji: '📡', labelKey: 'deck.nav_federated' },
+  notifications: { emoji: '🔔', labelKey: 'deck.nav_alerts' },
   search: { emoji: '🔭', labelKey: 'nav.search' },
-  follow_requests: { emoji: '🤝', labelKey: 'nav.follow_requests' },
+  follow_requests: { emoji: '🤝', labelKey: 'deck.nav_requests' },
 }
 
 // Single-timeline navigation entries (after the Deck entry)
 const timelineEntries: { type: 'home' | 'social' | 'local' | 'federated'; emoji: string; labelKey: string }[] = [
-  { type: 'home', emoji: '🏠', labelKey: 'nav.home' },
-  { type: 'social', emoji: '🫂', labelKey: 'nav.social_timeline' },
-  { type: 'local', emoji: '🦬', labelKey: 'nav.local_timeline' },
-  { type: 'federated', emoji: '📡', labelKey: 'nav.federated_timeline' },
+  { type: 'home', emoji: '🏠', labelKey: 'deck.nav_home' },
+  { type: 'local', emoji: '🦬', labelKey: 'deck.nav_local' },
+  { type: 'social', emoji: '🫂', labelKey: 'deck.nav_social' },
+  { type: 'federated', emoji: '📡', labelKey: 'deck.nav_federated' },
 ]
 
 const onDeck = computed(() => route.name === 'home')
@@ -207,8 +208,9 @@ function isRouteActive(path: string): boolean {
     </div>
 
     <div class="dk-hairline-b my-1 w-10" aria-hidden="true" />
+    <span class="dk-rail-caption" aria-hidden="true">{{ t('deck.section_timelines') }}</span>
 
-    <!-- Single timelines: Home | Local | Federated -->
+    <!-- Single timelines: Home | Local | Social | Federated -->
     <router-link
       v-for="entry in timelineEntries"
       :key="entry.type"
@@ -239,7 +241,7 @@ function isRouteActive(path: string): boolean {
       :aria-label="t('nav.notifications')"
     >
       <span class="text-[19px]" aria-hidden="true">🔔</span>
-      <span class="dk-rail-label">{{ t('nav.notifications') }}</span>
+      <span class="dk-rail-label">{{ t('deck.nav_alerts') }}</span>
       <span v-if="unreadBadge" class="dk-rail-badge">{{ unreadBadge }}</span>
     </router-link>
 

@@ -1010,6 +1010,13 @@
     "scope_social": "홈 + 로컬",
     "scope_alerts": "활동",
     "scope_requests": "팔로우 요청",
-    "scope_search": "전체"
+    "scope_search": "전체",
+    "nav_home": "홈",
+    "nav_social": "소셜",
+    "nav_local": "로컬",
+    "nav_federated": "연합",
+    "nav_alerts": "알림",
+    "nav_requests": "요청",
+    "section_timelines": "timelines"
   }
 }

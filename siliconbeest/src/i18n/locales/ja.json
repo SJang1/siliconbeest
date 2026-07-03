@@ -1010,6 +1010,13 @@
     "scope_social": "ホーム + ローカル",
     "scope_alerts": "アクティビティ",
     "scope_requests": "フォローリクエスト",
-    "scope_search": "すべて"
+    "scope_search": "すべて",
+    "nav_home": "ホーム",
+    "nav_social": "ソーシャル",
+    "nav_local": "ローカル",
+    "nav_federated": "連合",
+    "nav_alerts": "通知",
+    "nav_requests": "リクエスト",
+    "section_timelines": "timelines"
   }
 }
