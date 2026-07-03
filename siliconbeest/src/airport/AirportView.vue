@@ -112,6 +112,93 @@ const info = computed(() => {
 
 const storyKeys = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'] as const;
 
+type OpsTone = 'ok' | 'quiet' | 'warn' | 'alert' | 'good';
+
+interface OpsItem {
+	key: string;
+	title: string;
+	status: string;
+	tone: OpsTone;
+	desc: string;
+	routes?: Array<{ domain: string; failureCount: number }>;
+}
+
+// The per-facility operations board: one entry per real pipeline component,
+// each with a status chip and a sentence that weaves in the real numbers.
+const opsItems = computed<OpsItem[]>(() => {
+	const s = stats.value;
+	if (!s) return [];
+	const v = vm.value;
+	const delayed = s.delayedRoutes;
+	return [
+		{
+			key: 'gate',
+			title: t('airport.ops.gate.title'),
+			status: t('airport.ops.gate.status'),
+			tone: 'ok',
+			desc: t('airport.ops.gate.desc', { title: instanceTitle.value, departures: v.departures }),
+		},
+		{
+			key: 'federation',
+			title: t('airport.ops.federation.title'),
+			status: delayed.length
+				? t('airport.ops.federation.statusDelayed')
+				: t('airport.ops.federation.statusOk'),
+			tone: delayed.length ? 'warn' : 'ok',
+			desc: t('airport.ops.federation.desc', {
+				arrivals: v.arrivals,
+				destinations: s.destinations.length,
+			}),
+			routes: delayed,
+		},
+		{
+			key: 'transfer',
+			title: t('airport.ops.transfer.title'),
+			status: t('airport.ops.transfer.status'),
+			tone: v.transfers > 0 ? 'ok' : 'quiet',
+			desc: t('airport.ops.transfer.desc', { transfers: v.transfers }),
+		},
+		{
+			key: 'cargo',
+			title: t('airport.ops.cargo.title'),
+			status: t('airport.ops.cargo.status'),
+			tone: 'ok',
+			desc: t('airport.ops.cargo.desc', {
+				out: v.cargoOutCount,
+				bytes: v.cargoOutBytes,
+				in: v.cargoInCount,
+			}),
+		},
+		{
+			key: 'passport',
+			title: t('airport.ops.passport.title'),
+			status: t('airport.ops.passport.status'),
+			tone: v.passports > 0 ? 'ok' : 'quiet',
+			desc: t('airport.ops.passport.desc', { count: v.passports }),
+		},
+		{
+			key: 'tower',
+			title: t('airport.ops.tower.title'),
+			status: t('airport.ops.tower.status'),
+			tone: 'ok',
+			desc: t('airport.ops.tower.desc', { total: v.announceN }),
+		},
+		{
+			key: 'dlq',
+			title: t('airport.ops.dlq.title'),
+			status:
+				v.dlq === 0
+					? t('airport.ops.dlq.statusEmpty')
+					: t('airport.ops.dlq.statusParked', { count: v.dlq }),
+			tone: v.dlq === 0 ? 'good' : 'alert',
+			desc:
+				v.dlq === 0
+					? t('airport.ops.dlq.emptyDesc')
+					: t('airport.ops.dlq.parkedDesc', { count: v.dlq }),
+		},
+	];
+});
+
 useHead({
 	title: computed(() => t('airport.pageTitle', { name: instanceTitle.value })),
 	link: [
@@ -175,6 +262,32 @@ useHead({
 					<div class="apx-card-value">{{ vm.passports }}</div>
 				</div>
 			</div>
+
+			<!-- operations board: per-facility status + description -->
+			<section v-if="opsItems.length" class="apx-ops">
+				<div class="apx-ops-head">
+					<h2 class="apx-ops-title">{{ t('airport.ops.title') }}</h2>
+					<span class="apx-ops-time">{{ t('airport.asOf', { time: clock }) }}</span>
+				</div>
+				<ul class="apx-ops-list">
+					<li v-for="item in opsItems" :key="item.key" class="apx-ops-item">
+						<div class="apx-ops-row">
+							<h3 class="apx-ops-name">{{ item.title }}</h3>
+							<span class="apx-chip" :class="`apx-chip-${item.tone}`">{{ item.status }}</span>
+						</div>
+						<p class="apx-ops-desc">{{ item.desc }}</p>
+						<div v-if="item.routes?.length" class="apx-ops-routes">
+							<p class="apx-ops-note">{{ t('airport.ops.federation.delayedNote') }}</p>
+							<ul>
+								<li v-for="route in item.routes" :key="route.domain" class="apx-ops-route">
+									<span class="apx-ops-domain">{{ route.domain }}</span>
+									<span class="apx-ops-fail">{{ t('airport.ops.federation.failures', { count: route.failureCount }) }}</span>
+								</li>
+							</ul>
+						</div>
+					</li>
+				</ul>
+			</section>
 
 			<section class="apx-story">
 				<h2 class="apx-story-title">{{ t('airport.story.title') }}</h2>
@@ -351,6 +464,136 @@ useHead({
 
 .apx-card-sub {
 	margin-top: 2px;
+	font-size: 12px;
+	color: #94a3b8;
+}
+
+.apx-ops {
+	margin-top: 18px;
+	background: #fcfdfe;
+	border: 1px solid #d9dfe7;
+	border-radius: 13px;
+	padding: 16px 18px;
+}
+
+.apx-ops-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.apx-ops-title {
+	font-size: 16px;
+	font-weight: 800;
+	letter-spacing: -0.01em;
+	margin: 0;
+}
+
+.apx-ops-time {
+	font-family: 'Spline Sans Mono', ui-monospace, monospace;
+	font-size: 11px;
+	color: #94a3b8;
+}
+
+.apx-ops-list {
+	list-style: none;
+	margin: 6px 0 0;
+	padding: 0;
+}
+
+.apx-ops-item {
+	padding: 11px 0;
+	border-top: 1px solid #edf0f4;
+}
+
+.apx-ops-item:first-child {
+	border-top: none;
+}
+
+.apx-ops-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.apx-ops-name {
+	font-size: 14px;
+	font-weight: 700;
+	margin: 0;
+}
+
+.apx-chip {
+	border: 1px solid;
+	border-radius: 20px;
+	padding: 1.5px 9px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.apx-chip-ok,
+.apx-chip-good {
+	border-color: #a7dcc3;
+	color: #047857;
+	background: rgba(31, 169, 113, 0.06);
+}
+
+.apx-chip-quiet {
+	border-color: #cbd5e1;
+	color: #64748b;
+	background: rgba(100, 116, 139, 0.05);
+}
+
+.apx-chip-warn {
+	border-color: #f2d38c;
+	color: #b45309;
+	background: rgba(232, 185, 58, 0.08);
+}
+
+.apx-chip-alert {
+	border-color: #f0b2ac;
+	color: #b23a31;
+	background: rgba(224, 69, 58, 0.06);
+}
+
+.apx-ops-desc {
+	margin: 5px 0 0;
+	font-size: 13.5px;
+	line-height: 1.55;
+	color: #64748b;
+}
+
+.apx-ops-routes {
+	margin-top: 7px;
+}
+
+.apx-ops-note {
+	margin: 0;
+	font-size: 12px;
+	color: #94a3b8;
+}
+
+.apx-ops-routes ul {
+	list-style: none;
+	margin: 4px 0 0;
+	padding: 0;
+}
+
+.apx-ops-route {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 13px;
+}
+
+.apx-ops-domain {
+	font-weight: 600;
+	color: #b23a31;
+}
+
+.apx-ops-fail {
 	font-size: 12px;
 	color: #94a3b8;
 }

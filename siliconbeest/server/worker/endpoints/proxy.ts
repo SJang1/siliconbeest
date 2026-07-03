@@ -27,6 +27,7 @@ import { Hono } from 'hono';
 import { env } from 'cloudflare:workers';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppVariables } from '../types';
+import { generateUlid } from '../utils/ulid';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -242,6 +243,33 @@ app.get('/', async (c) => {
 
   // Read full body to check actual size
   const bodyBuffer = await originResponse.arrayBuffer();
+
+  // Record the measured size in media_proxy_cache (the remote-media size
+  // ledger — /api/airport joins it to report real cargo-in bytes).
+  // Recording must never delay or break serving.
+  try {
+    c.executionCtx.waitUntil(
+      env.DB.prepare(
+        `INSERT INTO media_proxy_cache (id, remote_url, r2_key, content_type, size, created_at)
+         VALUES (?1, ?2, '', ?3, ?4, ?5)
+         ON CONFLICT (remote_url) DO UPDATE SET content_type = ?3, size = ?4`,
+      )
+        .bind(
+          generateUlid(),
+          remoteUrl,
+          contentType || 'application/octet-stream',
+          bodyBuffer.byteLength,
+          new Date().toISOString(),
+        )
+        .run()
+        .then(
+          () => undefined,
+          () => undefined,
+        ),
+    );
+  } catch {
+    /* no execution context (e.g. some test harnesses) — skip recording */
+  }
 
   if (bodyBuffer.byteLength > MAX_CACHE_SIZE) {
     // Large file — serve with short TTL

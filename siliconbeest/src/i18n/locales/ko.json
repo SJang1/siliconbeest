@@ -1173,6 +1173,49 @@
       "beaconBody": "이 서버와 연합하는 다른 페디버스 서버예요. 비콘 크기는 지난 24시간 동안 그곳에서 도착한 글의 양이에요.",
       "beaconStat": "{count}건 도착"
     },
+    "ops": {
+      "title": "운행 상황",
+      "gate": {
+        "title": "정문·여객터미널",
+        "status": "운영 중",
+        "desc": "나와 {title}을(를) 잇는 정문이에요. 이 페이지도 이 문을 지나 여기까지 왔어요. 새 글(출발 승객), 지난 하루 {departures}명."
+      },
+      "federation": {
+        "title": "국제선 (연합 노선)",
+        "statusOk": "운항 중",
+        "statusDelayed": "일부 지연",
+        "desc": "지난 하루 {arrivals}명이 {destinations}곳의 공항에서 도착했어요. 새 글은 여기서 연합 하늘로 출발 수속을 밟아요.",
+        "delayedNote": "아래 노선에 배달 실패가 쌓여 있어요:",
+        "failures": "배달 실패 {count}회"
+      },
+      "transfer": {
+        "title": "환승 통로",
+        "status": "운영 중",
+        "desc": "지난 하루 {transfers}명이 도착 후 환승 통로를 지나 다시 출발편에 올랐어요. 부스트가 이 통로를 써요."
+      },
+      "cargo": {
+        "title": "화물터미널 (R2)",
+        "status": "가동 중",
+        "desc": "지난 하루 위탁 화물 {out}개({bytes})가 창고로 들어갔고, 도착 화물 {in}개가 짐 찾는 곳에 나왔어요."
+      },
+      "passport": {
+        "title": "여권 데스크",
+        "status": "운영 중",
+        "desc": "지난 하루 {count}명이 새 여권을 발급받았어요. 새 계정이 곧 새 여권이에요."
+      },
+      "tower": {
+        "title": "관제탑 방송",
+        "status": "방송 중",
+        "desc": "새 글이 생기면 접속 중인 화면으로 곧바로 안내 방송을 해요. 지난 하루 방송 거리는 {total}건이었어요."
+      },
+      "dlq": {
+        "title": "결항 화물 보관소",
+        "statusEmpty": "비어 있음",
+        "statusParked": "결항 {count}건",
+        "emptyDesc": "보관소는 텅 비어 있어요. 좋은 일이에요.",
+        "parkedDesc": "{count}건의 화물이 끝내 배달되지 못하고 보관소에 서 있어요. 관리자 화면에서 재발송하거나 정리할 수 있어요."
+      }
+    },
     "story": {
       "title": "공항은 이렇게 돌아가요",
       "p1": {

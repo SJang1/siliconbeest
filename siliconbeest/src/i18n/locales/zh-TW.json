@@ -1173,6 +1173,49 @@
       "beaconBody": "與本伺服器聯邦的另一台 Fediverse 伺服器。信標大小是最近24小時從那裡抵達的貼文數量。",
       "beaconStat": "{count} 件抵達"
     },
+    "ops": {
+      "title": "營運狀況",
+      "gate": {
+        "title": "正門·航廈",
+        "status": "營運中",
+        "desc": "連接你與{title}的正門——這個頁面也是從這扇門進來的。新貼文(出發旅客),最近一天 {departures} 人。"
+      },
+      "federation": {
+        "title": "國際航線(聯邦)",
+        "statusOk": "營運中",
+        "statusDelayed": "部分誤點",
+        "desc": "最近一天有 {arrivals} 人從 {destinations} 座機場抵達。新貼文在這裡辦理飛向聯邦天空的手續。",
+        "delayedNote": "以下航線累積了投遞失敗:",
+        "failures": "投遞失敗 {count} 次"
+      },
+      "transfer": {
+        "title": "轉機通道",
+        "status": "營運中",
+        "desc": "最近一天有 {transfers} 人抵達後經轉機通道再次登上出發航班。轉發走的就是這條路。"
+      },
+      "cargo": {
+        "title": "貨運站(R2)",
+        "status": "運轉中",
+        "desc": "最近一天有 {out} 件託運貨物({bytes})進入倉庫,{in} 件抵達貨物送到了行李提領處。"
+      },
+      "passport": {
+        "title": "護照櫃檯",
+        "status": "營運中",
+        "desc": "最近一天簽發了 {count} 本新護照。新帳號就是新護照。"
+      },
+      "tower": {
+        "title": "塔台廣播",
+        "status": "播報中",
+        "desc": "有新貼文時,塔台會立刻向線上的螢幕播報。最近一天播報了 {total} 則。"
+      },
+      "dlq": {
+        "title": "滯留貨物停放區",
+        "statusEmpty": "空",
+        "statusParked": "滯留 {count} 件",
+        "emptyDesc": "停放區空空如也。這是好消息。",
+        "parkedDesc": "有 {count} 件貨物始終未能送達,停在停放區。管理員可以重發或清理。"
+      }
+    },
     "story": {
       "title": "機場是這樣運轉的",
       "p1": {

@@ -1173,6 +1173,49 @@
       "beaconBody": "与本服务器联邦的另一台 Fediverse 服务器。信标大小是最近24小时从那里到达的帖子数量。",
       "beaconStat": "{count} 件到达"
     },
+    "ops": {
+      "title": "运行状况",
+      "gate": {
+        "title": "正门·航站楼",
+        "status": "运营中",
+        "desc": "连接你和{title}的正门——这个页面也是从这扇门进来的。新帖子(出发旅客),最近一天 {departures} 人。"
+      },
+      "federation": {
+        "title": "国际航线(联邦)",
+        "statusOk": "运行中",
+        "statusDelayed": "部分延误",
+        "desc": "最近一天有 {arrivals} 人从 {destinations} 座机场抵达。新帖子在这里办理飞向联邦天空的手续。",
+        "delayedNote": "以下航线积累了投递失败:",
+        "failures": "投递失败 {count} 次"
+      },
+      "transfer": {
+        "title": "中转通道",
+        "status": "运营中",
+        "desc": "最近一天有 {transfers} 人抵达后经中转通道再次登上出发航班。转发走的就是这条路。"
+      },
+      "cargo": {
+        "title": "货运站(R2)",
+        "status": "运转中",
+        "desc": "最近一天有 {out} 件托运货物({bytes})进入仓库,{in} 件到达货物送到了行李提取处。"
+      },
+      "passport": {
+        "title": "护照柜台",
+        "status": "运营中",
+        "desc": "最近一天签发了 {count} 本新护照。新账号就是新护照。"
+      },
+      "tower": {
+        "title": "塔台广播",
+        "status": "播报中",
+        "desc": "有新帖子时,塔台会立刻向在线的屏幕播报。最近一天播报了 {total} 条。"
+      },
+      "dlq": {
+        "title": "滞留货物停放区",
+        "statusEmpty": "空",
+        "statusParked": "滞留 {count} 件",
+        "emptyDesc": "停放区空空如也。这是好消息。",
+        "parkedDesc": "有 {count} 件货物始终未能送达,停在停放区。管理员可以重发或清理。"
+      }
+    },
     "story": {
       "title": "机场是这样运转的",
       "p1": {

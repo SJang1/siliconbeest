@@ -1173,6 +1173,49 @@
       "beaconBody": "Another fediverse server this one federates with. Beacon size is how many posts arrived from it in the last 24 hours.",
       "beaconStat": "{count} arrived"
     },
+    "ops": {
+      "title": "Operations",
+      "gate": {
+        "title": "Front gate & terminal",
+        "status": "Open",
+        "desc": "The front door between you and {title} — this very page came through it. New posts (departing passengers): {departures} in the last day."
+      },
+      "federation": {
+        "title": "International routes (federation)",
+        "statusOk": "Operating",
+        "statusDelayed": "Partial delays",
+        "desc": "{arrivals} passengers arrived from {destinations} airports in the last day. New posts check in here for departure into the federated sky.",
+        "delayedNote": "These routes have accumulated delivery failures:",
+        "failures": "{count} failed deliveries"
+      },
+      "transfer": {
+        "title": "Transfer corridor",
+        "status": "Open",
+        "desc": "{transfers} arriving passengers took the transfer corridor back to a departure gate in the last day. Boosts travel this way."
+      },
+      "cargo": {
+        "title": "Cargo terminal (R2)",
+        "status": "Operating",
+        "desc": "{out} checked bags ({bytes}) entered the warehouse and {in} arriving bags reached baggage claim in the last day."
+      },
+      "passport": {
+        "title": "Passport desk",
+        "status": "Open",
+        "desc": "{count} new passports were issued in the last day. A new account is a new passport."
+      },
+      "tower": {
+        "title": "Control tower broadcast",
+        "status": "On air",
+        "desc": "When a new post lands, the tower announces it straight to connected screens. {total} announcements in the last day."
+      },
+      "dlq": {
+        "title": "Grounded cargo yard",
+        "statusEmpty": "Empty",
+        "statusParked": "{count} grounded",
+        "emptyDesc": "The yard is completely empty. That's good news.",
+        "parkedDesc": "{count} deliveries never made it and are parked in the yard. An admin can replay or clear them."
+      }
+    },
     "story": {
       "title": "How the airport runs",
       "p1": {

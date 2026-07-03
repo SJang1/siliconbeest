@@ -4,7 +4,7 @@ import { encodeTime } from 'ulid';
 import { applyMigration, createTestUser } from './helpers';
 
 const BASE = 'https://test.siliconbeest.local';
-const CACHE_KEY = 'airport:stats:v3';
+const CACHE_KEY = 'airport:stats:v4';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -159,9 +159,18 @@ describe('GET /api/airport', () => {
     await insertMedia({
       id: ulidAt(2 * HOUR, '0000000000000009'),
       accountId: 'remote-a',
-      fileSize: 2000,
+      fileSize: 0, // remote attachments are never stored locally — no file_size
       remoteUrl: 'https://friendly.example/media/1.png',
     });
+
+    // The media-proxy ledger knows this attachment's real size because the
+    // proxy measured it while fetching from origin.
+    await env.DB.prepare(
+      `INSERT INTO media_proxy_cache (id, remote_url, r2_key, content_type, size, created_at)
+       VALUES (?, 'https://friendly.example/media/1.png', '', 'image/png', 3500, ?)`,
+    )
+      .bind(crypto.randomUUID(), new Date().toISOString())
+      .run();
 
     // Delivery routes: one healthy, one failing.
     await insertInstance({
@@ -243,7 +252,8 @@ describe('GET /api/airport', () => {
     expect(body.cargo.outCount).toBe(1);
     expect(body.cargo.outBytes).toBe(1000);
     expect(body.cargo.inCount).toBe(1);
-    expect(body.cargo.inBytes).toBe(2000);
+    // in-bytes come from the media-proxy ledger, not file_size
+    expect(body.cargo.inBytes).toBe(3500);
   });
 
   it('lists top origin domains but never suspended ones', async () => {

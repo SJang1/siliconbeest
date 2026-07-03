@@ -20,7 +20,7 @@ import { ulidLowerBound } from '../../utils/ulid';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
-const CACHE_KEY = 'airport:stats:v3';
+const CACHE_KEY = 'airport:stats:v4';
 const CACHE_TTL = 60; // seconds
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_DESTINATIONS = 8;
@@ -131,10 +131,15 @@ async function computeStats(): Promise<AirportStats> {
 		)
 			.bind(mediaLowerBound)
 			.first<CargoRow>(),
+		// Remote attachments carry no file_size (they are never stored here);
+		// real sizes come from the media-proxy ledger, which records the
+		// actual bytes fetched from origin. Attachments nobody has fetched
+		// yet contribute 0 — the number only says what we truly measured.
 		env.DB.prepare(
-			`SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS bytes
-			 FROM media_attachments
-			 WHERE id >= ?1 AND remote_url IS NOT NULL`,
+			`SELECT COUNT(*) AS cnt, COALESCE(SUM(mpc.size), 0) AS bytes
+			 FROM media_attachments ma
+			 LEFT JOIN media_proxy_cache mpc ON mpc.remote_url = ma.remote_url
+			 WHERE ma.id >= ?1 AND ma.remote_url IS NOT NULL`,
 		)
 			.bind(mediaLowerBound)
 			.first<CargoRow>(),
