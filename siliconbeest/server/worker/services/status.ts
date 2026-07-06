@@ -72,7 +72,41 @@ export interface ContextResult {
   descendants: Record<string, unknown>[];
 }
 
-export async function getContext(statusId: string): Promise<ContextResult> {
+async function canViewContextStatus(
+  status: Record<string, unknown>,
+  viewerAccountId: string | null,
+): Promise<boolean> {
+  const visibility = status.visibility as string | null;
+  const statusAccountId = status.account_id as string | null;
+  const statusId = status.id as string;
+
+  if (visibility === 'direct') {
+    if (!viewerAccountId) return false;
+    if (viewerAccountId === statusAccountId) return true;
+    const mention = await env.DB
+      .prepare('SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1')
+      .bind(statusId, viewerAccountId)
+      .first();
+    return !!mention;
+  }
+
+  if (visibility === 'private') {
+    if (!viewerAccountId) return false;
+    if (viewerAccountId === statusAccountId) return true;
+    const follow = await env.DB
+      .prepare('SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1')
+      .bind(viewerAccountId, statusAccountId)
+      .first();
+    return !!follow;
+  }
+
+  return true;
+}
+
+export async function getContext(
+  statusId: string,
+  viewerAccountId: string | null = null,
+): Promise<ContextResult> {
   // Verify status exists
   const status = await env.DB
     .prepare('SELECT id, in_reply_to_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
@@ -92,6 +126,7 @@ export async function getContext(statusId: string): Promise<ContextResult> {
       .bind(currentId)
       .first();
     if (!ancestor) break;
+    if (!await canViewContextStatus(ancestor as Record<string, unknown>, viewerAccountId)) break;
     ancestors.unshift(ancestor as Record<string, unknown>);
     currentId = (ancestor.in_reply_to_id as string) || null;
   }
@@ -122,6 +157,7 @@ export async function getContext(statusId: string): Promise<ContextResult> {
       const rid = r.id as string;
       if (!seenDescendantIds.has(rid) && !excludeIds.has(rid)) {
         seenDescendantIds.add(rid);
+        if (!await canViewContextStatus(r, viewerAccountId)) continue;
         descendantRows.push(r);
         queue.push(rid);
       }

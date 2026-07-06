@@ -43,7 +43,7 @@ app.get('/:id/context', authOptional, async (c) => {
     }
   }
 
-  const { ancestors, descendants } = await getContext(statusId);
+  const { ancestors, descendants } = await getContext(statusId, currentAccountId);
 
   // Collect all status IDs for batch enrichment
   const allRows = [...ancestors, ...descendants];

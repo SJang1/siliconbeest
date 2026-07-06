@@ -44,6 +44,9 @@
  * - private_by_suspended: private by a suspended user
  * - public_reblog_wrapper: reblog wrapper of public_1 by bob
  * - unlisted_reblog_wrapper: reblog wrapper of unlisted_1 by bob
+ * - public_mixed_root: public root with private/direct replies for context filtering
+ * - private_reply_to_public: private reply under a public root
+ * - dm_reply_to_public: direct reply under a public root
  */
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -93,6 +96,9 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     unlisted_reblog_wrapper: 'vp_rebl_unl_01',
     public_local_by_bob: 'vp_pub_loc_b01',
     public_remote_by_hank: 'vp_pub_rem_h01',
+    public_mixed_root: 'vp_pub_mix_01',
+    private_reply_to_public: 'vp_priv_mix01',
+    dm_reply_to_public: 'vp_dm_mix_001',
   };
 
   beforeAll(async () => {
@@ -173,6 +179,9 @@ describe('Comprehensive Visibility & Permission Controls', () => {
       IDS.private_1, `https://t.local/s/${IDS.private_1}`, `https://t.local/@alice/${IDS.private_1}`,
       alice.accountId, 'Followers only', '<p>Followers only</p>', 'private', 'vc1', null, null, now,
     ).run();
+    await env.DB.prepare(
+      "INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at) VALUES ('ve_private_1', ?1, ?2, '', 0, NULL, ?3)",
+    ).bind(IDS.private_1, '<p>Older followers-only text</p>', now).run();
 
     // === DM from alice TO carol (carol is mentioned) ===
     await env.DB.prepare(ins).bind(
@@ -182,6 +191,9 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     await env.DB.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm1', ?1, ?2, ?3)",
     ).bind(IDS.dm_to_carol, carol.accountId, now).run();
+    await env.DB.prepare(
+      "INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at) VALUES ('ve_dm_1', ?1, ?2, '', 0, NULL, ?3)",
+    ).bind(IDS.dm_to_carol, '<p>Older direct text</p>', now).run();
 
     // === DM from alice with NO mentions (self-note) ===
     await env.DB.prepare(ins).bind(
@@ -378,6 +390,27 @@ describe('Comprehensive Visibility & Permission Controls', () => {
       IDS.public_remote_by_hank, `https://remote.example.com/s/${IDS.public_remote_by_hank}`, `https://remote.example.com/@hank/${IDS.public_remote_by_hank}`,
       hank.accountId, 'Hank remote public', '<p>Hank remote public</p>', 'public', 'vc4', null, null, now,
     ).run();
+
+    // --- Mixed-visibility replies under a public root ---
+    await env.DB.prepare(ins).bind(
+      IDS.public_mixed_root, `https://t.local/s/${IDS.public_mixed_root}`, `https://t.local/@alice/${IDS.public_mixed_root}`,
+      alice.accountId, 'Public mixed root', '<p>Public mixed root</p>', 'public', 'vc4', null, null, now,
+    ).run();
+
+    await env.DB.prepare(ins).bind(
+      IDS.private_reply_to_public, `https://t.local/s/${IDS.private_reply_to_public}`, `https://t.local/@alice/${IDS.private_reply_to_public}`,
+      alice.accountId, 'Private reply under public root', '<p>Private reply under public root</p>', 'private', 'vc4',
+      IDS.public_mixed_root, alice.accountId, now,
+    ).run();
+
+    await env.DB.prepare(ins).bind(
+      IDS.dm_reply_to_public, `https://t.local/s/${IDS.dm_reply_to_public}`, `https://t.local/@alice/${IDS.dm_reply_to_public}`,
+      alice.accountId, '@carol direct reply under public root', '<p>@carol direct reply under public root</p>', 'direct', 'vc4',
+      IDS.public_mixed_root, alice.accountId, now,
+    ).run();
+    await env.DB.prepare(
+      "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_mix_dm', ?1, ?2, ?3)",
+    ).bind(IDS.dm_reply_to_public, carol.accountId, now).run();
   });
 
   // =========================================================================
@@ -535,6 +568,50 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     });
     it('bob CANNOT see', async () => {
       expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_carol_to_alice}`, { headers: authHeaders(bob.token) })).status).toBe(404);
+    });
+  });
+
+  // =========================================================================
+  // STATUS HISTORY -- edit history must follow the same status visibility rules
+  // =========================================================================
+  describe('Status history visibility', () => {
+    it('public status history is visible without auth', async () => {
+      const r = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.public_1}/history`);
+      expect(r.status).toBe(200);
+      const body = await r.json() as Array<{ content: string }>;
+      expect(body.at(-1)?.content).toBe('<p>Hello world</p>');
+    });
+
+    it('private status history is not visible without auth or to a stranger', async () => {
+      expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}/history`)).status).toBe(404);
+      expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}/history`, { headers: authHeaders(dave.token) })).status).toBe(404);
+    });
+
+    it('private status history is visible to the author and followers', async () => {
+      const authorResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}/history`, { headers: authHeaders(alice.token) });
+      expect(authorResponse.status).toBe(200);
+      const authorBody = await authorResponse.json() as Array<{ content: string }>;
+      expect(authorBody.map((entry) => entry.content)).toContain('<p>Older followers-only text</p>');
+      expect(authorBody.at(-1)?.content).toBe('<p>Followers only</p>');
+
+      const followerResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}/history`, { headers: authHeaders(bob.token) });
+      expect(followerResponse.status).toBe(200);
+      const followerBody = await followerResponse.json() as Array<{ content: string }>;
+      expect(followerBody.map((entry) => entry.content)).toContain('<p>Older followers-only text</p>');
+    });
+
+    it('direct status history is visible only to the author and mentioned account', async () => {
+      expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_to_carol}/history`)).status).toBe(404);
+      expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_to_carol}/history`, { headers: authHeaders(dave.token) })).status).toBe(404);
+      expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_to_carol}/history`, { headers: authHeaders(bob.token) })).status).toBe(404);
+
+      const mentionedResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_to_carol}/history`, { headers: authHeaders(carol.token) });
+      expect(mentionedResponse.status).toBe(200);
+      const mentionedBody = await mentionedResponse.json() as Array<{ content: string }>;
+      expect(mentionedBody.map((entry) => entry.content)).toContain('<p>Older direct text</p>');
+
+      const authorResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.dm_to_carol}/history`, { headers: authHeaders(alice.token) });
+      expect(authorResponse.status).toBe(200);
     });
   });
 
@@ -840,6 +917,31 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     it('private status context NOT accessible by stranger', async () => {
       const r = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}/context`, { headers: authHeaders(dave.token) });
       expect(r.status).toBe(404);
+    });
+
+    it('filters private and direct descendants from public context for unauthenticated callers', async () => {
+      const r = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.public_mixed_root}/context`);
+      expect(r.status).toBe(200);
+      const body = await r.json() as { descendants: Array<{ id: string }> };
+      const descendantIds = body.descendants.map((s) => s.id);
+      expect(descendantIds).not.toContain(IDS.private_reply_to_public);
+      expect(descendantIds).not.toContain(IDS.dm_reply_to_public);
+    });
+
+    it('returns only descendants visible to the authenticated viewer', async () => {
+      const bobResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.public_mixed_root}/context`, { headers: authHeaders(bob.token) });
+      expect(bobResponse.status).toBe(200);
+      const bobBody = await bobResponse.json() as { descendants: Array<{ id: string }> };
+      const bobDescendantIds = bobBody.descendants.map((s) => s.id);
+      expect(bobDescendantIds).toContain(IDS.private_reply_to_public);
+      expect(bobDescendantIds).not.toContain(IDS.dm_reply_to_public);
+
+      const carolResponse = await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.public_mixed_root}/context`, { headers: authHeaders(carol.token) });
+      expect(carolResponse.status).toBe(200);
+      const carolBody = await carolResponse.json() as { descendants: Array<{ id: string }> };
+      const carolDescendantIds = carolBody.descendants.map((s) => s.id);
+      expect(carolDescendantIds).not.toContain(IDS.private_reply_to_public);
+      expect(carolDescendantIds).toContain(IDS.dm_reply_to_public);
     });
   });
 
