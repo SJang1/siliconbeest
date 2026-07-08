@@ -7,6 +7,8 @@ import {
 } from '../activitypub-alternate';
 import { handleOgRequest, isCrawler } from '../og-handler';
 
+const INTERNAL_SERVICE_HOST = 'internal';
+
 const WORKER_PREFIXES = [
   '/api/',
   '/oauth/',
@@ -93,7 +95,20 @@ async function routeActivityPubAlternate(
   return app.fetch(new Request(alternate.href, request), envBindings, ctx);
 }
 
-function isWorkerPath(pathname: string, request: Request): boolean {
+function isInternalPath(pathname: string): boolean {
+  return pathname === '/internal' || pathname.startsWith('/internal/');
+}
+
+function isInternalServiceRequest(url: URL): boolean {
+  return url.hostname === INTERNAL_SERVICE_HOST;
+}
+
+function isWorkerPath(url: URL, request: Request): boolean {
+  const pathname = url.pathname;
+  if (isInternalPath(pathname)) {
+    return isInternalServiceRequest(url);
+  }
+
   for (const prefix of WORKER_PREFIXES) {
     if (pathname === prefix || pathname.startsWith(prefix)) {
       if (pathname.startsWith('/oauth/authorize')) {
@@ -115,7 +130,11 @@ export default defineEventHandler(async (event) => {
   const url = new URL(request.url);
   const db = event.context.cloudflare?.env?.DB as D1Database | undefined;
 
-  if (isWorkerPath(url.pathname, request)) {
+  if (isInternalPath(url.pathname) && !isInternalServiceRequest(url)) {
+    return new Response('Not found', { status: 404 });
+  }
+
+  if (isWorkerPath(url, request)) {
     return app.fetch(request, event.context.cloudflare?.env, event.context.cloudflare?.context);
   }
 

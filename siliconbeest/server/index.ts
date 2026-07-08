@@ -18,6 +18,8 @@ import { StreamingDO as StreamingDOBase } from './worker/durableObjects/streamin
 export class StreamingDO extends StreamingDOBase {}
 
 // Prefixes / paths handled by the Hono worker app
+const INTERNAL_SERVICE_HOST = 'internal';
+
 const WORKER_PREFIXES = [
   '/api/',
   '/oauth/',
@@ -109,7 +111,20 @@ async function withActivityPubAlternate(
   });
 }
 
-function isWorkerPath(pathname: string, request: Request): boolean {
+function isInternalPath(pathname: string): boolean {
+  return pathname === '/internal' || pathname.startsWith('/internal/');
+}
+
+function isInternalServiceRequest(url: URL): boolean {
+  return url.hostname === INTERNAL_SERVICE_HOST;
+}
+
+function isWorkerPath(url: URL, request: Request): boolean {
+  const pathname = url.pathname;
+  if (isInternalPath(pathname)) {
+    return isInternalServiceRequest(url);
+  }
+
   for (const prefix of WORKER_PREFIXES) {
     if (pathname === prefix || pathname.startsWith(prefix)) {
       if (pathname.startsWith('/oauth/authorize')) {
@@ -134,7 +149,11 @@ export default {
     const pathname = url.pathname;
 
     // 1. Worker paths → Hono app
-    if (isWorkerPath(pathname, request)) {
+    if (isInternalPath(pathname) && !isInternalServiceRequest(url)) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    if (isWorkerPath(url, request)) {
       return app.fetch(request, _env, ctx);
     }
 
