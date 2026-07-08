@@ -7,6 +7,7 @@ import { isActor } from '@fedify/fedify/vocab';
 import { getAccountByUsername } from '../../../../services/account';
 import { pickSignerUsername } from '../../../../../../../packages/shared/services/signer';
 import { parseCustomEmojiTagsJson } from '../../../../../../../packages/shared/utils/customEmoji';
+import { sanitizeHtml } from '../../../../utils/sanitize';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -97,7 +98,8 @@ app.get('/lookup', async (c) => {
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)`,
           ).bind(
             id, preferredUsername, acctDomain,
-            actorObject.name?.toString() || '', actorObject.summary?.toString() || '',
+            sanitizeHtml(actorObject.name?.toString() || ''),
+            sanitizeHtml(actorObject.summary?.toString() || ''),
             actorObject.id.href,
             actorUrl,
             iconUrl, imageUrl,
@@ -122,18 +124,20 @@ app.get('/lookup', async (c) => {
   const domain = row.domain as string | null;
 
   const emojis = parseCustomEmojiTagsJson(row.emoji_tags as string | null, instanceDomain);
+  const displayName = sanitizeHtml((row.display_name as string) || '');
+  const note = sanitizeHtml((row.note as string) || '');
 
   return c.json({
     id: row.id as string,
     username: row.username as string,
     acct: domain ? `${row.username}@${domain}` : (row.username as string),
-    display_name: (row.display_name as string) || '',
+    display_name: displayName,
     locked: !!(row.locked),
     bot: !!(row.bot),
     discoverable: !!(row.discoverable),
     group: false,
     created_at: row.created_at as string,
-    note: (row.note as string) || '',
+    note,
     url: (row.url as string) || `https://${instanceDomain}/@${row.username}`,
     uri: row.uri as string,
     avatar: (row.avatar_url as string) || `https://${instanceDomain}/default-avatar.svg`,
