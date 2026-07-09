@@ -71,4 +71,15 @@ describe('initial setup bootstrap', () => {
 
     expect(res.status).toBe(200);
   });
+
+  it('returns 503 when SETUP_SECRET is not configured', async () => {
+    const previousSecret = env.SETUP_SECRET;
+    env.SETUP_SECRET = '';
+    try {
+      const res = await setupRequest({ setup_secret: 'test-setup-secret' });
+      expect(res.status).toBe(503);
+    } finally {
+      env.SETUP_SECRET = previousSecret;
+    }
+  });
 });
