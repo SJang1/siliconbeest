@@ -17,6 +17,7 @@ interface __BaseEnv_Env {
 	REGISTRATION_MODE: "open";
 	SKIP_SIGNATURE_VERIFICATION: true;
 	OTP_ENCRYPTION_KEY: string;
+	SETUP_SECRET: string;
 	STREAMING_DO: DurableObjectNamespace<import("./.output/server/index").StreamingDO>;
 }
 declare namespace Cloudflare {
@@ -31,7 +32,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "INSTANCE_DOMAIN" | "INSTANCE_TITLE" | "REPOSITORY_URL" | "REGISTRATION_MODE" | "SKIP_SIGNATURE_VERIFICATION" | "OTP_ENCRYPTION_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "INSTANCE_DOMAIN" | "INSTANCE_TITLE" | "REPOSITORY_URL" | "REGISTRATION_MODE" | "SKIP_SIGNATURE_VERIFICATION" | "OTP_ENCRYPTION_KEY" | "SETUP_SECRET">> {}
 }
 
 // Begin runtime types

@@ -50,6 +50,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
+  setupSecret: '',
 });
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -67,6 +68,7 @@ function validateForm(): string | null {
     return t('setup.username_invalid');
   }
   if (!form.email.trim()) return t('setup.email_required');
+  if (!form.setupSecret) return t('setup.secret_required');
   if (!form.password) return t('setup.password_required');
   if (form.password.length < 8) return t('setup.password_too_short');
   if (form.password !== form.confirmPassword) return t('setup.password_mismatch');
@@ -93,6 +95,7 @@ async function createAdmin() {
         email: form.email.trim(),
         password: form.password,
         locale: locale.value,
+        setup_secret: form.setupSecret,
       },
     });
     auth.setToken(data.access_token);
@@ -176,6 +179,19 @@ async function createAdmin() {
               name="email"
               type="email"
               autocomplete="email"
+              class="sb-input"
+              required
+            />
+          </div>
+
+          <div>
+            <label for="setup-secret" class="sb-label">{{ t('setup.secret') }}</label>
+            <input
+              id="setup-secret"
+              v-model="form.setupSecret"
+              name="setup_secret"
+              type="password"
+              autocomplete="one-time-code"
               class="sb-input"
               required
             />

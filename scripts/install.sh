@@ -218,6 +218,7 @@ success "VAPID keys generated"
 
 info "Generating OTP encryption key..."
 OTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
+SETUP_SECRET=$(openssl rand -hex 32)
 success "OTP encryption key generated"
 
 # ---------------------------------------------------------------------------
@@ -249,9 +250,11 @@ $WRANGLER d1 execute "$D1_DATABASE_NAME" --remote --command \
   "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('vapid_private_key', '$VAPID_PRIVATE_KEY', datetime('now')), ('vapid_public_key', '$VAPID_PUBLIC_KEY', datetime('now'));"
 success "VAPID keys stored"
 
-# Set OTP encryption key as wrangler secret
+# Set worker secrets
 info "Setting OTP encryption key as worker secret..."
-echo "$OTP_ENCRYPTION_KEY" | $WRANGLER secret put "OTP_ENCRYPTION_KEY" --name "$MAIN_WORKER_NAME" 2>/dev/null || warn "Could not set secret (worker may not be deployed yet). Set manually later."
+echo "$OTP_ENCRYPTION_KEY" | $WRANGLER secret put "OTP_ENCRYPTION_KEY" --name "$MAIN_WORKER_NAME" 2>/dev/null || warn "Could not set OTP_ENCRYPTION_KEY (worker may not be deployed yet). Set manually later."
+info "Setting first-run setup secret as worker secret..."
+echo "$SETUP_SECRET" | $WRANGLER secret put "SETUP_SECRET" --name "$MAIN_WORKER_NAME" 2>/dev/null || warn "Could not set SETUP_SECRET (worker may not be deployed yet). Set manually later."
 
 # Seed admin user
 info "Creating admin account..."
@@ -357,6 +360,10 @@ echo -e "${BOLD}Admin Account:${NC}"
 echo "  Username:    $ADMIN_USERNAME"
 echo "  Email:       $ADMIN_EMAIL"
 echo "  Actor URI:   https://$INSTANCE_DOMAIN/users/$ADMIN_USERNAME"
+echo
+echo -e "${BOLD}First-run web setup secret:${NC}"
+echo "  SETUP_SECRET: $SETUP_SECRET"
+echo "  Save this securely; it is required if you use /setup instead of the seeded admin."
 echo
 echo -e "${BOLD}Copy these to your GitHub repository:${NC}"
 echo -e "${BOLD}Settings > Secrets and variables > Actions${NC}"

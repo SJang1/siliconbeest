@@ -998,7 +998,9 @@
     "email_required": "请输入邮箱地址。",
     "password_required": "请输入密码。",
     "password_too_short": "密码长度至少为 8 个字符。",
-    "password_mismatch": "两次输入的密码不一致。"
+    "password_mismatch": "两次输入的密码不一致。",
+    "secret": "设置密钥",
+    "secret_required": "请输入设置密钥。"
   },
   "deck": {
     "col_home": "home",

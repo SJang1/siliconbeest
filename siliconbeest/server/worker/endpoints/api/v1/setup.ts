@@ -18,6 +18,7 @@ type SetupCreateBody = {
   email?: string;
   password?: string;
   locale?: string;
+  setup_secret?: string;
 };
 
 async function readSetupCreateBody(c: SetupContext): Promise<SetupCreateBody> {
@@ -33,12 +34,34 @@ async function readSetupCreateBody(c: SetupContext): Promise<SetupCreateBody> {
     email: typeof form.email === 'string' ? form.email : undefined,
     password: typeof form.password === 'string' ? form.password : undefined,
     locale: typeof form.locale === 'string' ? form.locale : undefined,
+    setup_secret: typeof form.setup_secret === 'string' ? form.setup_secret : undefined,
   };
 }
 
 async function getUserCount(): Promise<number> {
   const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>();
   return Number(row?.count ?? 0);
+}
+
+function getSetupSecret(): string {
+  return ((env as unknown as { SETUP_SECRET?: string }).SETUP_SECRET ?? '').trim();
+}
+
+async function verifySetupSecret(providedSecret: string | undefined): Promise<boolean> {
+  const setupSecret = getSetupSecret();
+  if (!setupSecret || !providedSecret) return false;
+
+  const encoder = new TextEncoder();
+  const expected = await crypto.subtle.digest('SHA-256', encoder.encode(setupSecret));
+  const actual = await crypto.subtle.digest('SHA-256', encoder.encode(providedSecret));
+  const expectedBytes = new Uint8Array(expected);
+  const actualBytes = new Uint8Array(actual);
+
+  let difference = expectedBytes.length ^ actualBytes.length;
+  for (let i = 0; i < expectedBytes.length; i++) {
+    difference |= expectedBytes[i] ^ (actualBytes[i] ?? 0);
+  }
+  return difference === 0;
 }
 
 app.get('/', async (c) => {
@@ -51,6 +74,15 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
   const body = await readSetupCreateBody(c);
+  const setupSecret = body.setup_secret || c.req.header('X-Setup-Secret');
+
+  if (!getSetupSecret()) {
+    throw new AppError(503, 'Initial setup is not configured');
+  }
+
+  if (!await verifySetupSecret(setupSecret)) {
+    throw new AppError(403, 'Invalid setup secret');
+  }
 
   if (!body.username || !body.email || !body.password) {
     throw new AppError(422, 'Validation failed', 'Username, email, and password are required');

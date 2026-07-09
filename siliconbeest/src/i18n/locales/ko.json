@@ -998,7 +998,9 @@
     "email_required": "이메일을 입력해 주세요.",
     "password_required": "비밀번호를 입력해 주세요.",
     "password_too_short": "비밀번호는 8자 이상이어야 합니다.",
-    "password_mismatch": "비밀번호 확인이 일치하지 않습니다."
+    "password_mismatch": "비밀번호 확인이 일치하지 않습니다.",
+    "secret": "설정 시크릿",
+    "secret_required": "설정 시크릿을 입력해 주세요."
   },
   "deck": {
     "col_home": "홈",

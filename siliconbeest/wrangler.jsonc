@@ -28,7 +28,7 @@
 		"mode": "smart"
 	},
 
-	// Environment Variables (secrets set via `wrangler secret put`)
+	// Environment Variables (set SETUP_SECRET via `wrangler secret put SETUP_SECRET` before first-run setup)
 	"vars": {
 		"INSTANCE_DOMAIN": "social.example.com",
 		"INSTANCE_TITLE": "My SiliconBeest Instance",

@@ -138,6 +138,10 @@ info "Generating OTP encryption key (32-byte hex)..."
 OTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
 success "OTP encryption key generated"
 
+info "Generating first-run setup secret (32-byte hex)..."
+SETUP_SECRET=$(openssl rand -hex 32)
+success "Setup secret generated"
+
 # ---------------------------------------------------------------------------
 # Create Cloudflare resources
 # ---------------------------------------------------------------------------
@@ -340,9 +344,10 @@ set_secret() {
   success "$KEY set for $WORKER"
 }
 
-# Only OTP_ENCRYPTION_KEY needs to be a wrangler secret
-# VAPID keys are stored in the DB (not env secrets)
+# OTP_ENCRYPTION_KEY protects MFA secrets; SETUP_SECRET authorizes first-run admin bootstrap.
+# VAPID keys are stored in the DB (not env secrets).
 set_secret "$MAIN_WORKER_NAME" "OTP_ENCRYPTION_KEY" "$OTP_ENCRYPTION_KEY"
+set_secret "$MAIN_WORKER_NAME" "SETUP_SECRET" "$SETUP_SECRET"
 
 # ---------------------------------------------------------------------------
 # Apply D1 migrations
@@ -394,6 +399,8 @@ echo -e "  ${BOLD}SESSIONS KV ID:${NC}     ${SESSIONS_KV_ID:-<check manually>}"
 echo -e "  ${BOLD}FEDIFY_KV ID:${NC}      ${FEDIFY_KV_ID:-<check manually>}"
 echo
 echo -e "  ${BOLD}VAPID Public Key:${NC}   $VAPID_PUBLIC_KEY"
+echo -e "  ${BOLD}Setup Secret:${NC}       $SETUP_SECRET"
+echo -e "  ${YELLOW}Save this setup secret securely; it is required if you use the first-run web setup page.${NC}"
 if [[ -n "$SENTRY_DSN" ]]; then
   echo -e "  ${BOLD}Sentry DSN:${NC}         $SENTRY_DSN"
 else

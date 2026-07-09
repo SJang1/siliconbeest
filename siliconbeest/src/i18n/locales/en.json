@@ -998,7 +998,9 @@
     "email_required": "Please enter an email address.",
     "password_required": "Please enter a password.",
     "password_too_short": "Password must be at least 8 characters long.",
-    "password_mismatch": "Passwords do not match."
+    "password_mismatch": "Passwords do not match.",
+    "secret": "Setup secret",
+    "secret_required": "Please enter the setup secret."
   },
   "deck": {
     "col_home": "home",

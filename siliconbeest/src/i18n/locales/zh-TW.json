@@ -998,7 +998,9 @@
     "email_required": "請輸入電子郵件地址。",
     "password_required": "請輸入密碼。",
     "password_too_short": "密碼長度至少需 8 個字元。",
-    "password_mismatch": "兩次輸入的密碼不一致。"
+    "password_mismatch": "兩次輸入的密碼不一致。",
+    "secret": "設定密鑰",
+    "secret_required": "請輸入設定密鑰。"
   },
   "deck": {
     "col_home": "home",

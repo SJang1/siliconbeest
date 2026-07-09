@@ -21,6 +21,7 @@ export default defineConfig({
           INSTANCE_TITLE: 'SiliconBeest Test',
           REGISTRATION_MODE: 'open',
           OTP_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          SETUP_SECRET: 'test-setup-secret',
         },
       },
     }),

@@ -998,7 +998,9 @@
     "email_required": "メールアドレスを入力してください。",
     "password_required": "パスワードを入力してください。",
     "password_too_short": "パスワードは8文字以上である必要があります。",
-    "password_mismatch": "パスワードが一致しません。"
+    "password_mismatch": "パスワードが一致しません。",
+    "secret": "セットアップシークレット",
+    "secret_required": "セットアップシークレットを入力してください。"
   },
   "deck": {
     "col_home": "home",

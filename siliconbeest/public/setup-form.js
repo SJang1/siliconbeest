@@ -34,10 +34,12 @@
     var email = getString(formData, 'email').trim();
     var password = getString(formData, 'password');
     var confirmPassword = getString(formData, 'confirmPassword');
+    var setupSecret = getString(formData, 'setup_secret');
 
     if (!username) return '사용자 이름을 입력해 주세요.';
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return '사용자 이름은 영문, 숫자, 밑줄만 사용할 수 있습니다.';
     if (!email) return '이메일을 입력해 주세요.';
+    if (!setupSecret) return '설정 시크릿을 입력해 주세요.';
     if (!password) return '비밀번호를 입력해 주세요.';
     if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
     if (password !== confirmPassword) return '비밀번호 확인이 일치하지 않습니다.';
@@ -75,6 +77,7 @@
           email: getString(formData, 'email').trim(),
           password: getString(formData, 'password'),
           locale: getString(formData, 'locale'),
+          setup_secret: getString(formData, 'setup_secret'),
         }),
       });
       var data = await response.json().catch(function () {
