@@ -68,7 +68,7 @@ function validateForm(): string | null {
     return t('setup.username_invalid');
   }
   if (!form.email.trim()) return t('setup.email_required');
-  if (!form.setupSecret) return t('setup.secret_required');
+  if (!form.setupSecret.trim()) return t('setup.secret_required');
   if (!form.password) return t('setup.password_required');
   if (form.password.length < 8) return t('setup.password_too_short');
   if (form.password !== form.confirmPassword) return t('setup.password_mismatch');
