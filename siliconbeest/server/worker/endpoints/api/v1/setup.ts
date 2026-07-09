@@ -54,14 +54,8 @@ async function verifySetupSecret(providedSecret: string | undefined): Promise<bo
   const encoder = new TextEncoder();
   const expected = await crypto.subtle.digest('SHA-256', encoder.encode(setupSecret));
   const actual = await crypto.subtle.digest('SHA-256', encoder.encode(providedSecret));
-  const expectedBytes = new Uint8Array(expected);
-  const actualBytes = new Uint8Array(actual);
 
-  let difference = expectedBytes.length ^ actualBytes.length;
-  for (let i = 0; i < expectedBytes.length; i++) {
-    difference |= expectedBytes[i] ^ (actualBytes[i] ?? 0);
-  }
-  return difference === 0;
+  return crypto.subtle.timingSafeEqual(expected, actual);
 }
 
 app.get('/', async (c) => {
