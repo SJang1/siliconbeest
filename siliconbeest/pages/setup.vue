@@ -95,7 +95,7 @@ async function createAdmin() {
         email: form.email.trim(),
         password: form.password,
         locale: locale.value,
-        setup_secret: form.setupSecret,
+        setup_secret: form.setupSecret.trim(),
       },
     });
     auth.setToken(data.access_token);
