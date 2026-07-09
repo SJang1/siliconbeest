@@ -77,7 +77,7 @@
           email: getString(formData, 'email').trim(),
           password: getString(formData, 'password'),
           locale: getString(formData, 'locale'),
-          setup_secret: getString(formData, 'setup_secret'),
+          setup_secret: getString(formData, 'setup_secret').trim(),
         }),
       });
       var data = await response.json().catch(function () {
