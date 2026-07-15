@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import SettingsInvitationsView from '@/deck/views/SettingsInvitationsView.vue'
+import SettingsInvitationsView from '@/views/SettingsInvitationsView.vue'
 
 definePageMeta({ name: 'invitations' })
 </script>
