@@ -27,7 +27,6 @@ const settingSections = computed(() => {
     { key: 'filters', path: '/settings/filters' },
     { key: 'migration', path: '/settings/migration' },
     { key: 'security', path: '/settings/security' },
-    { key: 'invitations', path: '/settings/invitations' },
   ]
   if (auth.isAdmin) {
     sections.push({ key: 'admin', path: '/admin/settings' })
