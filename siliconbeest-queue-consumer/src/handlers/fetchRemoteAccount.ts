@@ -113,6 +113,25 @@ export async function handleFetchRemoteAccount(
 
   // Extract fields from the actor document
   const id = (actorDoc.id as string) || actorUri;
+  let canonicalDomain: string;
+  try {
+    canonicalDomain = new URL(id).hostname.toLowerCase();
+  } catch {
+    console.warn(`Actor ${actorUri} has an invalid canonical id, dropping`);
+    return;
+  }
+
+  if (canonicalDomain !== actorDomain) {
+    const suspendedCanonicalDomains = await getSuspendedDomains(env.DB, [canonicalDomain]);
+    if (suspendedCanonicalDomains.has(canonicalDomain)) {
+      console.log(
+        `[remote-account] Skipping actor ${actorUri} with suspended canonical domain ${canonicalDomain}`,
+      );
+      return;
+    }
+    actorDomain = canonicalDomain;
+  }
+
   const name = (actorDoc.name as string) || preferredUsername || '';
   const username = preferredUsername || '';
   const summary = (actorDoc.summary as string) || '';

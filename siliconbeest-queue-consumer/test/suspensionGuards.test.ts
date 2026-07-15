@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('cloudflare:workers', () => ({ env: mocks.env }));
 vi.mock('../src/fedify', () => ({ createFed: mocks.createFed }));
+vi.mock('@fedify/vocab', () => ({ isActor: vi.fn(() => true) }));
 vi.mock('../../packages/shared/domain-blocks', () => ({
   getSuspendedDomains: mocks.getSuspendedDomains,
 }));
@@ -22,6 +23,7 @@ vi.mock('../../packages/shared/services/signer', () => ({
 }));
 
 import { handleFetchRemoteStatus } from '../src/handlers/fetchRemoteStatus';
+import { handleFetchRemoteAccount } from '../src/handlers/fetchRemoteAccount';
 import { handleImportItem } from '../src/handlers/importItem';
 
 beforeEach(() => {
@@ -34,6 +36,48 @@ beforeEach(() => {
 });
 
 describe('queue suspension guards', () => {
+  it('does not store an actor whose canonical id is on a suspended domain', async () => {
+    mocks.getSuspendedDomains.mockImplementation(
+      async (_db: unknown, domains: string[]) => (
+        domains.includes('blocked.example')
+          ? new Set(['blocked.example'])
+          : new Set<string>()
+      ),
+    );
+    mocks.pickSignerUsername.mockResolvedValue('local-user');
+    mocks.createFed.mockReturnValue({
+      createContext: () => ({
+        getDocumentLoader: async () => ({}),
+        lookupObject: async () => ({
+          toJsonLd: async () => ({
+            id: 'https://blocked.example/users/alice',
+            type: 'Person',
+            preferredUsername: 'alice',
+            inbox: 'https://blocked.example/users/alice/inbox',
+          }),
+        }),
+      }),
+    });
+
+    await handleFetchRemoteAccount({
+      type: 'fetch_remote_account',
+      actorUri: 'https://alias.example/@alice',
+      forceRefresh: true,
+    });
+
+    expect(mocks.getSuspendedDomains).toHaveBeenNthCalledWith(
+      1,
+      mocks.env.DB,
+      ['alias.example'],
+    );
+    expect(mocks.getSuspendedDomains).toHaveBeenNthCalledWith(
+      2,
+      mocks.env.DB,
+      ['blocked.example'],
+    );
+    expect(mocks.env.DB.prepare).not.toHaveBeenCalled();
+  });
+
   it('does not create a follow request for a cached account on a suspended domain', async () => {
     mocks.env.DB.prepare.mockImplementation((sql: string) => ({
       bind: () => ({
