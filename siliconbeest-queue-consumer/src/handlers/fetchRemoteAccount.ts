@@ -124,6 +124,14 @@ export async function handleFetchRemoteAccount(
     return;
   }
 
+  const instanceDomain = new URL(`https://${env.INSTANCE_DOMAIN}`).hostname.toLowerCase();
+  if (canonicalDomain === instanceDomain) {
+    console.log(
+      `[remote-account] Skipping remote lookup ${actorUri} with local canonical domain ${canonicalDomain}`,
+    );
+    return;
+  }
+
   if (canonicalDomain !== actorDomain) {
     const suspendedCanonicalDomains = await getSuspendedDomains(env.DB, [canonicalDomain]);
     if (suspendedCanonicalDomains.has(canonicalDomain)) {

@@ -113,6 +113,35 @@ describe('queue suspension guards', () => {
     expect(mocks.env.DB.prepare).not.toHaveBeenCalled();
   });
 
+  it('does not update a local account through a remote actor alias', async () => {
+    mocks.getSuspendedDomains.mockResolvedValue(new Set<string>());
+    mocks.pickSignerUsername.mockResolvedValue('local-user');
+    mocks.createFed.mockReturnValue({
+      createContext: () => ({
+        getDocumentLoader: async () => ({}),
+        lookupObject: async () => ({
+          toJsonLd: async () => ({
+            id: 'https://local.example/users/alice',
+            type: 'Person',
+            preferredUsername: 'alice',
+            inbox: 'https://local.example/users/alice/inbox',
+          }),
+        }),
+      }),
+    });
+
+    await handleFetchRemoteAccount({
+      type: 'fetch_remote_account',
+      actorUri: 'https://alias.example/@alice',
+      forceRefresh: true,
+    });
+
+    expect(mocks.getSuspendedDomains).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB.prepare).not.toHaveBeenCalled();
+    expect(mocks.env.CACHE.put).not.toHaveBeenCalled();
+    expect(mocks.ensureInstanceRecord).not.toHaveBeenCalled();
+  });
+
   it('updates an existing actor row to use the canonical domain', async () => {
     const run = vi.fn();
     const bind = vi.fn((..._args: unknown[]) => ({ run }));
