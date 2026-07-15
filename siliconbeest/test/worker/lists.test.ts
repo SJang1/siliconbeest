@@ -13,6 +13,12 @@ describe('Lists API', () => {
     await applyMigration();
     owner = await createTestUser('listowner');
     member = await createTestUser('listmember');
+
+    const followResponse = await SELF.fetch(`${BASE}/api/v1/accounts/${member.accountId}/follow`, {
+      method: 'POST',
+      headers: authHeaders(owner.token),
+    });
+    expect(followResponse.status).toBe(200);
   });
 
   // -------------------------------------------------------------------

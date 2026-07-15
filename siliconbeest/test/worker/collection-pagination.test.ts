@@ -97,15 +97,13 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(body.orderedItems).toContain('https://remote.example.com/users/remotefollower');
 		});
 
-		it('returns empty collection for unknown user', async () => {
-			// Fedify returns 200 with an empty collection for unknown users
-			const res = await SELF.fetch(`${BASE}/users/unknownuser/followers`, {
-				headers: { Accept: 'application/activity+json' },
-			});
-			expect(res.status).toBe(200);
-			const body = await res.json<Record<string, any>>();
-			expect(body.type).toBe('OrderedCollection');
-			expect(body.totalItems).toBe(0);
+		it('returns 404 for an unknown collection owner', async () => {
+			for (const suffix of ['', '?cursor=']) {
+				const res = await SELF.fetch(`${BASE}/users/unknownuser/followers${suffix}`, {
+					headers: { Accept: 'application/activity+json' },
+				});
+				expect(res.status).toBe(404);
+			}
 		});
 	});
 
@@ -189,6 +187,15 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(body.type).toBe('OrderedCollectionPage');
 			expect(body.orderedItems).toContain('https://remote.example.com/users/followeduser');
 		});
+
+		it('returns 404 for an unknown collection owner', async () => {
+			for (const suffix of ['', '?cursor=']) {
+				const res = await SELF.fetch(`${BASE}/users/unknownuser/following${suffix}`, {
+					headers: { Accept: 'application/activity+json' },
+				});
+				expect(res.status).toBe(404);
+			}
+		});
 	});
 
 	// ---------------------------------------------------------------
@@ -242,15 +249,13 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(firstItem.object.type).toBe('Note');
 		});
 
-		it('returns empty collection for unknown user', async () => {
-			// Fedify returns 200 with an empty collection for unknown users
-			const res = await SELF.fetch(`${BASE}/users/unknownuser/outbox`, {
-				headers: { Accept: 'application/activity+json' },
-			});
-			expect(res.status).toBe(200);
-			const body = await res.json<Record<string, any>>();
-			expect(body.type).toBe('OrderedCollection');
-			expect(body.totalItems).toBe(0);
+		it('returns 404 for an unknown collection owner', async () => {
+			for (const suffix of ['', '?cursor=']) {
+				const res = await SELF.fetch(`${BASE}/users/unknownuser/outbox${suffix}`, {
+					headers: { Accept: 'application/activity+json' },
+				});
+				expect(res.status).toBe(404);
+			}
 		});
 	});
 });

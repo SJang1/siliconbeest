@@ -17,6 +17,7 @@ import type { AccountRow, StatusRow } from '../../../types/db';
 import { AS_PUBLIC, toTemporalInstant, buildFedifyNote } from './helpers';
 import {
   authorizeAccountCollectionRequest,
+  getLocalAccountCollectionFirstCursor,
   setupFollowersDispatcher,
 } from '../../../../../../packages/shared/federation/collection-dispatchers';
 import {
@@ -120,15 +121,15 @@ function setupFollowingDispatcher(
         )
         .bind(identifier)
         .first<{ following_count: number }>();
-      if (
-        !account
-        || !await canExposeLocalAccountActivityPubResourcesByUsername(identifier)
-      ) return 0;
+      if (!account) return null;
+      if (!await canExposeLocalAccountActivityPubResourcesByUsername(identifier)) {
+        return 0;
+      }
       return account.following_count;
     })
-    .setFirstCursor(async (_ctx, _identifier) => {
-      return '';
-    })
+    .setFirstCursor((_ctx, identifier) =>
+      getLocalAccountCollectionFirstCursor(identifier)
+    )
     .authorize(authorizeAccountCollectionRequest);
 }
 
@@ -332,10 +333,10 @@ function setupOutboxDispatcher(
         )
         .bind(identifier)
         .first<{ id: string }>();
-      if (
-        !account
-        || !await canExposeLocalAccountActivityPubResources(account.id)
-      ) return 0;
+      if (!account) return null;
+      if (!await canExposeLocalAccountActivityPubResources(account.id)) {
+        return 0;
+      }
       const row = await db
         .prepare(
           `SELECT COUNT(*) AS cnt FROM statuses
@@ -346,9 +347,9 @@ function setupOutboxDispatcher(
         .first<{ cnt: number }>();
       return row?.cnt ?? 0;
     })
-    .setFirstCursor(async (_ctx, _identifier) => {
-      return '';
-    })
+    .setFirstCursor((_ctx, identifier) =>
+      getLocalAccountCollectionFirstCursor(identifier)
+    )
     .authorize((_ctx, identifier) =>
       canExposeLocalAccountActivityPubResourcesByUsername(identifier)
     );

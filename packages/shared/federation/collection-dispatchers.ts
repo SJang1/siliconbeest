@@ -51,6 +51,22 @@ interface FederationLike<TData> {
 const FOLLOWERS_PAGE_SIZE = 40;
 
 /**
+ * Fedify skips a paginated collection dispatcher on the collection root when
+ * a first cursor is present. Returning null for an unknown owner makes Fedify
+ * invoke the dispatcher, whose null result is then translated to HTTP 404.
+ */
+export async function getLocalAccountCollectionFirstCursor(
+  identifier: string,
+): Promise<string | null> {
+  const account = await env.DB.prepare(
+    `SELECT id FROM accounts
+     WHERE username = ?1 AND domain IS NULL
+     LIMIT 1`,
+  ).bind(identifier).first<{ id: string }>();
+  return account ? '' : null;
+}
+
+/**
  * HTTP access to a hidden local social graph requires a verified signature
  * owned by that exact actor. Collection dispatch itself remains unchanged so
  * internal followers-only delivery can still expand the real relationship.
@@ -183,10 +199,10 @@ export function setupFollowersDispatcher<TData>(
         )
         .bind(identifier)
         .first<{ followers_count: number }>();
-      return account?.followers_count ?? 0;
+      return account?.followers_count ?? null;
     })
-    .setFirstCursor(async (_ctx, _identifier) => {
-      return '';
-    })
+    .setFirstCursor((_ctx, identifier) =>
+      getLocalAccountCollectionFirstCursor(identifier)
+    )
     .authorize(authorizeAccountCollectionRequest);
 }
