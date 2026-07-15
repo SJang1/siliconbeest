@@ -187,6 +187,7 @@
     "home": "홈",
     "explore": "탐색",
     "notifications": "알림",
+    "announcements": "공지",
     "search": "검색",
     "bookmarks": "북마크",
     "favourites": "즐겨찾기",
@@ -303,6 +304,14 @@
     "noNotifications": "아직 알림이 없습니다",
     "follow_requests_pending": "대기 중인 팔로우 요청 {count}건",
     "follow_requests_hint": "탭하여 수락하거나 거절하세요"
+  },
+  "announcement": {
+    "unread_count": "읽지 않은 공지 {count}개",
+    "mark_read": "읽음 처리",
+    "mark_all_read": "모두 읽음 처리",
+    "read": "읽음",
+    "empty": "아직 공지가 없습니다",
+    "empty_hint": "서버 공지가 여기에 표시됩니다."
   },
   "profile": {
     "posts": "게시물",

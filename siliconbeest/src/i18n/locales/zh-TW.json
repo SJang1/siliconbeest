@@ -187,6 +187,7 @@
     "home": "首頁",
     "explore": "探索",
     "notifications": "通知",
+    "announcements": "公告",
     "search": "搜尋",
     "bookmarks": "書籤",
     "favourites": "最愛",
@@ -303,6 +304,14 @@
     "noNotifications": "這裡還沒有內容",
     "follow_requests_pending": "{count} 個待處理的追蹤請求",
     "follow_requests_hint": "點擊以審核並接受或拒絕"
+  },
+  "announcement": {
+    "unread_count": "{count} 則未讀公告",
+    "mark_read": "標記為已讀",
+    "mark_all_read": "全部標記為已讀",
+    "read": "已讀",
+    "empty": "目前沒有公告",
+    "empty_hint": "伺服器公告會顯示在這裡。"
   },
   "profile": {
     "posts": "貼文",

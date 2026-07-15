@@ -151,6 +151,13 @@ const router = createRouter({
 
     // Authenticated routes
     {
+      path: '/announcements',
+      name: 'announcements',
+      component: () => import('@/deck/views/DeckAnnouncementsView.vue'),
+      beforeEnter: requireAuth,
+      meta: { titleKey: 'Announcements' },
+    },
+    {
       path: '/notifications',
       name: 'notifications',
       component: () => import('@/views/NotificationsView.vue'),

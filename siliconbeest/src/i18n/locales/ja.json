@@ -187,6 +187,7 @@
     "home": "ホーム",
     "explore": "探索",
     "notifications": "通知",
+    "announcements": "お知らせ",
     "search": "検索",
     "bookmarks": "ブックマーク",
     "favourites": "お気に入り",
@@ -303,6 +304,14 @@
     "noNotifications": "まだ何もありません",
     "follow_requests_pending": "{count}件のフォローリクエストがあります",
     "follow_requests_hint": "タップして確認し、承認または拒否してください"
+  },
+  "announcement": {
+    "unread_count": "未読のお知らせが{count}件あります",
+    "mark_read": "既読にする",
+    "mark_all_read": "すべて既読にする",
+    "read": "既読",
+    "empty": "お知らせはまだありません",
+    "empty_hint": "サーバーからのお知らせがここに表示されます。"
   },
   "profile": {
     "posts": "投稿",

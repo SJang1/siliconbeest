@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useAnnouncementsStore } from '@/stores/announcements'
 import { useDeckColumns } from '../composables/useDeckColumns'
 import type { ColumnType } from '@/stores/ui'
 import Avatar from '@/components/common/Avatar.vue'
@@ -17,6 +18,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const notifStore = useNotificationsStore()
+const announcementsStore = useAnnouncementsStore()
 
 // Same-origin: the worker always serves /thumbnail.png (SVG fallback inside)
 const instanceIcon = '/thumbnail.png'
@@ -50,6 +52,11 @@ function isTimelineActive(type: string): boolean {
 const unreadBadge = computed(() => {
   const n = notifStore.unreadCount
   return n > 99 ? '99+' : n > 0 ? String(n) : ''
+})
+
+const announcementBadge = computed(() => {
+  const count = announcementsStore.unreadCount
+  return count > 99 ? '99+' : count > 0 ? String(count) : ''
 })
 
 const showColumnConfig = ref(false)
@@ -237,6 +244,20 @@ function isRouteActive(path: string): boolean {
     </router-link>
 
     <div class="dk-hairline-b my-1 w-10" aria-hidden="true" />
+
+    <!-- Announcements -->
+    <router-link
+      v-if="auth.isAuthenticated"
+      to="/announcements"
+      class="dk-rail-item no-underline"
+      :class="{ 'dk-rail-item-active': isRouteActive('/announcements') }"
+      :title="t('nav.announcements')"
+      :aria-label="t('nav.announcements')"
+    >
+      <span class="text-[19px]" aria-hidden="true">📢</span>
+      <span class="dk-rail-label">{{ t('nav.announcements') }}</span>
+      <span v-if="announcementBadge" class="dk-rail-badge">{{ announcementBadge }}</span>
+    </router-link>
 
     <!-- Alerts (notifications) -->
     <router-link

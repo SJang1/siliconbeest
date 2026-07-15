@@ -187,6 +187,7 @@
     "home": "Home",
     "explore": "Explore",
     "notifications": "Notifications",
+    "announcements": "Announcements",
     "search": "Search",
     "bookmarks": "Bookmarks",
     "favourites": "Favourites",
@@ -303,6 +304,14 @@
     "noNotifications": "Nothing here yet",
     "follow_requests_pending": "{count} pending follow requests",
     "follow_requests_hint": "Tap to review and accept or reject"
+  },
+  "announcement": {
+    "unread_count": "{count} unread announcements",
+    "mark_read": "Mark as read",
+    "mark_all_read": "Mark all as read",
+    "read": "Read",
+    "empty": "No announcements yet",
+    "empty_hint": "Server announcements will appear here."
   },
   "profile": {
     "posts": "Posts",

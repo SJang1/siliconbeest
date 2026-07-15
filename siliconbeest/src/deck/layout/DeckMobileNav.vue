@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore, type ColumnType } from '@/stores/ui'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useAnnouncementsStore } from '@/stores/announcements'
 import { useDeckColumns } from '../composables/useDeckColumns'
 
 const { t } = useI18n()
@@ -13,11 +14,17 @@ const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
 const notifStore = useNotificationsStore()
+const announcementsStore = useAnnouncementsStore()
 const { configRows } = useDeckColumns()
 
 const unreadBadge = computed(() => {
   const n = notifStore.unreadCount
   return n > 99 ? '99+' : n > 0 ? String(n) : ''
+})
+
+const announcementBadge = computed(() => {
+  const count = announcementsStore.unreadCount
+  return count > 99 ? '99+' : count > 0 ? String(count) : ''
 })
 
 function isActive(path: string): boolean {
@@ -87,6 +94,19 @@ async function selectColumn(type: ColumnType) {
         :class="ui.deckMenuOpen ? 'rotate-180' : ''"
         aria-hidden="true"
       >▲</span>
+    </router-link>
+
+    <router-link
+      v-if="auth.isAuthenticated"
+      to="/announcements"
+      class="dk-dim-text relative flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 no-underline"
+      :class="{ 'dk-text': isActive('/announcements') }"
+      :aria-label="t('nav.announcements')"
+      @click="ui.closeDeckMenu()"
+    >
+      <span class="text-lg" aria-hidden="true">📢</span>
+      <span class="dk-rail-label">{{ t('nav.announcements') }}</span>
+      <span v-if="announcementBadge" class="dk-rail-badge">{{ announcementBadge }}</span>
     </router-link>
 
     <router-link

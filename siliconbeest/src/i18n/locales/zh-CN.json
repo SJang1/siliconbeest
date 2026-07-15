@@ -187,6 +187,7 @@
     "home": "首页",
     "explore": "发现",
     "notifications": "通知",
+    "announcements": "公告",
     "search": "搜索",
     "bookmarks": "书签",
     "favourites": "收藏",
@@ -303,6 +304,14 @@
     "noNotifications": "暂无通知",
     "follow_requests_pending": "{count} 条待处理的关注请求",
     "follow_requests_hint": "点击以查看并接受或拒绝"
+  },
+  "announcement": {
+    "unread_count": "{count} 条未读公告",
+    "mark_read": "标记为已读",
+    "mark_all_read": "全部标记为已读",
+    "read": "已读",
+    "empty": "暂无公告",
+    "empty_hint": "服务器公告将显示在这里。"
   },
   "profile": {
     "posts": "帖文",
