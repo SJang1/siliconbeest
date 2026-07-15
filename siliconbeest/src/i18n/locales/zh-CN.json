@@ -1122,6 +1122,13 @@
     "copied": "已复制！",
     "qr_alt": "TOTP 二维码"
   },
+  "login_preflight": {
+    "loading": "正在确认您不是机器人...",
+    "title": "登录前验证",
+    "description": "请先完成机器人验证，再进行登录。",
+    "status_error": "无法启动机器人验证，请重试。",
+    "retry": "重试"
+  },
   "turnstile": {
     "title": "Turnstile (CAPTCHA)",
     "description": "使用 Cloudflare Turnstile 保护注册和登录",

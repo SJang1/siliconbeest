@@ -39,6 +39,10 @@ import {
 } from '../../../../services/auth';
 import { setAuthTokenCookie } from '../../../../utils/authCookie';
 import { getInternalSessionOAuthScopes } from '../../../../../../../packages/shared/permissions';
+import {
+	clearLoginPreflightCookie,
+	isLoginPreflightSatisfied,
+} from '../../../../services/loginPreflight';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -245,6 +249,10 @@ app.post('/register/verify', authRequired, requireScope('write:accounts'), async
 // ---------------------------------------------------------------------------
 
 app.post('/authenticate/options', async (c) => {
+	if (!await isLoginPreflightSatisfied(c.req.header('Cookie'))) {
+		return c.json({ error: 'login_preflight_required' }, 403);
+	}
+
 	const body = await c.req.json<{ email?: string }>().catch((): { email?: string } => ({}));
 
 	// Generate 32-byte random challenge
@@ -293,6 +301,10 @@ app.post('/authenticate/options', async (c) => {
 
 app.post('/authenticate/verify', async (c) => {
   try {
+	if (!await isLoginPreflightSatisfied(c.req.header('Cookie'))) {
+		return c.json({ error: 'login_preflight_required' }, 403);
+	}
+
 	const body = await c.req.json<{
 		id: string;
 		rawId: string;
@@ -430,6 +442,7 @@ app.post('/authenticate/verify', async (c) => {
 	await updateSignInTracking(user.id, ip);
 
 	setAuthTokenCookie(c, tokenValue);
+	clearLoginPreflightCookie(c);
 
 	return c.json({
 		access_token: tokenValue,

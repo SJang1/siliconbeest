@@ -6,8 +6,11 @@ import { verifyPassword } from '../../utils/crypto';
 import { generateToken } from '../../utils/crypto';
 import { createAuthorizationCode } from '../../services/oauth';
 import { getInstanceTitle } from '../../services/instance';
-import { verifyTurnstile, getTurnstileSettings } from '../../utils/turnstile';
 import { canUserAccessAccount, resolveToken } from '../../services/auth';
+import {
+	clearLoginPreflightCookie,
+	isLoginPreflightSatisfied,
+} from '../../services/loginPreflight';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -23,7 +26,6 @@ function loginPage(params: {
 	responseType: string;
 	error?: string;
 	instanceTitle: string;
-	turnstileSiteKey?: string;
 }): string {
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -31,7 +33,6 @@ function loginPage(params: {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sign in - ${params.instanceTitle}</title>
-${params.turnstileSiteKey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -69,7 +70,6 @@ ${params.turnstileSiteKey ? '<script src="https://challenges.cloudflare.com/turn
     <input id="email" type="email" name="email" required autocomplete="username" />
     <label for="password">Password</label>
     <input id="password" type="password" name="password" required autocomplete="current-password" />
-    ${params.turnstileSiteKey ? `<div class="cf-turnstile" data-sitekey="${escapeAttr(params.turnstileSiteKey)}" data-theme="dark" style="margin-bottom:16px;"></div>` : ''}
     <button type="submit" class="btn-primary">Sign in</button>
   </form>
   <div class="divider">or</div>
@@ -527,13 +527,21 @@ app.post('/', async (c) => {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Turnstile CAPTCHA verification (if enabled)
-	// ---------------------------------------------------------------------------
-	const turnstile = await getTurnstileSettings();
-
-	// ---------------------------------------------------------------------------
 	// Email/password login
 	// ---------------------------------------------------------------------------
+	if (!await isLoginPreflightSatisfied(c.req.header('Cookie'))) {
+		if (isJson) return c.json({ error: 'login_preflight_required' }, 403);
+		const oauthParams = new URLSearchParams({
+			client_id: clientId,
+			redirect_uri: redirectUri,
+			scope,
+			response_type: responseType,
+			...(state ? { state } : {}),
+		});
+		const authorizeUrl = `/oauth/authorize?${oauthParams.toString()}`;
+		return c.redirect(`/login?redirect=${encodeURIComponent(authorizeUrl)}`, 303);
+	}
+
 	const email = (body.email as string) ?? '';
 	const password = (body.password as string) ?? '';
 
@@ -547,47 +555,9 @@ app.post('/', async (c) => {
 				responseType,
 				error: 'Email and password are required',
 				instanceTitle: await getInstanceTitle(),
-				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
 		);
-	}
-
-	// Verify Turnstile token if enabled
-	if (turnstile.enabled && turnstile.secretKey) {
-		const cfToken = (body['cf-turnstile-response'] as string) ?? '';
-		if (!cfToken) {
-			return c.html(
-				loginPage({
-					clientId,
-					redirectUri,
-					scope,
-					state,
-					responseType,
-					error: 'CAPTCHA verification failed. Please try again.',
-					instanceTitle: await getInstanceTitle(),
-					turnstileSiteKey: turnstile.siteKey,
-				}),
-				422,
-			);
-		}
-		const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For');
-		const valid = await verifyTurnstile(cfToken, turnstile.secretKey, ip);
-		if (!valid) {
-			return c.html(
-				loginPage({
-					clientId,
-					redirectUri,
-					scope,
-					state,
-					responseType,
-					error: 'CAPTCHA verification failed. Please try again.',
-					instanceTitle: await getInstanceTitle(),
-					turnstileSiteKey: turnstile.siteKey,
-				}),
-				422,
-			);
-		}
 	}
 
 	// Look up user
@@ -607,7 +577,6 @@ app.post('/', async (c) => {
 				responseType,
 				error: 'Invalid email or password',
 				instanceTitle: await getInstanceTitle(),
-				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
 		);
@@ -625,7 +594,6 @@ app.post('/', async (c) => {
 				responseType,
 				error: 'Invalid email or password',
 				instanceTitle: await getInstanceTitle(),
-				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			400,
 		);
@@ -642,11 +610,12 @@ app.post('/', async (c) => {
 				responseType,
 				error: 'Please confirm your email address before signing in',
 				instanceTitle: await getInstanceTitle(),
-				turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : undefined,
 			}),
 			403,
 		);
 	}
+
+	clearLoginPreflightCookie(c);
 
 	// Check if 2FA is required
 	if (user.otp_enabled) {

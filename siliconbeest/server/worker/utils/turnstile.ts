@@ -2,15 +2,27 @@
  * Cloudflare Turnstile CAPTCHA verification utility.
  *
  * Verifies a Turnstile token against the Cloudflare siteverify endpoint.
- * Returns true when the token is valid, false otherwise.
  */
 import { env } from 'cloudflare:workers';
 import { getUserAgent } from './repository';
-export async function verifyTurnstile(
+
+export type TurnstileVerificationOutcome = 'passed' | 'rejected' | 'server_error';
+
+interface TurnstileVerificationResponse {
+  success?: boolean;
+  'error-codes'?: string[];
+}
+
+/**
+ * Keep a rejected challenge separate from a Turnstile service failure. Login
+ * may continue during a genuine verification outage, but an invalid or expired
+ * challenge must never be treated as an outage.
+ */
+export async function verifyTurnstileOutcome(
   token: string,
   secretKey: string,
   remoteIp?: string,
-): Promise<boolean> {
+): Promise<TurnstileVerificationOutcome> {
   const payload: Record<string, string> = {
     secret: secretKey,
     response: token,
@@ -19,20 +31,43 @@ export async function verifyTurnstile(
     payload.remoteip = remoteIp;
   }
 
-  const res = await fetch(
-    'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': getUserAgent(),
+  try {
+    const res = await fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': getUserAgent(),
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    },
-  );
+    );
 
-  const data: { success: boolean } = await res.json();
-  return data.success;
+    if (!res.ok) return 'server_error';
+
+    const data = await res.json() as TurnstileVerificationResponse;
+    if (data.success === true) return 'passed';
+    if (data.success !== false) return 'server_error';
+
+    return data['error-codes']?.includes('internal-error')
+      ? 'server_error'
+      : 'rejected';
+  } catch {
+    return 'server_error';
+  }
+}
+
+export async function verifyTurnstile(
+  token: string,
+  secretKey: string,
+  remoteIp?: string,
+): Promise<boolean> {
+  const outcome = await verifyTurnstileOutcome(token, secretKey, remoteIp);
+  if (outcome === 'server_error') {
+    throw new Error('Turnstile verification service unavailable');
+  }
+  return outcome === 'passed';
 }
 
 /**

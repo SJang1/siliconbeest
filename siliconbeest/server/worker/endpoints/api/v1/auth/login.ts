@@ -8,7 +8,6 @@ import { Hono } from 'hono';
 import { env } from 'cloudflare:workers';
 import type { AppVariables } from '../../../../types';
 import { generateToken } from '../../../../utils/crypto';
-import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 import {
 	verifyPasswordForRegistration,
 	getOrCreateInternalApp,
@@ -26,12 +25,50 @@ import {
 	getRegistrationSessionFromCookie,
 	setRegistrationSessionCookie,
 } from '../../../../utils/registrationCookie';
+import {
+	clearLoginPreflightCookie,
+	completeLoginPreflight,
+	getFailedLoginPreflightReturnTo,
+	getLoginPreflightStatus,
+	getSafeLoginReturnTo,
+	isLoginPreflightSatisfied,
+} from '../../../../services/loginPreflight';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
+app.get('/preflight', async (c) => {
+	const status = await getLoginPreflightStatus(c.req.header('Cookie'));
+	c.header('Cache-Control', 'no-store');
+	return c.json(status);
+});
+
+app.post('/preflight', async (c) => {
+	c.header('Cache-Control', 'no-store');
+	const formData = await c.req.formData().catch(() => null);
+	const turnstileToken = formData?.get('turnstile_token');
+	const returnTo = formData?.get('return_to');
+	const result = await completeLoginPreflight(
+		c,
+		typeof turnstileToken === 'string' ? turnstileToken : '',
+	);
+
+	if (result === 'rejected') {
+		return c.redirect(
+			getFailedLoginPreflightReturnTo(typeof returnTo === 'string' ? returnTo : null),
+			303,
+		);
+	}
+
+	return c.redirect(getSafeLoginReturnTo(typeof returnTo === 'string' ? returnTo : null), 303);
+});
+
 app.post('/', async (c) => {
-	const body = await c.req.json<{ username?: string; email?: string; password?: string; turnstile_token?: string }>()
-		.catch((): { username?: string; email?: string; password?: string; turnstile_token?: string } => ({}));
+	if (!await isLoginPreflightSatisfied(c.req.header('Cookie'))) {
+		return c.json({ error: 'login_preflight_required' }, 403);
+	}
+
+	const body = await c.req.json<{ username?: string; email?: string; password?: string }>()
+		.catch((): { username?: string; email?: string; password?: string } => ({}));
 
 	// Accept "username" or fall back to legacy "email" field for backwards compatibility
 	const identifier = body.username || body.email;
@@ -39,19 +76,6 @@ app.post('/', async (c) => {
 
 	if (typeof identifier !== 'string' || typeof password !== 'string' || !identifier || !password) {
 		return c.json({ error: 'Username and password are required' }, 422);
-	}
-
-	// Turnstile CAPTCHA verification (if enabled)
-	const turnstile = await getTurnstileSettings();
-	if (turnstile.enabled && turnstile.secretKey) {
-		if (!body.turnstile_token) {
-			return c.json({ error: 'CAPTCHA verification failed. Please try again.' }, 422);
-		}
-		const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For');
-		const valid = await verifyTurnstile(body.turnstile_token, turnstile.secretKey, ip);
-		if (!valid) {
-			return c.json({ error: 'CAPTCHA verification failed. Please try again.' }, 422);
-		}
 	}
 
 	const result = await verifyPasswordForRegistration(identifier, password);
@@ -65,6 +89,7 @@ app.post('/', async (c) => {
 	}
 
 	if (user.registration_state !== 'active' || !user.approved) {
+		clearLoginPreflightCookie(c);
 		const previousRegistrationToken = getRegistrationSessionFromCookie(c.req.header('Cookie'));
 		if (previousRegistrationToken) await revokeRegistrationSession(previousRegistrationToken);
 		setRegistrationSessionCookie(c, await createRegistrationSession(user.id));
@@ -82,6 +107,7 @@ app.post('/', async (c) => {
 
 	// 2FA challenge
 	if (user.otp_enabled) {
+		clearLoginPreflightCookie(c);
 		const mfaToken = generateToken(64);
 		await env.CACHE.put(`mfa:${mfaToken}`, user.id, { expirationTtl: 300 });
 		return c.json({ error: 'mfa_required', mfa_token: mfaToken, supported_challenge_types: ['totp'] }, 403);
@@ -99,6 +125,7 @@ app.post('/', async (c) => {
 	await updateSignInTracking(user.id, ip);
 
 	setAuthTokenCookie(c, tokenValue);
+	clearLoginPreflightCookie(c);
 	const registrationToken = getRegistrationSessionFromCookie(c.req.header('Cookie'));
 	if (registrationToken) await revokeRegistrationSession(registrationToken);
 	clearRegistrationSessionCookie(c);

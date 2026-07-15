@@ -181,12 +181,11 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(
     username: string,
     password: string,
-    turnstile_token?: string,
   ): Promise<AuthLoginResult> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await apiLogin(username, password, turnstile_token);
+      const { data } = await apiLogin(username, password);
       if (isRegistrationRequiredResponse(data)) {
         clearToken();
         return { type: 'registration_required', state: data.registration_state };

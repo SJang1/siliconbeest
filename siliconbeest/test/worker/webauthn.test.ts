@@ -38,6 +38,88 @@ async function resetDB() {
 
 let migrated = false;
 
+const TURNSTILE_PASS_SECRET = '1x0000000000000000000000000000000AA';
+const TURNSTILE_SITE_KEY = '1x00000000000000000000AA';
+const TURNSTILE_DUMMY_TOKEN = '1x00000000000000000000AA';
+let loginRequestIp = 100;
+
+interface LoginClientContext {
+	ip: string;
+	userAgent: string;
+}
+
+function createLoginClientContext(): LoginClientContext {
+	return {
+		ip: `198.51.100.${loginRequestIp++}`,
+		userAgent: 'SiliconBeest passkey preflight test',
+	};
+}
+
+function loginClientHeaders(context: LoginClientContext): Record<string, string> {
+	return {
+		'CF-Connecting-IP': context.ip,
+		'User-Agent': context.userAgent,
+	};
+}
+
+async function enableTurnstile() {
+	await env.DB.batch([
+		env.DB.prepare(
+			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '1', datetime('now'))",
+		),
+		env.DB.prepare(
+			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_site_key', ?1, datetime('now'))",
+		).bind(TURNSTILE_SITE_KEY),
+		env.DB.prepare(
+			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_secret_key', ?1, datetime('now'))",
+		).bind(TURNSTILE_PASS_SECRET),
+	]);
+	await env.CACHE.delete('settings:turnstile');
+}
+
+async function createLoginPreflightCookie(context: LoginClientContext): Promise<string> {
+	const res = await SELF.fetch(
+		'https://test.siliconbeest.local/api/v1/auth/login/preflight',
+		{
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				...loginClientHeaders(context),
+			},
+			body: new URLSearchParams({
+				turnstile_token: TURNSTILE_DUMMY_TOKEN,
+				return_to: '/login',
+			}).toString(),
+			redirect: 'manual',
+		},
+	);
+	expect(res.status).toBe(303);
+	const setCookie = res.headers.get('set-cookie');
+	expect(setCookie).toBeTruthy();
+	return setCookie!.split(';', 1)[0];
+}
+
+function invalidAuthenticationPayload() {
+	return {
+		id: 'fake-id',
+		rawId: 'fake-raw-id',
+		type: 'public-key',
+		response: {
+			authenticatorData: base64urlEncode(new Uint8Array(37)),
+			clientDataJSON: base64urlEncode(
+				new TextEncoder().encode(
+					JSON.stringify({
+						type: 'webauthn.get',
+						challenge: 'nonexistent-challenge',
+						origin: 'https://test.siliconbeest.local',
+					}),
+				),
+			),
+			signature: base64urlEncode(new Uint8Array(64)),
+		},
+	};
+}
+
 // ---------------------------------------------------------------------------
 // CBOR test-data helpers
 // ---------------------------------------------------------------------------
@@ -201,6 +283,7 @@ describe('WebAuthn API endpoints', () => {
 			// Re-insert default settings that applyMigration inserts
 			await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))").run();
 		}
+		await env.CACHE.delete('settings:turnstile');
 	});
 
 	// =========================================================================
@@ -328,34 +411,100 @@ describe('WebAuthn API endpoints', () => {
 		expect(json.timeout).toBeGreaterThan(0);
 	});
 
+	it('14. POST /authenticate/options requires login preflight when Turnstile is enabled', async () => {
+		await enableTurnstile();
+		const context = createLoginClientContext();
+		const res = await SELF.fetch(
+			'https://test.siliconbeest.local/api/v1/auth/webauthn/authenticate/options',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					...loginClientHeaders(context),
+				},
+				body: '{}',
+			},
+		);
+
+		expect(res.status).toBe(403);
+		expect(await res.json()).toEqual({ error: 'login_preflight_required' });
+	});
+
+	it('15. POST /authenticate/options accepts a valid login preflight cookie', async () => {
+		await enableTurnstile();
+		const context = createLoginClientContext();
+		const cookie = await createLoginPreflightCookie(context);
+		const res = await SELF.fetch(
+			'https://test.siliconbeest.local/api/v1/auth/webauthn/authenticate/options',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Cookie: cookie,
+					...loginClientHeaders(context),
+				},
+				body: '{}',
+			},
+		);
+
+		expect(res.status).toBe(200);
+		const json = (await res.json()) as { challenge: string };
+		expect(json.challenge).toBeTruthy();
+	});
+
 	// =========================================================================
 	// POST /authenticate/verify
 	// =========================================================================
 
-	it('14. POST /authenticate/verify with invalid data returns error', async () => {
+	it('16. POST /authenticate/verify requires login preflight when Turnstile is enabled', async () => {
+		await enableTurnstile();
+		const context = createLoginClientContext();
+		const res = await SELF.fetch(
+			'https://test.siliconbeest.local/api/v1/auth/webauthn/authenticate/verify',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					...loginClientHeaders(context),
+				},
+				body: JSON.stringify(invalidAuthenticationPayload()),
+			},
+		);
+
+		expect(res.status).toBe(403);
+		expect(await res.json()).toEqual({ error: 'login_preflight_required' });
+	});
+
+	it('17. POST /authenticate/verify accepts the gate before validating credentials', async () => {
+		await enableTurnstile();
+		const context = createLoginClientContext();
+		const cookie = await createLoginPreflightCookie(context);
+		const res = await SELF.fetch(
+			'https://test.siliconbeest.local/api/v1/auth/webauthn/authenticate/verify',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Cookie: cookie,
+					...loginClientHeaders(context),
+				},
+				body: JSON.stringify(invalidAuthenticationPayload()),
+			},
+		);
+
+		expect(res.status).toBeGreaterThanOrEqual(400);
+		expect(res.status).not.toBe(403);
+		const json = (await res.json()) as { error: string };
+		expect(json.error).not.toBe('login_preflight_required');
+	});
+
+	it('18. POST /authenticate/verify with invalid data returns error when Turnstile is disabled', async () => {
 		const res = await SELF.fetch(
 			'https://test.siliconbeest.local/api/v1/auth/webauthn/authenticate/verify',
 			{
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					id: 'fake-id',
-					rawId: 'fake-raw-id',
-					type: 'public-key',
-					response: {
-						authenticatorData: base64urlEncode(new Uint8Array(37)),
-						clientDataJSON: base64urlEncode(
-							new TextEncoder().encode(
-								JSON.stringify({
-									type: 'webauthn.get',
-									challenge: 'nonexistent-challenge',
-									origin: 'https://test.siliconbeest.local',
-								}),
-							),
-						),
-						signature: base64urlEncode(new Uint8Array(64)),
-					},
-				}),
+				body: JSON.stringify(invalidAuthenticationPayload()),
 			},
 		);
 

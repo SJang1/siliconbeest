@@ -1,6 +1,6 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { applyMigration, createTestUser, authHeaders } from './helpers';
+import { applyMigration, createTestUser } from './helpers';
 import { hashPassword } from '../../server/worker/utils/crypto';
 
 /**
@@ -42,6 +42,26 @@ const FAIL_SECRET = '2x0000000000000000000000000000000AA';
 const SITE_KEY = '1x00000000000000000000AA';
 const DUMMY_TOKEN = '1x00000000000000000000AA';
 let registrationRequestIp = 1;
+let loginRequestIp = 1;
+
+interface LoginClientContext {
+	ip: string;
+	userAgent: string;
+}
+
+function createLoginClientContext(): LoginClientContext {
+	return {
+		ip: `198.51.100.${loginRequestIp++}`,
+		userAgent: 'SiliconBeest login preflight test',
+	};
+}
+
+function loginClientHeaders(context: LoginClientContext): Record<string, string> {
+	return {
+		'CF-Connecting-IP': context.ip,
+		'User-Agent': context.userAgent,
+	};
+}
 
 async function enableTurnstile(secretKey: string = PASS_SECRET) {
 	await env.DB.batch([
@@ -87,12 +107,54 @@ async function registerRequest(body: Record<string, unknown>) {
 	});
 }
 
-async function loginRequest(body: Record<string, unknown>) {
+async function loginRequest(
+	body: Record<string, unknown>,
+	context: LoginClientContext = createLoginClientContext(),
+	cookie?: string,
+) {
 	return SELF.fetch('https://test.siliconbeest.local/api/v1/auth/login', {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			...loginClientHeaders(context),
+			...(cookie ? { Cookie: cookie } : {}),
+		},
 		body: JSON.stringify(body),
 	});
+}
+
+async function loginPreflightStatus(context: LoginClientContext, cookie?: string) {
+	return SELF.fetch('https://test.siliconbeest.local/api/v1/auth/login/preflight', {
+		headers: {
+			...loginClientHeaders(context),
+			...(cookie ? { Cookie: cookie } : {}),
+		},
+	});
+}
+
+async function submitLoginPreflight(
+	context: LoginClientContext,
+	returnTo: string = '/login',
+	token: string = DUMMY_TOKEN,
+) {
+	return SELF.fetch('https://test.siliconbeest.local/api/v1/auth/login/preflight', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded',
+			...loginClientHeaders(context),
+		},
+		body: new URLSearchParams({
+			turnstile_token: token,
+			return_to: returnTo,
+		}).toString(),
+		redirect: 'manual',
+	});
+}
+
+function extractCookie(response: Response): string {
+	const setCookie = response.headers.get('set-cookie');
+	expect(setCookie).toBeTruthy();
+	return setCookie!.split(';', 1)[0];
 }
 
 describe('Turnstile CAPTCHA verification', () => {
@@ -144,60 +206,121 @@ describe('Turnstile CAPTCHA verification', () => {
 			expect(json.registration_required).toBe(true);
 		});
 
-		it('5. Login without turnstile_token returns 422', async () => {
+		it('5. Login preflight status requires a challenge before verification', async () => {
 			await enableTurnstile();
-			const res = await loginRequest({ email: 'test@test.local', password: 'pass' });
-			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
-		});
+			const context = createLoginClientContext();
+			const res = await loginPreflightStatus(context);
 
-		it('6. Login with empty turnstile_token returns 422', async () => {
-			await enableTurnstile();
-			const res = await loginRequest({
-				email: 'test@test.local',
-				password: 'pass',
-				turnstile_token: '',
+			expect(res.status).toBe(200);
+			expect(res.headers.get('cache-control')).toContain('no-store');
+			const json = (await res.json()) as {
+				required: boolean;
+				passed: boolean;
+				site_key: string;
+			};
+			expect(json).toEqual({
+				required: true,
+				passed: false,
+				site_key: SITE_KEY,
 			});
-			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
 		});
 
-		it('7. Login with invalid turnstile_token (failing secret) returns 422', async () => {
+		it('6. Invalid login preflight challenge returns to the gate without a session cookie', async () => {
 			await enableTurnstile(FAIL_SECRET);
-			const res = await loginRequest({
-				email: 'test@test.local',
-				password: 'pass',
-				turnstile_token: DUMMY_TOKEN,
-			});
-			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
+			const context = createLoginClientContext();
+			const res = await submitLoginPreflight(context);
+
+			expect(res.status).toBe(303);
+			expect(res.headers.get('location')).toBe('/login?turnstile_error=failed');
+			expect(res.headers.get('set-cookie')).toBeNull();
 		});
 
-		it('8. Login with valid turnstile_token returns 200 with access_token', async () => {
-			await enableTurnstile(PASS_SECRET);
+		it('7. Login is rejected without a valid preflight session', async () => {
+			await enableTurnstile();
+			const context = createLoginClientContext();
+			const res = await loginRequest(
+				{ email: 'test@test.local', password: 'pass' },
+				context,
+			);
 
-			// Create a confirmed user with a known password hash
+			expect(res.status).toBe(403);
+			expect(await res.json()).toEqual({ error: 'login_preflight_required' });
+		});
+
+		it('8. A legacy body turnstile_token cannot bypass the preflight session', async () => {
+			await enableTurnstile(PASS_SECRET);
+			const context = createLoginClientContext();
+			const res = await loginRequest(
+				{
+					email: 'test@test.local',
+					password: 'pass',
+					turnstile_token: DUMMY_TOKEN,
+				},
+				context,
+			);
+
+			expect(res.status).toBe(403);
+			expect(await res.json()).toEqual({ error: 'login_preflight_required' });
+		});
+
+		it('9. Valid preflight cookie allows password login without a body token', async () => {
+			await enableTurnstile(PASS_SECRET);
+			const context = createLoginClientContext();
+			const preflight = await submitLoginPreflight(context);
+			expect(preflight.status).toBe(303);
+			expect(preflight.headers.get('location')).toBe('/login');
+			const cookie = extractCookie(preflight);
+
+			const status = await loginPreflightStatus(context, cookie);
+			expect(status.status).toBe(200);
+			expect(await status.json()).toEqual({
+				required: true,
+				passed: true,
+				site_key: SITE_KEY,
+			});
+
 			const { userId } = await createTestUser('turnstile_login');
-			// Set a real pbkdf2 password (we need the login endpoint to verify it)
-			// Instead, set a plain password the login endpoint treats as a match via dummy_hash fallback
-			// The login endpoint does: hash === password for non-standard hashes
 			const hashed = await hashPassword('testpassword123');
 			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
 				hashed,
 				userId,
 			).run();
 
-			const res = await loginRequest({
-				email: 'turnstile_login@test.local',
-				password: 'testpassword123',
-				turnstile_token: DUMMY_TOKEN,
-			});
+			const res = await loginRequest(
+				{
+					email: 'turnstile_login@test.local',
+					password: 'testpassword123',
+				},
+				context,
+				cookie,
+			);
 			expect(res.status).toBe(200);
 			const json = (await res.json()) as { access_token: string };
 			expect(json.access_token).toBeTruthy();
+		});
+
+		it('10. Login preflight preserves a nested redirect query', async () => {
+			await enableTurnstile(PASS_SECRET);
+			const context = createLoginClientContext();
+			const returnTo = '/aurora/login?redirect=%2Foauth%2Fauthorize%3Fclient_id%3Dclient-123%26redirect_uri%3Dhttps%253A%252F%252Fclient.example%252Fcallback';
+			const res = await submitLoginPreflight(context, returnTo);
+
+			expect(res.status).toBe(303);
+			expect(res.headers.get('location')).toBe(returnTo);
+			expect(res.headers.get('set-cookie')).toContain('siliconbeest_login_preflight=');
+		});
+
+		it('11. Login preflight rejects an external return target with a safe fallback', async () => {
+			await enableTurnstile(PASS_SECRET);
+			const context = createLoginClientContext();
+			const res = await submitLoginPreflight(
+				context,
+				'https://attacker.example/steal-login-session',
+			);
+
+			expect(res.status).toBe(303);
+			expect(res.headers.get('location')).toBe('/login');
+			expect(res.headers.get('set-cookie')).toContain('siliconbeest_login_preflight=');
 		});
 	});
 

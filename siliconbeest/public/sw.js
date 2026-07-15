@@ -7,6 +7,7 @@
 
 const CACHE_NAME = 'siliconbeest-v1';
 const DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+const NO_CACHE_PATHS = new Set(['/login', '/aurora/login', '/old/login']);
 
 // Paths that should never be cached (API, federation, auth, etc.)
 const NO_CACHE_PREFIXES = [
@@ -32,7 +33,8 @@ function shouldNotCache(url) {
   if (DEV_HOSTS.has(parsed.hostname)) return true;
 
   const path = parsed.pathname;
-  return NO_CACHE_PREFIXES.some((prefix) => path.startsWith(prefix));
+  return NO_CACHE_PATHS.has(path)
+    || NO_CACHE_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 function isNavigationRequest(request) {

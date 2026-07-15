@@ -1122,6 +1122,13 @@
     "copied": "Copied!",
     "qr_alt": "TOTP QR code"
   },
+  "login_preflight": {
+    "loading": "Checking that you're not a bot...",
+    "title": "One more step",
+    "description": "Complete the bot check before signing in.",
+    "status_error": "We couldn't start the bot check. Please try again.",
+    "retry": "Try again"
+  },
   "turnstile": {
     "title": "Turnstile (CAPTCHA)",
     "description": "Protect registration and login with Cloudflare Turnstile",

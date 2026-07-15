@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { useTurnstile } from '@/composables/useTurnstile'
 import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
 const route = useRoute()
-const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const passkeyLoading = ref(false)
-const turnstileRendered = ref(false)
 
 const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
 const registerTarget = computed(() => ({
@@ -24,13 +21,12 @@ const registerTarget = computed(() => ({
 
 const props = defineProps<{ serverError?: string }>()
 const emit = defineEmits<{
-  submit: [credentials: { username: string; password: string; turnstile_token?: string }]
+  submit: [credentials: { username: string; password: string }]
   passkey: []
 }>()
 
-function finishLogin(resetCaptcha = false) {
+function finishLogin() {
   loading.value = false
-  if (resetCaptcha) resetTurnstile()
 }
 
 function finishPasskey() {
@@ -39,31 +35,11 @@ function finishPasskey() {
 
 defineExpose({ finishLogin, finishPasskey })
 
-function tryRenderTurnstile() {
-  if (turnstileEnabled.value && !turnstileRendered.value) {
-    renderTurnstile('turnstile-login')
-    turnstileRendered.value = true
-  }
-}
-
-onMounted(() => {
-  tryRenderTurnstile()
-})
-
-// Instance store may load after mount — watch for it
-watch(turnstileEnabled, (enabled) => {
-  if (enabled) tryRenderTurnstile()
-})
-
 function handleSubmit() {
   if (!username.value || !password.value) return
-  if (turnstileEnabled.value && !turnstileToken.value) {
-    error.value = t('turnstile.verification_failed')
-    return
-  }
   loading.value = true
   error.value = ''
-  emit('submit', { username: username.value, password: password.value, turnstile_token: turnstileToken.value })
+  emit('submit', { username: username.value, password: password.value })
 }
 
 function handlePasskeyLogin() {
@@ -133,9 +109,6 @@ function handlePasskeyLogin() {
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>
-
-    <!-- Turnstile CAPTCHA -->
-    <div v-if="turnstileEnabled" id="turnstile-login" class="flex justify-center"></div>
 
     <!-- Submit -->
     <button
