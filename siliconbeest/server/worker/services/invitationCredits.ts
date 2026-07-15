@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { hasStaffCapability } from '../../../../packages/shared/permissions';
 import { AppError } from '../middleware/errorHandler';
-import { generateToken, sha256 } from '../utils/crypto';
+import { decryptAESGCM, encryptAESGCM, generateToken, sha256 } from '../utils/crypto';
 import { generateUlid } from '../utils/ulid';
 import { reconcileContributionAwards } from './contribution';
 import { getSetting } from './instance';
@@ -109,6 +109,7 @@ export interface InvitationCreditStatus {
 
 export interface InvitationLinkSummary {
 	id: string;
+	url: string;
 	uses_remaining: number;
 	issued_uses: number;
 	expires_at: string | null;
@@ -119,7 +120,22 @@ export interface InvitationLinkSummary {
 
 export interface CreatedInvitationLink extends InvitationLinkSummary {
 	token: string;
-	url: string;
+}
+
+async function invitationTokenEncryptionKey(): Promise<string> {
+	return sha256(`siliconbeest:invitation-token:v1:${env.OTP_ENCRYPTION_KEY}`);
+}
+
+async function encryptInvitationToken(token: string): Promise<string> {
+	return encryptAESGCM(token, await invitationTokenEncryptionKey());
+}
+
+async function decryptInvitationToken(ciphertext: string): Promise<string> {
+	return decryptAESGCM(ciphertext, await invitationTokenEncryptionKey());
+}
+
+function invitationUrl(token: string): string {
+	return `https://${env.INSTANCE_DOMAIN}/?invite=${encodeURIComponent(token)}`;
 }
 
 export interface InvitationBalanceSummary {
@@ -306,7 +322,10 @@ export async function createInvitationLink(
 	const operationId = generateUlid();
 	const auditId = generateUlid();
 	const token = generateToken(64);
-	const tokenHash = await sha256(token);
+	const [tokenHash, tokenCiphertext] = await Promise.all([
+		sha256(token),
+		encryptInvitationToken(token),
+	]);
 	const now = new Date();
 	const nowIso = now.toISOString();
 	const issueWindowCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
@@ -384,8 +403,8 @@ export async function createInvitationLink(
 			`INSERT INTO registration_invites
 			 (id, token_hash, inviter_account_id, remaining_uses, auto_follow, expires_at,
 			  revoked_at, created_at, updated_at, issued_uses, revoked_unused_uses,
-			  credits_restored_at, credit_operation_id, reset_at)
-			 SELECT ?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?7, ?4, 0, NULL, NULL, NULL
+			  credits_restored_at, credit_operation_id, reset_at, token_ciphertext)
+			 SELECT ?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?7, ?4, 0, NULL, NULL, NULL, ?9
 			 WHERE EXISTS (
 			   SELECT 1 FROM account_invitation_balances
 			   WHERE account_id = ?3 AND last_operation_id = ?8
@@ -399,6 +418,7 @@ export async function createInvitationLink(
 			expiresAt,
 			nowIso,
 			operationId,
+			tokenCiphertext,
 		),
 		env.DB.prepare(
 			`INSERT INTO invitation_audit_logs
@@ -446,7 +466,7 @@ export async function createInvitationLink(
 	return {
 		id,
 		token,
-		url: `https://${env.INSTANCE_DOMAIN}/?invite=${encodeURIComponent(token)}`,
+		url: invitationUrl(token),
 		uses_remaining: created.remaining_uses,
 		issued_uses: created.issued_uses,
 		expires_at: expiresAt,
@@ -458,12 +478,14 @@ export async function createInvitationLink(
 
 export async function listInvitationLinks(accountId: string): Promise<InvitationLinkSummary[]> {
 	const { results } = await env.DB.prepare(
-		`SELECT id, remaining_uses, issued_uses, expires_at, auto_follow, revoked_at, created_at
+		`SELECT id, token_ciphertext, remaining_uses, issued_uses, expires_at, auto_follow,
+		        revoked_at, created_at
 		 FROM registration_invites
 		 WHERE inviter_account_id = ?1 AND revoked_at IS NULL
 		 ORDER BY created_at DESC`,
 	).bind(accountId).all<{
 		id: string;
+		token_ciphertext: string;
 		remaining_uses: number;
 		issued_uses: number;
 		expires_at: string | null;
@@ -471,14 +493,18 @@ export async function listInvitationLinks(accountId: string): Promise<Invitation
 		revoked_at: string | null;
 		created_at: string;
 	}>();
-	return (results ?? []).map((record) => ({
-		id: record.id,
-		uses_remaining: record.remaining_uses,
-		issued_uses: record.issued_uses,
-		expires_at: record.expires_at,
-		auto_follow: record.auto_follow !== 0,
-		revoked_at: record.revoked_at,
-		created_at: record.created_at,
+	return Promise.all((results ?? []).map(async (record) => {
+		const token = await decryptInvitationToken(record.token_ciphertext);
+		return {
+			id: record.id,
+			url: invitationUrl(token),
+			uses_remaining: record.remaining_uses,
+			issued_uses: record.issued_uses,
+			expires_at: record.expires_at,
+			auto_follow: record.auto_follow !== 0,
+			revoked_at: record.revoked_at,
+			created_at: record.created_at,
+		};
 	}));
 }
 

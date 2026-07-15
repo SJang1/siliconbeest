@@ -10,7 +10,6 @@ import {
 } from '@/api/mastodon/invitations'
 import { getApiErrorMessage } from '@/utils/apiError'
 import type {
-  CreatedInvitation,
   InvitationCredits,
   InvitationSummary,
 } from '@/types/registration'
@@ -28,8 +27,7 @@ const loading = ref(true)
 const creating = ref(false)
 const revokingId = ref<string | null>(null)
 const error = ref('')
-const copied = ref(false)
-const createdInvitation = ref<CreatedInvitation | null>(null)
+const copiedId = ref<string | null>(null)
 
 const uses = ref(1)
 const expiresInDays = ref<number | null>(7)
@@ -83,14 +81,13 @@ async function handleCreate() {
   if (!auth.token || !canCreate.value) return
   creating.value = true
   error.value = ''
-  copied.value = false
+  copiedId.value = null
   try {
-    const { data } = await createInvitation(auth.token, {
+    await createInvitation(auth.token, {
       uses: Math.trunc(uses.value),
       expires_in_days: expiresInDays.value,
       auto_follow: autoFollow.value,
     })
-    createdInvitation.value = data
     await loadInvitations()
   } catch (requestError) {
     error.value = getApiErrorMessage(requestError, t('common.error'))
@@ -99,11 +96,10 @@ async function handleCreate() {
   }
 }
 
-async function copyCreatedLink() {
-  if (!createdInvitation.value) return
+async function copyInvitationLink(invitation: InvitationSummary) {
   try {
-    await navigator.clipboard.writeText(createdInvitation.value.url)
-    copied.value = true
+    await navigator.clipboard.writeText(invitation.url)
+    copiedId.value = invitation.id
   } catch (requestError) {
     error.value = getApiErrorMessage(requestError, t('common.error'))
   }
@@ -116,7 +112,7 @@ async function handleRevoke(invitation: InvitationSummary) {
   try {
     await revokeInvitation(auth.token, invitation.id)
     invitations.value = invitations.value.filter((item) => item.id !== invitation.id)
-    if (createdInvitation.value?.id === invitation.id) createdInvitation.value = null
+    if (copiedId.value === invitation.id) copiedId.value = null
     await loadInvitations()
   } catch (requestError) {
     error.value = getApiErrorMessage(requestError, t('common.error'))
@@ -250,31 +246,6 @@ onMounted(loadInvitations)
       </p>
     </form>
 
-    <div
-      v-if="createdInvitation"
-      :class="legacy ? 'rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-800 dark:bg-emerald-900/20' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-700/40 dark:bg-emerald-950/30'"
-    >
-      <h2 class="font-semibold text-emerald-800 dark:text-emerald-300">
-        {{ t('invitations.created') }}
-      </h2>
-      <div class="mt-3 flex flex-col gap-2 sm:flex-row">
-        <input
-          :value="createdInvitation.url"
-          type="text"
-          readonly
-          :class="legacy ? 'min-w-0 flex-1 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm dark:border-emerald-800 dark:bg-gray-800' : 'sb-input min-w-0 flex-1'"
-          @focus="($event.target as HTMLInputElement).select()"
-        />
-        <button
-          type="button"
-          :class="legacy ? 'rounded-lg border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:text-emerald-300' : 'sb-btn sb-btn-secondary'"
-          @click="copyCreatedLink"
-        >
-          {{ copied ? t('invitations.copied') : t('invitations.copy_link') }}
-        </button>
-      </div>
-    </div>
-
     <section>
       <h2 :class="legacy ? 'mb-3 text-lg font-semibold' : 'sb-heading mb-3 text-lg'">
         {{ t('invitations.active_links') }}
@@ -292,6 +263,23 @@ onMounted(loadInvitations)
           :key="invitation.id"
           :class="legacy ? 'rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800' : 'sb-card p-4'"
         >
+          <div class="mb-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              :value="invitation.url"
+              type="text"
+              readonly
+              :aria-label="t('invitations.copy_link')"
+              :class="legacy ? 'min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900' : 'sb-input min-w-0 flex-1'"
+              @focus="($event.target as HTMLInputElement).select()"
+            />
+            <button
+              type="button"
+              :class="legacy ? 'rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold dark:border-gray-600' : 'sb-btn sb-btn-secondary'"
+              @click="copyInvitationLink(invitation)"
+            >
+              {{ copiedId === invitation.id ? t('invitations.copied') : t('invitations.copy_link') }}
+            </button>
+          </div>
           <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <dl class="grid min-w-0 flex-1 gap-x-5 gap-y-2 text-sm sm:grid-cols-2">
               <div>

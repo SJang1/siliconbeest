@@ -21,9 +21,15 @@ interface CreditStatus {
 interface CreatedInvite {
 	id: string;
 	token: string;
+	url: string;
 	uses_remaining: number;
 	issued_uses: number;
 	revoked_at: string | null;
+}
+
+interface ListedInvite {
+	id: string;
+	url: string;
 }
 
 interface AuditResponse {
@@ -146,6 +152,27 @@ describe('invitation credit ledger', () => {
 			'invite.created',
 		]));
 		expect(logs.logs.find((log) => log.action === 'invite.created')?.credit_delta).toBe(-3);
+	});
+
+	it('keeps active invitation URLs available across repeated list requests', async () => {
+		const admin = await createTestUser(`persistent_admin_${sequence++}`, { role: 'admin' });
+		const inviter = await createTestUser(`persistent_inviter_${sequence++}`);
+		expect((await adminSetCredits(admin.token, inviter.accountId, 1)).status).toBe(200);
+		const created = await (await createInvite(inviter.token, 1)).json<CreatedInvite>();
+
+		const first = await SELF.fetch(`${BASE}/api/v1/invites`, {
+			headers: authHeaders(inviter.token),
+		});
+		const second = await SELF.fetch(`${BASE}/api/v1/invites`, {
+			headers: authHeaders(inviter.token),
+		});
+		expect(first.status).toBe(200);
+		expect(second.status).toBe(200);
+		expect((await first.json<ListedInvite[]>())[0]).toMatchObject({
+			id: created.id,
+			url: created.url,
+		});
+		expect((await second.json<ListedInvite[]>())[0]?.url).toBe(created.url);
 	});
 
 	it('blocks user issuance globally while preserving the admin bypass', async () => {

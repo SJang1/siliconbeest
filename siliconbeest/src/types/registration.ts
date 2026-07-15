@@ -65,6 +65,7 @@ export interface RegistrationCancelledResponse {
 
 export interface InvitationSummary {
   id: string;
+  url: string;
   uses_remaining: number;
   issued_uses: number;
   expires_at: string | null;
@@ -75,7 +76,6 @@ export interface InvitationSummary {
 
 export interface CreatedInvitation extends InvitationSummary {
   token: string;
-  url: string;
 }
 
 export interface CreateInvitationInput {

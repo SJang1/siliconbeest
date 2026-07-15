@@ -52,6 +52,7 @@ export interface RegistrationInvitePreview {
 
 export interface RegistrationInviteSummary {
 	id: string;
+	url: string;
 	uses_remaining: number;
 	issued_uses: number;
 	expires_at: string | null;
