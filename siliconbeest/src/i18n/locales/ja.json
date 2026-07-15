@@ -459,6 +459,17 @@
         "replay": "再送",
         "discard": "破棄",
         "discard_confirm": "このメッセージを破棄しますか？再処理されません。",
+        "select_all_visible": "表示中のメッセージをすべて選択",
+        "select_message": "{activity}メッセージを選択",
+        "selected_count": "{count}件選択中",
+        "replay_selected": "選択項目を再送",
+        "discard_selected": "選択項目を破棄",
+        "replay_all": "すべて再送",
+        "discard_all": "すべて破棄",
+        "replay_selected_confirm": "選択した{count}件のメッセージを再送しますか？",
+        "discard_selected_confirm": "選択した{count}件のメッセージを破棄しますか？再処理されません。",
+        "replay_all_confirm": "保管中の{count}件のメッセージをすべて再送しますか？",
+        "discard_all_confirm": "保管中の{count}件のメッセージをすべて破棄しますか？再処理されません。",
         "empty": "メッセージはありません"
       }
     },

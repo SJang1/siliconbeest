@@ -459,6 +459,17 @@
         "replay": "重放",
         "discard": "丢弃",
         "discard_confirm": "确定丢弃此消息？它将不会再被处理。",
+        "select_all_visible": "选择当前显示的所有消息",
+        "select_message": "选择{activity}消息",
+        "selected_count": "已选择 {count} 条",
+        "replay_selected": "重放所选",
+        "discard_selected": "丢弃所选",
+        "replay_all": "全部重放",
+        "discard_all": "全部丢弃",
+        "replay_selected_confirm": "要重放所选的 {count} 条消息吗？",
+        "discard_selected_confirm": "要丢弃所选的 {count} 条消息吗？它们将不会再被处理。",
+        "replay_all_confirm": "要重放全部 {count} 条已搁置消息吗？",
+        "discard_all_confirm": "要丢弃全部 {count} 条已搁置消息吗？它们将不会再被处理。",
         "empty": "暂无消息"
       }
     },

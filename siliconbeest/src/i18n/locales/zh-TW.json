@@ -459,6 +459,17 @@
         "replay": "重播",
         "discard": "捨棄",
         "discard_confirm": "確定捨棄此訊息？它將不會再被處理。",
+        "select_all_visible": "選取目前顯示的所有訊息",
+        "select_message": "選取{activity}訊息",
+        "selected_count": "已選取 {count} 則",
+        "replay_selected": "重播所選",
+        "discard_selected": "捨棄所選",
+        "replay_all": "全部重播",
+        "discard_all": "全部捨棄",
+        "replay_selected_confirm": "要重播所選的 {count} 則訊息嗎？",
+        "discard_selected_confirm": "要捨棄所選的 {count} 則訊息嗎？它們將不會再被處理。",
+        "replay_all_confirm": "要重播全部 {count} 則已擱置訊息嗎？",
+        "discard_all_confirm": "要捨棄全部 {count} 則已擱置訊息嗎？它們將不會再被處理。",
         "empty": "暫無訊息"
       }
     },

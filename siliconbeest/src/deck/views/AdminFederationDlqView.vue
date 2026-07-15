@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
   getFederationDlq,
   replayFederationDlqMessage,
   discardFederationDlqMessage,
+  processFederationDlqMessages,
   type FederationDlqMessage,
 } from '@/api/mastodon/admin'
 import DeckAdminLayout from '@/deck/layout/DeckAdminLayout.vue'
@@ -24,7 +25,16 @@ const counts = ref<Record<string, number>>({})
 const statusFilter = ref<string>('parked')
 const expandedId = ref<string | null>(null)
 const busyId = ref<string | null>(null)
+const bulkBusy = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
 const hasMore = ref(false)
+
+const selectableMessages = computed(() => messages.value.filter((msg) => msg.status === 'parked'))
+const actionBusy = computed(() => bulkBusy.value || busyId.value !== null)
+const allVisibleSelected = computed(() => (
+  selectableMessages.value.length > 0
+  && selectableMessages.value.every((msg) => selectedIds.value.has(msg.id))
+))
 
 function statusChipClasses(status: string): string {
   if (status === 'parked') {
@@ -76,6 +86,7 @@ async function load(append = false) {
     }
     const res = await getFederationDlq(auth.token!, params)
     messages.value = append ? [...messages.value, ...res.data.items] : res.data.items
+    if (!append) selectedIds.value = new Set()
     counts.value = res.data.counts
     hasMore.value = res.data.items.length >= LIMIT
   } catch (e) {
@@ -90,6 +101,45 @@ function setFilter(status: string) {
   statusFilter.value = status
   expandedId.value = null
   load(false)
+}
+
+function toggleSelection(id: string) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+
+function toggleAllVisible() {
+  const next = new Set(selectedIds.value)
+  if (allVisibleSelected.value) {
+    selectableMessages.value.forEach((msg) => next.delete(msg.id))
+  } else {
+    selectableMessages.value.forEach((msg) => next.add(msg.id))
+  }
+  selectedIds.value = next
+}
+
+async function processBulk(action: 'replay' | 'discard', all: boolean) {
+  if (actionBusy.value) return
+  const count = all ? (counts.value.parked ?? 0) : selectedIds.value.size
+  if (count === 0) return
+  const confirmKey = all
+    ? `admin.federation.dlq.${action}_all_confirm`
+    : `admin.federation.dlq.${action}_selected_confirm`
+  if (!confirm(t(confirmKey, { count }))) return
+
+  bulkBusy.value = true
+  error.value = null
+  try {
+    const options = all ? { all: true as const } : { ids: [...selectedIds.value] }
+    await processFederationDlqMessages(auth.token!, action, options)
+    await load(false)
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    bulkBusy.value = false
+  }
 }
 
 async function replay(msg: FederationDlqMessage) {
@@ -154,10 +204,49 @@ onMounted(() => {
           :class="statusFilter === status
             ? 'ring-2 ring-brand-400 ' + statusChipClasses(status)
             : statusChipClasses(status)"
+          :disabled="actionBusy"
           @click="setFilter(status)"
         >
           {{ t(`admin.federation.dlq.${status}`) }}
           <span class="ml-1 font-semibold">{{ counts[status] ?? 0 }}</span>
+        </button>
+      </div>
+
+      <div
+        v-if="statusFilter === 'parked' && (counts.parked ?? 0) > 0"
+        class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-outline bg-surface-2 px-3 py-2 dark:border-outline-dark dark:bg-surface-2-dark"
+      >
+        <span class="mr-auto text-sm text-slate-600 dark:text-slate-300">
+          {{ t('admin.federation.dlq.selected_count', { count: selectedIds.size }) }}
+        </span>
+        <button
+          :disabled="actionBusy || selectedIds.size === 0"
+          class="sb-btn sb-btn-secondary sb-btn-sm text-emerald-700 dark:text-emerald-300"
+          @click="processBulk('replay', false)"
+        >
+          {{ t('admin.federation.dlq.replay_selected') }}
+        </button>
+        <button
+          :disabled="actionBusy || selectedIds.size === 0"
+          class="sb-btn sb-btn-secondary sb-btn-sm text-red-600 dark:text-red-400"
+          @click="processBulk('discard', false)"
+        >
+          {{ t('admin.federation.dlq.discard_selected') }}
+        </button>
+        <span class="mx-1 h-5 w-px bg-outline dark:bg-outline-dark" aria-hidden="true"></span>
+        <button
+          :disabled="actionBusy"
+          class="sb-btn sb-btn-secondary sb-btn-sm text-emerald-700 dark:text-emerald-300"
+          @click="processBulk('replay', true)"
+        >
+          {{ t('admin.federation.dlq.replay_all') }}
+        </button>
+        <button
+          :disabled="actionBusy"
+          class="sb-btn sb-btn-secondary sb-btn-sm text-red-600 dark:text-red-400"
+          @click="processBulk('discard', true)"
+        >
+          {{ t('admin.federation.dlq.discard_all') }}
         </button>
       </div>
 
@@ -181,6 +270,16 @@ onMounted(() => {
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left">
+                <th v-if="statusFilter === 'parked'" class="sticky top-0 z-10 w-12 border-b border-outline bg-surface-2 px-4 py-3 dark:border-outline-dark dark:bg-surface-2-dark">
+                  <input
+                    type="checkbox"
+                    :checked="allVisibleSelected"
+                    :aria-label="t('admin.federation.dlq.select_all_visible')"
+                    :disabled="actionBusy"
+                    class="h-4 w-4 rounded border-outline text-brand-600"
+                    @change="toggleAllVisible"
+                  />
+                </th>
                 <th class="sticky top-0 z-10 border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400">{{ t('admin.federation.dlq.activity') }}</th>
                 <th class="sticky top-0 z-10 hidden border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400 md:table-cell">{{ t('admin.federation.dlq.error') }}</th>
                 <th class="sticky top-0 z-10 hidden border-b border-outline bg-surface-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-outline-dark dark:bg-surface-2-dark dark:text-slate-400 lg:table-cell">{{ t('admin.federation.dlq.attempts') }}</th>
@@ -194,6 +293,16 @@ onMounted(() => {
                   class="cursor-pointer border-b border-outline transition-colors last:border-0 hover:bg-surface-2/70 dark:border-outline-dark dark:hover:bg-surface-2-dark/70"
                   @click="toggleExpand(msg.id)"
                 >
+                  <td v-if="statusFilter === 'parked'" class="px-4 py-3" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="selectedIds.has(msg.id)"
+                      :aria-label="t('admin.federation.dlq.select_message', { activity: activityLabel(msg) })"
+                      :disabled="actionBusy"
+                      class="h-4 w-4 rounded border-outline text-brand-600"
+                      @change="toggleSelection(msg.id)"
+                    />
+                  </td>
                   <td class="px-4 py-3">
                     <div class="font-medium text-slate-900 dark:text-white">{{ activityLabel(msg) }}</div>
                     <div v-if="msg.actor" class="mt-0.5 max-w-[16rem] truncate text-xs text-slate-500 dark:text-slate-400">{{ msg.actor }}</div>
@@ -210,14 +319,14 @@ onMounted(() => {
                   <td class="px-4 py-3">
                     <div v-if="msg.status === 'parked'" class="flex justify-end gap-1" @click.stop>
                       <button
-                        :disabled="busyId === msg.id"
+                        :disabled="bulkBusy || busyId === msg.id"
                         class="sb-btn sb-btn-ghost sb-btn-sm shrink-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
                         @click="replay(msg)"
                       >
                         {{ t('admin.federation.dlq.replay') }}
                       </button>
                       <button
-                        :disabled="busyId === msg.id"
+                        :disabled="bulkBusy || busyId === msg.id"
                         class="sb-btn sb-btn-ghost sb-btn-sm shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                         @click="discard(msg)"
                       >
@@ -231,7 +340,7 @@ onMounted(() => {
                 </tr>
                 <!-- Expanded detail panel -->
                 <tr v-if="expandedId === msg.id" class="border-b border-outline last:border-0 dark:border-outline-dark">
-                  <td colspan="5" class="px-4 pb-4 pt-1">
+                  <td :colspan="statusFilter === 'parked' ? 6 : 5" class="px-4 pb-4 pt-1">
                     <div class="space-y-3 rounded-xl border border-outline bg-surface-2 p-4 text-sm dark:border-outline-dark dark:bg-surface-2-dark">
                       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <div>

@@ -137,3 +137,18 @@ export function discardFederationDlqMessage(token: string, id: string) {
     token,
   });
 }
+
+export function processFederationDlqMessages(
+  token: string,
+  action: 'replay' | 'discard',
+  options: { ids: string[] } | { all: true },
+) {
+  return apiFetch<{ action: 'replay' | 'discard'; processed: number }>(
+    '/v1/admin/federation/dlq/bulk',
+    {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ action, ...options }),
+    },
+  );
+}

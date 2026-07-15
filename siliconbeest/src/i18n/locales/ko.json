@@ -459,6 +459,17 @@
         "replay": "재전송",
         "discard": "폐기",
         "discard_confirm": "이 메시지를 폐기할까요? 다시 처리되지 않습니다.",
+        "select_all_visible": "현재 표시된 메시지 모두 선택",
+        "select_message": "{activity} 메시지 선택",
+        "selected_count": "{count}개 선택됨",
+        "replay_selected": "선택 재전송",
+        "discard_selected": "선택 폐기",
+        "replay_all": "전체 재전송",
+        "discard_all": "전체 폐기",
+        "replay_selected_confirm": "선택한 {count}개 메시지를 재전송할까요?",
+        "discard_selected_confirm": "선택한 {count}개 메시지를 폐기할까요? 다시 처리되지 않습니다.",
+        "replay_all_confirm": "보관된 메시지 {count}개를 모두 재전송할까요?",
+        "discard_all_confirm": "보관된 메시지 {count}개를 모두 폐기할까요? 다시 처리되지 않습니다.",
         "empty": "메시지가 없습니다"
       }
     },

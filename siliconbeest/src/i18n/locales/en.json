@@ -459,6 +459,17 @@
         "replay": "Replay",
         "discard": "Discard",
         "discard_confirm": "Discard this message? It will not be processed again.",
+        "select_all_visible": "Select all visible messages",
+        "select_message": "Select {activity} message",
+        "selected_count": "{count} selected",
+        "replay_selected": "Replay selected",
+        "discard_selected": "Discard selected",
+        "replay_all": "Replay all",
+        "discard_all": "Discard all",
+        "replay_selected_confirm": "Replay the {count} selected messages?",
+        "discard_selected_confirm": "Discard the {count} selected messages? They will not be processed again.",
+        "replay_all_confirm": "Replay all {count} parked messages?",
+        "discard_all_confirm": "Discard all {count} parked messages? They will not be processed again.",
         "empty": "No messages"
       }
     },

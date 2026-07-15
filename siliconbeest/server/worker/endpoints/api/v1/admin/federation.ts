@@ -5,6 +5,7 @@
  * GET /instances/:domain  — Single instance detail with account count
  * GET /stats              — Federation overview statistics
  * GET /dlq                — List parked dead-letter messages
+ * POST /dlq/bulk          — Replay or discard selected/all parked messages
  * POST /dlq/:id/replay    — Re-enqueue a parked message to the federation queue
  * DELETE /dlq/:id         — Discard a parked message
  *
@@ -23,6 +24,8 @@ import {
   listDlqParked,
   getDlqParked,
   markDlqParked,
+  listParkedDlqForBulk,
+  markDlqParkedBulk,
 } from '../../../../services/admin';
 
 type HonoEnv = { Variables: AppVariables };
@@ -86,6 +89,60 @@ app.get('/dlq', async (c) => {
       return { ...row, body };
     }),
   });
+});
+
+// POST /dlq/bulk — replay or discard selected/all parked messages
+app.post('/dlq/bulk', async (c) => {
+  const input = await c.req.json<{
+    action?: unknown;
+    ids?: unknown;
+    all?: unknown;
+  }>().catch(() => null);
+  if (!input || (input.action !== 'replay' && input.action !== 'discard')) {
+    throw new AppError(400, 'action must be replay or discard');
+  }
+
+  const processAll = input.all === true;
+  const ids = Array.isArray(input.ids)
+    ? [...new Set(input.ids.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+    : [];
+  if (!processAll && ids.length === 0) {
+    throw new AppError(400, 'ids must contain at least one message');
+  }
+  if (processAll && ids.length > 0) {
+    throw new AppError(400, 'ids and all cannot be used together');
+  }
+  const action = input.action;
+  const batchSize = 100;
+  let processed = 0;
+  let selectedOffset = 0;
+
+  do {
+    const selectedBatch = processAll
+      ? undefined
+      : ids.slice(selectedOffset, selectedOffset + batchSize);
+    if (selectedBatch && selectedBatch.length === 0) break;
+    const rows = await listParkedDlqForBulk({
+      ...(selectedBatch ? { ids: selectedBatch } : {}),
+      limit: batchSize,
+    });
+    if (rows.length === 0 && processAll) break;
+
+    if (action === 'replay' && rows.length > 0) {
+      await env.QUEUE_FEDERATION.sendBatch(rows.map((row) => ({
+        body: JSON.parse(row.body),
+      })));
+    }
+    await markDlqParkedBulk(
+      rows.map((row) => row.id),
+      action === 'replay' ? 'replayed' : 'discarded',
+    );
+    processed += rows.length;
+
+    if (!processAll) selectedOffset += batchSize;
+  } while (processAll || selectedOffset < ids.length);
+
+  return c.json({ action, processed });
 });
 
 // POST /dlq/:id/replay — re-enqueue a parked message to the federation queue
