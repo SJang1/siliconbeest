@@ -20,6 +20,10 @@ import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
 import { getUserAgent } from '../utils/repository';
 import { ensureInstanceRecord, recordDeliverySuccess, recordDeliveryFailure } from '../../../packages/shared/services/instance';
+import {
+  getDeliveryTargetDomains,
+  getSuspendedDomains,
+} from '../../../packages/shared/domain-blocks';
 
 // Crypto, signing, and signature preference from shared package
 import {
@@ -40,6 +44,14 @@ export async function handleDeliverActivity(
   const targetDomain = new URL(inboxUrl).hostname;
   const timer = new PerfTimer('deliverActivity.total', { inboxUrl, targetDomain });
   timer.start();
+
+  const deliveryDomains = await getDeliveryTargetDomains(env.DB, inboxUrl);
+  const suspendedDomains = await getSuspendedDomains(env.DB, deliveryDomains);
+  if (suspendedDomains.size > 0) {
+    console.log(`[deliver] Dropping delivery to suspended domain ${[...suspendedDomains].join(', ')}`);
+    timer.stopWithMetadata({ status: 'domain_suspended' });
+    return;
+  }
 
   // Load the actor's private key, Ed25519 key, and URI from D1
   const keyRow = await measureAsync(

@@ -40,6 +40,19 @@ import { handleSendWebPush } from './handlers/sendWebPush';
 import { handleFetchPreviewCard } from './handlers/fetchPreviewCard';
 import { handleForwardActivity } from './handlers/forwardActivity';
 import { handleImportItem } from './handlers/importItem';
+import {
+  handleRefreshRemoteInstance,
+  handleResetRemoteInstanceCache,
+} from './handlers/manageRemoteInstance';
+import {
+  getSuspendedDeliveryInboxes,
+  getSuspendedDomains,
+} from '../../packages/shared/domain-blocks';
+import {
+  filterSuspendedFedifyTargets,
+  getFedifyInboxUrls,
+  getFedifyTargetDomains,
+} from './federationPolicy';
 
 // ---------------------------------------------------------------------------
 // Queue name classification
@@ -87,6 +100,8 @@ const LEGACY_MESSAGE_TYPES = new Set([
   'deliver_report',
   'update_instance_info',
   'import_item',
+  'refresh_remote_instance',
+  'reset_remote_instance_cache',
 ]);
 
 /**
@@ -143,10 +158,35 @@ async function processMessageBody(body: Record<string, unknown>): Promise<Proces
     const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
     if (!result.shouldProcess) return 'deferred';
     try {
+      const targetDomains = getFedifyTargetDomains(result.message);
+      const inboxUrls = getFedifyInboxUrls(result.message);
+      const [suspendedDomains, suspendedInboxes] = await Promise.all([
+        getSuspendedDomains(env.DB, targetDomains),
+        getSuspendedDeliveryInboxes(env.DB, inboxUrls),
+      ]);
+      const filtered = filterSuspendedFedifyTargets(
+        result.message,
+        suspendedDomains,
+        suspendedInboxes,
+      );
+      if (!filtered.message) {
+        console.log(JSON.stringify({
+          message: 'dropped queued federation delivery to suspended domain',
+          droppedTargets: filtered.droppedTargets,
+          messageType: result.message?.type,
+        }));
+        return 'processed';
+      }
+      // Fedify does not export its queued Message type; the shape has already
+      // been narrowed and filtered above using the runtime payload contract.
+      const queuedMessage = filtered.message as any;
       await measureAsync(
         'queue.fedify.processQueuedTask',
-        () => fed.processQueuedTask({ env }, result.message!),
-        { messageType: result.message?.type }
+        () => fed.processQueuedTask({ env }, queuedMessage),
+        {
+          messageType: queuedMessage.type,
+          droppedTargets: filtered.droppedTargets,
+        }
       );
     } finally {
       await result.release?.();
@@ -197,6 +237,12 @@ async function processMessageBody(body: Record<string, unknown>): Promise<Proces
           break;
         case 'import_item':
           await handleImportItem(legacyMsg);
+          break;
+        case 'refresh_remote_instance':
+          await handleRefreshRemoteInstance(legacyMsg);
+          break;
+        case 'reset_remote_instance_cache':
+          await handleResetRemoteInstanceCache(legacyMsg);
           break;
         default:
           console.warn('Unknown message type:', (legacyMsg as { type: string }).type);

@@ -293,30 +293,46 @@ export async function updateDomainBlock(
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
-	await env.DB.prepare(
-		`UPDATE domain_blocks SET
-			severity = ?1, reject_media = ?2, reject_reports = ?3,
-			private_comment = ?4, public_comment = ?5, obfuscate = ?6, updated_at = ?7
-		WHERE id = ?8`,
-	).bind(
-		data.severity ?? existing.severity,
-		data.reject_media !== undefined ? (data.reject_media ? 1 : 0) : existing.reject_media,
-		data.reject_reports !== undefined ? (data.reject_reports ? 1 : 0) : existing.reject_reports,
-		data.private_comment !== undefined ? data.private_comment : existing.private_comment,
-		data.public_comment !== undefined ? data.public_comment : existing.public_comment,
-		data.obfuscate !== undefined ? (data.obfuscate ? 1 : 0) : existing.obfuscate,
-		now, id,
-	).run();
+	const setters: string[] = [];
+	const values: Array<string | number | null> = [];
+	const addValue = (column: string, value: string | number | null) => {
+		values.push(value);
+		setters.push(`${column} = ?${values.length}`);
+	};
+	if (data.severity !== undefined) addValue('severity', data.severity);
+	if (data.reject_media !== undefined) addValue('reject_media', data.reject_media ? 1 : 0);
+	if (data.reject_reports !== undefined) addValue('reject_reports', data.reject_reports ? 1 : 0);
+	if (data.private_comment !== undefined) addValue('private_comment', data.private_comment);
+	if (data.public_comment !== undefined) addValue('public_comment', data.public_comment);
+	if (data.obfuscate !== undefined) addValue('obfuscate', data.obfuscate ? 1 : 0);
+	addValue('updated_at', now);
+	values.push(id);
+
+	// An explicit edit in the domain-block screen takes ownership of a
+	// temporary federation suspension.  Clear its tracker in the same batch so
+	// a concurrent resume can never delete comments or flags that were just
+	// edited by an administrator.
+	await env.DB.batch([
+		env.DB.prepare(
+			`UPDATE domain_blocks SET ${setters.join(', ')} WHERE id = ?${values.length}`,
+		).bind(...values),
+		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1')
+			.bind(id),
+	]);
 
 	const row = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
-	return { row: row!, domain: existing.domain as string };
+	if (!row) throw new AppError(404, 'Record not found');
+	return { row, domain: existing.domain as string };
 }
 
 export async function deleteDomainBlock(id: string): Promise<string> {
 	const existing = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('DELETE FROM domain_blocks WHERE id = ?1').bind(id).run();
+	await env.DB.batch([
+		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1').bind(id),
+		env.DB.prepare('DELETE FROM domain_blocks WHERE id = ?1').bind(id),
+	]);
 	return existing.domain as string;
 }
 
@@ -724,28 +740,163 @@ export async function listInstances(
 	let results;
 	if (opts.search) {
 		const { results: rows } = await env.DB.prepare(
-			`SELECT i.*, (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count
+			`SELECT i.*,
+			        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
+			        EXISTS(
+			          SELECT 1 FROM domain_blocks db
+			          WHERE db.domain = i.domain AND db.severity = 'suspend'
+			        ) AS suspended
 			 FROM instances i WHERE i.domain LIKE ?1
 			 ORDER BY i.updated_at DESC LIMIT ?2 OFFSET ?3`,
 		).bind(`%${opts.search}%`, opts.limit, opts.offset).all();
 		results = rows;
 	} else {
 		const { results: rows } = await env.DB.prepare(
-			`SELECT i.*, (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count
+			`SELECT i.*,
+			        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
+			        EXISTS(
+			          SELECT 1 FROM domain_blocks db
+			          WHERE db.domain = i.domain AND db.severity = 'suspend'
+			        ) AS suspended
 			 FROM instances i
 			 ORDER BY i.updated_at DESC LIMIT ?1 OFFSET ?2`,
 		).bind(opts.limit, opts.offset).all();
 		results = rows;
 	}
-	return (results ?? []) as Record<string, unknown>[];
+	return ((results ?? []) as Record<string, unknown>[]).map((row) => ({
+		...row,
+		suspended: !!row.suspended,
+	}));
 }
 
 export async function getInstance(domain: string): Promise<Record<string, unknown> | null> {
+	domain = domain.trim().toLowerCase();
 	const instance = await env.DB.prepare(
-		`SELECT i.*, (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count
+		`SELECT i.*,
+		        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
+		        EXISTS(
+		          SELECT 1 FROM domain_blocks db
+		          WHERE db.domain = i.domain AND db.severity = 'suspend'
+		        ) AS suspended
 		 FROM instances i WHERE i.domain = ?`,
 	).bind(domain).first();
-	return instance;
+	return instance ? { ...instance, suspended: !!instance.suspended } : null;
+}
+
+export async function getRepresentativeRemoteAccount(domain: string): Promise<{
+	uri: string;
+	inbox_url: string | null;
+	public_key_id: string | null;
+	public_key_pem: string | null;
+} | null> {
+	return env.DB.prepare(
+		`SELECT uri, inbox_url, public_key_id, public_key_pem
+		 FROM accounts
+		 WHERE domain = ?1 AND uri IS NOT NULL
+		 ORDER BY fetched_at DESC, updated_at DESC
+		 LIMIT 1`,
+	)
+		.bind(domain.trim().toLowerCase())
+		.first<{
+			uri: string;
+			inbox_url: string | null;
+			public_key_id: string | null;
+			public_key_pem: string | null;
+		}>();
+}
+
+export async function setInstanceSuspension(
+	domain: string,
+	suspended: boolean,
+): Promise<void> {
+	domain = domain.trim().toLowerCase();
+	const instance = await env.DB.prepare('SELECT id FROM instances WHERE domain = ?1')
+		.bind(domain)
+		.first<{ id: string }>();
+	if (!instance) throw new AppError(404, 'Instance not found');
+
+	const now = new Date().toISOString();
+
+	if (suspended) {
+		const temporaryBlockId = generateUlid();
+		await env.DB.batch([
+			// The first concurrent request creates the temporary row.  Later
+			// requests observe it inside their serialized batch and remain no-ops.
+			env.DB.prepare(
+				`INSERT OR IGNORE INTO domain_blocks (
+				   id, domain, severity, reject_media, reject_reports,
+				   private_comment, public_comment, obfuscate, created_at, updated_at
+				 ) VALUES (?1, ?2, 'suspend', 0, 0, NULL, NULL, 0, ?3, ?3)`,
+			).bind(temporaryBlockId, domain, now),
+			env.DB.prepare(
+				`INSERT INTO federation_suspensions (
+				   domain, domain_block_id, previous_severity, created_at, updated_at
+				 )
+				 SELECT ?1, id,
+				        CASE WHEN id = ?2 THEN NULL ELSE severity END,
+				        ?3, ?3
+				 FROM domain_blocks
+				 WHERE domain = ?1 AND (id = ?2 OR severity != 'suspend')
+				 ON CONFLICT(domain) DO UPDATE SET
+				   domain_block_id = excluded.domain_block_id,
+				   previous_severity = excluded.previous_severity,
+				   updated_at = excluded.updated_at`,
+			).bind(domain, temporaryBlockId, now),
+			env.DB.prepare(
+				`UPDATE domain_blocks
+				 SET severity = 'suspend', updated_at = ?1
+				 WHERE domain = ?2
+				   AND id = (
+				     SELECT domain_block_id FROM federation_suspensions WHERE domain = ?2
+				   )`,
+			).bind(now, domain),
+		]);
+		return;
+	}
+
+	await env.DB.batch([
+		env.DB.prepare(
+			`UPDATE domain_blocks
+			 SET severity = (
+			       SELECT previous_severity
+			       FROM federation_suspensions
+			       WHERE domain = ?1 AND previous_severity IS NOT NULL
+			     ),
+			     updated_at = ?2
+			 WHERE id = (
+			   SELECT domain_block_id
+			   FROM federation_suspensions
+			   WHERE domain = ?1 AND previous_severity IS NOT NULL
+			 )`,
+		).bind(domain, now),
+		env.DB.prepare(
+			`DELETE FROM domain_blocks
+			 WHERE id = (
+			   SELECT domain_block_id
+			   FROM federation_suspensions
+			   WHERE domain = ?1 AND previous_severity IS NULL
+			 )`,
+		).bind(domain),
+		// A manual suspension has no temporary-state row.  Lift only its
+		// severity so existing comments and reject flags remain intact.
+		env.DB.prepare(
+			`UPDATE domain_blocks
+			 SET severity = 'noop', updated_at = ?1
+			 WHERE domain = ?2 AND severity = 'suspend'
+			   AND NOT EXISTS (
+			     SELECT 1 FROM federation_suspensions WHERE domain = ?2
+			   )`,
+		).bind(now, domain),
+		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain = ?1').bind(domain),
+	]);
+}
+
+export async function deleteInstanceRecord(domain: string): Promise<void> {
+	domain = domain.trim().toLowerCase();
+	const result = await env.DB.prepare('DELETE FROM instances WHERE domain = ?1')
+		.bind(domain)
+		.run();
+	if ((result.meta.changes ?? 0) === 0) throw new AppError(404, 'Instance not found');
 }
 
 export async function getFederationStats(): Promise<{

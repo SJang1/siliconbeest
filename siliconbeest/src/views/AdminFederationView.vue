@@ -5,7 +5,13 @@ import { useAuthStore } from '@/stores/auth'
 import {
   getFederationInstances,
   getFederationStats,
+  refreshFederationInstance,
+  diagnoseFederationInstance,
+  resetFederationInstanceCache,
+  setFederationInstanceSuspended,
+  deleteFederationInstance,
   type FederationInstance,
+  type FederationDiagnostics,
   type FederationStats,
 } from '@/api/mastodon/admin'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
@@ -16,13 +22,19 @@ const auth = useAuthStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+const success = ref<string | null>(null)
 const instances = ref<FederationInstance[]>([])
 const stats = ref<FederationStats | null>(null)
 const searchQuery = ref('')
 const expandedDomain = ref<string | null>(null)
+const diagnosis = ref<FederationDiagnostics | null>(null)
+const busyAction = ref<{ domain: string; action: FederationAction } | null>(null)
 const hasMore = ref(true)
 const offset = ref(0)
 const LIMIT = 50
+const DIAGNOSTIC_CHECKS = ['nodeinfo', 'actor', 'delivery'] as const
+
+type FederationAction = 'refresh' | 'suspend' | 'resume' | 'diagnose' | 'reset-cache' | 'delete'
 
 const filteredInstances = computed(() => {
   if (!searchQuery.value.trim()) return instances.value
@@ -30,7 +42,14 @@ const filteredInstances = computed(() => {
   return instances.value.filter((i) => i.domain.toLowerCase().includes(q))
 })
 
-function statusBadge(failureCount: number): { label: string; classes: string } {
+function statusBadge(instance: FederationInstance): { label: string; classes: string } {
+  if (instance.suspended) {
+    return {
+      label: t('admin.federation.actions.suspended'),
+      classes: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300',
+    }
+  }
+  const failureCount = instance.failure_count
   if (failureCount === 0) {
     return {
       label: t('admin.federation.healthy'),
@@ -54,8 +73,99 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+function formatDateTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString()
+}
+
 function toggleExpand(domain: string) {
+  if (diagnosis.value?.domain !== domain) diagnosis.value = null
   expandedDomain.value = expandedDomain.value === domain ? null : domain
+}
+
+function startAction(domain: string, action: FederationAction): boolean {
+  if (busyAction.value) return false
+  busyAction.value = { domain, action }
+  error.value = null
+  success.value = null
+  return true
+}
+
+function finishAction() {
+  busyAction.value = null
+}
+
+async function refreshRemote(instance: FederationInstance) {
+  if (!startAction(instance.domain, 'refresh')) return
+  try {
+    await refreshFederationInstance(auth.token!, instance.domain)
+    success.value = t('admin.federation.actions.refresh_queued', { domain: instance.domain })
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    finishAction()
+  }
+}
+
+async function setSuspended(instance: FederationInstance, suspended: boolean) {
+  if (suspended && !confirm(t('admin.federation.actions.suspend_confirm', { domain: instance.domain }))) return
+  const action: FederationAction = suspended ? 'suspend' : 'resume'
+  if (!startAction(instance.domain, action)) return
+  try {
+    const res = await setFederationInstanceSuspended(auth.token!, instance.domain, suspended)
+    instance.suspended = res.data.suspended
+    success.value = t(
+      suspended ? 'admin.federation.actions.suspend_success' : 'admin.federation.actions.resume_success',
+      { domain: instance.domain },
+    )
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    finishAction()
+  }
+}
+
+async function runDiagnosis(instance: FederationInstance) {
+  if (!startAction(instance.domain, 'diagnose')) return
+  diagnosis.value = null
+  try {
+    const res = await diagnoseFederationInstance(auth.token!, instance.domain)
+    diagnosis.value = res.data
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    finishAction()
+  }
+}
+
+async function resetRemoteCache(instance: FederationInstance) {
+  if (!confirm(t('admin.federation.actions.reset_cache_confirm', { domain: instance.domain }))) return
+  if (!startAction(instance.domain, 'reset-cache')) return
+  try {
+    await resetFederationInstanceCache(auth.token!, instance.domain)
+    success.value = t('admin.federation.actions.reset_cache_queued', { domain: instance.domain })
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    finishAction()
+  }
+}
+
+async function deleteRecord(instance: FederationInstance) {
+  if (!confirm(t('admin.federation.actions.delete_record_confirm', { domain: instance.domain }))) return
+  if (!startAction(instance.domain, 'delete')) return
+  try {
+    await deleteFederationInstance(auth.token!, instance.domain)
+    instances.value = instances.value.filter((item) => item.domain !== instance.domain)
+    offset.value = instances.value.length
+    expandedDomain.value = null
+    if (diagnosis.value?.domain === instance.domain) diagnosis.value = null
+    success.value = t('admin.federation.actions.delete_record_success', { domain: instance.domain })
+    await loadStats()
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    finishAction()
+  }
 }
 
 async function loadStats() {
@@ -154,6 +264,9 @@ onMounted(() => {
       <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
         {{ error }}
       </div>
+      <div v-if="success" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+        {{ success }}
+      </div>
 
       <LoadingSpinner v-if="loading && instances.length === 0" />
 
@@ -198,9 +311,9 @@ onMounted(() => {
                   <td class="px-4 py-3">
                     <span
                       class="sb-chip"
-                      :class="statusBadge(instance.failure_count).classes"
+                      :class="statusBadge(instance).classes"
                     >
-                      {{ statusBadge(instance.failure_count).label }}
+                      {{ statusBadge(instance).label }}
                     </span>
                   </td>
                 </tr>
@@ -239,6 +352,94 @@ onMounted(() => {
                       <div v-if="instance.description">
                         <span class="font-medium text-slate-500 dark:text-slate-400">{{ t('admin.federation.description') }}:</span>
                         <p class="mt-1 text-slate-700 dark:text-slate-300">{{ instance.description }}</p>
+                      </div>
+                      <div class="flex flex-wrap gap-2 border-t border-outline pt-3 dark:border-outline-dark">
+                        <button
+                          class="sb-btn sb-btn-secondary sb-btn-sm"
+                          :disabled="busyAction !== null || instance.suspended"
+                          @click.stop="refreshRemote(instance)"
+                        >
+                          {{ t('admin.federation.actions.refresh') }}
+                        </button>
+                        <button
+                          v-if="instance.suspended"
+                          class="sb-btn sb-btn-secondary sb-btn-sm text-emerald-700 dark:text-emerald-300"
+                          :disabled="busyAction !== null"
+                          @click.stop="setSuspended(instance, false)"
+                        >
+                          {{ t('admin.federation.actions.resume') }}
+                        </button>
+                        <button
+                          v-else
+                          class="sb-btn sb-btn-danger sb-btn-sm"
+                          :disabled="busyAction !== null"
+                          @click.stop="setSuspended(instance, true)"
+                        >
+                          {{ t('admin.federation.actions.suspend') }}
+                        </button>
+                        <button
+                          class="sb-btn sb-btn-secondary sb-btn-sm"
+                          :disabled="busyAction !== null"
+                          @click.stop="runDiagnosis(instance)"
+                        >
+                          {{ t('admin.federation.actions.diagnose') }}
+                        </button>
+                        <button
+                          class="sb-btn sb-btn-secondary sb-btn-sm"
+                          :disabled="busyAction !== null"
+                          @click.stop="resetRemoteCache(instance)"
+                        >
+                          {{ t('admin.federation.actions.reset_cache') }}
+                        </button>
+                        <button
+                          class="sb-btn sb-btn-danger sb-btn-sm"
+                          :disabled="busyAction !== null"
+                          @click.stop="deleteRecord(instance)"
+                        >
+                          {{ t('admin.federation.actions.delete_record') }}
+                        </button>
+                      </div>
+                      <div
+                        v-if="diagnosis?.domain === instance.domain"
+                        class="space-y-3 border-t border-outline pt-3 dark:border-outline-dark"
+                      >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <span class="font-semibold text-slate-900 dark:text-white">
+                            {{ t('admin.federation.actions.diagnostics_title') }}
+                          </span>
+                          <span class="text-xs text-slate-500 dark:text-slate-400">
+                            {{ t('admin.federation.actions.diagnostics_checked_at') }}: {{ formatDateTime(diagnosis.checked_at) }}
+                          </span>
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-3">
+                          <div
+                            v-for="checkName in DIAGNOSTIC_CHECKS"
+                            :key="checkName"
+                            class="rounded-lg border border-outline bg-surface p-3 dark:border-outline-dark dark:bg-surface-dark"
+                          >
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="font-medium text-slate-700 dark:text-slate-300">
+                                {{ t(`admin.federation.actions.diagnostics_${checkName}`) }}
+                              </span>
+                              <span
+                                class="sb-chip"
+                                :class="diagnosis.checks[checkName].ok
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300'"
+                              >
+                                {{ t(diagnosis.checks[checkName].ok
+                                  ? 'admin.federation.actions.diagnostics_ok'
+                                  : 'admin.federation.actions.diagnostics_failed') }}
+                              </span>
+                            </div>
+                            <p v-if="diagnosis.checks[checkName].detail" class="mt-2 break-all text-xs text-slate-600 dark:text-slate-400">
+                              {{ diagnosis.checks[checkName].detail }}
+                            </p>
+                            <p v-if="diagnosis.checks[checkName].error" class="mt-2 break-all text-xs text-red-600 dark:text-red-400">
+                              {{ diagnosis.checks[checkName].error }}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </td>

@@ -17,6 +17,7 @@ import { ensureInstanceRecord } from '../../../packages/shared/services/instance
 import { pickSignerUsername } from '../../../packages/shared/services/signer';
 import { emojiTagToCustomEmoji } from '../../../packages/shared/utils/customEmoji';
 import { lookupRemoteSoftware } from '../utils/nodeinfo';
+import { getSuspendedDomains } from '../../../packages/shared/domain-blocks';
 
 /** Cache TTL for remote actor documents (5 minutes). */
 const ACTOR_CACHE_TTL = 300;
@@ -28,6 +29,20 @@ export async function handleFetchRemoteAccount(
   msg: FetchRemoteAccountMessage,
 ): Promise<void> {
   const { actorUri, forceRefresh, signerAccountId } = msg;
+
+  let actorDomain: string;
+  try {
+    actorDomain = new URL(actorUri).hostname.toLowerCase();
+  } catch {
+    console.error(`Invalid actor URI: ${actorUri}`);
+    return;
+  }
+
+  const suspendedDomains = await getSuspendedDomains(env.DB, [actorDomain]);
+  if (suspendedDomains.has(actorDomain)) {
+    console.log(`[remote-account] Skipping lookup for suspended domain ${actorDomain}`);
+    return;
+  }
 
   // Check KV cache first (skip if forceRefresh)
   const cacheKey = `actor:${actorUri}`;
@@ -55,15 +70,6 @@ export async function handleFetchRemoteAccount(
         return;
       }
     }
-  }
-
-  // Parse the actor URI to get the domain
-  let actorDomain: string;
-  try {
-    actorDomain = new URL(actorUri).hostname;
-  } catch {
-    console.error(`Invalid actor URI: ${actorUri}`);
-    return;
   }
 
   // Step 1: Fetch the actor document via Fedify's authenticated document loader

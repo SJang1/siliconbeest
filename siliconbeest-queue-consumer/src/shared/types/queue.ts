@@ -13,6 +13,8 @@ export type {
   DeliverActivityFanoutMessage,
   FetchRemoteAccountMessage,
   FetchRemoteStatusMessage,
+  RefreshRemoteInstanceMessage,
+  ResetRemoteInstanceCacheMessage,
   UpdateInstanceInfoMessage,
   DeliverReportMessage,
   TimelineFanoutMessage,

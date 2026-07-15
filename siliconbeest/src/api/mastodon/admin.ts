@@ -76,6 +76,24 @@ export interface FederationInstance {
   last_successful_at: string | null;
   open_registrations: boolean | null;
   created_at: string;
+  suspended: boolean;
+}
+
+export interface FederationDiagnosticCheck {
+  ok: boolean;
+  detail: string | null;
+  error: string | null;
+}
+
+export interface FederationDiagnostics {
+  domain: string;
+  checked_at: string;
+  healthy: boolean;
+  checks: {
+    nodeinfo: FederationDiagnosticCheck;
+    actor: FederationDiagnosticCheck;
+    delivery: FederationDiagnosticCheck;
+  };
 }
 
 export interface FederationStats {
@@ -92,6 +110,46 @@ export function getFederationInstances(token: string, params?: Record<string, st
 
 export function getFederationInstance(token: string, domain: string) {
   return apiFetch<FederationInstance>(`/v1/admin/federation/instances/${encodeURIComponent(domain)}`, { token });
+}
+
+function federationInstancePath(domain: string) {
+  return `/v1/admin/federation/instances/${encodeURIComponent(domain)}`;
+}
+
+export function refreshFederationInstance(token: string, domain: string) {
+  return apiFetch<{ domain: string; queued: true }>(`${federationInstancePath(domain)}/refresh`, {
+    method: 'POST',
+    token,
+  });
+}
+
+export function diagnoseFederationInstance(token: string, domain: string) {
+  return apiFetch<FederationDiagnostics>(`${federationInstancePath(domain)}/diagnose`, {
+    method: 'POST',
+    token,
+  });
+}
+
+export function resetFederationInstanceCache(token: string, domain: string) {
+  return apiFetch<{ domain: string; queued: true }>(`${federationInstancePath(domain)}/cache/reset`, {
+    method: 'POST',
+    token,
+  });
+}
+
+export function setFederationInstanceSuspended(token: string, domain: string, suspended: boolean) {
+  return apiFetch<{ domain: string; suspended: boolean }>(`${federationInstancePath(domain)}/suspension`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ suspended }),
+  });
+}
+
+export function deleteFederationInstance(token: string, domain: string) {
+  return apiFetch<{ domain: string; deleted: true }>(federationInstancePath(domain), {
+    method: 'DELETE',
+    token,
+  });
 }
 
 export function getFederationStats(token: string) {

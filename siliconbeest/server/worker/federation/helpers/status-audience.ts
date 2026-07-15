@@ -48,6 +48,7 @@ interface AccountRecipientRow {
 
 interface RelayRecipientRow {
 	inbox_url: string;
+	actor_uri: string | null;
 }
 
 function isLocalStatus(status: StatusAudienceStatus): boolean {
@@ -102,12 +103,17 @@ function addRelayRecipient(
 		return;
 	}
 
+	let actorId: URL | null = null;
+	if (row.actor_uri) {
+		try { actorId = new URL(row.actor_uri); } catch { /* use inbox identity */ }
+	}
+
 	recipientsByInbox.set(row.inbox_url, {
-		id: null,
+		id: actorId,
 		inboxId: new URL(row.inbox_url),
 		endpoints: null,
 		deliveryInbox: row.inbox_url,
-		domain: getInboxDomain(row.inbox_url, null),
+		domain: actorId?.hostname.toLowerCase() ?? getInboxDomain(row.inbox_url, null),
 		reasons: ['relay'],
 	});
 }
@@ -171,7 +177,7 @@ async function addAcceptedRelays(
 	recipientsByInbox: Map<string, StatusFederationRecipient>,
 ): Promise<void> {
 	const { results } = await env.DB.prepare(
-		"SELECT inbox_url FROM relays WHERE state = 'accepted'",
+		"SELECT inbox_url, actor_uri FROM relays WHERE state = 'accepted'",
 	).all<RelayRecipientRow>();
 
 	for (const row of results ?? []) {

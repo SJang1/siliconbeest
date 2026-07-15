@@ -16,6 +16,7 @@ import { BaseProcessor } from './BaseProcessor';
 import { getQuoteUri, verifyQuoteAuthorization } from '../helpers/quote';
 import { customEmojiTagDomain, emojiTagToCustomEmoji } from '../../../../../packages/shared/utils/customEmoji';
 import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
+import { sendStreamEvent } from '../../services/streaming';
 
 interface CreateProcessorOptions {
 	fanout?: boolean;
@@ -528,16 +529,10 @@ class CreateProcessor extends BaseProcessor {
 		// Notify streaming about new emojis
 		if (newEmojis.length > 0) {
 			try {
-				const doId = (env as Record<string, any>).STREAMING_DO?.idFromName('__public__');
-				const doStub = (env as Record<string, any>).STREAMING_DO?.get(doId);
-				await doStub.fetch('https://streaming/event', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						event: 'emoji_update',
-						payload: JSON.stringify(newEmojis),
-						stream: ['public', 'public:local', 'user'],
-					}),
+				await sendStreamEvent('__public__', {
+					event: 'emoji_update',
+					payload: JSON.stringify(newEmojis),
+					stream: ['public', 'public:local', 'user'],
 				});
 			} catch {
 				// Streaming failure shouldn't block inbox processing
@@ -611,12 +606,10 @@ class CreateProcessor extends BaseProcessor {
 					const userRow = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
 					if (userRow) {
 						try {
-							const doId = (env as Record<string, any>).STREAMING_DO?.idFromName(userRow.id);
-							const stub = (env as Record<string, any>).STREAMING_DO?.get(doId);
-							await stub.fetch('https://streaming/event', {
-								method: 'POST',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({ event: 'update', payload: dmPayload, stream: ['user', 'direct'] }),
+							await sendStreamEvent(userRow.id, {
+								event: 'update',
+								payload: dmPayload,
+								stream: ['user', 'direct'],
 							});
 						} catch { /* streaming failure shouldn't block */ }
 					}

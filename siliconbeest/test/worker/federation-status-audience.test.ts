@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getStatusFederationAudience } from '../../server/worker/federation/helpers/status-audience';
+import { getSuspendedDeliveryInboxes } from '../../../packages/shared/domain-blocks';
 import { applyMigration } from './helpers';
 
 const now = () => new Date().toISOString();
@@ -84,6 +85,7 @@ describe('status federation audience resolver', () => {
 		const replyAuthorId = `aud_reply_${suffix}`;
 		const statusId = `aud_status_${suffix}`;
 		const relayInbox = `https://relay-${suffix}.example/inbox`;
+		const relayActor = `https://relay-actor-${suffix}.example/actor`;
 
 		await insertAccount({ id: authorId, username: `author_${suffix}`, domain: null });
 		await insertAccount({ id: actorId, username: `actor_${suffix}`, domain: null });
@@ -132,9 +134,9 @@ describe('status federation audience resolver', () => {
 			'INSERT INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
 		).bind(`aud_mention_row_${suffix}`, statusId, mentionId, now()).run();
 		await env.DB.prepare(
-			`INSERT INTO relays (id, inbox_url, state, created_at, updated_at)
-			 VALUES (?1, ?2, 'accepted', ?3, ?3)`,
-		).bind(`aud_relay_${suffix}`, relayInbox, now()).run();
+			`INSERT INTO relays (id, inbox_url, actor_uri, state, created_at, updated_at)
+			 VALUES (?1, ?2, ?3, 'accepted', ?4, ?4)`,
+		).bind(`aud_relay_${suffix}`, relayInbox, relayActor, now()).run();
 
 		const audience = await getStatusFederationAudience(
 			{
@@ -154,6 +156,9 @@ describe('status federation audience resolver', () => {
 		expect(audience.inboxUrls).toContain(`https://mention-${suffix}.example/inbox`);
 		expect(audience.inboxUrls).toContain(`https://reply-${suffix}.example/inbox`);
 		expect(audience.inboxUrls).toContain(relayInbox);
+		const relayRecipient = audience.recipients.find((recipient) => recipient.deliveryInbox === relayInbox);
+		expect(relayRecipient?.id?.href).toBe(relayActor);
+		expect(relayRecipient?.domain).toBe(`relay-actor-${suffix}.example`);
 	});
 
 	it('keeps direct local status delivery to mentioned remote inboxes only', async () => {
@@ -250,5 +255,56 @@ describe('status federation audience resolver', () => {
 		expect(audience.recipients).toEqual([]);
 		expect(audience.inboxUrls).toEqual([]);
 		expect(audience.domains).toEqual([]);
+	});
+
+	it('maps every identity domain behind a deduped shared inbox before delivery', async () => {
+		const suffix = crypto.randomUUID();
+		const sharedInbox = `https://delivery-${suffix}.example/inbox`;
+		const allowedDomain = `allowed-${suffix}.example`;
+		const blockedDomain = `blocked-${suffix}.example`;
+
+		await insertAccount({
+			id: `aud_allowed_${suffix}`,
+			username: 'allowed',
+			domain: allowedDomain,
+			inboxUrl: `${sharedInbox}/allowed`,
+			sharedInboxUrl: sharedInbox,
+		});
+		await insertAccount({
+			id: `aud_blocked_${suffix}`,
+			username: 'blocked',
+			domain: blockedDomain,
+			inboxUrl: `${sharedInbox}/blocked`,
+			sharedInboxUrl: sharedInbox,
+		});
+		await env.DB.prepare(
+			`INSERT INTO domain_blocks (id, domain, severity, created_at, updated_at)
+			 VALUES (?1, ?2, 'suspend', ?3, ?3)`,
+		).bind(`aud_block_${suffix}`, blockedDomain, now()).run();
+
+		await expect(getSuspendedDeliveryInboxes(
+			env.DB,
+			[sharedInbox],
+		)).resolves.toEqual(new Set([sharedInbox]));
+	});
+
+	it('uses both inbox indexes for batched delivery identity lookups', async () => {
+		const { results } = await env.DB.prepare(
+			`EXPLAIN QUERY PLAN
+			 WITH requested(inbox_url) AS (VALUES (?1), (?2))
+			 SELECT DISTINCT requested.inbox_url, accounts.domain
+			 FROM requested
+			 JOIN accounts
+			   ON accounts.inbox_url = requested.inbox_url
+			   OR accounts.shared_inbox_url = requested.inbox_url
+			 WHERE accounts.domain IS NOT NULL`,
+		).bind(
+			'https://delivery-one.example/inbox',
+			'https://delivery-two.example/inbox',
+		).all<{ detail: string }>();
+
+		const plan = (results ?? []).map((row) => row.detail).join('\n');
+		expect(plan).toContain('idx_accounts_inbox_url');
+		expect(plan).toContain('idx_accounts_shared_inbox_url');
 	});
 });

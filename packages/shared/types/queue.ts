@@ -58,6 +58,22 @@ export interface FetchRemoteStatusMessage {
   signerAccountId?: string;
 }
 
+export interface RefreshRemoteInstanceMessage {
+  type: 'refresh_remote_instance';
+  /** Remote instance whose known actors should be force-refreshed. */
+  domain: string;
+  /** Account ID cursor used by the queue consumer for bounded pagination. */
+  cursor?: string;
+}
+
+export interface ResetRemoteInstanceCacheMessage {
+  type: 'reset_remote_instance_cache';
+  /** Remote instance whose scoped federation caches should be cleared. */
+  domain: string;
+  /** Account ID cursor used by the queue consumer for bounded pagination. */
+  cursor?: string;
+}
+
 export interface UpdateInstanceInfoMessage {
   type: 'update_instance_info';
   /** Domain of the instance to update */
@@ -167,6 +183,8 @@ export type QueueMessage =
   | DeliverActivityFanoutMessage
   | FetchRemoteAccountMessage
   | FetchRemoteStatusMessage
+  | RefreshRemoteInstanceMessage
+  | ResetRemoteInstanceCacheMessage
   | UpdateInstanceInfoMessage
   | DeliverReportMessage
   | TimelineFanoutMessage

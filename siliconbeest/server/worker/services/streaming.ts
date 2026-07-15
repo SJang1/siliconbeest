@@ -7,6 +7,13 @@
  */
 
 import { env } from 'cloudflare:workers';
+
+interface StreamingBindings {
+  DB: D1Database;
+  STREAMING_DO?: DurableObjectNamespace;
+  WORKER?: Fetcher;
+}
+
 export type StreamEventPayload = {
   /** Mastodon event type: update, notification, delete, status.update, filters_changed */
   event: string;
@@ -26,8 +33,31 @@ export async function sendStreamEvent(
   userId: string,
   event: StreamEventPayload,
 ): Promise<void> {
-  const doId = env.STREAMING_DO.idFromName(userId);
-  const stub = env.STREAMING_DO.get(doId);
+  const bindings = env as unknown as StreamingBindings;
+
+  // The main Worker owns StreamingDO and can access it directly. Shared
+  // federation processors also run inside the queue consumer, which reaches
+  // the owning Worker through its WORKER service binding instead.
+  if (!bindings.STREAMING_DO) {
+    if (!bindings.WORKER) {
+      throw new Error('Streaming requires either STREAMING_DO or WORKER binding');
+    }
+
+    const response = await bindings.WORKER.fetch(
+      new Request('http://internal/internal/stream-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...event }),
+      }),
+    );
+    if (!response.ok) {
+      throw new Error(`Streaming service returned ${response.status}`);
+    }
+    return;
+  }
+
+  const doId = bindings.STREAMING_DO.idFromName(userId);
+  const stub = bindings.STREAMING_DO.get(doId);
 
   await stub.fetch('https://streaming/event', {
     method: 'POST',

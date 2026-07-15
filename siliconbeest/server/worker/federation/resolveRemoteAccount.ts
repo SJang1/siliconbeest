@@ -12,12 +12,12 @@
 import { env } from 'cloudflare:workers';
 import { isActor } from '@fedify/fedify/vocab';
 import { generateUlid } from '../utils/ulid';
-import { isDomainBlocked } from './helpers/domainBlock';
 import { sanitizeHtml } from '../utils/sanitize';
 import { createFed } from './fedify';
 import { getFedifyContext } from './helpers/send';
 import { pickSignerUsername } from '../../../../packages/shared/services/signer';
 import { emojiTagToCustomEmoji } from '../../../../packages/shared/utils/customEmoji';
+import { getSuspendedDomains } from '../../../../packages/shared/domain-blocks';
 
 /**
  * Resolve or upsert a remote ActivityPub account.
@@ -70,8 +70,8 @@ export async function resolveRemoteAccount(
 	}
 
 	// Check domain blocks before fetching
-	const blockResult = await isDomainBlocked(env.DB, env.CACHE ?? null, domain);
-	if (blockResult.blocked) {
+	const suspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+	if (suspendedDomains.has(domain.toLowerCase())) {
 		console.log(`[resolveRemoteAccount] Refusing to resolve account from suspended domain: ${domain}`);
 		return null;
 	}
@@ -152,8 +152,8 @@ export async function resolveRemoteAccount(
 			const canonicalHost = new URL(canonicalUri).host;
 			if (canonicalHost !== domain) {
 				domain = canonicalHost;
-				const canonicalBlock = await isDomainBlocked(env.DB, env.CACHE ?? null, domain);
-				if (canonicalBlock.blocked) {
+				const canonicalSuspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+				if (canonicalSuspendedDomains.has(domain.toLowerCase())) {
 					console.log(`[resolveRemoteAccount] Refusing to resolve account from suspended domain: ${domain}`);
 					return null;
 				}
