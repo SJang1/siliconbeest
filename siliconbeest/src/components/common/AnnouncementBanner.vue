@@ -28,7 +28,7 @@ watch(
     <div class="flex h-9 items-center gap-2 px-3 sm:px-4">
       <span aria-hidden="true">📢</span>
       <router-link to="/announcements" class="min-w-0 flex-1 text-sm text-white no-underline">
-        <span class="line-clamp-1 [&_*]:m-0 [&_*]:inline [&_a]:font-medium [&_a]:text-white [&_a]:underline" v-html="current.content" />
+        <span class="line-clamp-1 whitespace-pre-wrap">{{ current.content }}</span>
       </router-link>
       <router-link v-if="announcements.unreadCount > 1" to="/announcements" class="shrink-0 text-xs font-semibold text-white/80 no-underline">
         +{{ announcements.unreadCount - 1 }}

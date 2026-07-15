@@ -236,7 +236,7 @@ function formatDate(dateStr: string | null) {
       >
         <div class="flex items-start justify-between">
           <div class="flex-1">
-            <p class="text-sm text-gray-900 dark:text-white whitespace-pre-wrap" v-html="a.text" />
+            <p class="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{{ a.text }}</p>
             <div class="flex gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
               <span v-if="a.starts_at">{{ t('admin.startsAt') }}: {{ formatDate(a.starts_at) }}</span>
               <span v-if="a.ends_at">{{ t('admin.endsAt') }}: {{ formatDate(a.ends_at) }}</span>

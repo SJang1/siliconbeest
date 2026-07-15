@@ -67,7 +67,7 @@ onMounted(async () => {
       </button>
 
       <!-- Content -->
-      <div class="flex-1 min-w-0 text-sm" v-html="current.content" />
+      <div class="min-w-0 flex-1 whitespace-pre-wrap text-sm">{{ current.content }}</div>
 
       <!-- Counter -->
       <span v-if="total > 1" class="text-xs opacity-75 flex-shrink-0">

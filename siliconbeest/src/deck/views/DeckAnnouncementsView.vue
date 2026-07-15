@@ -121,7 +121,7 @@ watch(
               {{ t('announcement.mark_read') }}
             </button>
           </div>
-          <div class="dk-text px-4 py-4 text-sm leading-relaxed [&_a]:text-[var(--dk-acc)] [&_a]:underline [&_p]:my-2" v-html="announcement.content" />
+          <div class="dk-text whitespace-pre-wrap px-4 py-4 text-sm leading-relaxed">{{ announcement.content }}</div>
         </article>
       </div>
 
