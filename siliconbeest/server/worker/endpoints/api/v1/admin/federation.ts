@@ -129,9 +129,15 @@ app.post('/dlq/bulk', async (c) => {
     if (rows.length === 0 && processAll) break;
 
     if (action === 'replay' && rows.length > 0) {
-      await env.QUEUE_FEDERATION.sendBatch(rows.map((row) => ({
-        body: JSON.parse(row.body),
-      })));
+      await env.QUEUE_FEDERATION.sendBatch(rows.map((row) => {
+        let body: unknown = row.body;
+        try {
+          body = JSON.parse(row.body);
+        } catch {
+          // Keep the raw body when a parked message is not valid JSON.
+        }
+        return { body };
+      }));
     }
     await markDlqParkedBulk(
       rows.map((row) => row.id),

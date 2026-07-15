@@ -869,9 +869,10 @@ export async function markDlqParkedBulk(
 ): Promise<void> {
 	if (ids.length === 0) return;
 	const updatedAt = new Date().toISOString();
-	await env.DB.batch(ids.map((id) => env.DB.prepare(
+	const placeholders = ids.map((_, index) => `?${index + 3}`).join(', ');
+	await env.DB.prepare(
 		`UPDATE federation_dlq_parked
-		 SET status = ?2, updated_at = ?3
-		 WHERE id = ?1 AND status = 'parked'`,
-	).bind(id, status, updatedAt)));
+		 SET status = ?1, updated_at = ?2
+		 WHERE status = 'parked' AND id IN (${placeholders})`,
+	).bind(status, updatedAt, ...ids).run();
 }
