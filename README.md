@@ -347,6 +347,7 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 | `INSTANCE_DOMAIN` | Your instance domain | `siliconbeest.com` |
 | `INSTANCE_TITLE` | Instance display name | `SiliconBeest` |
 | `REGISTRATION_MODE` | `open` / `approval` / `closed` | `open` |
+| `SKIP_SIGNATURE_VERIFICATION` | Explicit `true` / `false` override for inbound HTTP signature verification; GitHub Actions reads this from GitHub Environment Variables during deploy | `false` |
 
 ### Frontend Environment (siliconbeest/.env)
 

@@ -22,6 +22,8 @@
 #
 # Optional GitHub Repository Variables:
 #   AUTO_UPDATE_UPSTREAM_DEPLOY — "true" (default) or "false" (sync only, skip deploy after upstream update)
+# GitHub Environment Variables (production):
+#   SKIP_SIGNATURE_VERIFICATION — "false" (default) or "true" (testing only)
 # =============================================================================
 
 name: Sync Upstream & Deploy
@@ -195,6 +197,7 @@ jobs:
           V_INSTANCE_TITLE: ${{ vars.INSTANCE_TITLE }}
           V_REPOSITORY_URL: ${{ vars.REPOSITORY_URL }}
           V_REGISTRATION_MODE: ${{ vars.REGISTRATION_MODE }}
+          V_SKIP_SIGNATURE_VERIFICATION: ${{ vars.SKIP_SIGNATURE_VERIFICATION }}
           V_D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           V_KV_CACHE_ID: ${{ vars.KV_CACHE_ID }}
           V_KV_SESSIONS_ID: ${{ vars.KV_SESSIONS_ID }}
@@ -206,6 +209,7 @@ jobs:
           INSTANCE_TITLE="${V_INSTANCE_TITLE}"
           REPOSITORY_URL="${V_REPOSITORY_URL}"
           REGISTRATION_MODE="${V_REGISTRATION_MODE}"
+          SKIP_SIGNATURE_VERIFICATION="${V_SKIP_SIGNATURE_VERIFICATION:-false}"
           D1_DATABASE_ID="${V_D1_DATABASE_ID}"
           KV_CACHE_ID="${V_KV_CACHE_ID}"
           KV_SESSIONS_ID="${V_KV_SESSIONS_ID}"
