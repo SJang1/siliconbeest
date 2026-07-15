@@ -54,7 +54,7 @@ async function markAllRead() {
 watch(
   () => auth.token,
   (token) => {
-    if (token) void announcements.fetch(token)
+    void announcements.fetch(token ?? undefined)
   },
   { immediate: true },
 )

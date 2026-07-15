@@ -102,6 +102,7 @@ function onDragEnd() {
 }
 
 const moreEntries = computed(() => [
+  ...(auth.isAuthenticated ? [{ path: '/invitations', label: t('settings.invitations'), emoji: '✉️' }] : []),
   { path: '/bookmarks', label: t('nav.bookmarks'), emoji: '🔖' },
   { path: '/favourites', label: t('nav.favourites'), emoji: '⭐' },
   { path: '/lists', label: t('nav.lists'), emoji: '📋' },

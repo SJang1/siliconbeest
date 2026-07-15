@@ -1,9 +1,3 @@
 <script setup lang="ts">
-import SettingsInvitationsView from '@/views/SettingsInvitationsView.vue'
-
-definePageMeta({ name: 'aurora-settings-invitations' })
+await navigateTo('/aurora/invitations', { redirectCode: 301 })
 </script>
-
-<template>
-  <SettingsInvitationsView />
-</template>
