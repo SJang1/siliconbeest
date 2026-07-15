@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type SqlBinding = string | number | null;
+
 const mocks = vi.hoisted(() => ({
+  Collection: class {
+    constructor(readonly firstId: URL | null) {}
+  },
   env: {
     DB: { prepare: vi.fn<(sql: string) => object>() },
     CACHE: {
@@ -21,7 +26,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('cloudflare:workers', () => ({ env: mocks.env }));
-vi.mock('@fedify/vocab', () => ({ isActor: mocks.isActor }));
+vi.mock('@fedify/vocab', () => ({
+  Collection: mocks.Collection,
+  isActor: mocks.isActor,
+}));
 vi.mock('../src/fedify', () => ({ createFed: mocks.createFed }));
 vi.mock('../../packages/shared/services/instance', () => ({
   ensureInstanceRecord: mocks.ensureInstanceRecord,
@@ -48,18 +56,20 @@ beforeEach(() => {
 
 describe('remote Actor collection privacy ingestion', () => {
   it.each([
-    ['public collections', true, true, 0],
-    ['private followers collection', false, true, 1],
-    ['private following collection', true, false, 1],
-  ] as const)('stores %s as hide_collections=%i', async (
+    ['public collections', true, true, true, 0],
+    ['private followers collection', false, true, true, 1],
+    ['private following collection', true, false, true, 1],
+    ['cross-origin followers collection', true, true, false, 1],
+  ] as const)('stores %s with expected collection privacy', async (
     _label,
     followersPublic,
     followingPublic,
+    followersSameOrigin,
     expectedHidden,
   ) => {
-    let upsertBindings: readonly unknown[] = [];
+    let upsertBindings: readonly SqlBinding[] = [];
     mocks.env.DB.prepare.mockImplementation((sql: string) => ({
-      bind: (...bindings: readonly unknown[]) => ({
+      bind: (...bindings: readonly SqlBinding[]) => ({
         first: async () => {
           if (sql.includes('SELECT id, fetched_at, suspended_at')) return null;
           throw new Error(`Unexpected D1 first query: ${sql}`);
@@ -80,7 +90,9 @@ describe('remote Actor collection privacy ingestion', () => {
     mocks.isActor.mockReturnValue(true);
 
     const actorUri = 'https://remote.example/users/alice';
-    const followersId = new URL(`${actorUri}/followers`);
+    const followersId = new URL(followersSameOrigin
+      ? `${actorUri}/followers`
+      : 'https://collections.example/users/alice/followers');
     const followingId = new URL(`${actorUri}/following`);
     const actor = {
       followersId,
@@ -101,10 +113,33 @@ describe('remote Actor collection privacy ingestion', () => {
         following: followingId.href,
       }),
     };
+    const signedDocumentLoader = vi.fn();
+    const lookupObject = vi.fn(async (
+      uri: string | URL,
+      options: { documentLoader: object },
+    ) => {
+      const href = uri instanceof URL ? uri.href : uri;
+      if (href === actorUri) {
+        expect(options.documentLoader).toBe(signedDocumentLoader);
+        return actor;
+      }
+      expect(options.documentLoader).not.toBe(signedDocumentLoader);
+      if (href === followersId.href) {
+        return new mocks.Collection(followersPublic
+          ? new URL(`${followersId.href}?page=true`)
+          : null);
+      }
+      if (href === followingId.href) {
+        return new mocks.Collection(followingPublic
+          ? new URL(`${followingId.href}?page=true`)
+          : null);
+      }
+      return null;
+    });
     mocks.createFed.mockReturnValue({
       createContext: () => ({
-        getDocumentLoader: async () => ({}),
-        lookupObject: async () => actor,
+        getDocumentLoader: async () => signedDocumentLoader,
+        lookupObject,
       }),
     });
 
@@ -117,5 +152,10 @@ describe('remote Actor collection privacy ingestion', () => {
     expect(upsertBindings[12]).toBe(followersId.href);
     expect(upsertBindings[13]).toBe(followingId.href);
     expect(upsertBindings[14]).toBe(expectedHidden);
+    if (!followersSameOrigin) {
+      expect(lookupObject.mock.calls.some(([uri]) => (
+        (uri instanceof URL ? uri.href : uri) === followersId.href
+      ))).toBe(false);
+    }
   });
 });

@@ -42,7 +42,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('cloudflare:workers', () => ({ env: mocks.env }));
-vi.mock('@fedify/vocab', () => ({ isActor: mocks.isActor }));
+vi.mock('@fedify/vocab', () => ({
+  Collection: class {},
+  isActor: mocks.isActor,
+}));
 vi.mock('../src/fedify', () => ({ createFed: mocks.createFed }));
 vi.mock('../../packages/shared/domain-blocks', () => ({
   getSuspendedDomains: mocks.getSuspendedDomains,
@@ -155,17 +158,34 @@ beforeEach(() => {
 });
 
 describe('remote actor fetch permissions', () => {
-  it('does not store an actor document whose id differs from the requested actor', async () => {
-    mocks.remoteDocument = actorDocument({
-      id: 'https://remote.example/users/mallory',
+  it('does not store an alias whose canonical endpoint does not confirm its identity', async () => {
+    const requestedUri = 'https://remote.example/users/alice';
+    const canonicalUri = 'https://remote.example/users/mallory';
+    const lookupObject = vi.fn(async (uri: string) => ({
+      toJsonLd: async () => actorDocument({
+        id: uri === requestedUri
+          ? canonicalUri
+          : 'https://remote.example/users/eve',
+      }),
+    }));
+    mocks.createFed.mockReturnValue({
+      createContext: () => ({
+        getDocumentLoader: async () => ({}),
+        lookupObject,
+      }),
     });
 
     await handleFetchRemoteAccount({
       type: 'fetch_remote_account',
-      actorUri: 'https://remote.example/users/alice',
+      actorUri: requestedUri,
       forceRefresh: true,
     });
 
+    expect(lookupObject).toHaveBeenNthCalledWith(
+      2,
+      canonicalUri,
+      expect.objectContaining({ documentLoader: expect.any(Object) }),
+    );
     expect(mocks.prepared.some(({ sql }) => sql.includes('INSERT INTO accounts'))).toBe(false);
     expect(mocks.ensureInstanceRecord).not.toHaveBeenCalled();
     expect(mocks.getFollowers).not.toHaveBeenCalled();

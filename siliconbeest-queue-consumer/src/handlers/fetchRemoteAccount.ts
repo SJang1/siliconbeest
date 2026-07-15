@@ -9,7 +9,8 @@
  */
 
 import { env } from 'cloudflare:workers';
-import { isActor } from '@fedify/vocab';
+import { getDocumentLoader } from '@fedify/fedify';
+import { Collection, isActor } from '@fedify/vocab';
 import { createFed } from '../fedify';
 import type { FetchRemoteAccountMessage } from '../shared/types/queue';
 import { getUserAgent } from '../utils/repository';
@@ -28,6 +29,24 @@ const ACTOR_CACHE_TTL = 300;
 
 /** Minimum seconds between re-fetches unless forceRefresh is set. */
 const MIN_REFETCH_INTERVAL = 300; // 5 minutes
+
+interface ExistingRemoteAccountState {
+  id: string;
+  fetched_at: string | null;
+  suspended_at: string | null;
+}
+
+async function getExistingRemoteAccountState(
+  actorUri: string,
+): Promise<ExistingRemoteAccountState | null> {
+  return env.DB.prepare(
+    `SELECT id, fetched_at, suspended_at
+     FROM accounts
+     WHERE uri = ? AND domain IS NOT NULL`,
+  )
+    .bind(actorUri)
+    .first<ExistingRemoteAccountState>();
+}
 
 export async function handleFetchRemoteAccount(
   msg: FetchRemoteAccountMessage,
@@ -61,13 +80,7 @@ export async function handleFetchRemoteAccount(
 
   // A force refresh must not overwrite a locally suspended identity. Read the
   // account state independently of the freshness/cache shortcuts.
-  const existing = await env.DB.prepare(
-    `SELECT id, fetched_at, suspended_at
-     FROM accounts
-     WHERE uri = ? AND domain IS NOT NULL`,
-  )
-    .bind(actorUri)
-    .first<{ id: string; fetched_at: string | null; suspended_at: string | null }>();
+  const existing = await getExistingRemoteAccountState(actorUri);
   if (existing?.suspended_at) {
     console.log(`[remote-account] Skipping locally suspended actor ${actorUri}`);
     return;
@@ -101,6 +114,7 @@ export async function handleFetchRemoteAccount(
   // signature keyId (/users/__instance__#main-key), and authorized-fetch
   // verifiers reject the mismatch.
   let actorDoc: Record<string, unknown>;
+  let resolvedActorUri: string;
   let followersUrl: string | null = null;
   let followingUrl: string | null = null;
   let hideCollections = true;
@@ -119,27 +133,112 @@ export async function handleFetchRemoteAccount(
       return;
     }
     actorDoc = (await actorObj.toJsonLd()) as Record<string, unknown>;
-    const fetchedActorUri = typeof actorDoc.id === 'string' ? actorDoc.id : null;
-    if (!canStoreFetchedRemoteActor({
+    const candidateActorUri = typeof actorDoc.id === 'string' ? actorDoc.id : null;
+    const candidateMatchesRequest = canStoreFetchedRemoteActor({
       requestedActorUri: actorUri,
-      actorUri: fetchedActorUri,
+      actorUri: candidateActorUri,
+      localInstanceDomain: env.INSTANCE_DOMAIN,
+      actorSuspended: false,
+    });
+
+    let verifiedActorObj = actorObj;
+    let expectedActorUri = actorUri;
+    if (!candidateMatchesRequest) {
+      // A lookup URI may be an alias for a canonical actor URI. Never persist
+      // fields supplied by the alias host: first validate the candidate as a
+      // remote URI, then fetch it directly and require exact self-identity.
+      if (!candidateActorUri || !canStoreFetchedRemoteActor({
+        requestedActorUri: candidateActorUri,
+        actorUri: candidateActorUri,
+        localInstanceDomain: env.INSTANCE_DOMAIN,
+        actorSuspended: false,
+      })) {
+        console.warn(`Actor ${actorUri} has an invalid canonical id, dropping`);
+        return;
+      }
+
+      const canonicalDomain = new URL(candidateActorUri).hostname.toLowerCase();
+      if (canonicalDomain !== actorDomain) {
+        const suspendedCanonicalDomains = await getSuspendedDomains(
+          env.DB,
+          [canonicalDomain],
+        );
+        if (suspendedCanonicalDomains.has(canonicalDomain)) {
+          console.log(
+            `[remote-account] Skipping actor ${actorUri} with suspended canonical domain ${canonicalDomain}`,
+          );
+          return;
+        }
+      }
+
+      const canonicalActorObj = await ctx.lookupObject(candidateActorUri, {
+        documentLoader,
+      });
+      if (!canonicalActorObj || !isActor(canonicalActorObj)) {
+        console.warn(
+          `Canonical actor lookup for ${candidateActorUri} did not return an actor, dropping`,
+        );
+        return;
+      }
+      const canonicalActorDoc = (
+        await canonicalActorObj.toJsonLd()
+      ) as Record<string, unknown>;
+      actorDomain = canonicalDomain;
+      actorDoc = canonicalActorDoc;
+      verifiedActorObj = canonicalActorObj;
+      expectedActorUri = candidateActorUri;
+    }
+
+    const verifiedActorUri = typeof actorDoc.id === 'string' ? actorDoc.id : null;
+    if (!verifiedActorUri || !canStoreFetchedRemoteActor({
+      requestedActorUri: expectedActorUri,
+      actorUri: verifiedActorUri,
       localInstanceDomain: env.INSTANCE_DOMAIN,
       actorSuspended: false,
     })) {
-      console.warn(`Actor lookup identity mismatch for ${actorUri}, dropping`);
+      console.warn(
+        `Actor lookup identity mismatch for ${expectedActorUri}, dropping`,
+      );
       return;
     }
 
-    followersUrl = actorObj.followersId?.href ?? null;
-    followingUrl = actorObj.followingId?.href ?? null;
+    // URL normalization can make two URI strings equivalent while the DB key
+    // differs. Always check the exact URI that will be persisted.
+    if (verifiedActorUri !== actorUri) {
+      const resolvedExisting = await getExistingRemoteAccountState(
+        verifiedActorUri,
+      );
+      if (resolvedExisting?.suspended_at) {
+        console.log(
+          `[remote-account] Skipping locally suspended canonical actor ${verifiedActorUri}`,
+        );
+        return;
+      }
+    }
+    resolvedActorUri = verifiedActorUri;
+
+    const followersId = verifiedActorObj.followersId;
+    const followingId = verifiedActorObj.followingId;
+    followersUrl = followersId?.href ?? null;
+    followingUrl = followingId?.href ?? null;
+    const actorOrigin = new URL(verifiedActorUri).origin;
+    const anonymousDocumentLoader = getDocumentLoader({
+      userAgent: getUserAgent('ActivityPub'),
+    });
     const [followersResult, followingResult] = await Promise.allSettled([
-      actorObj.getFollowers({ documentLoader, suppressError: true }),
-      actorObj.getFollowing({ documentLoader, suppressError: true }),
+      followersId?.origin === actorOrigin
+        ? ctx.lookupObject(followersId, { documentLoader: anonymousDocumentLoader })
+        : Promise.resolve(null),
+      followingId?.origin === actorOrigin
+        ? ctx.lookupObject(followingId, { documentLoader: anonymousDocumentLoader })
+        : Promise.resolve(null),
     ]);
     const followersCollection = followersResult.status === 'fulfilled'
+      && followersResult.value instanceof Collection
       ? followersResult.value
       : null;
     const followingCollection = followingResult.status === 'fulfilled'
+      && followingResult.value instanceof Collection
       ? followingResult.value
       : null;
     hideCollections = shouldHideRemoteAccountCollections({
@@ -165,17 +264,8 @@ export async function handleFetchRemoteAccount(
     return;
   }
 
-  // Extract fields from the actor document
-  const id = typeof actorDoc.id === 'string' ? actorDoc.id : null;
-  if (!id || !canStoreFetchedRemoteActor({
-    requestedActorUri: actorUri,
-    actorUri: id,
-    localInstanceDomain: env.INSTANCE_DOMAIN,
-    actorSuspended: false,
-  })) {
-    console.warn(`Actor lookup identity mismatch for ${actorUri}, dropping`);
-    return;
-  }
+  // Extract fields from the verified actor document
+  const id = resolvedActorUri;
 
   const name = (actorDoc.name as string) || preferredUsername || '';
   const username = preferredUsername || '';
