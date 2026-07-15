@@ -53,6 +53,7 @@ In your repository's **Settings > Secrets and variables > Actions**:
 | `INSTANCE_DOMAIN` | Your instance domain | `social.example.com` |
 | `INSTANCE_TITLE` | Display name for your instance | `My Fediverse Server` |
 | `REGISTRATION_MODE` | `open`, `approval`, or `closed` | `open` |
+| `SKIP_SIGNATURE_VERIFICATION` | `true` or `false`; keep `false` in production unless you intentionally need to bypass inbound HTTP signature checks | `false` |
 | `D1_DATABASE_ID` | D1 database UUID | `7c66942d-...` |
 | `KV_CACHE_ID` | KV namespace ID for cache | `14a4d29d...` |
 | `KV_SESSIONS_ID` | KV namespace ID for sessions | `b28dd211...` |
@@ -72,7 +73,7 @@ In your repository's **Settings > Secrets and variables > Actions**:
 Go to **Actions > Deploy > Run workflow** to trigger the first deployment.
 
 The workflow will:
-1. Generate wrangler.jsonc files from your GitHub Variables
+1. Generate wrangler.jsonc files from your GitHub Variables, including `SKIP_SIGNATURE_VERIFICATION` from the selected GitHub Environment (defaults to `false` when unset)
 2. Build the Vue frontend
 3. Apply D1 database migrations
 4. Deploy all 3 workers (main, queue consumer, email sender)

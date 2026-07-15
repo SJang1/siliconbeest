@@ -53,6 +53,7 @@ SiliconBeest는 **GitHub 템플릿 레포지토리**입니다. Cloudflare Worker
 | `INSTANCE_DOMAIN` | 인스턴스 도메인 | `social.example.com` |
 | `INSTANCE_TITLE` | 인스턴스 표시 이름 | `내 페디버스 서버` |
 | `REGISTRATION_MODE` | `open`, `approval`, `closed` 중 선택 | `open` |
+| `SKIP_SIGNATURE_VERIFICATION` | `true` 또는 `false`; 인바운드 HTTP 서명 검증을 의도적으로 우회해야 하는 경우가 아니면 프로덕션에서는 `false` 유지 | `false` |
 | `D1_DATABASE_ID` | D1 데이터베이스 UUID | `7c66942d-...` |
 | `KV_CACHE_ID` | 캐시용 KV 네임스페이스 ID | `14a4d29d...` |
 | `KV_SESSIONS_ID` | 세션용 KV 네임스페이스 ID | `b28dd211...` |
@@ -72,7 +73,7 @@ SiliconBeest는 **GitHub 템플릿 레포지토리**입니다. Cloudflare Worker
 **Actions > Deploy > Run workflow**를 실행하여 첫 배포를 트리거합니다.
 
 워크플로우가 수행하는 작업:
-1. GitHub Variables로부터 wrangler.jsonc 파일 생성
+1. 선택된 GitHub Environment의 `SKIP_SIGNATURE_VERIFICATION` 값을 포함하여 GitHub Variables로부터 wrangler.jsonc 파일 생성 (미설정 시 `false`)
 2. Vue 프론트엔드 빌드
 3. D1 데이터베이스 마이그레이션 적용
 4. 3개 워커 모두 배포 (메인, 큐 컨슈머, 이메일 센더)
