@@ -50,10 +50,16 @@ function shouldRedactField(name: string): boolean {
 	const normalized = normalizeFieldName(name);
 	return SENSITIVE_FIELD_NAMES.has(normalized)
 		|| TEXT_BODY_FIELD_NAMES.has(normalized)
-		|| normalized.startsWith('privatekey')
+		|| normalized.includes('privatekey')
 		|| normalized.endsWith('password')
 		|| normalized.endsWith('secret')
-		|| normalized.endsWith('token');
+		|| normalized.endsWith('token')
+		|| normalized.endsWith('authorization')
+		|| normalized.endsWith('cookie')
+		|| normalized.endsWith('credential')
+		|| normalized.endsWith('credentials')
+		|| normalized.endsWith('passphrase')
+		|| normalized.endsWith('signature');
 }
 
 /**
