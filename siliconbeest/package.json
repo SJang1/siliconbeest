@@ -19,11 +19,11 @@
 		"lint:fix": "oxlint -c oxlint.config.ts --fix server/worker/services server/worker/repositories server/worker/middleware server/worker/utils server/worker/webpush server/worker/types && eslint --fix"
 	},
 	"dependencies": {
-		"@fedify/cfworkers": "^2.3.1",
-		"@fedify/fedify": "^2.3.1",
-		"@fedify/hono": "^2.3.1",
-		"@fedify/vocab": "^2.3.1",
-		"@fedify/webfinger": "^2.3.1",
+		"@fedify/cfworkers": "^2.3.2",
+		"@fedify/fedify": "^2.3.2",
+		"@fedify/hono": "^2.3.2",
+		"@fedify/vocab": "^2.3.2",
+		"@fedify/webfinger": "^2.3.2",
 		"@fontsource-variable/bricolage-grotesque": "^5.2.10",
 		"@fontsource-variable/inter": "^5.2.8",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",
@@ -46,8 +46,9 @@
 		"vue-router": "^5.1.0"
 	},
 	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20260701.1",
 		"@cloudflare/vite-plugin": "^1.43.0",
-		"@cloudflare/vitest-pool-workers": "^0.14.9",
+		"@cloudflare/vitest-pool-workers": "^0.17.0",
 		"@eslint/js": "^10.0.1",
 		"@tailwindcss/typography": "^0.5.20",
 		"@tailwindcss/vite": "^4.3.2",
@@ -73,9 +74,9 @@
 		"vite-plugin-vue-devtools": "^8.1.5",
 		"vitest": "^4.1.9",
 		"vue-tsc": "^3.3.6",
-		"wrangler": "^4.107.0"
+		"wrangler": "4.107.0"
 	},
 	"engines": {
-		"node": "^20.19.0 || >=22.12.0"
+		"node": "^22.13.0 || ^24.11.0 || >=26.0.0"
 	}
 }

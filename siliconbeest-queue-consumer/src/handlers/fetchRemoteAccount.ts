@@ -16,6 +16,7 @@ import { getUserAgent } from '../utils/repository';
 import { ensureInstanceRecord } from '../../../packages/shared/services/instance';
 import { pickSignerUsername } from '../../../packages/shared/services/signer';
 import { emojiTagToCustomEmoji } from '../../../packages/shared/utils/customEmoji';
+import { lookupRemoteSoftware } from '../utils/nodeinfo';
 
 /** Cache TTL for remote actor documents (5 minutes). */
 const ACTOR_CACHE_TTL = 300;
@@ -237,47 +238,21 @@ export async function handleFetchRemoteAccount(
     const nodeinfoKey = `nodeinfo:${actorDomain}`;
     const cached = await env.CACHE.get(nodeinfoKey);
     if (!cached) {
-      const wellKnownRes = await fetch(`https://${actorDomain}/.well-known/nodeinfo`, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': getUserAgent('ActivityPub'),
-        },
-      });
-      if (wellKnownRes.ok) {
-        const wellKnown = (await wellKnownRes.json()) as {
-          links?: Array<{ rel?: string; href?: string }>;
-        };
-        const link = wellKnown.links?.find(
-          (l) =>
-            l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
-            l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1',
-        );
-        if (link?.href) {
-          const nodeinfoRes = await fetch(link.href, {
-            headers: {
-              Accept: 'application/json',
-              'User-Agent': getUserAgent('ActivityPub'),
-            },
-          });
-          if (nodeinfoRes.ok) {
-            const nodeinfo = (await nodeinfoRes.json()) as {
-              software?: { name?: string; version?: string };
-            };
-            const softwareName = nodeinfo.software?.name ?? null;
-            const softwareVersion = nodeinfo.software?.version ?? null;
-            if (softwareName) {
-              await env.DB.prepare(
-                `UPDATE instances SET software_name = ?, software_version = ?, updated_at = datetime('now') WHERE domain = ?`,
-              )
-                .bind(softwareName, softwareVersion, actorDomain)
-                .run();
-            }
-            // Cache for 2 hours (best-effort)
-            try { await env.CACHE.put(nodeinfoKey, JSON.stringify({ softwareName, softwareVersion }), {
-              expirationTtl: 7200,
-            }); } catch { /* KV rate limit — non-fatal */ }
-          }
-        }
+      const software = await lookupRemoteSoftware(
+        actorDomain,
+        getUserAgent('ActivityPub'),
+      );
+      if (software) {
+        const { softwareName, softwareVersion } = software;
+        await env.DB.prepare(
+          `UPDATE instances SET software_name = ?, software_version = ?, updated_at = datetime('now') WHERE domain = ?`,
+        )
+          .bind(softwareName, softwareVersion, actorDomain)
+          .run();
+        // Cache for 2 hours (best-effort)
+        try { await env.CACHE.put(nodeinfoKey, JSON.stringify({ softwareName, softwareVersion }), {
+          expirationTtl: 7200,
+        }); } catch { /* KV rate limit — non-fatal */ }
       }
     }
   } catch (err) {

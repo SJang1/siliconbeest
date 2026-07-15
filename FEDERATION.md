@@ -2,9 +2,9 @@
 
 This document describes the federation capabilities and standards supported by SiliconBeest, in accordance with [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fep/67ff/fep-67ff.md).
 
-## Powered by Fedify v2.1.0
+## Powered by Fedify v2.3.2
 
-SiliconBeest's federation layer is built on [Fedify](https://fedify.dev/) v2.1.0, a TypeScript ActivityPub server framework. Fedify handles the core ActivityPub protocol concerns including HTTP Signature signing/verification, WebFinger resolution, NodeInfo serving, and activity delivery. The [`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers) package provides Cloudflare Workers-specific adapters for KV-based caching and Queue-based message dispatching.
+SiliconBeest's federation layer is built on [Fedify](https://fedify.dev/) v2.3.2, a TypeScript ActivityPub server framework. Fedify handles the core ActivityPub protocol concerns including HTTP Signature signing/verification, WebFinger resolution, NodeInfo serving, and activity delivery. The [`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers) package provides Cloudflare Workers-specific adapters for KV-based caching and Queue-based message dispatching.
 
 ## Supported Protocols
 
@@ -65,6 +65,10 @@ Fedify implements a "double-knock" delivery strategy when sending activities to 
 1. First attempt uses RFC 9421 HTTP Message Signatures (preferred).
 2. If the recipient rejects with a signature error, falls back to draft-cavage HTTP Signatures.
 3. The recipient's preference is cached in KV (via `@fedify/cfworkers` KV store) for 7 days to avoid repeated fallbacks.
+
+### Outbound Circuit Breaker
+
+Fedify 2.3.2 attaches a TTL to new and updated outbound circuit-breaker state. `WorkersKvStore` does not support compare-and-swap, so Fedify cannot automatically sweep state written by 2.3.0 or 2.3.1 in Cloudflare KV. When upgrading an existing deployment, drain the old Workers and remove only legacy keys under the serialized `["_fedify","circuit",...]` prefix; all other Fedify KV keys must be preserved.
 
 ### Key Types
 

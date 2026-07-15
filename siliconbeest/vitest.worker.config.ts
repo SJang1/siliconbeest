@@ -6,7 +6,7 @@ export default defineConfig({
     cloudflareTest({
       main: './server/worker/index.ts',
       miniflare: {
-        compatibilityDate: '2024-12-18',
+        compatibilityDate: '2026-06-16',
         compatibilityFlags: ['nodejs_compat'],
         d1Databases: ['DB'],
         r2Buckets: ['MEDIA_BUCKET'],

@@ -44,7 +44,7 @@ siliconbeest/
 | Technology                  | Purpose                            |
 | --------------------------- | ---------------------------------- |
 | Hono                        | API server framework               |
-| Fedify v2.1.0               | ActivityPub federation              |
+| Fedify v2.3.2               | ActivityPub federation              |
 | Vue 3                       | Reactive UI framework              |
 | Vue Router 5                | Client-side routing with auth guards |
 | Vite 7                      | Build tool and dev server          |
@@ -294,7 +294,7 @@ After adding secrets, run `npx wrangler types` to update TypeScript type definit
 
 ### Prerequisites
 
-- Node.js >= 20.19.0 or >= 22.12.0
+- Node.js 22.13+, 24.11+, or 26+
 
 ### Setup
 

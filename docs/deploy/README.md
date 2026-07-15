@@ -10,7 +10,7 @@ SiliconBeest is a **GitHub Template Repository**. You can deploy your own Fedive
 
 - A **Workers Enabled** Cloudflare account
 - A domain managed by Cloudflare
-- [Node.js](https://nodejs.org/) >= 20 (for the setup script only)
+- [Node.js](https://nodejs.org/) 22.13+, 24.11+, or 26+ (for the setup script only)
 
 ---
 

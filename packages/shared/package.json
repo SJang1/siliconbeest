@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260405.1"
+    "@cloudflare/workers-types": "^4.20260701.1"
   }
 }

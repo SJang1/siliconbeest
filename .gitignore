@@ -4,6 +4,8 @@
 
 # --- Dependencies ---
 node_modules/
+# pnpm-lock.yaml is authoritative for this workspace.
+package-lock.json
 
 # --- Build outputs ---
 dist/

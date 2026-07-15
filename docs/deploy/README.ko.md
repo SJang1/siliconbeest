@@ -10,7 +10,7 @@ SiliconBeest는 **GitHub 템플릿 레포지토리**입니다. Cloudflare Worker
 
 - **Workers Enabled** Cloudflare 계정
 - Cloudflare에서 관리하는 도메인
-- [Node.js](https://nodejs.org/) >= 20 (셋업 스크립트 실행용)
+- [Node.js](https://nodejs.org/) 22.13+, 24.11+, 또는 26+ (셋업 스크립트 실행용)
 
 ---
 
