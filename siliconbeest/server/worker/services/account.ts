@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 import { AppError } from '../middleware/errorHandler';
-import type { AccountRow, FollowRow, FollowRequestRow, BlockRow, MuteRow } from '../types/db';
+import type { AccountRow, FollowRequestRow } from '../types/db';
 import type { Relationship } from '../types/mastodon';
 import { canViewAccountRelationship } from '../../../../packages/shared/permissions';
 import {
@@ -103,95 +103,189 @@ export async function updateProfile(
 // Get relationship between two accounts
 // ----------------------------------------------------------------
 
-export async function getRelationship(accountId: string, targetId: string): Promise<Relationship> {
-	const now = new Date().toISOString();
-	const [follow, followedBy, followReq, followReqBy, block, blockedBy, mute, targetAccount] = await Promise.all([
-		env.DB
-			.prepare('SELECT * FROM follows WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(accountId, targetId)
-			.first() as Promise<FollowRow | null>,
-		env.DB
-			.prepare('SELECT * FROM follows WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(targetId, accountId)
-			.first() as Promise<FollowRow | null>,
-		env.DB
-			.prepare('SELECT * FROM follow_requests WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(accountId, targetId)
-			.first() as Promise<FollowRequestRow | null>,
-		env.DB
-			.prepare('SELECT * FROM follow_requests WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(targetId, accountId)
-			.first() as Promise<FollowRequestRow | null>,
-		env.DB
-			.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(accountId, targetId)
-			.first() as Promise<BlockRow | null>,
-		env.DB
-			.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
-			.bind(targetId, accountId)
-			.first() as Promise<BlockRow | null>,
-		env.DB
-			.prepare(`SELECT * FROM mutes
-				WHERE account_id = ? AND target_account_id = ?
-				  AND (expires_at IS NULL OR expires_at > ?)
-				LIMIT 1`)
-			.bind(accountId, targetId, now)
-			.first() as Promise<MuteRow | null>,
-		env.DB
-			.prepare('SELECT domain FROM accounts WHERE id = ? LIMIT 1')
-			.bind(targetId)
-			.first<{ domain: string | null }>(),
-	]);
+const RELATIONSHIP_QUERY_BATCH_SIZE = 50;
 
-	// Queries for tables added in migration 0023 (graceful fallback)
-	let endorsed = false;
-	let noteComment = '';
-	let domainBlocking = false;
+interface RelationshipBaseRow {
+	target_id: string;
+	target_suspended_at: string | null;
+	outgoing_follow_id: string | null;
+	outgoing_show_reblogs: number | null;
+	outgoing_notify: number | null;
+	outgoing_languages: string | null;
+	incoming_follow_id: string | null;
+	outgoing_request_id: string | null;
+	incoming_request_id: string | null;
+	outgoing_block_id: string | null;
+	incoming_block_id: string | null;
+	outgoing_mute_id: string | null;
+	outgoing_mute_notifications: number | null;
+}
+
+interface RelationshipOptionalRow {
+	target_id: string;
+	endorsement_id: string | null;
+	note_comment: string | null;
+	domain_blocking: number;
+}
+
+interface RelationshipState extends RelationshipBaseRow {
+	endorsed: boolean;
+	note: string;
+	domainBlocking: boolean;
+}
+
+function parseRelationshipLanguages(value: string | null | undefined): string[] | null {
+	if (!value) return null;
 	try {
-		const [endorsedRow, accountNote] = await Promise.all([
-			env.DB
-				.prepare('SELECT id FROM account_pins WHERE account_id = ? AND target_account_id = ?')
-				.bind(accountId, targetId)
-				.first(),
-			env.DB
-				.prepare('SELECT comment FROM account_notes WHERE account_id = ? AND target_account_id = ?')
-				.bind(accountId, targetId)
-				.first<{ comment: string }>(),
-		]);
-		endorsed = !!endorsedRow;
-		noteComment = accountNote?.comment ?? '';
-
-		if (targetAccount?.domain) {
-			const dbRow = await env.DB
-				.prepare(
-					`SELECT id FROM user_domain_blocks
-					 WHERE account_id = ? AND lower(domain) = lower(?)`,
-				)
-				.bind(accountId, targetAccount.domain)
-				.first();
-			domainBlocking = !!dbRow;
-		}
+		const parsed: unknown = JSON.parse(value);
+		return Array.isArray(parsed) && parsed.every((language) => typeof language === 'string')
+			? parsed
+			: null;
 	} catch {
-		// Tables may not exist yet (pre-migration 0023)
+		return null;
 	}
+}
 
+function buildRelationship(
+	targetId: string,
+	state: RelationshipState | null,
+): Relationship {
+	const followState = state?.outgoing_follow_id != null ? state : null;
+	const muteState = state?.outgoing_mute_id != null ? state : null;
 	return {
 		id: targetId,
-		following: !!follow,
-		showing_reblogs: follow ? !!follow.show_reblogs : true,
-		notifying: follow ? !!follow.notify : false,
-		followed_by: !!followedBy,
-		blocking: !!block,
-		blocked_by: !!blockedBy,
-		muting: !!mute,
-		muting_notifications: mute ? !!mute.hide_notifications : false,
-		requested: !!followReq,
-		requested_by: !!followReqBy,
-		domain_blocking: domainBlocking,
-		endorsed,
-		note: noteComment,
-		languages: (() => { try { return follow?.languages ? JSON.parse(follow.languages) : null; } catch { return null; } })(),
+		following: followState !== null,
+		showing_reblogs: followState ? followState.outgoing_show_reblogs !== 0 : true,
+		notifying: followState ? followState.outgoing_notify !== 0 : false,
+		followed_by: state?.incoming_follow_id != null,
+		blocking: state?.outgoing_block_id != null,
+		blocked_by: state?.incoming_block_id != null,
+		muting: muteState !== null,
+		muting_notifications: muteState ? muteState.outgoing_mute_notifications !== 0 : false,
+		requested: state?.outgoing_request_id != null,
+		requested_by: state?.incoming_request_id != null,
+		domain_blocking: state?.domainBlocking ?? false,
+		endorsed: state?.endorsed ?? false,
+		note: state?.note ?? '',
+		languages: parseRelationshipLanguages(state?.outgoing_languages),
 	};
+}
+
+async function fetchRelationshipBaseRows(
+	accountId: string,
+	targetIds: string[],
+	now: string,
+): Promise<RelationshipBaseRow[]> {
+	const placeholders = targetIds
+		.map((_, index) => `?${index + 3}`)
+		.join(', ');
+	const { results } = await env.DB.prepare(
+		`SELECT target.id AS target_id,
+		        target.suspended_at AS target_suspended_at,
+		        outgoing_follow.id AS outgoing_follow_id,
+		        outgoing_follow.show_reblogs AS outgoing_show_reblogs,
+		        outgoing_follow.notify AS outgoing_notify,
+		        outgoing_follow.languages AS outgoing_languages,
+		        incoming_follow.id AS incoming_follow_id,
+		        outgoing_request.id AS outgoing_request_id,
+		        incoming_request.id AS incoming_request_id,
+		        outgoing_block.id AS outgoing_block_id,
+		        incoming_block.id AS incoming_block_id,
+		        outgoing_mute.id AS outgoing_mute_id,
+		        outgoing_mute.hide_notifications AS outgoing_mute_notifications
+		 FROM accounts target
+		 LEFT JOIN follows outgoing_follow
+		   ON outgoing_follow.account_id = ?1
+		  AND outgoing_follow.target_account_id = target.id
+		 LEFT JOIN follows incoming_follow
+		   ON incoming_follow.account_id = target.id
+		  AND incoming_follow.target_account_id = ?1
+		 LEFT JOIN follow_requests outgoing_request
+		   ON outgoing_request.account_id = ?1
+		  AND outgoing_request.target_account_id = target.id
+		 LEFT JOIN follow_requests incoming_request
+		   ON incoming_request.account_id = target.id
+		  AND incoming_request.target_account_id = ?1
+		 LEFT JOIN blocks outgoing_block
+		   ON outgoing_block.account_id = ?1
+		  AND outgoing_block.target_account_id = target.id
+		 LEFT JOIN blocks incoming_block
+		   ON incoming_block.account_id = target.id
+		  AND incoming_block.target_account_id = ?1
+		 LEFT JOIN mutes outgoing_mute
+		   ON outgoing_mute.account_id = ?1
+		  AND outgoing_mute.target_account_id = target.id
+		  AND (outgoing_mute.expires_at IS NULL OR outgoing_mute.expires_at > ?2)
+		 WHERE target.id IN (${placeholders})`,
+	).bind(accountId, now, ...targetIds).all<RelationshipBaseRow>();
+	return results ?? [];
+}
+
+async function fetchRelationshipOptionalRows(
+	accountId: string,
+	targetIds: string[],
+): Promise<RelationshipOptionalRow[]> {
+	const placeholders = targetIds
+		.map((_, index) => `?${index + 2}`)
+		.join(', ');
+	try {
+		const { results } = await env.DB.prepare(
+			`SELECT target.id AS target_id,
+			        endorsement.id AS endorsement_id,
+			        account_note.comment AS note_comment,
+			        CASE WHEN target.domain IS NOT NULL AND EXISTS (
+			          SELECT 1 FROM user_domain_blocks domain_block
+			          WHERE domain_block.account_id = ?1
+			            AND lower(domain_block.domain) = lower(target.domain)
+			        ) THEN 1 ELSE 0 END AS domain_blocking
+			 FROM accounts target
+			 LEFT JOIN account_pins endorsement
+			   ON endorsement.account_id = ?1
+			  AND endorsement.target_account_id = target.id
+			 LEFT JOIN account_notes account_note
+			   ON account_note.account_id = ?1
+			  AND account_note.target_account_id = target.id
+			 WHERE target.id IN (${placeholders})`,
+		).bind(accountId, ...targetIds).all<RelationshipOptionalRow>();
+		return results ?? [];
+	} catch {
+		// Tables may not exist yet (pre-migration 0023).
+		return [];
+	}
+}
+
+async function fetchRelationshipStates(
+	accountId: string,
+	targetIds: string[],
+	now: string,
+): Promise<Map<string, RelationshipState>> {
+	const states = new Map<string, RelationshipState>();
+	const uniqueTargetIds = [...new Set(targetIds)];
+	for (let offset = 0; offset < uniqueTargetIds.length; offset += RELATIONSHIP_QUERY_BATCH_SIZE) {
+		const batchIds = uniqueTargetIds.slice(offset, offset + RELATIONSHIP_QUERY_BATCH_SIZE);
+		const [baseRows, optionalRows] = await Promise.all([
+			fetchRelationshipBaseRows(accountId, batchIds, now),
+			fetchRelationshipOptionalRows(accountId, batchIds),
+		]);
+		const optionalByTarget = new Map(
+			optionalRows.map((row) => [row.target_id, row] as const),
+		);
+		for (const row of baseRows) {
+			const optional = optionalByTarget.get(row.target_id);
+			states.set(row.target_id, {
+				...row,
+				endorsed: optional?.endorsement_id != null,
+				note: optional?.note_comment ?? '',
+				domainBlocking: optional?.domain_blocking === 1,
+			});
+		}
+	}
+	return states;
+}
+
+export async function getRelationship(accountId: string, targetId: string): Promise<Relationship> {
+	const states = await fetchRelationshipStates(accountId, [targetId], new Date().toISOString());
+	return buildRelationship(targetId, states.get(targetId) ?? null);
 }
 
 // ----------------------------------------------------------------
@@ -203,20 +297,24 @@ export async function getRelationships(
 	targetIds: string[],
 	options?: { withSuspended?: boolean },
 ): Promise<Relationship[]> {
-	const relationships = await Promise.all(targetIds.map(async (targetId) => {
-		const target = await env.DB.prepare(
-			'SELECT suspended_at FROM accounts WHERE id = ?1 LIMIT 1',
-		).bind(targetId).first<{ suspended_at: string | null }>();
-		if (!canViewAccountRelationship({
-			targetExists: target !== null,
-			targetSuspended: target ? target.suspended_at !== null : null,
+	if (targetIds.length === 0) return [];
+	const states = await fetchRelationshipStates(
+		accountId,
+		targetIds,
+		new Date().toISOString(),
+	);
+	return targetIds.flatMap((targetId) => {
+		const state = states.get(targetId);
+		const canView = canViewAccountRelationship({
+			targetExists: state !== undefined,
+			targetSuspended: state ? state.target_suspended_at !== null : null,
 			includeSuspended: options?.withSuspended === true,
-		})) {
-			return null;
+		});
+		if (!canView || !state) {
+			return [];
 		}
-		return getRelationship(accountId, targetId);
-	}));
-	return relationships.filter((relationship): relationship is Relationship => relationship !== null);
+		return [buildRelationship(targetId, state)];
+	});
 }
 
 // ----------------------------------------------------------------

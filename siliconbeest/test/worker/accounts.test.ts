@@ -1,5 +1,6 @@
-import { SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
+import type { Relationship } from '../../server/worker/types/mastodon';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
 
 const BASE = 'https://test.siliconbeest.local';
@@ -7,11 +8,13 @@ const BASE = 'https://test.siliconbeest.local';
 describe('Accounts API', () => {
   let alice: { accountId: string; userId: string; token: string };
   let bob: { accountId: string; userId: string; token: string };
+  let carol: { accountId: string; userId: string; token: string };
 
   beforeAll(async () => {
     await applyMigration();
     alice = await createTestUser('alice');
     bob = await createTestUser('bob');
+    carol = await createTestUser('carol');
   });
 
   // -------------------------------------------------------------------
@@ -163,20 +166,69 @@ describe('Accounts API', () => {
   // Relationships
   // -------------------------------------------------------------------
   describe('GET /api/v1/accounts/relationships', () => {
-    it('returns relationship status for given IDs', async () => {
+    it('returns batched relationship state for multiple IDs', async () => {
+      const now = new Date().toISOString();
+      const future = new Date(Date.now() + 60_000).toISOString();
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO follows
+           (id, account_id, target_account_id, show_reblogs, notify, languages, created_at, updated_at)
+           VALUES ('relationship-batch-follow', ?1, ?2, 0, 1, '["en","ko"]', ?3, ?3)`,
+        ).bind(alice.accountId, bob.accountId, now),
+        env.DB.prepare(
+          `INSERT INTO follows
+           (id, account_id, target_account_id, show_reblogs, notify, created_at, updated_at)
+           VALUES ('relationship-batch-followed-by', ?1, ?2, 1, 0, ?3, ?3)`,
+        ).bind(carol.accountId, alice.accountId, now),
+        env.DB.prepare(
+          `INSERT INTO follow_requests
+           (id, account_id, target_account_id, created_at, updated_at)
+           VALUES ('relationship-batch-request', ?1, ?2, ?3, ?3)`,
+        ).bind(alice.accountId, carol.accountId, now),
+        env.DB.prepare(
+          `INSERT INTO blocks (id, account_id, target_account_id, created_at)
+           VALUES ('relationship-batch-block', ?1, ?2, ?3)`,
+        ).bind(alice.accountId, carol.accountId, now),
+        env.DB.prepare(
+          `INSERT INTO mutes
+           (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
+           VALUES ('relationship-batch-mute', ?1, ?2, 1, ?3, ?4, ?4)`,
+        ).bind(alice.accountId, carol.accountId, future, now),
+        env.DB.prepare(
+          `INSERT INTO account_pins (id, account_id, target_account_id, created_at)
+           VALUES ('relationship-batch-pin', ?1, ?2, ?3)`,
+        ).bind(alice.accountId, bob.accountId, now),
+        env.DB.prepare(
+          `INSERT INTO account_notes
+           (id, account_id, target_account_id, comment, created_at, updated_at)
+           VALUES ('relationship-batch-note', ?1, ?2, 'Batch note', ?3, ?3)`,
+        ).bind(alice.accountId, bob.accountId, now),
+      ]);
+
       const res = await SELF.fetch(
-        `${BASE}/api/v1/accounts/relationships?id[]=${bob.accountId}`,
+        `${BASE}/api/v1/accounts/relationships?id[]=${bob.accountId}&id[]=${carol.accountId}&id[]=missing-account`,
         { headers: authHeaders(alice.token) },
       );
       expect(res.status).toBe(200);
-      const body = await res.json<any[]>();
-      expect(Array.isArray(body)).toBe(true);
-      expect(body.length).toBeGreaterThanOrEqual(1);
-      const rel = body.find((r: any) => r.id === bob.accountId);
-      expect(rel).toBeDefined();
-      expect(typeof rel.following).toBe('boolean');
-      expect(typeof rel.blocking).toBe('boolean');
-      expect(typeof rel.muting).toBe('boolean');
+      const body = await res.json<Relationship[]>();
+      expect(body).toHaveLength(2);
+      expect(body[0]).toMatchObject({
+        id: bob.accountId,
+        following: true,
+        showing_reblogs: false,
+        notifying: true,
+        endorsed: true,
+        note: 'Batch note',
+        languages: ['en', 'ko'],
+      });
+      expect(body[1]).toMatchObject({
+        id: carol.accountId,
+        followed_by: true,
+        requested: true,
+        blocking: true,
+        muting: true,
+        muting_notifications: true,
+      });
     });
   });
 
