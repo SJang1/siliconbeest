@@ -6,6 +6,9 @@ import {
   TransitionRoot,
   TransitionChild,
 } from '@headlessui/vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 defineProps<{
   open: boolean
@@ -52,6 +55,7 @@ const emit = defineEmits<{
               <button
                 @click="emit('close')"
                 class="rounded-full p-1.5 text-slate-500 transition-colors hover:bg-surface-2 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-slate-400 dark:hover:bg-surface-2-dark dark:hover:text-white"
+                :aria-label="t('common.close')"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6M6 6l12 12"/></svg>
               </button>

@@ -243,7 +243,16 @@
     "cannot_quote_policy_nobody": "作者不允許引用此貼文",
     "cannot_quote_followers_only": "只有作者的追蹤者可以引用此貼文",
     "cannot_quote_following_only": "只有作者追蹤的使用者可以引用此貼文",
-    "cannot_quote_login_required": "以追蹤者身分登入後才能引用此貼文"
+    "cannot_quote_login_required": "以追蹤者身分登入後才能引用此貼文",
+    "favourited_by": "喜歡此貼文的帳號",
+    "reblogged_by": "轉發此貼文的帳號",
+    "view_favourites": "查看喜歡此貼文的 {count} 個帳號",
+    "view_reblogs": "查看轉發此貼文的 {count} 個帳號",
+    "favourites_count": "{count} 次喜歡",
+    "reblogs_count": "{count} 次轉發",
+    "engagement_empty": "沒有可顯示的帳號。",
+    "engagement_load_error": "無法載入帳號列表。",
+    "engagement_login_required": "登入後即可查看誰與此貼文互動。"
   },
   "notification": {
     "title": "通知",

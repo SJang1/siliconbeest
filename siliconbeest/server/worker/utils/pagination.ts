@@ -9,6 +9,11 @@ export type PaginationParams = {
 	limit: number;
 };
 
+export type LinkHeaderOptions = {
+	includeNext?: boolean;
+	includePrev?: boolean;
+};
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 40;
 
@@ -94,7 +99,12 @@ export function buildPaginationQuery(
  * @param limit - The page size limit.
  * @returns A Link header string with rel=next and rel=prev, or empty string if no items.
  */
-export function buildLinkHeader(baseUrl: string, items: { id: string }[], limit: number): string {
+export function buildLinkHeader(
+	baseUrl: string,
+	items: { id: string }[],
+	limit: number,
+	options: LinkHeaderOptions = {},
+): string {
 	if (items.length === 0) {
 		return '';
 	}
@@ -103,11 +113,11 @@ export function buildLinkHeader(baseUrl: string, items: { id: string }[], limit:
 	const lastItem = items[items.length - 1];
 	const firstItem = items[0];
 
-	if (lastItem) {
+	if (lastItem && options.includeNext !== false) {
 		links.push(`<${baseUrl}?max_id=${lastItem.id}&limit=${limit}>; rel="next"`);
 	}
 
-	if (firstItem) {
+	if (firstItem && options.includePrev !== false) {
 		links.push(`<${baseUrl}?min_id=${firstItem.id}&limit=${limit}>; rel="prev"`);
 	}
 

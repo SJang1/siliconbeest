@@ -243,7 +243,16 @@
     "cannot_quote_policy_nobody": "投稿者がこの投稿の引用を許可していません",
     "cannot_quote_followers_only": "投稿者のフォロワーのみこの投稿を引用できます",
     "cannot_quote_following_only": "投稿者がフォローしているユーザーのみこの投稿を引用できます",
-    "cannot_quote_login_required": "フォロワーとしてログインすると引用できます"
+    "cannot_quote_login_required": "フォロワーとしてログインすると引用できます",
+    "favourited_by": "お気に入りにしたアカウント",
+    "reblogged_by": "ブーストしたアカウント",
+    "view_favourites": "この投稿をお気に入りにした{count}件のアカウントを表示",
+    "view_reblogs": "この投稿をブーストした{count}件のアカウントを表示",
+    "favourites_count": "お気に入り{count}件",
+    "reblogs_count": "ブースト{count}件",
+    "engagement_empty": "表示するアカウントはありません。",
+    "engagement_load_error": "アカウント一覧を読み込めませんでした。",
+    "engagement_login_required": "反応したアカウントを表示するにはログインしてください。"
   },
   "notification": {
     "title": "通知",

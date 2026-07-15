@@ -243,7 +243,16 @@
     "cannot_quote_policy_nobody": "The author does not allow quotes for this post",
     "cannot_quote_followers_only": "Only the author's followers can quote this post",
     "cannot_quote_following_only": "Only accounts followed by the author can quote this post",
-    "cannot_quote_login_required": "Log in as a follower to quote this post"
+    "cannot_quote_login_required": "Log in as a follower to quote this post",
+    "favourited_by": "Favourited by",
+    "reblogged_by": "Boosted by",
+    "view_favourites": "View {count} accounts who favourited this post",
+    "view_reblogs": "View {count} accounts who boosted this post",
+    "favourites_count": "{count} favourites",
+    "reblogs_count": "{count} boosts",
+    "engagement_empty": "No accounts to show.",
+    "engagement_load_error": "The account list could not be loaded.",
+    "engagement_login_required": "Log in to view who interacted with this post."
   },
   "notification": {
     "title": "Notifications",

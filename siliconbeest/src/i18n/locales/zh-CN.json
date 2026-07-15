@@ -243,7 +243,16 @@
     "cannot_quote_policy_nobody": "作者不允许引用此帖子",
     "cannot_quote_followers_only": "只有作者的关注者可以引用此帖子",
     "cannot_quote_following_only": "只有作者关注的用户可以引用此帖子",
-    "cannot_quote_login_required": "以关注者身份登录后才能引用此帖子"
+    "cannot_quote_login_required": "以关注者身份登录后才能引用此帖子",
+    "favourited_by": "收藏者",
+    "reblogged_by": "转发者",
+    "view_favourites": "查看收藏此帖文的 {count} 个账户",
+    "view_reblogs": "查看转发此帖文的 {count} 个账户",
+    "favourites_count": "{count} 次收藏",
+    "reblogs_count": "{count} 次转发",
+    "engagement_empty": "没有可显示的账户。",
+    "engagement_load_error": "无法加载账户列表。",
+    "engagement_login_required": "登录后即可查看谁与此帖文互动。"
   },
   "notification": {
     "title": "通知",

@@ -217,7 +217,7 @@ function getShortcode(name: string): string {
         v-for="reaction in reactions"
         :key="reaction.name"
         type="button"
-        class="inline-flex select-none items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[14px] transition-all duration-200"
+        class="inline-flex min-h-9 select-none items-center gap-1.5 rounded-full px-3 py-1.5 text-[15px] transition-all duration-200"
         :style="{
           border: '1px solid ' + (reaction.me ? 'var(--dk-acc)' : 'var(--dk-border)'),
           background: reaction.me ? 'color-mix(in oklab, var(--dk-acc) 24%, transparent)' : 'var(--dk-surface2)',
@@ -234,11 +234,11 @@ function getShortcode(name: string): string {
           v-if="isCustomEmoji(reaction)"
           :src="reaction.url!"
           :alt="getShortcode(reaction.name)"
-          class="h-5 w-5 object-contain"
+          class="h-6 w-6 object-contain"
           loading="lazy"
         />
-        <span v-else class="text-base leading-none">{{ reaction.name }}</span>
-        <span class="dk-mono text-[11.5px] tabular-nums">{{ reaction.count }}</span>
+        <span v-else class="text-lg leading-none">{{ reaction.name }}</span>
+        <span class="dk-mono text-xs tabular-nums">{{ reaction.count }}</span>
       </button>
     </TransitionGroup>
 

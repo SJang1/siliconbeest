@@ -166,6 +166,16 @@ describe('pagination utilities', () => {
       }
     });
 
+    it('can omit unavailable navigation directions', () => {
+      const items = [{ id: '100' }, { id: '50' }];
+      const result = buildLinkHeader('https://example.com/endpoint', items, 20, {
+        includeNext: false,
+      });
+
+      expect(result).not.toContain('rel="next"');
+      expect(result).toContain('rel="prev"');
+    });
+
     it('wraps URLs in angle brackets per RFC 8288', () => {
       const items = [{ id: '1' }];
       const result = buildLinkHeader('https://example.com/endpoint', items, 20);

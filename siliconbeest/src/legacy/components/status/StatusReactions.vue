@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Status, EmojiReaction } from '@/types/mastodon'
 import { useAuthStore } from '@/stores/auth'
 import { getReactions, addReaction, removeReaction } from '@/api/mastodon/statuses'
 import EmojiPicker from '../common/EmojiPicker.vue'
 import { canUseAuthenticatedActions } from '@/utils/permissions'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   status: Status
@@ -154,7 +157,7 @@ function getShortcode(name: string): string {
         :key="reaction.name"
         @click="!isRemoteCustomEmoji(reaction) && toggleReaction(reaction)"
         :disabled="loading || !accountCanAct || isRemoteCustomEmoji(reaction)"
-        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-all duration-200 select-none"
+        class="inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200 select-none"
         :class="[
           isRemoteCustomEmoji(reaction)
             ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70'
@@ -170,11 +173,11 @@ function getShortcode(name: string): string {
           v-if="isCustomEmoji(reaction)"
           :src="reaction.url!"
           :alt="getShortcode(reaction.name)"
-          class="h-5 w-5 object-contain"
+          class="h-6 w-6 object-contain"
           loading="lazy"
         />
         <!-- 유니코드 이모지 -->
-        <span v-else class="text-base leading-none">{{ reaction.name }}</span>
+        <span v-else class="text-lg leading-none">{{ reaction.name }}</span>
         <!-- 카운트 -->
         <span class="tabular-nums">{{ reaction.count }}</span>
       </button>
@@ -186,11 +189,12 @@ function getShortcode(name: string): string {
         ref="pickerBtnRef"
         @click.stop="togglePicker"
         :disabled="loading"
-        class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+        class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-500 dark:border-gray-600 dark:text-gray-500 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20 dark:hover:text-indigo-400"
         :class="loading ? 'opacity-60 cursor-wait' : 'cursor-pointer'"
-        title="리액션 추가"
+        :title="t('status.react')"
+        :aria-label="t('status.react')"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
       </button>

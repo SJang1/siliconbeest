@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import StatusActions from '@/components/status/StatusActions.vue';
 import { mountWithPlugins } from '../helpers';
 
@@ -11,23 +11,26 @@ const baseProps = {
   reblogged: false,
   bookmarked: false,
   accountCanAct: true,
+  viewerAuthenticated: true,
   visibility: 'public',
 };
 
 // Button order with menus closed:
-// 0 reply, 1 boost/quote menu trigger, 2 favourite/react menu trigger,
-// 3 bookmark, 4 share, 5 more menu = 6 buttons
+// reply, boost/quote trigger, boost count, favourite/react trigger,
+// favourite count, bookmark, share, more menu = 8 buttons
 describe('StatusActions', () => {
   it('renders all action buttons', () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    expect(buttons.length).toBe(6);
+    expect(buttons.length).toBe(8);
+    expect(wrapper.get('[data-test="reply-action"]').classes()).toContain('min-h-11');
+    expect(wrapper.get('[data-test="reblog-action"]').classes()).toContain('min-h-11');
+    expect(wrapper.get('[data-test="favourite-action"]').classes()).toContain('min-h-11');
   });
 
   it('emits reply event on reply button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
-    const buttons = wrapper.findAll('button');
-    await buttons[0].trigger('click');
+    await wrapper.get('[data-test="reply-action"]').trigger('click');
     expect(wrapper.emitted('reply')).toBeTruthy();
     expect(wrapper.emitted('reply')![0]).toEqual(['123']);
   });
@@ -35,7 +38,7 @@ describe('StatusActions', () => {
   it('emits reblog event via the boost menu', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     // Open the boost/quote menu
-    await wrapper.findAll('button')[1].trigger('click');
+    await wrapper.get('[data-test="reblog-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     expect(menuItems.length).toBe(2);
     await menuItems[0].trigger('click');
@@ -49,7 +52,7 @@ describe('StatusActions', () => {
     const wrapper = mountWithPlugins(StatusActions, {
       props: { ...baseProps, quotePolicyAllows: true },
     });
-    await wrapper.findAll('button')[1].trigger('click');
+    await wrapper.get('[data-test="reblog-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     await menuItems[1].trigger('click');
     expect(wrapper.emitted('quote')).toBeTruthy();
@@ -59,7 +62,7 @@ describe('StatusActions', () => {
   it('emits favourite event via the favourite menu', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     // Open the favourite/react menu
-    await wrapper.findAll('button')[2].trigger('click');
+    await wrapper.get('[data-test="favourite-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     expect(menuItems.length).toBe(2);
     await menuItems[0].trigger('click');
@@ -69,7 +72,7 @@ describe('StatusActions', () => {
 
   it('emits react event via the favourite menu', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
-    await wrapper.findAll('button')[2].trigger('click');
+    await wrapper.get('[data-test="favourite-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     await menuItems[1].trigger('click');
     expect(wrapper.emitted('react')).toBeTruthy();
@@ -79,16 +82,14 @@ describe('StatusActions', () => {
 
   it('emits bookmark event on bookmark button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
-    const buttons = wrapper.findAll('button');
-    await buttons[3].trigger('click');
+    await wrapper.get('[data-test="bookmark-action"]').trigger('click');
     expect(wrapper.emitted('bookmark')).toBeTruthy();
     expect(wrapper.emitted('bookmark')![0]).toEqual(['123']);
   });
 
   it('emits share event on share button click', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
-    const buttons = wrapper.findAll('button');
-    await buttons[4].trigger('click');
+    await wrapper.get('[data-test="share-action"]').trigger('click');
     expect(wrapper.emitted('share')).toBeTruthy();
     expect(wrapper.emitted('share')![0]).toEqual(['123']);
   });
@@ -97,7 +98,7 @@ describe('StatusActions', () => {
     const wrapper = mountWithPlugins(StatusActions, {
       props: { ...baseProps, favourited: true },
     });
-    const favButton = wrapper.findAll('button')[2];
+    const favButton = wrapper.get('[data-test="favourite-action"]');
     expect(favButton.attributes('aria-pressed')).toBe('true');
     expect(favButton.html()).toContain('text-rose-500');
   });
@@ -106,7 +107,7 @@ describe('StatusActions', () => {
     const wrapper = mountWithPlugins(StatusActions, {
       props: { ...baseProps, reblogged: true },
     });
-    const reblogButton = wrapper.findAll('button')[1];
+    const reblogButton = wrapper.get('[data-test="reblog-action"]');
     expect(reblogButton.attributes('aria-pressed')).toBe('true');
     expect(reblogButton.html()).toContain('text-green-600');
   });
@@ -115,7 +116,7 @@ describe('StatusActions', () => {
     const wrapper = mountWithPlugins(StatusActions, {
       props: { ...baseProps, bookmarked: true },
     });
-    const bookmarkButton = wrapper.findAll('button')[3];
+    const bookmarkButton = wrapper.get('[data-test="bookmark-action"]');
     expect(bookmarkButton.attributes('aria-pressed')).toBe('true');
     expect(bookmarkButton.html()).toContain('text-amber-500');
   });
@@ -145,11 +146,40 @@ describe('StatusActions', () => {
     for (const span of spans) {
       expect(span.text()).toBe('');
     }
+    expect(wrapper.find('[data-test="reblogs-count"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="favourites-count"]').exists()).toBe(false);
+  });
+
+  it('opens engagement lists from separate count buttons without toggling actions', async () => {
+    const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
+
+    await wrapper.get('[data-test="reblogs-count"]').trigger('click');
+    await wrapper.get('[data-test="favourites-count"]').trigger('click');
+
+    expect(wrapper.emitted('viewReblogs')?.[0]).toEqual(['123']);
+    expect(wrapper.emitted('viewFavourites')?.[0]).toEqual(['123']);
+    expect(wrapper.emitted('reblog')).toBeFalsy();
+    expect(wrapper.emitted('favourite')).toBeFalsy();
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+  });
+
+  it('stops engagement count clicks from bubbling to a status card', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const cardClick = vi.fn();
+    host.addEventListener('click', cardClick);
+    const wrapper = mountWithPlugins(StatusActions, { props: baseProps, attachTo: host });
+
+    await wrapper.get('[data-test="reblogs-count"]').trigger('click');
+
+    expect(cardClick).not.toHaveBeenCalled();
+    wrapper.unmount();
+    host.remove();
   });
 
   it('disables account actions for logged-out viewers and does not emit them', async () => {
     const wrapper = mountWithPlugins(StatusActions, {
-      props: { ...baseProps, accountCanAct: false, quotePolicyAllows: true },
+      props: { ...baseProps, accountCanAct: false, viewerAuthenticated: false, quotePolicyAllows: true },
     });
 
     const buttons = wrapper.findAll('button');
@@ -158,11 +188,15 @@ describe('StatusActions', () => {
     expect(buttons[1]!.attributes('disabled')).toBeDefined();
     expect(buttons[2]!.attributes('disabled')).toBeDefined();
     expect(buttons[3]!.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-test="reblogs-count"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="favourites-count"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('10');
+    expect(wrapper.text()).toContain('42');
 
-    await buttons[0]!.trigger('click');
-    await buttons[1]!.trigger('click');
-    await buttons[2]!.trigger('click');
-    await buttons[3]!.trigger('click');
+    await wrapper.get('[data-test="reply-action"]').trigger('click');
+    await wrapper.get('[data-test="reblog-action"]').trigger('click');
+    await wrapper.get('[data-test="favourite-action"]').trigger('click');
+    await wrapper.get('[data-test="bookmark-action"]').trigger('click');
     expect(wrapper.emitted('reply')).toBeFalsy();
     expect(wrapper.emitted('reblog')).toBeFalsy();
     expect(wrapper.emitted('favourite')).toBeFalsy();
@@ -179,7 +213,7 @@ describe('StatusActions', () => {
       },
     });
 
-    await wrapper.findAll('button')[1]!.trigger('click');
+    await wrapper.get('[data-test="reblog-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     expect(menuItems[0]!.attributes('disabled')).toBeDefined();
     expect(menuItems[1]!.attributes('disabled')).toBeUndefined();
@@ -189,7 +223,7 @@ describe('StatusActions', () => {
 
   it('fails closed when the API omits the per-viewer quote permission', async () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
-    await wrapper.findAll('button')[1]!.trigger('click');
+    await wrapper.get('[data-test="reblog-action"]').trigger('click');
     const menuItems = wrapper.findAll('[role="menu"] button');
     expect(menuItems[1]!.attributes('disabled')).toBeDefined();
   });

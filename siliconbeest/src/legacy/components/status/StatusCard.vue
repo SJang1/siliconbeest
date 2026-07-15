@@ -17,6 +17,7 @@ import MediaGallery from './MediaGallery.vue'
 import PreviewCard from './PreviewCard.vue'
 import StatusPoll from './StatusPoll.vue'
 import StatusReactions from './StatusReactions.vue'
+import StatusEngagementDialog from '@/components/status/StatusEngagementDialog.vue'
 import ReportDialog from '../common/ReportDialog.vue'
 import ImageViewer from '../common/ImageViewer.vue'
 import { emojifyPlainText } from '@/utils/customEmoji'
@@ -67,6 +68,7 @@ const imageViewerIndex = ref(0)
 const showShareModal = ref(false)
 const shareUrl = ref('')
 const shareCopied = ref(false)
+const engagementKind = ref<'favourites' | 'reblogs' | null>(null)
 
 function openImageViewer(index: number) {
   imageViewerIndex.value = index
@@ -78,6 +80,11 @@ function handleReport(payload: { accountId: string; accountAcct: string; statusI
   if (!statusActionPermissions.value.report) return
   reportTarget.value = payload
   showReportDialog.value = true
+}
+
+function openEngagement(kind: 'favourites' | 'reblogs', statusId: string) {
+  if (!authStore.isAuthenticated || !authStore.token || statusId !== displayStatus.value.id) return
+  engagementKind.value = kind
 }
 
 const isOwnStatus = computed(() => {
@@ -524,6 +531,7 @@ async function handleDelete() {
           :reblogged="displayStatus.reblogged"
           :bookmarked="displayStatus.bookmarked"
           :account-can-act="accountCanAct"
+          :viewer-authenticated="authStore.isAuthenticated"
           :is-own-status="isOwnStatus"
           :account-id="displayStatus.account.id"
           :account-acct="displayStatus.account.acct"
@@ -536,6 +544,8 @@ async function handleDelete() {
           class="mt-2"
           @favourite="handleFavourite"
           @reblog="handleReblog"
+          @view-favourites="openEngagement('favourites', $event)"
+          @view-reblogs="openEngagement('reblogs', $event)"
           @quote="handleQuote"
           @bookmark="handleBookmark"
           @reply="handleReply"
@@ -556,6 +566,16 @@ async function handleDelete() {
       :account-acct="reportTarget.accountAcct"
       :status-id="reportTarget.statusId"
       @close="showReportDialog = false"
+    />
+
+    <StatusEngagementDialog
+      v-if="engagementKind"
+      :open="true"
+      :status-id="displayStatus.id"
+      :kind="engagementKind"
+      variant="legacy"
+      @click.stop
+      @close="engagementKind = null"
     />
 
     <!-- Share Modal -->

@@ -19,6 +19,7 @@ const props = defineProps<{
   reblogged?: boolean
   bookmarked?: boolean
   accountCanAct?: boolean
+  viewerAuthenticated?: boolean
   isOwnStatus?: boolean
   accountId?: string
   accountAcct?: string
@@ -35,6 +36,8 @@ const emit = defineEmits<{
   reblog: [id: string]
   quote: [id: string]
   favourite: [id: string]
+  viewReblogs: [id: string]
+  viewFavourites: [id: string]
   bookmark: [id: string]
   share: [id: string]
   edit: [id: string]
@@ -141,31 +144,49 @@ function formatCount(n: number): string {
 
     <!-- Reply -->
     <button
+      data-test="reply-action"
       type="button"
       :disabled="!permissions.reply"
-      class="dk-mono dk-dim-text inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-transparent px-3 py-2 text-[13.5px] transition-colors hover:bg-[var(--dk-surface2)] hover:text-[var(--dk-text)]"
+      class="dk-mono dk-dim-text inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-sm transition-colors hover:bg-[var(--dk-surface2)] hover:text-[var(--dk-text)]"
       :aria-label="t('status.reply')"
       @click="permissions.reply && emit('reply', statusId)"
     >
-      <span class="text-[17px] leading-none" aria-hidden="true">↩</span>
+      <span class="text-xl leading-none" aria-hidden="true">↩</span>
       <span class="tabular-nums">{{ formatCount(repliesCount) }}</span>
     </button>
 
     <!-- Boost chooser: repost or quote -->
-    <div class="relative">
+    <div class="relative flex items-center">
       <button
+        data-test="reblog-action"
         type="button"
         :disabled="!canReblog && !canQuote"
-        class="dk-mono inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-transparent px-3 py-2 text-[13.5px] transition-colors hover:bg-[var(--dk-surface2)]"
+        class="dk-mono inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-sm transition-colors hover:bg-[var(--dk-surface2)]"
         :style="reblogged ? 'color: var(--dk-acc)' : 'color: var(--dk-dim)'"
         :aria-label="t('status.boost')"
         :aria-expanded="showBoostMenu"
         :aria-pressed="reblogged"
+        aria-haspopup="menu"
         @click="(canReblog || canQuote) && openBoostMenu()"
       >
-        <span class="text-[17px] leading-none" aria-hidden="true">⇄</span>
-        <span class="tabular-nums">{{ formatCount(reblogsCount) }}</span>
+        <span class="text-xl leading-none" aria-hidden="true">⇄</span>
       </button>
+      <button
+        v-if="viewerAuthenticated && reblogsCount > 0"
+        data-test="reblogs-count"
+        type="button"
+        class="dk-mono -ml-1.5 min-h-11 rounded-[10px] border-0 bg-transparent px-2 text-[13.5px] font-semibold tabular-nums underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dk-acc)]"
+        style="color: var(--dk-dim)"
+        :aria-label="t('status.view_reblogs', { count: reblogsCount })"
+        aria-haspopup="dialog"
+        @click.stop="emit('viewReblogs', statusId)"
+      >
+        {{ formatCount(reblogsCount) }}
+      </button>
+      <span v-else-if="reblogsCount > 0" class="dk-mono -ml-1.5 px-2 text-[13.5px] font-semibold tabular-nums" style="color: var(--dk-dim)">
+        <span aria-hidden="true">{{ formatCount(reblogsCount) }}</span>
+        <span class="sr-only">{{ t('status.reblogs_count', { count: reblogsCount }) }}</span>
+      </span>
       <div v-if="showBoostMenu" class="dk-menu absolute bottom-full left-0 z-50 mb-1.5 w-48">
         <button
           type="button"
@@ -193,21 +214,38 @@ function formatCount(n: number): string {
     </div>
 
     <!-- Star chooser: favourite or emoji reaction -->
-    <div class="relative">
+    <div class="relative flex items-center">
       <button
         ref="starBtnRef"
+        data-test="favourite-action"
         type="button"
         :disabled="!permissions.favourite && !permissions.react"
-        class="dk-mono inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-transparent px-3 py-2 text-[13.5px] transition-colors hover:bg-[var(--dk-surface2)]"
+        class="dk-mono inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-sm transition-colors hover:bg-[var(--dk-surface2)]"
         :style="favourited ? 'color: var(--dk-acc)' : 'color: var(--dk-dim)'"
         :aria-label="t('status.favourite')"
         :aria-expanded="showStarMenu"
         :aria-pressed="favourited"
+        aria-haspopup="menu"
         @click="(permissions.favourite || permissions.react) && openStarMenu()"
       >
-        <span class="text-[17px] leading-none" aria-hidden="true">{{ favourited ? '★' : '☆' }}</span>
-        <span class="tabular-nums">{{ formatCount(favouritesCount) }}</span>
+        <span class="text-xl leading-none" aria-hidden="true">{{ favourited ? '★' : '☆' }}</span>
       </button>
+      <button
+        v-if="viewerAuthenticated && favouritesCount > 0"
+        data-test="favourites-count"
+        type="button"
+        class="dk-mono -ml-1.5 min-h-11 rounded-[10px] border-0 bg-transparent px-2 text-[13.5px] font-semibold tabular-nums underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dk-acc)]"
+        style="color: var(--dk-dim)"
+        :aria-label="t('status.view_favourites', { count: favouritesCount })"
+        aria-haspopup="dialog"
+        @click.stop="emit('viewFavourites', statusId)"
+      >
+        {{ formatCount(favouritesCount) }}
+      </button>
+      <span v-else-if="favouritesCount > 0" class="dk-mono -ml-1.5 px-2 text-[13.5px] font-semibold tabular-nums" style="color: var(--dk-dim)">
+        <span aria-hidden="true">{{ formatCount(favouritesCount) }}</span>
+        <span class="sr-only">{{ t('status.favourites_count', { count: favouritesCount }) }}</span>
+      </span>
       <div v-if="showStarMenu" class="dk-menu absolute bottom-full left-0 z-50 mb-1.5 w-48">
         <button
           type="button"
@@ -235,8 +273,9 @@ function formatCount(n: number): string {
     <!-- More: share + management -->
     <div v-if="hasMoreActions" class="relative">
       <button
+        data-test="more-action"
         type="button"
-        class="dk-mono dk-dim-text inline-flex cursor-pointer items-center rounded-[10px] border-0 bg-transparent px-3 py-2 text-[13.5px] transition-colors hover:bg-[var(--dk-surface2)] hover:text-[var(--dk-text)]"
+        class="dk-mono dk-dim-text inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-sm transition-colors hover:bg-[var(--dk-surface2)] hover:text-[var(--dk-text)]"
         :aria-label="t('status.more_actions')"
         :aria-expanded="showMoreMenu"
         @click="openMoreMenu"

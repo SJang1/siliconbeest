@@ -1,5 +1,5 @@
-import { apiFetch } from '../client';
-import type { Status, Context } from '@/types/mastodon';
+import { apiFetch, buildQueryString } from '../client';
+import type { Account, Status, Context } from '@/types/mastodon';
 
 export interface CreateStatusParams {
   status?: string;
@@ -121,18 +121,33 @@ export function unmuteStatus(id: string, token: string) {
   });
 }
 
-export function getFavouritedBy(id: string, token?: string) {
-  return apiFetch<import('@/types/mastodon').Account[]>(
-    `/v1/statuses/${id}/favourited_by`,
-    { token },
-  );
+export interface StatusEngagementPagination {
+  maxId?: string;
+  limit?: number;
 }
 
-export function getRebloggedBy(id: string, token?: string) {
-  return apiFetch<import('@/types/mastodon').Account[]>(
-    `/v1/statuses/${id}/reblogged_by`,
-    { token },
-  );
+export function getFavouritedBy(
+  id: string,
+  token: string,
+  pagination?: StatusEngagementPagination,
+) {
+  const qs = buildQueryString({
+    max_id: pagination?.maxId,
+    limit: pagination?.limit,
+  });
+  return apiFetch<Account[]>(`/v1/statuses/${id}/favourited_by${qs}`, { token });
+}
+
+export function getRebloggedBy(
+  id: string,
+  token: string,
+  pagination?: StatusEngagementPagination,
+) {
+  const qs = buildQueryString({
+    max_id: pagination?.maxId,
+    limit: pagination?.limit,
+  });
+  return apiFetch<Account[]>(`/v1/statuses/${id}/reblogged_by${qs}`, { token });
 }
 
 // 이모지 리액션 API

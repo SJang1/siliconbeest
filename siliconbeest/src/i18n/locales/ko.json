@@ -243,7 +243,16 @@
     "cannot_quote_policy_nobody": "작성자가 이 게시물의 인용을 허용하지 않았습니다",
     "cannot_quote_followers_only": "작성자의 팔로워만 이 게시물을 인용할 수 있습니다",
     "cannot_quote_following_only": "작성자가 팔로우하는 사용자만 이 게시물을 인용할 수 있습니다",
-    "cannot_quote_login_required": "로그인한 팔로워만 이 게시물을 인용할 수 있습니다"
+    "cannot_quote_login_required": "로그인한 팔로워만 이 게시물을 인용할 수 있습니다",
+    "favourited_by": "좋아요한 사용자",
+    "reblogged_by": "리포스트한 사용자",
+    "view_favourites": "이 게시물을 좋아한 사용자 {count}명 보기",
+    "view_reblogs": "이 게시물을 리포스트한 사용자 {count}명 보기",
+    "favourites_count": "좋아요 {count}개",
+    "reblogs_count": "리포스트 {count}회",
+    "engagement_empty": "표시할 사용자가 없습니다.",
+    "engagement_load_error": "사용자 목록을 불러오지 못했습니다.",
+    "engagement_login_required": "누가 반응했는지 보려면 로그인하세요."
   },
   "notification": {
     "title": "알림",

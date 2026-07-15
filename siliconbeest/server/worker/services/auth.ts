@@ -347,7 +347,7 @@ export async function resolveToken(
 			username: row.username as string,
 			domain: (row.domain as string) ?? null,
 		},
-		scopes: (row.scopes as string) || 'read',
+		scopes: (row.scopes as string | null) ?? 'read',
 	};
 
 	// 3. Populate cache (5-min TTL)

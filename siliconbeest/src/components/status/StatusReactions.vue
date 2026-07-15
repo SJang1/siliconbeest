@@ -210,7 +210,7 @@ function getShortcode(name: string): string {
         :key="reaction.name"
         @click="!isRemoteCustomEmoji(reaction) && toggleReaction(reaction)"
         :disabled="loading || !accountCanAct || isRemoteCustomEmoji(reaction)"
-        class="inline-flex touch-manipulation select-none items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:text-xs"
+        class="inline-flex min-h-9 touch-manipulation select-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         :class="[
           isRemoteCustomEmoji(reaction)
             ? 'cursor-not-allowed border-outline bg-surface-2/60 text-slate-400 opacity-70 dark:border-outline-dark dark:bg-surface-2-dark/60 dark:text-slate-500'
@@ -226,11 +226,11 @@ function getShortcode(name: string): string {
           v-if="isCustomEmoji(reaction)"
           :src="reaction.url!"
           :alt="getShortcode(reaction.name)"
-          class="h-5 w-5 object-contain"
+          class="h-6 w-6 object-contain"
           loading="lazy"
         />
         <!-- 유니코드 이모지 -->
-        <span v-else class="text-base leading-none">{{ reaction.name }}</span>
+        <span v-else class="text-lg leading-none">{{ reaction.name }}</span>
         <!-- 카운트 -->
         <span class="tabular-nums">{{ reaction.count }}</span>
       </button>

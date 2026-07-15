@@ -74,6 +74,7 @@ describe('status-dependent API permissions', () => {
     public: 'interaction_public',
     private: 'interaction_private',
     direct: 'interaction_direct',
+    deleted: 'interaction_deleted',
     invalid: 'interaction_invalid',
     writeOnly: 'interaction_write_only',
     privatePoll: 'interaction_private_poll',
@@ -93,10 +94,14 @@ describe('status-dependent API permissions', () => {
     await insertStatus(ids.public, author.accountId, 'public');
     await insertStatus(ids.private, author.accountId, 'private');
     await insertStatus(ids.direct, author.accountId, 'direct');
+    await insertStatus(ids.deleted, author.accountId, 'public');
     await insertStatus(ids.invalid, author.accountId, 'team-only');
     await insertStatus(ids.writeOnly, writeOnly.accountId, 'public');
 
     const now = new Date().toISOString();
+    await env.DB.prepare(
+      'UPDATE statuses SET deleted_at = ?1 WHERE id = ?2',
+    ).bind(now, ids.deleted).run();
     await env.DB.prepare(
       `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,
@@ -242,8 +247,35 @@ describe('status-dependent API permissions', () => {
   });
 
   it('checks visibility before returning relationship and reaction lists', async () => {
-    const paths = ['favourited_by', 'reblogged_by', 'reactions'];
-    for (const path of paths) {
+    for (const path of ['favourited_by', 'reblogged_by']) {
+      expect((await SELF.fetch(`${BASE}/api/v1/statuses/${ids.private}/${path}`)).status).toBe(401);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.private}/${path}`,
+        { headers: authHeaders(stranger.token) },
+      )).status).toBe(404);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.private}/${path}`,
+        { headers: authHeaders(follower.token) },
+      )).status).toBe(200);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.direct}/${path}`,
+        { headers: authHeaders(stranger.token) },
+      )).status).toBe(404);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.direct}/${path}`,
+        { headers: authHeaders(mentioned.token) },
+      )).status).toBe(200);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.deleted}/${path}`,
+        { headers: authHeaders(author.token) },
+      )).status).toBe(404);
+      expect((await SELF.fetch(
+        `${BASE}/api/v1/statuses/${ids.invalid}/${path}`,
+        { headers: authHeaders(author.token) },
+      )).status).toBe(404);
+    }
+
+    for (const path of ['reactions']) {
       expect((await SELF.fetch(`${BASE}/api/v1/statuses/${ids.private}/${path}`)).status).toBe(404);
       expect((await SELF.fetch(
         `${BASE}/api/v1/statuses/${ids.private}/${path}`,

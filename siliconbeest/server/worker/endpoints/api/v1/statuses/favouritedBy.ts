@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import type { AppVariables } from '../../../../types';
 import { env } from 'cloudflare:workers';
-import { AppError } from '../../../../middleware/errorHandler';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
-import { parseCustomEmojiTagsJson } from '../../../../../../../packages/shared/utils/customEmoji';
-import { authOptional } from '../../../../middleware/auth';
+import { serializeAccount } from '../../../../utils/mastodonSerializer';
+import type { AccountRow } from '../../../../types/db';
+import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import {
   assertStatusViewable,
@@ -13,17 +13,17 @@ import {
 
 type HonoEnv = { Variables: AppVariables };
 
+type FavouriteParticipantRow = AccountRow & {
+  fav_id: string;
+};
+
 const app = new Hono<HonoEnv>();
 
-app.get('/:id/favourited_by', authOptional, requireScope('read:statuses'), async (c) => {
+app.get('/:id/favourited_by', authRequired, requireScope('read:statuses'), async (c) => {
   const statusId = c.req.param('id');
-  const currentAccountId = c.get('currentUser')?.account_id ?? null;
+  const currentAccountId = c.get('currentUser')!.account_id;
   const domain = env.INSTANCE_DOMAIN;
 
-  const status = await env.DB.prepare(
-    'SELECT id FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
-  ).bind(statusId).first();
-  if (!status) throw new AppError(404, 'Record not found');
   await assertStatusViewable(statusId, currentAccountId);
 
   const query = c.req.query();
@@ -37,7 +37,7 @@ app.get('/:id/favourited_by', authOptional, requireScope('read:statuses'), async
   const pag = buildPaginationQuery(pagination, 'f.id');
 
   const conditions = ['f.status_id = ?'];
-  const params: unknown[] = [statusId];
+  const params: (string | number)[] = [statusId];
   const accountPermission = buildAccountInteractionListSqlPredicate(
     'account',
     currentAccountId,
@@ -59,46 +59,26 @@ app.get('/:id/favourited_by', authOptional, requireScope('read:statuses'), async
     ORDER BY ${pag.orderClause}
     LIMIT ?
   `;
-  params.push(pag.limitValue);
+  params.push(pag.limitValue + 1);
 
-  const { results } = await env.DB.prepare(sql).bind(...params).all();
+  const { results: fetchedResults } = await env.DB.prepare(sql).bind(...params).all<FavouriteParticipantRow>();
+  const hasAdditionalPage = fetchedResults.length > pagination.limit;
+  const results = hasAdditionalPage
+    ? fetchedResults.slice(0, pagination.limit)
+    : fetchedResults;
 
-  const accounts = (results as Record<string, unknown>[]).map((row) => {
-    const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
-    return {
-      id: row.id as string,
-      username: row.username as string,
-      acct,
-      display_name: (row.display_name as string) || '',
-      locked: !!(row.locked),
-      bot: !!(row.bot),
-      discoverable: !!(row.discoverable),
-      group: false,
-      created_at: row.created_at as string,
-      note: (row.note as string) || '',
-      url: (row.url as string) || `https://${domain}/@${row.username}`,
-      uri: row.uri as string,
-      avatar: (row.avatar_url as string) || null,
-      avatar_static: (row.avatar_static_url as string) || null,
-      header: (row.header_url as string) || null,
-      header_static: (row.header_static_url as string) || null,
-      followers_count: (row.followers_count as number) || 0,
-      following_count: (row.following_count as number) || 0,
-      statuses_count: (row.statuses_count as number) || 0,
-      last_status_at: (row.last_status_at as string) || null,
-      emojis: parseCustomEmojiTagsJson(row.emoji_tags as string | null, domain),
-      fields: [],
-    };
-  });
-
-  const itemsForLink = (results as Record<string, unknown>[]).map((r) => ({ id: r.fav_id as string }));
+  const accounts = results.map((row) => serializeAccount(row, { instanceDomain: domain }));
+  const itemsForLink = results.map((row) => ({ id: row.fav_id }));
   if (pagination.minId) {
     accounts.reverse();
     itemsForLink.reverse();
   }
 
   const baseUrl = `https://${domain}/api/v1/statuses/${statusId}/favourited_by`;
-  const link = buildLinkHeader(baseUrl, itemsForLink, pagination.limit);
+  const link = buildLinkHeader(baseUrl, itemsForLink, pagination.limit, {
+    includeNext: pagination.minId ? true : hasAdditionalPage,
+    includePrev: pagination.minId ? hasAdditionalPage : true,
+  });
   if (link) c.header('Link', link);
 
   return c.json(accounts);
