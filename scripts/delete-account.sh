@@ -165,10 +165,6 @@ delete_account() {
   npx wrangler d1 execute "$D1_DATABASE_NAME" --remote \
     --command "DELETE FROM notifications WHERE account_id = '${acct_id}' OR from_account_id = '${acct_id}'" 2>/dev/null
 
-  echo "  Removing home timeline entries..."
-  npx wrangler d1 execute "$D1_DATABASE_NAME" --remote \
-    --command "DELETE FROM home_timeline_entries WHERE account_id = '${acct_id}'" 2>/dev/null
-
   echo "  Removing bookmarks..."
   npx wrangler d1 execute "$D1_DATABASE_NAME" --remote \
     --command "DELETE FROM bookmarks WHERE account_id = '${acct_id}'" 2>/dev/null

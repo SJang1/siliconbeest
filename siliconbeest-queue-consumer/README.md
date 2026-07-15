@@ -33,7 +33,7 @@ All messages use a discriminated union on the `type` field. The consumer reads `
 | `fetch_remote_account`     | federation | `handleFetchRemoteAccount`    | Fetch and cache an actor profile from a remote server                |
 | `fetch_remote_status`      | federation | `handleFetchRemoteStatus`     | Fetch and cache a status/note from a remote server                   |
 | `fetch_preview_card`       | internal   | `handleFetchPreviewCard`      | Fetch OpenGraph metadata for a URL and attach as a preview card      |
-| `timeline_fanout`          | internal   | `handleTimelineFanout`        | Insert a status into each follower's home timeline + emit streaming events |
+| `timeline_fanout`          | internal   | `handleTimelineFanout`        | Emit authorized follower and public streaming events |
 | `create_notification`      | internal   | `handleCreateNotification`    | Write a notification record, trigger web push + streaming            |
 | `process_media`            | internal   | `handleProcessMedia`          | Process an uploaded media file (resize, extract metadata) in R2      |
 | `send_web_push`            | internal   | `handleSendWebPush`           | Deliver a Web Push notification to a subscribed endpoint             |

@@ -8,11 +8,13 @@ const BASE = 'https://test.siliconbeest.local';
 type TestUser = Awaited<ReturnType<typeof createTestUser>>;
 type StatusPayload = { id: string };
 
-async function hasHomeEntry(accountId: string, statusId: string): Promise<boolean> {
-  const row = await env.DB.prepare(
-    'SELECT 1 FROM home_timeline_entries WHERE account_id = ?1 AND status_id = ?2 LIMIT 1',
-  ).bind(accountId, statusId).first();
-  return row !== null;
+async function homeTimelineIds(user: TestUser): Promise<string[]> {
+  const response = await SELF.fetch(`${BASE}/api/v1/timelines/home`, {
+    headers: authHeaders(user.token),
+  });
+  expect(response.status).toBe(200);
+  const statuses = await response.json<StatusPayload[]>();
+  return statuses.map((status) => status.id);
 }
 
 describe('direct-message surface permissions', () => {
@@ -29,7 +31,7 @@ describe('direct-message surface permissions', () => {
     allowedRecipient = await createTestUser('dmsurfaceallowed');
   });
 
-  it('does not fan out a local DM to muted or blocked mentioned accounts', async () => {
+  it('surfaces a local DM only to eligible mentioned accounts', async () => {
     const muteResponse = await SELF.fetch(`${BASE}/api/v1/accounts/${sender.accountId}/mute`, {
       method: 'POST',
       headers: authHeaders(mutedRecipient.token),
@@ -53,10 +55,10 @@ describe('direct-message surface permissions', () => {
     expect(createResponse.status).toBe(200);
     const status = await createResponse.json<StatusPayload>();
 
-    expect(await hasHomeEntry(sender.accountId, status.id)).toBe(true);
-    expect(await hasHomeEntry(allowedRecipient.accountId, status.id)).toBe(true);
-    expect(await hasHomeEntry(mutedRecipient.accountId, status.id)).toBe(false);
-    expect(await hasHomeEntry(blockedRecipient.accountId, status.id)).toBe(false);
+    expect(await homeTimelineIds(sender)).toContain(status.id);
+    expect(await homeTimelineIds(allowedRecipient)).toContain(status.id);
+    expect(await homeTimelineIds(mutedRecipient)).not.toContain(status.id);
+    expect(await homeTimelineIds(blockedRecipient)).not.toContain(status.id);
 
     for (const recipient of [mutedRecipient, blockedRecipient]) {
       const directFetch = await SELF.fetch(`${BASE}/api/v1/statuses/${status.id}`, {
@@ -66,7 +68,7 @@ describe('direct-message surface permissions', () => {
     }
   });
 
-  it('filters remote DM fanout per local recipient relationship', async () => {
+  it('filters a remote DM from derived timelines per recipient relationship', async () => {
     const remoteAccountId = crypto.randomUUID();
     const remoteActorUri = 'https://remote-dm.example/users/sender';
     const remoteStatusUri = 'https://remote-dm.example/objects/permission-dm';
@@ -106,7 +108,7 @@ describe('direct-message surface permissions', () => {
       'SELECT id FROM statuses WHERE uri = ?1 LIMIT 1',
     ).bind(remoteStatusUri).first<{ id: string }>();
     expect(stored).not.toBeNull();
-    expect(await hasHomeEntry(mutedRecipient.accountId, stored!.id)).toBe(false);
-    expect(await hasHomeEntry(allowedRecipient.accountId, stored!.id)).toBe(true);
+    expect(await homeTimelineIds(mutedRecipient)).not.toContain(stored!.id);
+    expect(await homeTimelineIds(allowedRecipient)).toContain(stored!.id);
   });
 });

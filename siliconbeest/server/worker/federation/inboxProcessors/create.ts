@@ -313,7 +313,7 @@ class CreateProcessor extends BaseProcessor {
 		await this.processHashtags(tags, statusId, now);
 		await this.processEmojis(tags, activity.actor, now);
 
-		// Fan out to local followers' home timelines
+		// Stream to local followers and public feeds
 		if (options.fanout !== false) {
 			if (visibility !== 'direct') {
 				await env.QUEUE_INTERNAL.send({
@@ -322,7 +322,7 @@ class CreateProcessor extends BaseProcessor {
 					accountId: authorAccountId,
 				});
 			} else {
-				await this.fanoutDM(statusId, authorAccountId, now);
+				await this.fanoutDM(statusId, authorAccountId);
 			}
 		}
 		return true;
@@ -598,7 +598,6 @@ class CreateProcessor extends BaseProcessor {
 	private async fanoutDM(
 		statusId: string,
 		authorAccountId: string,
-		now: string,
 	): Promise<void> {
 		interface LocalMentionRow { account_id: string }
 		const { results: localMentions } = await env.DB.prepare(
@@ -616,13 +615,6 @@ class CreateProcessor extends BaseProcessor {
 			}
 		}
 		if (permittedLocalMentions.length === 0) return;
-
-		const stmts = permittedLocalMentions.map((m) =>
-			env.DB.prepare(
-				'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-			).bind(statusId, m.account_id, now),
-		);
-		await env.DB.batch(stmts);
 
 		// Send streaming event for DM
 		try {

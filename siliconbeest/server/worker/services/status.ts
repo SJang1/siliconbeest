@@ -317,12 +317,6 @@ export async function reblogStatus(
     env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(accountId),
   ]);
 
-  // Add reblog to own home timeline immediately
-  await env.DB
-    .prepare('INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)')
-    .bind(reblogId, accountId, now)
-    .run();
-
   return { reblogId, reblogUri, created: true };
 }
 
@@ -624,7 +618,7 @@ export async function createStatus(
     claimedMediaIds.push(mediaId);
   }
 
-  // -- Main batch: status INSERT + account count + reply count + home_timeline --
+  // -- Main batch: status INSERT + account count + reply count --
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, quote_approval_status, quote_request_uri, quote_policy, local, emoji_tags, created_at, updated_at)
@@ -660,15 +654,6 @@ export async function createStatus(
   if (inReplyToId) {
     stmts.push(env.DB.prepare('UPDATE statuses SET replies_count = replies_count + 1 WHERE id = ?1').bind(inReplyToId));
   }
-
-  stmts.push(
-    env.DB.prepare('INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)').bind(
-      generateUlid(),
-      accountId,
-      statusId,
-      now,
-    ),
-  );
 
   try {
     await env.DB.batch(stmts);

@@ -79,7 +79,7 @@ TABLES=(
   oauth_applications oauth_access_tokens oauth_authorization_codes
   lists list_accounts instances domain_blocks domain_allows
   web_push_subscriptions reports account_warnings ip_blocks email_domain_blocks
-  home_timeline_entries markers user_preferences filters filter_keywords filter_statuses
+  markers user_preferences filters filter_keywords filter_statuses
   settings custom_emojis announcements rules
   conversations conversation_accounts
 )

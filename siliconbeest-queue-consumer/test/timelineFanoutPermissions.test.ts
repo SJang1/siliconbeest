@@ -164,7 +164,7 @@ describe('timeline fanout permission binding', () => {
     },
   );
 
-  it('fans out a matching active private status to its followers', async () => {
+  it('streams a matching active private status to its followers without persistence', async () => {
     mocks.statusRow = statusPermissionRow({
       visibility: 'private',
     });
@@ -175,7 +175,7 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
     expect(mocks.buildStatusStreamingPayload).toHaveBeenNthCalledWith(
       1,
       mocks.env.DB,
@@ -200,22 +200,9 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    const insertBindings = mocks.queries.flatMap((sql, index) =>
-      sql.includes('INSERT OR IGNORE INTO home_timeline_entries')
-        ? [mocks.bindings[index]]
-        : []);
-    expect(insertBindings).toEqual([
-      [
-        'author-account',
-        'status-1',
-        'author-account',
-        'author-account',
-        'author-account',
-        'author-account',
-        expect.any(String),
-        null,
-        null,
-      ],
+    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.streamUserRows).toEqual([
+      { id: 'author-user', account_id: 'author-account' },
     ]);
     expect(
       mocks.queries.some((sql) =>
@@ -254,7 +241,7 @@ describe('timeline fanout permission binding', () => {
     ['unapproved users', 'recipient_user.approved = 1'],
     ['suspended recipient accounts', 'recipient.suspended_at IS NULL'],
     ['memorial recipient accounts', 'recipient.memorial = 0'],
-  ])('excludes %s from HTE and stream recipient queries', async (_label, clause) => {
+  ])('excludes %s from stream recipient queries', async (_label, clause) => {
     mocks.statusRow = statusPermissionRow({ visibility: 'private' });
     mocks.recipientRows = [];
 
@@ -269,7 +256,7 @@ describe('timeline fanout permission binding', () => {
     expect(mocks.env.WORKER.fetch).not.toHaveBeenCalled();
   });
 
-  it('rechecks recipient operational state in HTE inserts and stream lookup', async () => {
+  it('rechecks recipient operational state in follower and stream lookups', async () => {
     mocks.statusRow = statusPermissionRow({ visibility: 'private' });
 
     await handleTimelineFanout({
@@ -278,8 +265,8 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    const insertSql = mocks.queries.find((sql) =>
-      sql.includes('INSERT OR IGNORE INTO home_timeline_entries'));
+    const followerSql = mocks.queries.find((sql) =>
+      sql.includes('FROM follows f'));
     const streamSql = mocks.queries.find((sql) =>
       sql.includes('FROM users recipient_user'));
     for (const clause of [
@@ -287,11 +274,15 @@ describe('timeline fanout permission binding', () => {
       'recipient_user.approved = 1',
       'recipient.suspended_at IS NULL',
       'recipient.memorial = 0',
+    ]) {
+      expect(followerSql).toContain(clause);
+      expect(streamSql).toContain(clause);
+    }
+    for (const clause of [
       'author_block.account_id = ?',
       'viewer_block.account_id = recipient',
       'viewer_mute.account_id = recipient',
     ]) {
-      expect(insertSql).toContain(clause);
       expect(streamSql).toContain(clause);
     }
   });
@@ -308,7 +299,7 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
     expect(mocks.env.WORKER.fetch).toHaveBeenCalledTimes(2);
     expect(mocks.streamUserRows.map((row) => row.account_id)).toEqual([
       'follower-account',

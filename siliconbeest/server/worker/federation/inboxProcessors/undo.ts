@@ -285,11 +285,6 @@ class UndoProcessor extends BaseProcessor {
 		).bind(now, reblog.id, actorAccountId).run();
 		if ((deleted.meta?.changes ?? 0) === 0) return false;
 
-		await env.DB.prepare(
-			`DELETE FROM home_timeline_entries WHERE status_id = ?1`,
-		)
-			.bind(reblog.id)
-			.run();
 		await this.statusRepo.decrementCount(originalStatus.id, 'reblogs_count');
 		return true;
 	}

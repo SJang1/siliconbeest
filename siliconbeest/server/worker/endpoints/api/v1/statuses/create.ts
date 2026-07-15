@@ -159,7 +159,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     }
   }
 
-  // Enqueue timeline fanout to followers (skip for DMs — handled after mentions are resolved)
+  // Enqueue follower/public streaming (skip DMs until mentions are resolved)
   if (visibility !== 'direct') {
     try {
       await env.QUEUE_INTERNAL.send({
@@ -352,7 +352,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
 
   // ============================================================
-  // DM: timeline insert + streaming for author + mentioned LOCAL users
+  // DM: streaming for author + mentioned LOCAL users
   // ============================================================
   if (visibility === 'direct') {
     try {
@@ -366,22 +366,6 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
           allowedLocalRecipientIds.add(mention.account_id);
         }
       }
-      const dmTimelineStmts = [
-        env.DB.prepare(
-          'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-        ).bind(statusId, currentUser.account_id, now),
-      ];
-      for (const rm of resolvedMentions) {
-        if (allowedLocalRecipientIds.has(rm.account_id)) {
-          dmTimelineStmts.push(
-            env.DB.prepare(
-              'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-            ).bind(statusId, rm.account_id, now),
-          );
-        }
-      }
-      await env.DB.batch(dmTimelineStmts);
-
       // Streaming: fetch full status from DB for accurate payload
       const { sendStreamEvent } = await import('../../../../services/streaming');
       const dmRow = await env.DB.prepare(
@@ -440,7 +424,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
           }
         }
       }
-    } catch { /* DM timeline/streaming failure should not block */ }
+    } catch { /* DM streaming failure should not block */ }
   }
 
   // ============================================================

@@ -352,7 +352,7 @@ Worker의 actor dispatcher와 동일한 로직이지만 슬림 버전:
 레거시 메시지 타입별 핸들러 모두 유지:
 - `handleDeliverActivity` — 직접 HTTP 배달 (릴레이 등 인스턴스 액터 발신용)
 - `handleDeliverActivityFanout` — 팔로워 일괄 배달 (레거시)
-- `handleTimelineFanout` — 홈 타임라인 팬아웃
+- `handleTimelineFanout` — 팔로워 및 공개 피드 실시간 스트리밍
 - `handleCreateNotification` — 알림 생성
 - `handleProcessMedia` — 미디어 처리
 - `handleFetchRemoteAccount` / `handleFetchRemoteStatus` — 원격 데이터 fetch

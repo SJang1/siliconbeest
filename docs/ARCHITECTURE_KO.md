@@ -93,7 +93,7 @@ SiliconBeest는 공유 데이터 저장소와 큐를 통해 협력하는 3개의
          |  D1 | | R2 | |   KV   |    | siliconbeest-queue-consumer|
          | SQL | |블롭 | |캐시/   |    |                            |
          | DB  | |저장소| |세션    |    |  - 연합 배달               |
-         +-----+ +----+ +--------+    |  - 타임라인 팬아웃          |
+         +-----+ +----+ +--------+    |  - 타임라인 스트리밍        |
                                        |  - 알림                    |
          +------------------+         |  - 미디어 처리             |
          |   Durable Objects |         |  - Web Push 전송           |
@@ -138,7 +138,7 @@ SiliconBeest는 공유 데이터 저장소와 큐를 통해 협력하는 3개의
 **담당 기능:**
 - 원격 인박스로의 연합 활동 배달 (HTTP 서명 포함)
 - 모든 팔로워 인박스로의 활동 팬아웃
-- 타임라인 팬아웃 (홈 타임라인에 게시물 삽입)
+- 권한이 있는 팔로워 및 공개 타임라인 실시간 스트리밍
 - 알림 생성 및 Web Push 전송
 - 원격 계정 및 게시물 가져오기
 - 미디어 썸네일 처리
@@ -337,7 +337,7 @@ siliconbeest-queue-consumer/
     handlers/
       deliverActivity.ts            # 원격 인박스에 단일 활동 배달
       deliverActivityFanout.ts      # 모든 팔로워 인박스에 활동 팬아웃
-      timelineFanout.ts             # 팔로워의 홈 타임라인에 게시물 삽입
+      timelineFanout.ts             # 팔로워 및 공개 피드에 게시물 스트리밍
       createNotification.ts         # 알림 생성 + Web Push 큐잉
       processMedia.ts               # 미디어 썸네일 처리
       fetchRemoteAccount.ts         # 원격 AP actor 가져오기 및 캐싱
@@ -688,7 +688,7 @@ OpenGraph 메타데이터를 통한 URL 미리보기.
 
 ### 타임라인 및 사용자 설정
 
-- `home_timeline_entries`: 구체화된 홈 타임라인
+- 홈 타임라인은 `statuses`, `follows`, direct `mentions`에서 요청 시 계산
 - `markers`: 타임라인 위치 마커
 - `user_preferences`: 키-값 사용자 설정
 - `filters` + `filter_keywords` + `filter_statuses`: 콘텐츠 필터링
@@ -1152,7 +1152,7 @@ Misskey, Calckey, Firefish 및 호환 구현에서 사용하는 `EmojiReact` 활
 | `deliver_report` | 연합 | 원격 인스턴스에 신고 전달 |
 | `forward_activity` | 연합 | 원본 HTTP 헤더 보존 활동 전달 |
 | `import_item` | 연합 | 단일 CSV 가져오기 항목 처리 |
-| `timeline_fanout` | 내부 | 모든 팔로워의 홈 타임라인에 게시물 삽입 |
+| `timeline_fanout` | 내부 | 권한이 있는 팔로워 및 공개 피드에 게시물 스트리밍 |
 | `create_notification` | 내부 | 알림 레코드 생성 및 Web Push 큐잉 |
 | `process_media` | 내부 | 미디어 썸네일 처리 |
 | `send_web_push` | 내부 | Web Push 알림 암호화 및 전송 |

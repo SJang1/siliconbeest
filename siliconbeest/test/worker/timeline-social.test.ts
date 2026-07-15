@@ -1,4 +1,4 @@
-import { SELF, env } from 'cloudflare:test';
+import { SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
 
@@ -29,19 +29,11 @@ describe('GET /api/v1/timelines/social', () => {
     expect(res.status).toBe(401);
   });
 
-  it('re-checks private status access for stale home timeline entries', async () => {
+  it('derives followed private statuses without persisted home entries', async () => {
     // Local public post by someone the viewer does NOT follow → local branch
     const localPublic = await post(poster.token, 'hello social timeline', 'public');
 
-    // The queue consumer does the fanout in prod — simulate a stale entry that
-    // remains after the viewer no longer follows the author.
     const homePrivate = await post(poster.token, 'private but in home', 'private');
-    await env.DB.prepare(
-      `INSERT INTO home_timeline_entries (id, account_id, status_id, created_at)
-       VALUES (?1, ?2, ?3, ?4)`,
-    ).bind('hte-social-1', viewer.accountId, homePrivate.id, new Date().toISOString()).run();
-
-    // Private post with no home entry → must NOT appear
     const hiddenPrivate = await post(poster.token, 'private and hidden', 'private');
 
     const res = await SELF.fetch(`${BASE}/api/v1/timelines/social`, {
@@ -66,7 +58,7 @@ describe('GET /api/v1/timelines/social', () => {
     expect(followedRes.status).toBe(200);
     const followedIds = ((await followedRes.json()) as { id: string }[]).map((s) => s.id);
     expect(followedIds).toContain(homePrivate.id);
-    expect(followedIds).not.toContain(hiddenPrivate.id);
+    expect(followedIds).toContain(hiddenPrivate.id);
 
     const unfollowRes = await SELF.fetch(`${BASE}/api/v1/accounts/${poster.accountId}/unfollow`, {
       method: 'POST',
@@ -80,6 +72,7 @@ describe('GET /api/v1/timelines/social', () => {
     expect(revokedRes.status).toBe(200);
     const revokedIds = ((await revokedRes.json()) as { id: string }[]).map((s) => s.id);
     expect(revokedIds).not.toContain(homePrivate.id);
+    expect(revokedIds).not.toContain(hiddenPrivate.id);
   });
 
   it('paginates with max_id', async () => {

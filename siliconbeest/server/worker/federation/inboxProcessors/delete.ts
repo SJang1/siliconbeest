@@ -4,7 +4,6 @@
  * Handles incoming Delete activities. If the object is a status URI
  * (or Tombstone), soft-deletes the status. If the actor URI matches
  * the object, treats it as an actor deletion (account suspension).
- * Also removes related home_timeline_entries.
  */
 
 import type { APActivity, APObject } from '../../types/activitypub';
@@ -116,14 +115,6 @@ class DeleteProcessor extends BaseProcessor {
 			// Soft-delete all their statuses
 			await this.statusRepo.softDeleteByAccount(actorAccount.id);
 
-			// Remove from home timelines
-			await env.DB.prepare(
-				`DELETE FROM home_timeline_entries
-				 WHERE status_id IN (SELECT id FROM statuses WHERE account_id = ?1)`,
-			)
-				.bind(actorAccount.id)
-				.run();
-
 			console.log(`[delete] Suspended account: ${activity.actor}`);
 			return;
 		}
@@ -162,12 +153,6 @@ class DeleteProcessor extends BaseProcessor {
 			await this.statusRepo.decrementCount(status.reblog_of_id, 'reblogs_count');
 		}
 
-		// Remove from home timelines
-		await env.DB.prepare(
-			`DELETE FROM home_timeline_entries WHERE status_id = ?1`,
-		)
-			.bind(status.id)
-			.run();
 	}
 }
 

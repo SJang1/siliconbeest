@@ -1,4 +1,4 @@
-import { SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
 
@@ -77,6 +77,44 @@ describe('Timelines API', () => {
     it('returns 401 without auth', async () => {
       const res = await SELF.fetch(`${BASE}/api/v1/timelines/home`);
       expect(res.status).toBe(401);
+    });
+
+    it('shows existing posts immediately after following without storing timeline rows', async () => {
+      const existingPoster = await createTestUser('existingposter');
+      const newFollower = await createTestUser('newfollower');
+      const postResponse = await SELF.fetch(`${BASE}/api/v1/statuses`, {
+        method: 'POST',
+        headers: authHeaders(existingPoster.token),
+        body: JSON.stringify({
+          status: 'Posted before the first follow',
+          visibility: 'public',
+        }),
+      });
+      expect(postResponse.status).toBe(200);
+      const existingPost = await postResponse.json<{ id: string }>();
+
+      const beforeFollow = await SELF.fetch(`${BASE}/api/v1/timelines/home`, {
+        headers: authHeaders(newFollower.token),
+      });
+      expect((await beforeFollow.json<Array<{ id: string }>>()).map((status) => status.id))
+        .not.toContain(existingPost.id);
+
+      const followResponse = await SELF.fetch(
+        `${BASE}/api/v1/accounts/${existingPoster.accountId}/follow`,
+        { method: 'POST', headers: authHeaders(newFollower.token) },
+      );
+      expect(followResponse.status).toBe(200);
+
+      const afterFollow = await SELF.fetch(`${BASE}/api/v1/timelines/home`, {
+        headers: authHeaders(newFollower.token),
+      });
+      expect((await afterFollow.json<Array<{ id: string }>>()).map((status) => status.id))
+        .toContain(existingPost.id);
+
+      const compatibilityRows = await env.DB.prepare(
+        'SELECT COUNT(*) AS count FROM home_timeline_entries',
+      ).first<{ count: number }>();
+      expect(compatibilityRows?.count).toBe(0);
     });
   });
 

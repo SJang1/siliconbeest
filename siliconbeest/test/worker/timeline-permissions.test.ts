@@ -26,13 +26,6 @@ async function createStatus(
   return response.json<StatusResponse>();
 }
 
-async function addHomeEntry(accountId: string, statusId: string): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO home_timeline_entries (id, account_id, status_id, created_at)
-     VALUES (?1, ?2, ?3, ?4)`,
-  ).bind(crypto.randomUUID(), accountId, statusId, new Date().toISOString()).run();
-}
-
 async function timelineIds(path: string, user: TestUser): Promise<string[]> {
   const response = await SELF.fetch(`${BASE}${path}`, {
     headers: authHeaders(user.token),
@@ -52,9 +45,8 @@ describe('timeline permission revalidation', () => {
     viewer = await createTestUser('timelinepermissionviewer');
   });
 
-  it('fails closed for stale direct and invalid home entries', async () => {
+  it('includes only valid direct mentions in the derived home timeline', async () => {
     const direct = await createStatus(author, 'direct without a recipient', 'direct');
-    await addHomeEntry(viewer.accountId, direct.id);
 
     const invalidId = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -70,8 +62,6 @@ describe('timeline permission revalidation', () => {
       'friends',
       now,
     ).run();
-    await addHomeEntry(viewer.accountId, invalidId);
-
     const hiddenIds = await timelineIds('/api/v1/timelines/home', viewer);
     expect(hiddenIds).not.toContain(direct.id);
     expect(hiddenIds).not.toContain(invalidId);
@@ -316,7 +306,6 @@ describe('timeline permission revalidation', () => {
     expect(await timelineIds(`/api/v1/accounts/${stateAuthor.accountId}/statuses`, stateViewer)).toContain(
       silencedStatus.id,
     );
-    await addHomeEntry(stateViewer.accountId, silencedStatus.id);
     expect(await timelineIds('/api/v1/timelines/home', stateViewer)).toContain(
       silencedStatus.id,
     );

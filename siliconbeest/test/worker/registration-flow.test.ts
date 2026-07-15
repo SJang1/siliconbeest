@@ -74,6 +74,8 @@ const DELETE_ORDER = [
   'oauth_access_tokens',
   'oauth_authorization_codes',
   'oauth_applications',
+  'mentions',
+  'statuses',
   'follow_requests',
   'follows',
   'registration_cancellation_cooldowns',
@@ -570,6 +572,16 @@ describe('enhanced registration flow', () => {
   it('activates without email verification and creates idempotent mutual follows', async () => {
     await setRegistrationSettings('referral', false);
     const inviter = await createTestUser('follow_inviter');
+    const existingStatusResponse = await SELF.fetch(`${BASE}/api/v1/statuses`, {
+      method: 'POST',
+      headers: authHeaders(inviter.token),
+      body: JSON.stringify({
+        status: 'Existing inviter status',
+        visibility: 'public',
+      }),
+    });
+    expect(existingStatusResponse.status).toBe(200);
+    const existingStatus = await existingStatusResponse.json<{ id: string }>();
     const invite = await createInvite(inviter, { auto_follow: true });
     const response = await register('follow_invitee', {
       invite_token: invite.token,
@@ -579,7 +591,8 @@ describe('enhanced registration flow', () => {
 
     const activate = await registrationRequest('/continue', cookie);
     expect(activate.status).toBe(200);
-    expect(await activate.json<ActivationResponse>()).toMatchObject({
+    const activation = await activate.json<ActivationResponse>();
+    expect(activation).toMatchObject({
       state: 'active',
       redirect_uri: '/notifications',
       passkey_prompt: true,
@@ -598,6 +611,13 @@ describe('enhanced registration flow', () => {
       registration_state: RegistrationState;
       confirmed_at: string | null;
     }>()).toMatchObject({ approved: 1, registration_state: 'active' });
+
+    const homeResponse = await SELF.fetch(`${BASE}/api/v1/timelines/home`, {
+      headers: authHeaders(activation.access_token),
+    });
+    expect(homeResponse.status).toBe(200);
+    expect((await homeResponse.json<Array<{ id: string }>>()).map((status) => status.id))
+      .toContain(existingStatus.id);
   });
 
   it('validates an email link with GET and activates exactly once with POST', async () => {

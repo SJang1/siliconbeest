@@ -1,8 +1,8 @@
 /**
  * Timeline Fanout Handler
  *
- * Loads all local followers of the account and batch-inserts
- * the status into their home_timeline_entries using D1 batch.
+ * Loads eligible local followers and emits real-time streaming events. Home
+ * timeline persistence is derived on read from statuses and follows.
  */
 
 import { env } from 'cloudflare:workers';
@@ -144,83 +144,6 @@ export async function handleTimelineFanout(
     timer.stopWithMetadata({ status: 'no_followers', followerCount: 0 });
     return;
   }
-
-  // Batch insert into home_timeline_entries using D1 batch
-  // D1 batch can handle many statements efficiently
-  const BATCH_SIZE = 50;
-  const statements: D1PreparedStatement[] = [];
-
-  for (const followerId of followerIds) {
-    statements.push(
-      env.DB.prepare(
-        `INSERT OR IGNORE INTO home_timeline_entries (account_id, status_id, created_at)
-         SELECT ?, ?, datetime('now')
-         WHERE EXISTS (
-           SELECT 1
-           FROM accounts recipient
-           JOIN users recipient_user
-             ON recipient_user.account_id = recipient.id
-           WHERE recipient.id = ?
-             AND recipient.domain IS NULL
-             AND recipient.suspended_at IS NULL
-             AND recipient.memorial = 0
-             AND recipient_user.disabled = 0
-             AND recipient_user.approved = 1
-             AND NOT EXISTS (
-               SELECT 1 FROM blocks viewer_block
-               WHERE viewer_block.account_id = recipient.id
-                 AND viewer_block.target_account_id = ?
-             )
-             AND NOT EXISTS (
-               SELECT 1 FROM blocks author_block
-               WHERE author_block.account_id = ?
-                 AND author_block.target_account_id = recipient.id
-             )
-             AND NOT EXISTS (
-               SELECT 1 FROM mutes viewer_mute
-               WHERE viewer_mute.account_id = recipient.id
-                 AND viewer_mute.target_account_id = ?
-                 AND (
-                   viewer_mute.expires_at IS NULL
-                   OR viewer_mute.expires_at > ?
-                 )
-             )
-             AND NOT EXISTS (
-               SELECT 1 FROM user_domain_blocks viewer_domain_block
-               WHERE viewer_domain_block.account_id = recipient.id
-                 AND ? IS NOT NULL
-                 AND lower(viewer_domain_block.domain) = lower(?)
-             )
-         )`,
-      ).bind(
-        followerId,
-        statusId,
-        followerId,
-        accountId,
-        accountId,
-        accountId,
-        relationshipCheckAt,
-        statusCheck.author_domain,
-        statusCheck.author_domain,
-      ),
-    );
-  }
-
-  // Execute in batches (D1 batch has limits)
-  await measureAsync(
-    'timelineFanout.db.batchInsert',
-    async () => {
-      for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-        const batch = statements.slice(i, i + BATCH_SIZE);
-        await env.DB.batch(batch);
-      }
-    },
-    { followerCount: followerIds.length, batchCount: Math.ceil(statements.length / BATCH_SIZE) }
-  );
-
-  console.log(
-    `Fanned out status ${statusId} to ${followerIds.length} local timelines`,
-  );
 
   // Send streaming events to all local followers
   if (followerIds.length > 0) {
