@@ -507,6 +507,10 @@ app.get('/', authOptional, async (c) => {
               localInstanceDomain: env.INSTANCE_DOMAIN,
               actorSuspended: false,
             })
+            && await canResolveRemoteDomain(
+              currentAccount?.id ?? null,
+              actorObject.id.hostname,
+            )
           ) {
             const id = generateUlid();
             const now = new Date().toISOString();
