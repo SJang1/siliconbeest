@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useInstanceStore } from '@/stores/instance'
 import { usePublicInstance } from '@/composables/usePublicInstance'
 import AppShell from '@/legacy/components/layout/AppShell.vue'
 import LoadingSpinner from '@/legacy/components/common/LoadingSpinner.vue'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
+const route = useRoute()
 const instanceStore = useInstanceStore()
 const { data: ssrInstance, pending } = await usePublicInstance()
 
@@ -93,6 +96,13 @@ const registrationDescription = computed(() => {
             <p class="text-sm text-gray-600 dark:text-gray-400">
               {{ registrationDescription }}
             </p>
+            <router-link
+              :to="withCurrentDesign('/about/invitations', route.path)"
+              class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              {{ t('about.invitation_guide_link') }}
+              <span aria-hidden="true">→</span>
+            </router-link>
           </div>
 
           <!-- Contact -->

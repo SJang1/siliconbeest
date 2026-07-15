@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { sha256 } from '../../server/worker/utils/crypto';
 import { applyMigration, authHeaders, createTestUser } from './helpers';
 
 const BASE = 'https://test.siliconbeest.local';
@@ -75,6 +76,7 @@ const DELETE_ORDER = [
   'oauth_applications',
   'follow_requests',
   'follows',
+  'registration_cancellation_cooldowns',
   'registration_email_delivery_limits',
   'registration_invites',
   'actor_keys',
@@ -127,6 +129,7 @@ function registrationCookie(response: Response): string {
 async function register(
   username: string,
   options: {
+    email?: string;
     invite_token?: string;
     reason?: string;
     redirect_uri?: string;
@@ -428,6 +431,94 @@ describe('enhanced registration flow', () => {
     ).bind('invited_member@test.local').first()).toBeNull();
     expect(await env.MEDIA_BUCKET.head(avatarKey)).toBeNull();
     expect(await env.MEDIA_BUCKET.head(headerKey)).toBeNull();
+  });
+
+  it('blocks the cancelled email for 24 hours without consuming another invitation use', async () => {
+    const email = 'cancelled_cooldown@test.local';
+    const inviter = await createTestUser('cooldown_inviter');
+    const invite = await createInvite(inviter, { uses: 2 });
+    await setRegistrationSettings('referral');
+
+    const first = await register('cooldown_first', {
+      email,
+      invite_token: invite.token,
+    });
+    expect(first.status).toBe(200);
+    const cancelled = await registrationRequest('/cancel', registrationCookie(first));
+    expect(cancelled.status).toBe(200);
+
+    const emailHash = await sha256(email);
+    const cooldown = await env.DB.prepare(
+      `SELECT email_hash, cancelled_at, expires_at
+       FROM registration_cancellation_cooldowns WHERE email_hash = ?1`,
+    ).bind(emailHash).first<{
+      email_hash: string;
+      cancelled_at: string;
+      expires_at: string;
+    }>();
+    expect(cooldown?.email_hash).toBe(emailHash);
+    expect(cooldown?.email_hash).not.toContain(email);
+    expect(new Date(cooldown?.expires_at ?? '').getTime()
+      - new Date(cooldown?.cancelled_at ?? '').getTime()).toBe(24 * 60 * 60 * 1000);
+
+    const blocked = await register('cooldown_retry', {
+      email,
+      invite_token: invite.token,
+    });
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json<{ error: string }>()).toMatchObject({
+      error: 'Registration cancellation cooldown is active',
+    });
+    expect(await env.DB.prepare(
+      'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
+    ).bind(invite.id).first<{ remaining_uses: number }>()).toEqual({ remaining_uses: 2 });
+    expect(await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM invitation_use_claims WHERE invitation_id = ?1',
+    ).bind(invite.id).first<{ count: number }>()).toEqual({ count: 0 });
+
+    await env.DB.prepare(
+      "UPDATE registration_cancellation_cooldowns SET expires_at = datetime('now', '-1 second') WHERE email_hash = ?1",
+    ).bind(emailHash).run();
+    const allowed = await register('cooldown_retry', {
+      email,
+      invite_token: invite.token,
+    });
+    expect(allowed.status).toBe(200);
+    expect(await env.DB.prepare(
+      'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
+    ).bind(invite.id).first<{ remaining_uses: number }>()).toEqual({ remaining_uses: 1 });
+    expect(await env.DB.prepare(
+      'SELECT email_hash FROM registration_cancellation_cooldowns WHERE email_hash = ?1',
+    ).bind(emailHash).first()).toBeNull();
+  });
+
+  it('does not start the cancellation cooldown when an admin rejects an application', async () => {
+    const email = 'rejected_no_cooldown@test.local';
+    await setRegistrationSettings('approval');
+    const application = await register('rejected_first', {
+      email,
+      reason: 'Please review my application.',
+    });
+    expect(application.status).toBe(200);
+
+    const pending = await env.DB.prepare(
+      "SELECT id FROM accounts WHERE username = 'rejected_first' AND domain IS NULL",
+    ).first<{ id: string }>();
+    const admin = await createTestUser('cooldown_rejection_admin', { role: 'admin' });
+    const rejected = await SELF.fetch(
+      `${BASE}/api/v1/admin/accounts/${pending?.id ?? ''}/reject`,
+      { method: 'POST', headers: authHeaders(admin.token) },
+    );
+    expect(rejected.status).toBe(200);
+    expect(await env.DB.prepare(
+      'SELECT email_hash FROM registration_cancellation_cooldowns WHERE email_hash = ?1',
+    ).bind(await sha256(email)).first()).toBeNull();
+
+    const retry = await register('rejected_retry', {
+      email,
+      reason: 'Submitting again after rejection.',
+    });
+    expect(retry.status).toBe(200);
   });
 
   it('lets a pending applicant log in only to the registration session', async () => {

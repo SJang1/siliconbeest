@@ -10,6 +10,7 @@ import { sanitizeLocale } from '../../../../utils/locales';
 import { registerUser, validateRegistrationCredentials } from '../../../../services/auth';
 import { isEmailDomainBlocked } from '../../../../services/instance';
 import {
+	assertRegistrationCancellationCooldown,
 	consumeRegistrationInvitation,
 	createRegistrationSession,
 	deletePendingRegistration,
@@ -116,6 +117,7 @@ app.post('/', async (c) => {
 	// email or username enumeration oracle. The later consume call repeats the
 	// availability check and performs the atomic debit.
 	if (inviteToken) await previewRegistrationInvitation(inviteToken);
+	await assertRegistrationCancellationCooldown(email);
 
 	// Reject invalid or already-taken credentials before touching the finite
 	// invitation-use ledger. registerUser repeats this check at insertion time.

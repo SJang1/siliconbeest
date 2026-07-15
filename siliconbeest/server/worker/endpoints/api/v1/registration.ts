@@ -127,7 +127,9 @@ app.post('/resend', async (c) => {
 
 app.post('/cancel', async (c) => {
 	const { token, userId } = await requireRegistrationSession(c);
-	await deletePendingRegistration(userId);
+	await deletePendingRegistration(userId, undefined, 'cancelled', {
+		startCancellationCooldown: true,
+	});
 	await revokeRegistrationSession(token);
 	clearRegistrationSessionCookie(c);
 	return c.json({ cancelled: true });

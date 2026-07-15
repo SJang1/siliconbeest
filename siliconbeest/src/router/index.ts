@@ -60,6 +60,24 @@ const router = createRouter({
       meta: { titleKey: 'About' },
     },
     {
+      path: '/about/invitations',
+      name: 'about-invitations',
+      component: () => import('@/views/InvitationGuideView.vue'),
+      meta: { titleKey: 'Invitation guide' },
+    },
+    {
+      path: '/aurora/about/invitations',
+      name: 'aurora-about-invitations',
+      component: () => import('@/views/InvitationGuideView.vue'),
+      meta: { titleKey: 'Invitation guide' },
+    },
+    {
+      path: '/old/about/invitations',
+      name: 'old-about-invitations',
+      component: () => import('@/legacy/views/InvitationGuideView.vue'),
+      meta: { titleKey: 'Invitation guide' },
+    },
+    {
       path: '/terms',
       name: 'terms',
       component: () => import('@/views/TermsView.vue'),

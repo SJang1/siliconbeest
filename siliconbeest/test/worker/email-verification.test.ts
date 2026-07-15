@@ -48,6 +48,7 @@ const TABLE_DELETE_ORDER = [
 	'mutes', 'blocks', 'favourites', 'follow_requests', 'follows', 'poll_votes', 'polls',
 	'media_attachments', 'statuses', 'oauth_authorization_codes', 'oauth_access_tokens',
 	'oauth_applications', 'registration_email_delivery_limits', 'registration_invites',
+	'registration_cancellation_cooldowns',
 	'actor_keys', 'users', 'accounts',
 	'domain_allows', 'domain_blocks', 'email_domain_blocks', 'ip_blocks',
 	'instances', 'custom_emojis', 'announcements', 'rules', 'relays', 'settings',
@@ -399,6 +400,10 @@ describe('registration email verification', () => {
 			headers: { Cookie: firstCookie },
 		})).status).toBe(200);
 
+		expect((await registerUser('verify_cancel_limit')).status).toBe(429);
+		await env.DB.prepare(
+			"UPDATE registration_cancellation_cooldowns SET expires_at = datetime('now', '-1 second') WHERE email_hash = ?1",
+		).bind(await sha256('verify_cancel_limit@test.local')).run();
 		const secondRegistration = await registerUser('verify_cancel_limit');
 		const secondCookie = registrationCookie(secondRegistration);
 		expect((await registrationRequest('/continue', secondCookie)).status).toBe(429);

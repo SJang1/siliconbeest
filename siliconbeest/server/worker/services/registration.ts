@@ -19,6 +19,8 @@ import { reconcileContributionAwards } from './contribution';
 
 export type RegistrationMode = 'open' | 'approval' | 'referral' | 'closed';
 
+const REGISTRATION_CANCELLATION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export interface RegistrationInviter {
 	id: string;
 	username: string;
@@ -61,6 +63,27 @@ export interface RegistrationInviteSummary {
 export interface CreatedRegistrationInvite extends RegistrationInviteSummary {
 	token: string;
 	url: string;
+}
+
+export async function assertRegistrationCancellationCooldown(email: string): Promise<void> {
+	const emailHash = await sha256(email.trim().toLowerCase());
+	const now = new Date().toISOString();
+	const cooldown = await env.DB.prepare(
+		`SELECT expires_at
+		 FROM registration_cancellation_cooldowns
+		 WHERE email_hash = ?1 LIMIT 1`,
+	).bind(emailHash).first<{ expires_at: string }>();
+	if (!cooldown) return;
+	if (cooldown.expires_at > now) {
+		throw new AppError(
+			429,
+			'Registration cancellation cooldown is active',
+			'You can register again 24 hours after cancelling your previous registration.',
+		);
+	}
+	await env.DB.prepare(
+		'DELETE FROM registration_cancellation_cooldowns WHERE email_hash = ?1 AND expires_at <= ?2',
+	).bind(emailHash, now).run();
 }
 
 interface RegistrationInviteRecord {
@@ -892,11 +915,13 @@ export async function deletePendingRegistration(
 	userId: string,
 	expectedState?: 'pending_approval',
 	reason: 'cancelled' | 'expired' | 'rejected' = 'cancelled',
+	options: { startCancellationCooldown?: boolean } = {},
 ): Promise<void> {
 	const record = await env.DB.prepare(
 		`SELECT pending_user.id, pending_user.account_id, pending_user.invite_id,
 		        pending_user.confirmation_token, pending_user.registration_state,
-		        pending_user.approved, claim.id AS invitation_claim_id
+		        pending_user.approved, pending_user.email,
+		        claim.id AS invitation_claim_id
 		 FROM users pending_user
 		 LEFT JOIN invitation_use_claims claim ON claim.assigned_user_id = pending_user.id
 		 WHERE pending_user.id = ?1 LIMIT 1`,
@@ -907,6 +932,7 @@ export async function deletePendingRegistration(
 		confirmation_token: string | null;
 		registration_state: RegistrationState;
 		approved: number;
+		email: string;
 		invitation_claim_id: string | null;
 	}>();
 	if (!record) throw new AppError(404, 'Registration not found');
@@ -930,6 +956,23 @@ export async function deletePendingRegistration(
 	const stillPending = expectedState === 'pending_approval'
 		? "registration_state = 'pending_approval' AND approved = 0"
 		: "registration_state != 'active' OR approved = 0";
+	if (reason === 'cancelled' && options.startCancellationCooldown === true) {
+		const now = new Date();
+		const cancelledAt = now.toISOString();
+		const expiresAt = new Date(
+			now.getTime() + REGISTRATION_CANCELLATION_COOLDOWN_MS,
+		).toISOString();
+		statements.push(env.DB.prepare(
+			`INSERT INTO registration_cancellation_cooldowns
+			 (email_hash, cancelled_at, expires_at, updated_at)
+			 SELECT ?1, ?2, ?3, ?2
+			 WHERE EXISTS (SELECT 1 FROM users WHERE id = ?4 AND (${stillPending}))
+			 ON CONFLICT(email_hash) DO UPDATE SET
+			   cancelled_at = excluded.cancelled_at,
+			   expires_at = excluded.expires_at,
+			   updated_at = excluded.updated_at`,
+		).bind(await sha256(record.email.trim().toLowerCase()), cancelledAt, expiresAt, record.id));
+	}
 	statements.push(
 		env.DB.prepare(
 			`DELETE FROM oauth_access_tokens
