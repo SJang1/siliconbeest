@@ -2,7 +2,20 @@
   "confirmation_subject": "メール認証 - {title}",
   "confirmation_heading": "メール認証 - {title}",
   "confirmation_body": "以下のリンクをクリックして、メールアドレスを認証してください：",
-  "confirmation_expiry": "このリンクは24時間後に期限切れになります。",
+  "confirmation_code": "認証コード：{code}",
+  "confirmation_code_help": "登録ページでこのコードを入力するか、以下のリンクを使用してください。",
+  "confirmation_expiry": "このコードとリンクは60分後に期限切れになります。",
+  "confirmation_page_title": "メールアドレスを確認",
+  "confirmation_page_body": "メールアドレスを確認してアカウントを有効化してください。",
+  "confirmation_page_action": "メールを確認",
+  "confirmation_invalid_title": "期限切れまたは無効なトークン",
+  "confirmation_invalid_body": "この確認リンクは期限切れか、すでに使用されています。確認メールを再送してください。",
+  "confirmation_missing_token": "確認トークンが指定されていません。",
+
+  "registration_ready_subject": "{title} の登録を続けてください",
+  "registration_ready_heading": "登録手続きを続けられます",
+  "registration_ready_body": "ログインして登録内容を確認し、手続きを完了してください。",
+  "registration_ready_action": "登録を続ける",
 
   "password_reset_subject": "パスワードリセット",
   "password_reset_heading": "パスワードリセット",
@@ -11,7 +24,7 @@
 
   "welcome_subject": "{title}へようこそ！",
   "welcome_heading": "{title}へようこそ！",
-  "welcome_body": "アカウントが承認されました。",
+  "welcome_body": "登録が完了し、アカウントが有効になりました。",
 
   "rejection_subject": "登録審査結果",
   "rejection_heading": "登録審査結果",

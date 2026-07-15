@@ -102,7 +102,8 @@ app.post('/migration', authRequired, requireScope('write:accounts'), async (c) =
 	}
 
 	// Update moved_to_account_id + moved_at
-	await setMovedTo(accountId, targetAccountId);
+	const changed = await setMovedTo(accountId, targetAccountId);
+	c.set('contributionApplied', changed);
 
 	// 5. Build Move activity and fanout to followers
 	const move = new Move({

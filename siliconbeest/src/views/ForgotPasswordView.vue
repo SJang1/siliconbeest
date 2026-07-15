@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { apiFetch } from '@/api/client'
 import { useInstanceStore } from '@/stores/instance'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
+const route = useRoute()
 const instanceStore = useInstanceStore()
 
 const username = ref('')
@@ -46,7 +49,7 @@ async function handleSubmit() {
             {{ t('passwords.reset_sent') }}
           </div>
           <router-link
-            to="/login"
+            :to="withCurrentDesign('/login', route.path)"
             class="block text-center text-sm font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
           >
             {{ t('auth.sign_in') }}
@@ -98,10 +101,10 @@ async function handleSubmit() {
           </button>
 
           <div class="flex justify-between text-sm">
-            <router-link to="/auth/find-username" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
+            <router-link :to="withCurrentDesign('/auth/find-username', route.path)" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.find_username') }}
             </router-link>
-            <router-link to="/login" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
+            <router-link :to="withCurrentDesign('/login', route.path)" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.sign_in') }}
             </router-link>
           </div>

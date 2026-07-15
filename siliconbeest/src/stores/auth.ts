@@ -14,8 +14,21 @@ import { setOnUnauthorized } from '@/api/client';
 import { useTimelinesStore } from './timelines';
 import { useNotificationsStore } from './notifications';
 import { useUiStore } from './ui';
+import {
+  isRegistrationRequiredResponse,
+  type RegistrationDesign,
+  type RegistrationState,
+} from '@/types/registration';
 
 const TOKEN_KEY = 'siliconbeest_token';
+
+export type AuthLoginResult =
+  | { type: 'authenticated' }
+  | { type: 'registration_required'; state: RegistrationState };
+
+export type AuthRegisterResult =
+  | { type: 'authenticated' }
+  | { type: 'registration_required'; state: RegistrationState };
 
 function readTokenCookie(): string | null {
   if (typeof document === 'undefined') return null;
@@ -165,13 +178,22 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(username: string, password: string, turnstile_token?: string) {
+  async function login(
+    username: string,
+    password: string,
+    turnstile_token?: string,
+  ): Promise<AuthLoginResult> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await apiLogin(username, password, turnstile_token);
+      if (isRegistrationRequiredResponse(data)) {
+        clearToken();
+        return { type: 'registration_required', state: data.registration_state };
+      }
       setToken(data.access_token);
       await fetchCurrentUser();
+      return { type: 'authenticated' };
     } catch (e) {
       error.value = (e as Error).message;
       throw e;
@@ -188,19 +210,21 @@ export const useAuthStore = defineStore('auth', () => {
     locale?: string;
     reason?: string;
     turnstile_token?: string;
-  }): Promise<{ confirmationRequired: boolean }> {
+    invite_token?: string;
+    redirect_uri?: string;
+    design?: RegistrationDesign;
+  }): Promise<AuthRegisterResult> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await apiRegister(params);
-      if (data.confirmation_required) {
-        return { confirmationRequired: true };
+      if (isRegistrationRequiredResponse(data)) {
+        clearToken();
+        return { type: 'registration_required', state: data.registration_state };
       }
-      if (data.access_token) {
-        setToken(data.access_token);
-        await fetchCurrentUser();
-      }
-      return { confirmationRequired: false };
+      setToken(data.access_token);
+      await fetchCurrentUser();
+      return { type: 'authenticated' };
     } catch (e) {
       error.value = (e as Error).message;
       throw e;

@@ -67,7 +67,8 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
     params.push(policy);
   }
 
-  const row = await updatePushSubscription(existing.id as string, { sets, params });
+  const { row, changed } = await updatePushSubscription(existing.id as string, { sets, params });
+  c.set('contributionApplied', changed);
 
   return c.json({
     id: row.id,

@@ -26,6 +26,10 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
   const targetUri = target.uri as string;
 
   const result = await removeFollow(currentAccountId, targetId);
+  c.set(
+    'contributionApplied',
+    result.deletedFollow !== null || result.deletedFollowRequest !== null,
+  );
 
   // Send Undo(Follow) to remote server for deleted follow
   if (result.deletedFollow && target.domain) {

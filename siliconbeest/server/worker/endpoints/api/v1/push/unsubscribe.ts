@@ -13,7 +13,8 @@ const app = new Hono<{ Variables: AppVariables }>();
 app.delete('/', authRequired, requireScope('push'), async (c) => {
   const tokenId = c.get('tokenId')!;
 
-  await deletePushSubscription(tokenId);
+  const changed = await deletePushSubscription(tokenId);
+  c.set('contributionApplied', changed);
 
   return c.json({});
 });

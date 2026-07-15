@@ -15,7 +15,14 @@ import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
-import { createRateLimit, RATE_LIMIT_ADMIN, RATE_LIMIT_AUTH, RATE_LIMIT_REGISTRATION } from './middleware/rateLimit';
+import { contributionMiddleware } from './middleware/contribution';
+import {
+  createRateLimit,
+  RATE_LIMIT_ADMIN,
+  RATE_LIMIT_AUTH,
+  RATE_LIMIT_INVITATIONS,
+  RATE_LIMIT_REGISTRATION,
+} from './middleware/rateLimit';
 import { createFed, type FedifyContextData } from './federation/fedify';
 import { setupActorDispatcher } from './federation/dispatchers/actor';
 import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
@@ -76,6 +83,8 @@ import directory from './endpoints/api/v1/directory';
 import userDomainBlocks from './endpoints/api/v1/domainBlocks';
 import endorsements from './endpoints/api/v1/endorsements';
 import setup from './endpoints/api/v1/setup';
+import registration from './endpoints/api/v1/registration';
+import invites from './endpoints/api/v1/invites';
 
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
@@ -136,6 +145,7 @@ app.use('*', requestIdMiddleware);
 app.use('*', corsMiddleware);
 app.use('*', contentNegotiation);
 app.use('*', logger());
+app.use('/api/*', contributionMiddleware);
 
 // Security headers
 app.use('*', async (c, next) => {
@@ -270,7 +280,16 @@ app.route('/oauth/revoke', oauthRevoke);
 // ---------------------------------------------------------------------------
 
 app.route('/api/v1/apps', apps);
+app.post('/api/v1/accounts', createRateLimit(RATE_LIMIT_REGISTRATION));
 app.route('/api/v1/accounts', accounts);
+app.post('/api/v1/registration/continue', createRateLimit(RATE_LIMIT_AUTH));
+app.post('/api/v1/registration/verify', createRateLimit(RATE_LIMIT_AUTH));
+app.post('/api/v1/registration/resend', createRateLimit(RATE_LIMIT_AUTH));
+app.post('/api/v1/registration/completion', createRateLimit(RATE_LIMIT_AUTH));
+app.route('/api/v1/registration', registration);
+app.post('/api/v1/invites', createRateLimit(RATE_LIMIT_INVITATIONS));
+app.delete('/api/v1/invites/:id', createRateLimit(RATE_LIMIT_INVITATIONS));
+app.route('/api/v1/invites', invites);
 app.route('/api/v1/timelines', timelines);
 app.route('/api/v1/notifications', notifications);
 app.route('/api/v1/favourites', favourites);
@@ -321,6 +340,8 @@ app.route('/api/v1/auth/find_username', findUsername);
 app.use('/api/v1/auth/resend_confirmation', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/auth/resend_confirmation', resendConfirmation);
 app.route('/auth/confirm', emailConfirmPage);
+app.route('/aurora/auth/confirm', emailConfirmPage);
+app.route('/old/auth/confirm', emailConfirmPage);
 app.use('/api/v1/accounts/change_password', createRateLimit(RATE_LIMIT_AUTH));
 app.route('/api/v1/accounts', changePassword);
 app.use('/api/v1/admin/*', createRateLimit(RATE_LIMIT_ADMIN));

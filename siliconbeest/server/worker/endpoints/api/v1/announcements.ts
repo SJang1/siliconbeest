@@ -77,11 +77,12 @@ app.post('/:id/dismiss', authRequired, requireScope('write:accounts'), async (c)
     throw new AppError(404, 'Record not found');
   }
 
-  await env.DB.prepare(
+  const inserted = await env.DB.prepare(
     'INSERT OR IGNORE INTO announcement_dismissals (announcement_id, account_id) VALUES (?1, ?2)',
   )
     .bind(announcementId, currentAccount.id)
     .run();
+  c.set('contributionApplied', (inserted.meta?.changes ?? 0) > 0);
 
   return c.json({}, 200);
 });

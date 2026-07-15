@@ -6,6 +6,11 @@
     document.cookie = TOKEN_KEY + '=' + encodeURIComponent(token) + '; Path=/; Max-Age=2592000; SameSite=Lax' + secure;
   }
 
+  function clearTokenCookie() {
+    var secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = TOKEN_KEY + '=; Path=/; Max-Age=0; SameSite=Lax' + secure;
+  }
+
   function getVueReady() {
     return window.__SILICONBEEST_LOGIN_VUE_READY__ === true;
   }
@@ -27,6 +32,26 @@
   function getString(formData, key) {
     var value = formData.get(key);
     return typeof value === 'string' ? value : '';
+  }
+
+  function getDesignPath(path) {
+    if (window.location.pathname === '/old/login') return '/old' + path;
+    if (window.location.pathname === '/aurora/login') return '/aurora' + path;
+    return path;
+  }
+
+  function getSafeRedirect(value) {
+    if (!value || value.charAt(0) !== '/' || value.indexOf('//') === 0) {
+      return getDesignPath('/home');
+    }
+
+    try {
+      var parsed = new URL(value, window.location.origin);
+      if (parsed.origin !== window.location.origin) return getDesignPath('/home');
+      return parsed.pathname + parsed.search + parsed.hash;
+    } catch (_error) {
+      return getDesignPath('/home');
+    }
   }
 
   async function submitLogin(form, event) {
@@ -70,9 +95,19 @@
         throw new Error(data.error_description || data.error || '로그인에 실패했습니다.');
       }
 
-      writeTokenCookie(data.access_token);
       var params = new URLSearchParams(window.location.search);
-      window.location.assign(params.get('redirect') || '/home');
+      if (data.registration_required === true) {
+        clearTokenCookie();
+        window.location.assign(getDesignPath('/auth/registration'));
+        return;
+      }
+
+      if (!data.access_token || typeof data.access_token !== 'string') {
+        throw new Error('로그인 응답이 올바르지 않습니다.');
+      }
+
+      writeTokenCookie(data.access_token);
+      window.location.assign(getSafeRedirect(params.get('redirect')));
     } catch (error) {
       setError(error && error.message ? error.message : '로그인에 실패했습니다.');
       form.dataset.loginSubmitting = 'false';

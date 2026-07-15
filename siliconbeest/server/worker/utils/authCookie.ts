@@ -32,7 +32,7 @@ export function setAuthTokenCookie(c: Context, token: string): void {
 		parts.push('Secure');
 	}
 
-	c.header('Set-Cookie', parts.join('; '));
+	c.header('Set-Cookie', parts.join('; '), { append: true });
 }
 
 export function clearAuthTokenCookie(c: Context): void {
@@ -48,5 +48,5 @@ export function clearAuthTokenCookie(c: Context): void {
 		parts.push('Secure');
 	}
 
-	c.header('Set-Cookie', parts.join('; '));
+	c.header('Set-Cookie', parts.join('; '), { append: true });
 }

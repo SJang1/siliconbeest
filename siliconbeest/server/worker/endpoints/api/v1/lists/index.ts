@@ -77,8 +77,9 @@ app.put('/:id', authRequired, requireScope('write:lists'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const result = await updateList(listId, currentAccount.id, body);
-  return c.json(result);
+  const { list, changed } = await updateList(listId, currentAccount.id, body);
+  c.set('contributionApplied', changed);
+  return c.json(list);
 });
 
 // ---------------------------------------------------------------------------
@@ -123,7 +124,8 @@ app.post('/:id/accounts', authRequired, requireScope('write:lists'), async (c) =
     throw new AppError(422, 'Validation failed', 'account_ids is required');
   }
 
-  await addListMembers(listId, currentAccount.id, accountIds);
+  const changed = await addListMembers(listId, currentAccount.id, accountIds);
+  c.set('contributionApplied', changed);
   return c.json({}, 200);
 });
 
@@ -147,7 +149,8 @@ app.delete('/:id/accounts', authRequired, requireScope('write:lists'), async (c)
     throw new AppError(422, 'Validation failed', 'account_ids is required');
   }
 
-  await removeListMembers(listId, currentAccount.id, accountIds);
+  const changed = await removeListMembers(listId, currentAccount.id, accountIds);
+  c.set('contributionApplied', changed);
   return c.json({}, 200);
 });
 

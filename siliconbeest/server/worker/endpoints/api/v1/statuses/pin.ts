@@ -21,7 +21,8 @@ app.post('/:id/pin', authRequired, requireScope('write:accounts'), async (c) => 
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  await pinStatus(currentAccountId, statusId);
+  const changed = await pinStatus(currentAccountId, statusId);
+  c.set('contributionApplied', changed);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);
   status.pinned = true;

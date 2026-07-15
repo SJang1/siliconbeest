@@ -56,7 +56,8 @@ accounts.post('/:id/note', authRequired, requireScope('write:accounts'), async (
   const body = await c.req.json<{ comment?: string }>();
   const comment = (body.comment ?? '').slice(0, 2000);
 
-  await setAccountNote(currentAccount.id, targetId, comment);
+  const changed = await setAccountNote(currentAccount.id, targetId, comment);
+  c.set('contributionApplied', changed);
 
   return c.json(await getRelationship(currentAccount.id, targetId));
 });
@@ -66,7 +67,8 @@ accounts.post('/:id/remove_from_followers', authRequired, requireScope('write:fo
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await removeFollower(currentAccount.id, targetId);
+  const changed = await removeFollower(currentAccount.id, targetId);
+  c.set('contributionApplied', changed);
   return c.json(await getRelationship(currentAccount.id, targetId));
 });
 
@@ -75,7 +77,8 @@ accounts.post('/:id/pin', authRequired, requireScope('write:accounts'), async (c
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await pinAccount(currentAccount.id, targetId);
+  const changed = await pinAccount(currentAccount.id, targetId);
+  c.set('contributionApplied', changed);
 
   return c.json(await getRelationship(currentAccount.id, targetId));
 });
@@ -85,7 +88,8 @@ accounts.post('/:id/unpin', authRequired, requireScope('write:accounts'), async 
   const currentAccount = c.get('currentAccount')!;
   const targetId = c.req.param('id');
 
-  await unpinAccount(currentAccount.id, targetId);
+  const changed = await unpinAccount(currentAccount.id, targetId);
+  c.set('contributionApplied', changed);
 
   return c.json(await getRelationship(currentAccount.id, targetId));
 });

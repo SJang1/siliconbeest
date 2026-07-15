@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useTurnstile } from '@/composables/useTurnstile'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
+const route = useRoute()
 const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
 const username = ref('')
@@ -14,12 +17,27 @@ const passkeyLoading = ref(false)
 const turnstileRendered = ref(false)
 
 const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
+const registerTarget = computed(() => ({
+  path: withCurrentDesign('/register', route.path),
+  query: route.query.redirect ? { redirect: route.query.redirect } : undefined,
+}))
 
 const props = defineProps<{ serverError?: string }>()
-const emit = defineEmits(['submit', 'passkey'])
+const emit = defineEmits<{
+  submit: [credentials: { username: string; password: string; turnstile_token?: string }]
+  passkey: []
+}>()
 
-// Allow parent to reset loading states after async operations complete
-defineExpose({ loading, passkeyLoading })
+function finishLogin(resetCaptcha = false) {
+  loading.value = false
+  if (resetCaptcha) resetTurnstile()
+}
+
+function finishPasskey() {
+  passkeyLoading.value = false
+}
+
+defineExpose({ finishLogin, finishPasskey })
 
 function tryRenderTurnstile() {
   if (turnstileEnabled.value && !turnstileRendered.value) {
@@ -37,7 +55,7 @@ watch(turnstileEnabled, (enabled) => {
   if (enabled) tryRenderTurnstile()
 })
 
-async function handleSubmit() {
+function handleSubmit() {
   if (!username.value || !password.value) return
   if (turnstileEnabled.value && !turnstileToken.value) {
     error.value = t('turnstile.verification_failed')
@@ -107,10 +125,10 @@ function handlePasskeyLogin() {
 
     <!-- Forgot password / Find username -->
     <div class="flex justify-between text-sm">
-      <router-link to="/auth/find-username" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+      <router-link :to="withCurrentDesign('/auth/find-username', route.path)" class="text-indigo-600 dark:text-indigo-400 hover:underline">
         {{ t('auth.find_username') }}
       </router-link>
-      <router-link to="/auth/forgot-password" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+      <router-link :to="withCurrentDesign('/auth/forgot-password', route.path)" class="text-indigo-600 dark:text-indigo-400 hover:underline">
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>
@@ -150,7 +168,7 @@ function handlePasskeyLogin() {
     <!-- Register link -->
     <p class="text-center text-sm text-gray-500 dark:text-gray-400">
       {{ t('auth.no_account') }}
-      <router-link to="/register" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+      <router-link :to="registerTarget" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
         {{ t('auth.sign_up') }}
       </router-link>
     </p>

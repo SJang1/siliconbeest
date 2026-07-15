@@ -28,6 +28,7 @@ import type {
   FilterStatus,
   NotificationType,
 } from '../../../packages/shared/types/mastodon-base';
+import type { RegistrationMode } from './registration';
 
 export interface Account {
   id: string;
@@ -251,6 +252,8 @@ export interface Instance {
     enabled: boolean;
     approval_required: boolean;
     message: string | null;
+    mode?: RegistrationMode;
+    email_verification_required?: boolean;
   };
   contact: {
     email: string;

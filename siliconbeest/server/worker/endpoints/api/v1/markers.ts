@@ -29,13 +29,16 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   const body = await c.req.json<Record<string, { last_read_id: string }>>();
 
   const markers: Record<string, any> = {};
+  let changed = false;
 
   for (const timeline of ['home', 'notifications']) {
     const data = body[timeline];
     if (!data?.last_read_id) continue;
 
     markers[timeline] = await upsertMarker(user.id, timeline, data.last_read_id);
+    changed = true;
   }
+  c.set('contributionApplied', changed);
 
   return c.json(markers);
 });

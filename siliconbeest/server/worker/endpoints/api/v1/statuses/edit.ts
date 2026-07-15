@@ -52,6 +52,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
     language: body.language,
     mediaIds: body.media_ids,
   });
+  c.set('contributionApplied', true);
 
   const { status: updatedRow, content, hashtags, mediaAttachments } = result;
 

@@ -52,7 +52,7 @@ app.get('/', async (c) => {
 		conditions.push('(u.disabled IS NULL OR u.disabled = 0)');
 		conditions.push('(u.approved IS NULL OR u.approved = 1)');
 	} else if (effectiveStatus === 'pending') {
-		conditions.push('u.approved = 0');
+		conditions.push("u.registration_state = 'pending_approval'");
 	} else if (effectiveStatus === 'disabled') {
 		conditions.push('u.disabled = 1');
 	} else if (effectiveStatus === 'silenced') {
@@ -113,6 +113,7 @@ app.get('/', async (c) => {
 			u.role AS user_role,
 			u.disabled AS user_disabled,
 			u.approved AS user_approved,
+			u.registration_state,
 			u.current_sign_in_ip,
 			u.current_sign_in_at,
 			u.last_sign_in_ip,
@@ -152,6 +153,7 @@ function formatAdminAccount(row: Record<string, unknown>, domain: string) {
 		role: (row.user_role as string) || null,
 		confirmed: !!(row.confirmed_at),
 		approved: row.user_approved === null ? true : !!(row.user_approved),
+		registration_state: (row.registration_state as string) || null,
 		disabled: !!(row.user_disabled),
 		silenced: !!(row.silenced_at),
 		suspended: !!(row.suspended_at),

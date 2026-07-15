@@ -10,13 +10,22 @@ import type { AppVariables } from '../../../../types';
 import { generateToken } from '../../../../utils/crypto';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 import {
-	verifyPasswordByUsernameOrEmail,
+	verifyPasswordForRegistration,
 	getOrCreateInternalApp,
 	createAccessToken,
 	updateSignInTracking,
 } from '../../../../services/auth';
-import { setAuthTokenCookie } from '../../../../utils/authCookie';
+import { clearAuthTokenCookie, setAuthTokenCookie } from '../../../../utils/authCookie';
 import { getInternalSessionOAuthScopes } from '../../../../../../../packages/shared/permissions';
+import {
+	createRegistrationSession,
+	revokeRegistrationSession,
+} from '../../../../services/registration';
+import {
+	clearRegistrationSessionCookie,
+	getRegistrationSessionFromCookie,
+	setRegistrationSessionCookie,
+} from '../../../../utils/registrationCookie';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -28,7 +37,7 @@ app.post('/', async (c) => {
 	const identifier = body.username || body.email;
 	const { password } = body;
 
-	if (!identifier || !password) {
+	if (typeof identifier !== 'string' || typeof password !== 'string' || !identifier || !password) {
 		return c.json({ error: 'Username and password are required' }, 422);
 	}
 
@@ -45,15 +54,27 @@ app.post('/', async (c) => {
 		}
 	}
 
-	const result = await verifyPasswordByUsernameOrEmail(identifier, password);
+	const result = await verifyPasswordForRegistration(identifier, password);
 	if (!result) {
 		return c.json({ error: 'Invalid username or password' }, 401);
 	}
 
-	const { user } = result;
+	const { user, account } = result;
+	if (user.disabled || account.suspended_at || account.memorial) {
+		return c.json({ error: 'Invalid username or password' }, 401);
+	}
 
-	if (!user.approved) {
-		return c.json({ error: 'Your account is pending approval' }, 403);
+	if (user.registration_state !== 'active' || !user.approved) {
+		const previousRegistrationToken = getRegistrationSessionFromCookie(c.req.header('Cookie'));
+		if (previousRegistrationToken) await revokeRegistrationSession(previousRegistrationToken);
+		setRegistrationSessionCookie(c, await createRegistrationSession(user.id));
+		clearAuthTokenCookie(c);
+		return c.json({
+			registration_required: true as const,
+			registration_state: user.registration_state === 'active'
+				? 'pending_approval' as const
+				: user.registration_state,
+		});
 	}
 	if (!user.confirmed_at) {
 		return c.json({ error: 'Email not confirmed', error_description: 'Please confirm your email address' }, 403);
@@ -78,6 +99,9 @@ app.post('/', async (c) => {
 	await updateSignInTracking(user.id, ip);
 
 	setAuthTokenCookie(c, tokenValue);
+	const registrationToken = getRegistrationSessionFromCookie(c.req.header('Cookie'));
+	if (registrationToken) await revokeRegistrationSession(registrationToken);
+	clearRegistrationSessionCookie(c);
 
 	return c.json({
 		access_token: tokenValue,

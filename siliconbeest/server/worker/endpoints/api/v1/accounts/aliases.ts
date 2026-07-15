@@ -71,8 +71,9 @@ app.post('/aliases', authRequired, requireScope('write:accounts'), async (c) => 
 		actorUri = selfLink.href;
 	}
 
-	const aliases = await addAlias(accountId, actorUri);
-	return c.json({ aliases });
+	const result = await addAlias(accountId, actorUri);
+	c.set('contributionApplied', result.changed);
+	return c.json({ aliases: result.aliases });
 });
 
 // ── DELETE /aliases ──
@@ -85,8 +86,9 @@ app.delete('/aliases', authRequired, requireScope('write:accounts'), async (c) =
 		return c.json({ error: 'Missing alias parameter' }, 422);
 	}
 
-	const aliases = await removeAlias(accountId, body.alias.trim());
-	return c.json({ aliases });
+	const result = await removeAlias(accountId, body.alias.trim());
+	c.set('contributionApplied', result.changed);
+	return c.json({ aliases: result.aliases });
 });
 
 export default app;

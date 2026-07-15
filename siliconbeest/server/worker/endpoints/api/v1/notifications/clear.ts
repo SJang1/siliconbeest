@@ -9,7 +9,8 @@ const app = new Hono<{ Variables: AppVariables }>();
 app.post('/clear', authRequired, requireScope('write:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
 
-  await clearAllNotifications(account.id);
+  const changed = await clearAllNotifications(account.id);
+  c.set('contributionApplied', changed);
 
   return c.json({});
 });

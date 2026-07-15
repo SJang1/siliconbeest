@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import AppShell from './AppShell.vue'
 
 const { t } = useI18n()
@@ -16,6 +17,8 @@ const allNavItems = [
   { key: 'reports', path: '/admin/reports', icon: '🚩', adminOnly: false },
   { key: 'domain_blocks', path: '/admin/domain-blocks', icon: '🚫', adminOnly: true },
   { key: 'settings', path: '/admin/settings', icon: '⚙️', adminOnly: true },
+  { key: 'invitation_credits', path: '/admin/invitation-credits', icon: '🎟️', adminOnly: true },
+  { key: 'invitation_audit_logs', path: '/admin/invitation-audit-logs', icon: '📋', adminOnly: true },
   { key: 'announcements', path: '/admin/announcements', icon: '📢', adminOnly: false },
   { key: 'rules', path: '/admin/rules', icon: '📜', adminOnly: true },
   { key: 'relays', path: '/admin/relays', icon: '🔗', adminOnly: true },
@@ -27,11 +30,16 @@ const navItems = computed(() =>
   auth.isAdmin ? allNavItems : allNavItems.filter(item => !item.adminOnly)
 )
 
+function designedPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
+
 function isActive(path: string): boolean {
+  const target = designedPath(path)
   if (path === '/admin') {
-    return route.path === '/admin'
+    return route.path === target
   }
-  return route.path.startsWith(path)
+  return route.path.startsWith(target)
 }
 
 function toggleSidebar() {
@@ -96,7 +104,7 @@ function closeSidebar() {
             <ul class="space-y-1">
               <li v-for="item in navItems" :key="item.key">
                 <router-link
-                  :to="item.path"
+                  :to="designedPath(item.path)"
                   class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors no-underline"
                   :class="
                     isActive(item.path)

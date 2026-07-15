@@ -1,30 +1,36 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useNotificationsStore } from '@/stores/notifications'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 const ui = useUiStore()
 const notifStore = useNotificationsStore()
 const router = useRouter()
+const route = useRoute()
 
 const menuOpen = ref(false)
 const navigating = ref(false)
 
 const profilePath = computed(() => {
   const acct = auth.currentUser?.acct
-  return acct ? `/@${acct}` : '/settings'
+  return designedPath(acct ? `/@${acct}` : '/settings')
 })
 
+function designedPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
+
 const tabs = computed(() => [
-  { key: 'home', path: '/home', icon: '🏠', action: null },
-  { key: 'explore', path: '/explore/local', icon: '🔍', action: null },
+  { key: 'home', path: designedPath('/home'), icon: '🏠', action: null },
+  { key: 'explore', path: designedPath('/explore/local'), icon: '🔍', action: null },
   { key: 'compose', path: null, icon: '➕', action: () => ui.openComposeModal() },
-  { key: 'notifications', path: '/notifications', icon: '🔔', action: null },
+  { key: 'notifications', path: designedPath('/notifications'), icon: '🔔', action: null },
   { key: 'profile', path: profilePath.value, icon: '👤', action: null },
 ])
 
@@ -38,10 +44,11 @@ async function navigateTo(path: string) {
   menuOpen.value = false
   await nextTick()
 
-  if (navigating.value || router.currentRoute.value.fullPath === path) return
+  const target = designedPath(path)
+  if (navigating.value || router.currentRoute.value.fullPath === target) return
   navigating.value = true
   try {
-    await router.push(path)
+    await router.push(target)
   } catch {
     // Ignore cancelled/duplicated navigations caused by rapid taps.
   } finally {
@@ -52,7 +59,7 @@ async function navigateTo(path: string) {
 async function signOut() {
   menuOpen.value = false
   await auth.logout()
-  await router.push('/login')
+  await router.push(designedPath('/login'))
 }
 
 onBeforeRouteLeave(() => {

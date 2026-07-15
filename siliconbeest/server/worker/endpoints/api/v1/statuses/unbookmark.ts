@@ -23,7 +23,8 @@ app.post('/:id/unbookmark', authRequired, requireScope('write:bookmarks'), async
   if (!row) throw new AppError(404, 'Record not found');
 
   const canView = await canViewStatusById(statusId, currentAccountId);
-  await unbookmarkStatus(currentAccountId, statusId);
+  const removed = await unbookmarkStatus(currentAccountId, statusId);
+  c.set('contributionApplied', removed);
   if (!canView) throw new AppError(404, 'Record not found');
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);

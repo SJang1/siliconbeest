@@ -710,9 +710,20 @@ export function canViewAccountRecord(account: AccountPermissionRecord): boolean 
 export async function canViewAccountById(accountId: string): Promise<boolean> {
   if (accountId.length === 0) return false;
   const account = await env.DB.prepare(
-    'SELECT id, domain, suspended_at FROM accounts WHERE id = ?1 LIMIT 1',
-  ).bind(accountId).first<AccountPermissionRecord>();
-  return account ? canViewAccountRecord(account) : false;
+    `SELECT a.id, a.domain, a.suspended_at,
+            u.approved AS user_approved,
+            u.registration_state
+     FROM accounts a
+     LEFT JOIN users u ON u.account_id = a.id
+     WHERE a.id = ?1
+     LIMIT 1`,
+  ).bind(accountId).first<AccountPermissionRecord & {
+    user_approved: number | null;
+    registration_state: string | null;
+  }>();
+  if (!account || !canViewAccountRecord(account)) return false;
+  if (account.domain !== null) return true;
+  return account.user_approved === 1 && account.registration_state === 'active';
 }
 
 export async function assertAccountViewable(accountId: string): Promise<void> {

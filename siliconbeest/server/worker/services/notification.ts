@@ -181,7 +181,7 @@ export async function getNotification(
 export async function dismissNotification(
   id: string,
   accountId: string,
-): Promise<void> {
+): Promise<boolean> {
   const result = await env.DB
     .prepare('DELETE FROM notifications WHERE id = ?1 AND account_id = ?2')
     .bind(id, accountId)
@@ -190,6 +190,8 @@ export async function dismissNotification(
   if (!result.meta.changes || result.meta.changes === 0) {
     throw new AppError(404, 'Record not found');
   }
+
+  return true;
 }
 
 // -----------------------------------------------------------------
@@ -198,11 +200,13 @@ export async function dismissNotification(
 
 export async function clearAllNotifications(
   accountId: string,
-): Promise<void> {
-  await env.DB
+): Promise<boolean> {
+  const result = await env.DB
     .prepare('DELETE FROM notifications WHERE account_id = ?1')
     .bind(accountId)
     .run();
+
+  return (result.meta?.changes ?? 0) > 0;
 }
 
 // -----------------------------------------------------------------

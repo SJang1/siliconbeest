@@ -17,7 +17,8 @@ app.post('/:id/unmute', authRequired, requireScope('write:mutes'), async (c) => 
   const target = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
-  await removeMute(currentAccountId, targetId);
+  const changed = await removeMute(currentAccountId, targetId);
+  c.set('contributionApplied', changed);
 
   return c.json(await getRelationship(currentAccountId, targetId));
 });

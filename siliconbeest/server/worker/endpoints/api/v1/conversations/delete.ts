@@ -13,7 +13,8 @@ app.delete('/:id', authRequired, requireScope('write:conversations'), async (c) 
   const currentAccount = c.get('currentAccount')!;
   const conversationId = c.req.param('id');
 
-  await deleteConversation(conversationId, currentAccount.id);
+  const changed = await deleteConversation(conversationId, currentAccount.id);
+  c.set('contributionApplied', changed);
 
   return c.json({}, 200);
 });

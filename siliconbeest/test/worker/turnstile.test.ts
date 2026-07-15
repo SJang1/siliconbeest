@@ -20,7 +20,7 @@ const TABLE_DELETE_ORDER = [
 	'tag_follows', 'status_tags', 'tags', 'mentions', 'notifications', 'bookmarks',
 	'mutes', 'blocks', 'favourites', 'follow_requests', 'follows', 'poll_votes', 'polls',
 	'media_attachments', 'statuses', 'oauth_authorization_codes', 'oauth_access_tokens',
-	'oauth_applications', 'actor_keys', 'users', 'accounts',
+	'oauth_applications', 'registration_invites', 'actor_keys', 'users', 'accounts',
 	'domain_allows', 'domain_blocks', 'email_domain_blocks', 'ip_blocks',
 	'instances', 'custom_emojis', 'announcements', 'rules', 'relays', 'settings',
 ];
@@ -35,12 +35,13 @@ async function resetDB() {
 
 let migrated = false;
 
-const DEFAULT_SETTINGS_SQL = "INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))";
+const DEFAULT_SETTINGS_SQL = "INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('require_email_verification', '1', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))";
 
 const PASS_SECRET = '1x0000000000000000000000000000000AA';
 const FAIL_SECRET = '2x0000000000000000000000000000000AA';
 const SITE_KEY = '1x00000000000000000000AA';
 const DUMMY_TOKEN = '1x00000000000000000000AA';
+let registrationRequestIp = 1;
 
 async function enableTurnstile(secretKey: string = PASS_SECRET) {
 	await env.DB.batch([
@@ -72,7 +73,10 @@ async function disableTurnstile() {
 async function registerRequest(body: Record<string, unknown>) {
 	return SELF.fetch('https://test.siliconbeest.local/api/v1/accounts', {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			'CF-Connecting-IP': `203.0.113.${registrationRequestIp++}`,
+		},
 		body: JSON.stringify({
 			username: 'turnstile_user_' + Math.random().toString(36).slice(2, 8),
 			email: `turnstile_${Math.random().toString(36).slice(2, 8)}@test.local`,
@@ -135,10 +139,9 @@ describe('Turnstile CAPTCHA verification', () => {
 		it('4. Registration with valid turnstile_token (passing secret) succeeds', async () => {
 			await enableTurnstile(PASS_SECRET);
 			const res = await registerRequest({ turnstile_token: DUMMY_TOKEN });
-			// Should either be 200 with confirmation_required or another success
 			expect(res.status).toBe(200);
-			const json = (await res.json()) as { confirmation_required?: boolean };
-			expect(json.confirmation_required).toBe(true);
+			const json = (await res.json()) as { registration_required?: boolean };
+			expect(json.registration_required).toBe(true);
 		});
 
 		it('5. Login without turnstile_token returns 422', async () => {
@@ -207,8 +210,8 @@ describe('Turnstile CAPTCHA verification', () => {
 			await disableTurnstile();
 			const res = await registerRequest({});
 			expect(res.status).toBe(200);
-			const json = (await res.json()) as { confirmation_required?: boolean };
-			expect(json.confirmation_required).toBe(true);
+			const json = (await res.json()) as { registration_required?: boolean };
+			expect(json.registration_required).toBe(true);
 		});
 
 		it('10. Login without turnstile_token succeeds when disabled', async () => {

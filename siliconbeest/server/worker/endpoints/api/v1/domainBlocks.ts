@@ -53,19 +53,21 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
     .bind(currentAccount.id, domain)
     .first();
 
+  let changed = false;
   if (!existing) {
     const id = generateUlid();
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    const inserted = await env.DB.prepare(
       'INSERT INTO user_domain_blocks (id, account_id, domain, created_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(id, currentAccount.id, domain, now)
       .run();
+    changed = (inserted.meta?.changes ?? 0) > 0;
   }
 
   // A domain block is a relationship boundary, not only a display filter.
   // Tear down both follow directions and derived state in one ordered D1 batch.
-  await env.DB.batch([
+  const cleanupResults = await env.DB.batch([
     env.DB.prepare(
       `UPDATE accounts
        SET following_count = MAX(0, following_count - (
@@ -153,6 +155,8 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
        ))`,
     ).bind(currentAccount.id, domain),
   ]);
+  changed ||= cleanupResults.slice(4).some((result) => (result.meta?.changes ?? 0) > 0);
+  c.set('contributionApplied', changed);
 
   return c.json({});
 });
@@ -166,11 +170,12 @@ app.delete('/', authRequired, requireScope('write:blocks'), async (c) => {
 
   const domain = body.domain.toLowerCase().trim();
 
-  await env.DB.prepare(
+  const result = await env.DB.prepare(
     'DELETE FROM user_domain_blocks WHERE account_id = ?1 AND domain = ?2',
   )
     .bind(currentAccount.id, domain)
     .run();
+  c.set('contributionApplied', (result.meta?.changes ?? 0) > 0);
 
   return c.json({});
 });

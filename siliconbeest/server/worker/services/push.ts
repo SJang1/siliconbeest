@@ -38,7 +38,7 @@ export async function createPushSubscription(
 		alerts: PushAlerts;
 		policy: string;
 	},
-): Promise<void> {
+): Promise<boolean> {
 	await env.DB.batch([
 		env.DB.prepare(
 			'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
@@ -57,6 +57,8 @@ export async function createPushSubscription(
 			opts.alerts.admin_sign_up, opts.alerts.admin_report, opts.policy,
 		),
 	]);
+
+	return true;
 }
 
 // ----------------------------------------------------------------
@@ -84,14 +86,24 @@ export async function getPushSubscription(
 export async function updatePushSubscription(
 	subscriptionId: string,
 	updates: { sets: string[]; params: unknown[] },
-): Promise<Record<string, unknown>> {
-	const sets = [...updates.sets, `updated_at = datetime('now')`];
-	const params = [...updates.params, subscriptionId];
-	const paramIdx = params.length;
+): Promise<{ row: Record<string, unknown>; changed: boolean }> {
+	let changed = false;
+	if (updates.sets.length > 0) {
+		const sets = [...updates.sets, `updated_at = datetime('now')`];
+		const params = [...updates.params, subscriptionId];
+		const paramIdx = params.length;
+		const changedPredicate = updates.sets.map((set, index) => {
+			const column = set.slice(0, set.indexOf(' ='));
+			return `${column} IS NOT ?${index + 1}`;
+		}).join(' OR ');
 
-	await env.DB.prepare(
-		`UPDATE web_push_subscriptions SET ${sets.join(', ')} WHERE id = ?${paramIdx}`,
-	).bind(...params).run();
+		const result = await env.DB.prepare(
+			`UPDATE web_push_subscriptions
+			 SET ${sets.join(', ')}
+			 WHERE id = ?${paramIdx} AND (${changedPredicate})`,
+		).bind(...params).run();
+		changed = (result.meta?.changes ?? 0) > 0;
+	}
 
 	const row = await env.DB.prepare(
 		`SELECT id, endpoint, policy,
@@ -101,7 +113,7 @@ export async function updatePushSubscription(
 		 FROM web_push_subscriptions WHERE id = ?1`,
 	).bind(subscriptionId).first();
 
-	return row!;
+	return { row: row!, changed };
 }
 
 // ----------------------------------------------------------------
@@ -110,8 +122,10 @@ export async function updatePushSubscription(
 
 export async function deletePushSubscription(
 	tokenId: string,
-): Promise<void> {
-	await env.DB.prepare(
+): Promise<boolean> {
+	const result = await env.DB.prepare(
 		'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
 	).bind(tokenId).run();
+
+	return (result.meta?.changes ?? 0) > 0;
 }

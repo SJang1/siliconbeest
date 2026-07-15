@@ -92,7 +92,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
 
   const id = crypto.randomUUID();
 
-  await createPushSubscription({
+  const changed = await createPushSubscription({
     id,
     userId: user.id,
     tokenId,
@@ -113,6 +113,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
     },
     policy,
   });
+  c.set('contributionApplied', changed);
 
   const alerts: Record<string, boolean> = {
     mention: !!alertMention,

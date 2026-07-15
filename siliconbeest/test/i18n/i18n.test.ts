@@ -98,6 +98,20 @@ describe('i18n', () => {
         expect(leafKeys(messages).sort()).toEqual(englishKeys);
       }
     });
+
+    it('warns about the 24-hour re-registration restriction before cancellation', () => {
+      for (const messages of [en, ko, ja, zhCN, zhTW]) {
+        expect(messages.auth.registration_cancel_confirm).toContain('24');
+      }
+    });
+
+    it('provides the public invitation guide in every supported locale', () => {
+      for (const messages of [en, ko, ja, zhCN, zhTW]) {
+        expect(messages.about.invitation_guide_link).toBeTruthy();
+        expect(messages.invitation_guide.signup_cooldown).toContain('24');
+        expect(messages.invitation_guide.audit_admin).toBeTruthy();
+      }
+    });
   });
 
   describe('Fallback behavior', () => {

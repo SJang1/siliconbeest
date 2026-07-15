@@ -108,7 +108,9 @@ describe('Email Queue Integration', () => {
     it('POST /api/v1/admin/accounts/:id/approve triggers welcome email', async () => {
       // Create a pending user
       const pending = await createTestUser('pendinguser');
-      await env.DB.prepare('UPDATE users SET approved = 0, email = ?1 WHERE id = ?2')
+      await env.DB.prepare(
+        "UPDATE users SET approved = 0, registration_state = 'pending_approval', email = ?1 WHERE id = ?2",
+      )
         .bind('pending@example.com', pending.userId)
         .run();
 
@@ -122,19 +124,24 @@ describe('Email Queue Integration', () => {
 
       expect(res.status).toBe(200);
 
-      // Verify user is now approved
-      const user = await env.DB.prepare('SELECT approved FROM users WHERE id = ?1')
+      // Admin approval lets the applicant continue, but the account stays private
+      // until the applicant confirms the registration.
+      const user = await env.DB.prepare(
+        'SELECT approved, registration_state FROM users WHERE id = ?1',
+      )
         .bind(pending.userId)
-        .first();
-      expect(user?.approved).toBe(1);
+        .first<{ approved: number; registration_state: string }>();
+      expect(user).toEqual({ approved: 0, registration_state: 'awaiting_confirmation' });
     });
   });
 
   describe('Account Rejection Email', () => {
-    it.skip('POST /api/v1/admin/accounts/:id/reject works for pending accounts', async () => {
+    it('POST /api/v1/admin/accounts/:id/reject works for pending accounts', async () => {
       // Create another pending user
       const pending2 = await createTestUser('pendinguser2');
-      await env.DB.prepare('UPDATE users SET approved = 0, email = ?1 WHERE id = ?2')
+      await env.DB.prepare(
+        "UPDATE users SET approved = 0, registration_state = 'pending_approval', email = ?1 WHERE id = ?2",
+      )
         .bind('pending2@example.com', pending2.userId)
         .run();
 
@@ -146,10 +153,6 @@ describe('Email Queue Integration', () => {
         },
       );
 
-      const body = await res.json() as any;
-      if (res.status !== 200) {
-        console.log('Reject error:', res.status, JSON.stringify(body));
-      }
       expect(res.status).toBe(200);
       // Verify user/account are deleted
       const user = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1')

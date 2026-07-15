@@ -117,6 +117,7 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
   )
     .bind(id, currentAccount.id, tag.id, countRow?.cnt ?? 0, lastRow?.created_at ?? null, now)
     .run();
+  c.set('contributionApplied', true);
 
   return c.json({
     id,
@@ -140,9 +141,10 @@ app.delete('/:id', authRequired, requireScope('write:accounts'), async (c) => {
 
   if (!existing) throw new AppError(404, 'Record not found');
 
-  await env.DB.prepare('DELETE FROM featured_tags WHERE id = ?1')
+  const removed = await env.DB.prepare('DELETE FROM featured_tags WHERE id = ?1')
     .bind(ftId)
     .run();
+  c.set('contributionApplied', (removed.meta?.changes ?? 0) > 0);
 
   return c.json({});
 });

@@ -1,36 +1,43 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import AppShell from '@/legacy/components/layout/AppShell.vue'
 import LanguageSelector from '@/legacy/components/settings/LanguageSelector.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 async function signOut() {
   await auth.logout()
-  await router.push('/login')
+  await router.push(withCurrentDesign('/login', route.path))
 }
 
 const settingSections = computed(() => {
   const sections = [
-    { key: 'profile', name: 'settings-profile' },
-    { key: 'account', name: 'settings-account' },
-    { key: 'appearance', name: 'settings-appearance' },
-    { key: 'posting', name: 'settings-posting' },
-    { key: 'notifications', name: 'settings-notifications' },
-    { key: 'filters', name: 'settings-filters' },
-    { key: 'migration', name: 'settings-migration' },
-    { key: 'security', name: 'settings-security' },
+    { key: 'profile', path: '/settings/profile' },
+    { key: 'account', path: '/settings/account' },
+    { key: 'appearance', path: '/settings/appearance' },
+    { key: 'posting', path: '/settings/posting' },
+    { key: 'notifications', path: '/settings/notifications' },
+    { key: 'filters', path: '/settings/filters' },
+    { key: 'migration', path: '/settings/migration' },
+    { key: 'security', path: '/settings/security' },
+    { key: 'invitations', path: '/settings/invitations' },
   ]
   if (auth.isAdmin) {
-    sections.push({ key: 'admin', name: 'admin-settings' })
+    sections.push({ key: 'admin', path: '/admin/settings' })
   }
   return sections
 })
+
+function sectionPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
 </script>
 
 <template>
@@ -47,7 +54,7 @@ const settingSections = computed(() => {
             <router-link
               v-for="section in settingSections"
               :key="section.key"
-              :to="{ name: section.name }"
+              :to="sectionPath(section.path)"
               class="flex items-center px-4 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
               active-class="!bg-indigo-50 dark:!bg-indigo-900/20 !text-indigo-600 dark:!text-indigo-400 !font-bold"
             >
@@ -71,7 +78,7 @@ const settingSections = computed(() => {
               <router-link
                 v-for="section in settingSections"
                 :key="section.key"
-                :to="{ name: section.name }"
+                :to="sectionPath(section.path)"
                 class="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors text-gray-600 dark:text-gray-400"
                 active-class="!bg-indigo-600 !text-white"
               >

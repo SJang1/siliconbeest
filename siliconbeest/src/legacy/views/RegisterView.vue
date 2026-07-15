@@ -1,83 +1,152 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceStore } from '@/stores/instance'
+import { usePublicInstance } from '@/composables/usePublicInstance'
+import { previewInvitation } from '@/api/mastodon/registration'
+import { getApiErrorMessage } from '@/utils/apiError'
+import { getSafeRedirect, withCurrentDesign } from '@/utils/safeRedirect'
+import { isAuroraDesignPath, isOldDesignPath } from '@/utils/designVersion'
 import RegisterForm from '@/legacy/components/auth/RegisterForm.vue'
+import type {
+  InvitationPreview,
+  RegistrationFormData,
+  RegistrationMode,
+  RegistrationDesign,
+} from '@/types/registration'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const instanceStore = useInstanceStore()
+const { data: ssrInstance } = await usePublicInstance()
 
-const error = ref<string | null>(null)
+const form = ref<InstanceType<typeof RegisterForm> | null>(null)
+const error = ref('')
+const invitation = ref<InvitationPreview | null>(null)
+const invitationLoading = ref(false)
+const invitationError = ref('')
 
-const registrationMode = computed(() => {
-  if (!instanceStore.instance?.registrations.enabled) return 'closed'
-  return instanceStore.instance?.registrations.approval_required ? 'approval' : 'open'
+const instance = computed(() => ssrInstance.value ?? instanceStore.instance)
+const instanceTitle = computed(() => instance.value?.title)
+const invitationToken = computed(() => {
+  const value = route.query.invite
+  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
+})
+const redirectUri = computed(() => getSafeRedirect(route.query.redirect, '/home'))
+const registrationDesign = computed<RegistrationDesign>(() => {
+  if (isOldDesignPath(route.path)) return 'old'
+  if (isAuroraDesignPath(route.path)) return 'aurora'
+  return 'default'
 })
 
-const registrationMessage = computed(() => {
-  return instanceStore.instance?.registrations.message || ''
+const registrationMode = computed<RegistrationMode>(() => {
+  const registrations = instance.value?.registrations
+  if (registrations?.mode) return registrations.mode
+  if (!registrations?.enabled) return 'closed'
+  return registrations.approval_required ? 'approval' : 'open'
 })
 
-const instanceTitle = computed(() => {
-  return instanceStore.instance?.title
-})
-
-onMounted(async () => {
-  if (!instanceStore.instance) {
-    await instanceStore.fetchInstance()
+const registrationOpen = computed(() => {
+  if (registrationMode.value === 'closed') return false
+  if (invitationToken.value) {
+    return !invitationLoading.value && !invitationError.value && !!invitation.value
   }
+  return registrationMode.value === 'open' || registrationMode.value === 'approval'
 })
 
-async function handleRegister(data: {
-  username: string
-  email: string
-  password: string
-  locale: string
-  reason?: string
-  turnstile_token?: string
-  agreement?: boolean
-}) {
-  error.value = null
+async function loadInvitation() {
+  invitation.value = null
+  invitationError.value = ''
+  if (!invitationToken.value) return
+
+  invitationLoading.value = true
+  try {
+    const { data } = await previewInvitation(invitationToken.value)
+    invitation.value = data
+  } catch (requestError) {
+    invitationError.value = getApiErrorMessage(
+      requestError,
+      t('auth.registration_invite_invalid'),
+    )
+  } finally {
+    invitationLoading.value = false
+  }
+}
+
+onMounted(loadInvitation)
+
+watch(invitationToken, () => {
+  if (typeof window !== 'undefined') void loadInvitation()
+})
+
+async function handleRegister(data: RegistrationFormData) {
+  error.value = ''
+  let failed = false
   try {
     const result = await auth.register({
       username: data.username,
       email: data.email,
       password: data.password,
-      agreement: true,
+      agreement: data.agreement,
       locale: data.locale,
       reason: data.reason,
       turnstile_token: data.turnstile_token,
+      invite_token: invitation.value ? invitationToken.value : undefined,
+      redirect_uri: redirectUri.value,
+      design: registrationDesign.value,
     })
-    if (result.confirmationRequired) {
-      router.push({ path: '/auth/confirm-email-sent', query: { email: data.email } })
-    } else {
-      router.push('/home')
+
+    if (result.type === 'registration_required') {
+      await router.push(withCurrentDesign('/auth/registration', route.path))
+      return
     }
-  } catch (e) {
-    error.value = (e as Error).message
+
+    await router.push(withCurrentDesign(redirectUri.value, route.path))
+  } catch (requestError) {
+    failed = true
+    error.value = getApiErrorMessage(requestError, t('common.error'))
+  } finally {
+    form.value?.finishSubmission(failed)
   }
 }
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <div class="w-full max-w-sm">
-      <div class="text-center mb-8">
+  <div class="min-h-screen bg-gray-50 px-4 py-12 dark:bg-gray-900">
+    <div class="mx-auto w-full max-w-2xl">
+      <div class="mb-8 text-center">
         <h1 class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceTitle }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('auth.join_us') }}</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('auth.join_us') }}</p>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div v-if="error" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
           {{ error }}
         </div>
+        <div v-if="invitationLoading" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          {{ t('common.loading') }}
+        </div>
+        <div v-else-if="invitationError" class="space-y-4 text-center">
+          <div class="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
+            {{ invitationError }}
+          </div>
+          <router-link :to="{ path: withCurrentDesign('/register', route.path), query: { redirect: redirectUri } }" class="inline-flex rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-600">
+            {{ t('auth.registration_without_invite') }}
+          </router-link>
+        </div>
         <RegisterForm
-          :registration-open="registrationMode !== 'closed'"
+          v-else
+          ref="form"
+          :registration-open="registrationOpen"
           :registration-mode="registrationMode"
-          :registration-message="registrationMessage"
+          :registration-message="instance?.registrations.message || ''"
+          :rules="instance?.rules || []"
+          :terms-of-service="instance?.terms_of_service || ''"
+          :privacy-policy="instance?.privacy_policy || ''"
+          :invitation="invitation"
           @submit="handleRegister"
         />
       </div>

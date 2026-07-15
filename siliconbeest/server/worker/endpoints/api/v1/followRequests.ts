@@ -75,6 +75,7 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   const { followRequest: fr } = await acceptFollowRequest(
     domain, requestAccountId, currentAccount.id,
   );
+  c.set('contributionApplied', true);
 
   // Create follow notification for the requester (they now have a new follower relationship accepted)
   await env.QUEUE_INTERNAL.send({
@@ -133,6 +134,7 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
   const { followRequest: fr } = await rejectFollowRequest(
     requestAccountId, currentAccount.id,
   );
+  c.set('contributionApplied', true);
 
   // AP: Send Reject(Follow) to the remote server
   const remoteAccount2 = await env.DB.prepare(

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useInstanceStore } from '@/stores/instance'
@@ -8,10 +8,11 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { SUPPORTED_LOCALES, setDisplayLocale } from '@/i18n'
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api/client'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import Avatar from '../common/Avatar.vue'
 
 const { t, locale } = useI18n()
-const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const ui = useUiStore()
 const instanceStore = useInstanceStore()
@@ -32,8 +33,12 @@ const navItems = [
 
 const myProfilePath = computed(() => {
   const acct = auth.currentUser?.acct || auth.currentUser?.username
-  return acct ? `/@${acct}` : '/settings/profile'
+  return designedPath(acct ? `/@${acct}` : '/settings/profile')
 })
+
+function designedPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
 
 const followRequestCount = ref(0)
 
@@ -64,7 +69,7 @@ function handleLocaleChange(event: Event) {
 <template>
   <nav class="flex flex-col h-full p-4" aria-label="Main navigation">
     <!-- Logo -->
-    <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
+    <router-link :to="designedPath('/')" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
       <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ instanceStore.instance?.title }}</span>
     </router-link>
 
@@ -74,7 +79,7 @@ function handleLocaleChange(event: Event) {
       <ul class="space-y-1 flex-1">
         <li v-for="item in navItems" :key="item.key">
           <router-link
-            :to="item.path"
+            :to="designedPath(item.path)"
             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
             active-class="bg-gray-100 dark:bg-gray-800 font-bold"
           >
@@ -91,7 +96,7 @@ function handleLocaleChange(event: Event) {
       <!-- Follow Requests -->
       <router-link
         v-if="followRequestCount > 0"
-        to="/follow-requests"
+        :to="designedPath('/follow-requests')"
         class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
         active-class="bg-gray-100 dark:bg-gray-800 font-bold"
       >
@@ -102,7 +107,7 @@ function handleLocaleChange(event: Event) {
 
       <!-- Settings -->
       <router-link
-        to="/settings"
+        :to="designedPath('/settings')"
         class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
         active-class="bg-gray-100 dark:bg-gray-800 font-bold"
       >
@@ -113,7 +118,7 @@ function handleLocaleChange(event: Event) {
       <!-- Admin/Moderator Link -->
       <router-link
         v-if="auth.isAdmin || auth.isModerator"
-        to="/admin"
+        :to="designedPath('/admin')"
         class="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
         active-class="bg-gray-100 dark:bg-gray-800 font-bold"
       >
@@ -135,7 +140,7 @@ function handleLocaleChange(event: Event) {
     <template v-else>
       <div class="space-y-2 flex-1">
         <router-link
-          to="/explore/local"
+          :to="designedPath('/explore/local')"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
           active-class="bg-gray-100 dark:bg-gray-800 font-bold"
         >
@@ -143,7 +148,7 @@ function handleLocaleChange(event: Event) {
           <span>{{ t('nav.explore') }}</span>
         </router-link>
         <router-link
-          to="/about"
+          :to="designedPath('/about')"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
           active-class="bg-gray-100 dark:bg-gray-800 font-bold"
         >
@@ -153,13 +158,13 @@ function handleLocaleChange(event: Event) {
       </div>
 
       <router-link
-        to="/login"
+        :to="designedPath('/login')"
         class="w-full py-3 px-4 mb-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg transition-colors text-center block no-underline"
       >
         {{ t('auth.login') }}
       </router-link>
       <router-link
-        to="/register"
+        :to="designedPath('/register')"
         class="w-full py-3 px-4 mb-4 rounded-full border-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-bold text-lg transition-colors text-center block no-underline"
       >
         {{ t('auth.register') }}

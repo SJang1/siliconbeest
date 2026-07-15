@@ -38,6 +38,12 @@ export const RATE_LIMIT_REGISTRATION: RateLimitOptions = {
   keyPrefix: 'reg',
 };
 
+export const RATE_LIMIT_INVITATIONS: RateLimitOptions = {
+  maxRequests: 30,
+  windowMs: 5 * 60 * 1000,
+  keyPrefix: 'invites',
+};
+
 export const RATE_LIMIT_ADMIN: RateLimitOptions = {
   maxRequests: 60,
   windowMs: 5 * 60 * 1000,

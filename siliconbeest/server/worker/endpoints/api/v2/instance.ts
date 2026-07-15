@@ -17,6 +17,7 @@ app.get('/', async (c) => {
     'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'site_landing_markdown',
     'terms_of_service', 'privacy_policy', 'accent_color',
+    'require_email_verification',
   ]).catch((): Record<string, string> => ({}));
 
   // Turnstile settings (cached in KV)
@@ -103,6 +104,9 @@ app.get('/', async (c) => {
     registrations: {
       enabled: registrationMode === 'open' || registrationMode === 'approval',
       approval_required: registrationMode === 'approval',
+      mode: registrationMode,
+      email_verification_required: dbSettings.require_email_verification === '1',
+      invites_enabled: registrationMode !== 'closed',
       message: dbSettings.registration_message || null,
       url: null,
     },

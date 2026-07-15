@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { findUsername } from '@/api/mastodon/oauth'
 import { useInstanceStore } from '@/stores/instance'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
+const route = useRoute()
 const instanceStore = useInstanceStore()
 const email = ref('')
 const loading = ref(false)
@@ -69,7 +72,7 @@ async function handleSubmit() {
         </form>
 
         <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-          <router-link to="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          <router-link :to="withCurrentDesign('/login', route.path)" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
             {{ t('auth.sign_in') }}
           </router-link>
         </p>

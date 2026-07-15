@@ -12,7 +12,7 @@
 import type { Federation, NodeInfo } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
 import { SILICONBEEST_VERSION } from '../../version';
-import { getInstanceTitle } from '../../services/instance';
+import { getInstanceTitle, getSetting } from '../../services/instance';
 import { env } from 'cloudflare:workers';
 import { getRepositoryUrl } from '../../utils/repository';
 
@@ -79,7 +79,10 @@ async function getStats(): Promise<NodeInfoStats> {
 export function setupNodeInfoDispatcher(fed: Federation<FedifyContextData>): void {
   fed.setNodeInfoDispatcher('/nodeinfo/2.1', async (): Promise<NodeInfo> => {
     const stats = await getStats();
-    const registrationOpen = (env.REGISTRATION_MODE as string) === 'open';
+    const registrationMode = await getSetting('registration_mode').catch(() => null)
+      || env.REGISTRATION_MODE
+      || 'closed';
+    const registrationOpen = registrationMode === 'open' || registrationMode === 'approval';
 
     return {
       software: {

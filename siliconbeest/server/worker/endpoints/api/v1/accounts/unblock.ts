@@ -20,10 +20,11 @@ app.post('/:id/unblock', authRequired, requireScope('write:blocks'), async (c) =
   const target = await env.DB.prepare('SELECT id, domain, uri FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
-  await removeBlock(currentAccountId, targetId);
+  const changed = await removeBlock(currentAccountId, targetId);
+  c.set('contributionApplied', changed);
 
   // Federation: deliver Undo(Block) if target is remote
-  if (target.domain) {
+  if (changed && target.domain) {
     try {
       const currentAccount = await env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',

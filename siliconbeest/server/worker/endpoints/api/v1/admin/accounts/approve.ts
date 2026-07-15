@@ -2,10 +2,11 @@ import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import type { AppVariables } from '../../../../../types';
 import { AppError } from '../../../../../middleware/errorHandler';
-import { sendWelcome } from '../../../../../services/email';
+import { sendRegistrationReady } from '../../../../../services/email';
 import { sanitizeLocale } from '../../../../../utils/locales';
-import { getAccountWithUser, approveAccount } from '../../../../../services/admin';
+import { getAccountWithUser } from '../../../../../services/admin';
 import { assertAccountModeratable } from '../../../../../services/permissions';
+import { approvePendingRegistration } from '../../../../../services/registration';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -22,16 +23,27 @@ app.post('/:id/approve', async (c) => {
 	const currentUser = c.get('currentUser')!;
 	await assertAccountModeratable(currentUser.role, currentUser.account_id, id);
 
-	if (user.approved) throw new AppError(403, 'This account is not pending approval');
-	if (!user.confirmed_at) throw new AppError(422, 'User has not confirmed their email address');
+	if (user.registration_state !== 'pending_approval') {
+		throw new AppError(403, 'This account is not pending approval');
+	}
 
-	// Approve
-	await approveAccount(id);
+	// Approval advances the registration workflow. The account remains unable
+	// to authenticate as an active user until the applicant confirms it.
+	await approvePendingRegistration(id);
 
 	// Send welcome email in user's locale (best-effort — never block approval)
 	if (user.email) {
 		try {
-			await sendWelcome(user.email as string, account.username as string, sanitizeLocale(user.locale as string | null));
+			const design = user.registration_design === 'old'
+				? 'old'
+				: user.registration_design === 'aurora'
+					? 'aurora'
+					: 'default';
+			await sendRegistrationReady(
+				user.email as string,
+				sanitizeLocale(user.locale as string | null),
+				design,
+			);
 		} catch { /* email queue failure should not block approval */ }
 	}
 
@@ -46,7 +58,8 @@ app.post('/:id/approve', async (c) => {
 		ip: (user.current_sign_in_ip as string) || null,
 		role: (user.role as string) || null,
 		confirmed: !!(user.confirmed_at),
-		approved: true,
+		approved: false,
+		registration_state: 'awaiting_confirmation',
 		disabled: !!(user.disabled),
 		silenced: !!(account.silenced_at),
 		suspended: !!(account.suspended_at),

@@ -45,6 +45,14 @@ export type AccountRow = {
   readonly fields?: string | null;
 };
 
+export type RegistrationState =
+  | 'pending_approval'
+  | 'awaiting_confirmation'
+  | 'email_verification'
+  | 'active';
+
+export type RegistrationDesign = 'default' | 'aurora' | 'old';
+
 export type UserRow = {
   readonly id: string;
   readonly account_id: string;
@@ -68,8 +76,75 @@ export type UserRow = {
   readonly last_sign_in_ip: string | null;
   readonly chosen_languages: string | null;
   readonly default_quote_policy?: string | null;
+  readonly registration_state: RegistrationState;
+  readonly invite_id: string | null;
+  readonly invited_by_account_id: string | null;
+  readonly registration_redirect_uri: string | null;
+  readonly registration_design: RegistrationDesign;
+  readonly email_verification_code_hash: string | null;
+  readonly email_verification_sent_at: string | null;
+  readonly email_verification_expires_at: string | null;
+  readonly email_verification_attempts: number;
   readonly created_at: string;
   readonly updated_at: string;
+};
+
+export type AccountInvitationBalanceRow = {
+  readonly account_id: string;
+  readonly available_credits: number;
+  readonly contribution_score: number;
+  readonly contribution_award_level: number;
+  readonly last_operation_id: string | null;
+  readonly last_credit_delta: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
+
+export type InvitationAuditLogRow = {
+  readonly id: string;
+  readonly actor_account_id: string | null;
+  readonly target_account_id: string | null;
+  readonly invitation_id: string | null;
+  readonly action: string;
+  readonly credit_delta: number;
+  readonly contribution_delta: number;
+  readonly credits_after: number | null;
+  readonly contribution_score_after: number | null;
+  readonly metadata: string;
+  readonly created_at: string;
+};
+
+export type RegistrationInviteRow = {
+  readonly id: string;
+  readonly token_hash: string;
+  readonly inviter_account_id: string;
+  readonly remaining_uses: number;
+  readonly auto_follow: number;
+  readonly expires_at: string | null;
+  readonly revoked_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly issued_uses: number;
+  readonly revoked_unused_uses: number;
+  readonly credits_restored_at: string | null;
+  readonly credit_operation_id: string | null;
+  readonly reset_at: string | null;
+};
+
+export type InvitationUseClaimRow = {
+  readonly id: string;
+  readonly invitation_id: string;
+  readonly inviter_account_id: string;
+  readonly assigned_user_id: string | null;
+  readonly claimed_at: string;
+  readonly expires_at: string;
+};
+
+export type InvitationUseDailyLimitRow = {
+  readonly account_id: string;
+  readonly window_started_at: string;
+  readonly consumed_uses: number;
+  readonly last_operation_id: string | null;
 };
 
 export type ActorKeyRow = {

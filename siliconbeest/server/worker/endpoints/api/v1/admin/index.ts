@@ -16,6 +16,10 @@ import relays from './relays';
 import email from './email';
 import customEmojis from './customEmojis';
 import federation from './federation';
+import invitations, {
+	invitationAuditLogsAdminApi,
+	invitationCreditsAdminApi,
+} from './invitations';
 
 const admin = new Hono<{ Variables: AppVariables }>();
 
@@ -35,5 +39,8 @@ admin.route('/relays', relays);
 admin.route('/email', email);
 admin.route('/custom_emojis', customEmojis);
 admin.route('/federation', federation);
+admin.route('/invitations', invitations);
+admin.route('/invitation-credits', invitationCreditsAdminApi);
+admin.route('/invitation-audit-logs', invitationAuditLogsAdminApi);
 
 export default admin;

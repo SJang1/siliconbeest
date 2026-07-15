@@ -23,7 +23,8 @@ app.post('/:id/bookmark', authRequired, requireScope('write:bookmarks'), async (
   if (!row) throw new AppError(404, 'Record not found');
   await assertStatusViewable(statusId, currentAccountId);
 
-  await bookmarkStatus(currentAccountId, statusId);
+  const created = await bookmarkStatus(currentAccountId, statusId);
+  c.set('contributionApplied', created);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);
   status.bookmarked = true;

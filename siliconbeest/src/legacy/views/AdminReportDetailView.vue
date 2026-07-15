@@ -46,6 +46,8 @@ const submitting = ref(false)
 const actionType = ref('none')
 const actionText = ref('')
 const sendEmail = ref(true)
+const contributionPoints = ref<number | null>(null)
+const contributionReason = ref('')
 
 const actionTypes = [
   { value: 'none', labelKey: 'admin.reportDetail.actionNone' },
@@ -118,6 +120,23 @@ async function deleteStatus(statusId: string) {
   }
 }
 
+function contributionResolutionBody() {
+  const points = contributionPoints.value
+  if (!report.value || points === null || !Number.isSafeInteger(points) || points === 0) return {}
+  return {
+    contribution_adjustment: {
+      account_id: report.value.target_account.id,
+      points,
+      reason: contributionReason.value.trim() || undefined,
+    },
+  }
+}
+
+function setContributionPoints(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  contributionPoints.value = value === '' ? null : Number(value)
+}
+
 async function handleActionAndResolve() {
   if (!report.value) return
   submitting.value = true
@@ -138,6 +157,7 @@ async function handleActionAndResolve() {
     await apiFetch(`/v1/admin/reports/${report.value.id}/resolve`, {
       method: 'POST',
       token: authStore.token ?? undefined,
+      body: contributionResolutionBody(),
     })
     router.push('/admin/reports')
   } catch (e) {
@@ -155,6 +175,7 @@ async function handleDismissAndResolve() {
     await apiFetch(`/v1/admin/reports/${report.value.id}/resolve`, {
       method: 'POST',
       token: authStore.token ?? undefined,
+      body: contributionResolutionBody(),
     })
     router.push('/admin/reports')
   } catch (e) {
@@ -418,6 +439,32 @@ function actionBadgeClass(action: string) {
             </span>
           </label>
         </div>
+
+        <fieldset v-if="!isTargetRemote" class="mb-6 rounded-xl border border-outline p-4 dark:border-outline-dark">
+          <legend class="px-1 text-sm font-semibold text-slate-900 dark:text-white">
+            {{ t('admin.reportDetail.contributionAdjustment') }}
+          </legend>
+          <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            {{ t('admin.reportDetail.contributionAdjustmentHelp') }}
+          </p>
+          <div class="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
+            <label class="block">
+              <span class="sb-label">{{ t('admin.reportDetail.contributionPoints') }}</span>
+              <input
+                :value="contributionPoints ?? ''"
+                class="sb-input"
+                type="number"
+                step="1"
+                :placeholder="t('admin.reportDetail.contributionPointsPlaceholder')"
+                @input="setContributionPoints"
+              />
+            </label>
+            <label class="block">
+              <span class="sb-label">{{ t('admin.reportDetail.contributionReason') }}</span>
+              <input v-model="contributionReason" class="sb-input" maxlength="500" />
+            </label>
+          </div>
+        </fieldset>
 
         <!-- Buttons -->
         <div class="flex flex-wrap gap-3">

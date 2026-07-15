@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/auth'
 import { getAdminSettings, updateAdminSettings, testSmtp } from '@/api/mastodon/admin'
 import { uploadMedia } from '@/api/mastodon/media'
 import AdminLayout from '@/legacy/components/layout/AdminLayout.vue'
+import AdminInvitationSettingsFields from '@/components/admin/AdminInvitationSettingsFields.vue'
+import { createDefaultInvitationAdminSettings } from '@/types/registration'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -31,6 +33,8 @@ const settings = ref({
   privacy_policy: '',
   registration_mode: 'closed',
   registration_message: '',
+  require_email_verification: '1',
+  ...createDefaultInvitationAdminSettings(),
   max_toot_chars: '500',
   max_media_attachments: '4',
   smtp_host: '',
@@ -227,6 +231,7 @@ const labelClass = 'block text-sm font-medium mb-1'
             <select v-model="settings.registration_mode" :class="inputClass" class="!w-64">
               <option value="open">{{ t('admin_settings.reg_open') }}</option>
               <option value="approval">{{ t('admin_settings.reg_approval') }}</option>
+              <option value="referral">{{ t('admin_settings.reg_referral') }}</option>
               <option value="closed">{{ t('admin_settings.reg_closed') }}</option>
             </select>
           </div>
@@ -234,8 +239,22 @@ const labelClass = 'block text-sm font-medium mb-1'
             <label :class="labelClass">{{ t('admin_settings.fields.registration_message') }}</label>
             <textarea v-model="settings.registration_message" rows="3" :class="inputClass" :placeholder="t('admin_settings.registration_message_help')" />
           </div>
+          <label class="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              :checked="settings.require_email_verification === '1'"
+              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 accent-indigo-600 dark:border-gray-600 dark:bg-gray-700"
+              @change="settings.require_email_verification = ($event.target as HTMLInputElement).checked ? '1' : '0'"
+            />
+            <span>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin_settings.fields.require_email_verification') }}</span>
+              <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{ t('admin_settings.require_email_verification_help') }}</span>
+            </span>
+          </label>
         </div>
       </section>
+
+      <AdminInvitationSettingsFields :settings="settings" />
 
       <!-- Limits -->
       <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">

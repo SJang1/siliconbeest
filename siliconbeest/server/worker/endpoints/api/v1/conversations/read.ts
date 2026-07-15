@@ -13,7 +13,8 @@ app.post('/:id/read', authRequired, requireScope('write:conversations'), async (
   const currentAccount = c.get('currentAccount')!;
   const conversationId = c.req.param('id');
 
-  await markConversationRead(conversationId, currentAccount.id);
+  const changed = await markConversationRead(conversationId, currentAccount.id);
+  c.set('contributionApplied', changed);
 
   return c.json({
     id: conversationId,

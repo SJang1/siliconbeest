@@ -17,6 +17,7 @@ app.get('/', async (c) => {
   const dbSettings = await getSettings([
     'site_description', 'registration_mode', 'registration_message',
     'site_contact_email', 'site_contact_username', 'web_push_enabled',
+    'require_email_verification',
   ]).catch((): Record<string, string> => ({}));
 
   const title = await getInstanceTitle().catch(() => env.INSTANCE_TITLE);
@@ -84,7 +85,9 @@ app.get('/', async (c) => {
     languages: ['en'],
     registrations: registrationMode === 'open' || registrationMode === 'approval',
     approval_required: registrationMode === 'approval',
-    invites_enabled: false,
+    invites_enabled: registrationMode !== 'closed',
+    registration_mode: registrationMode,
+    require_email_verification: dbSettings.require_email_verification === '1',
     configuration: {
       accounts: { max_featured_tags: 10 },
       statuses: {

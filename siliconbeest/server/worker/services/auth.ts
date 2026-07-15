@@ -10,7 +10,7 @@ import * as v from 'valibot';
 import { generateUlid } from '../utils/ulid';
 import { hashPassword, verifyPassword as verifyPasswordHash, generateToken, sha256, generateEd25519KeyPair } from '../utils/crypto';
 import { AppError } from '../middleware/errorHandler';
-import type { AccountRow, UserRow } from '../types/db';
+import type { AccountRow, RegistrationState, UserRow } from '../types/db';
 import {
 	canActAsAccount,
 	getInternalSessionOAuthScopes,
@@ -63,6 +63,39 @@ export const RegisterInput = v.object({
 	),
 });
 
+/**
+ * Validate registration credentials before any invitation credit is consumed.
+ * registerUser calls this again immediately before inserting, so callers can
+ * safely run a preflight check without weakening the final uniqueness guard.
+ */
+export async function validateRegistrationCredentials(
+	email: string,
+	password: string,
+	username: string,
+): Promise<void> {
+	const parsed = v.safeParse(RegisterInput, { email, password, username });
+	if (!parsed.success) {
+		const issue = parsed.issues[0];
+		throw new AppError(422, 'Validation failed', issue?.message ?? 'Invalid input');
+	}
+
+	const existingUser = await env.DB
+		.prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
+		.bind(email.toLowerCase())
+		.first<{ id: string }>();
+	if (existingUser) {
+		throw new AppError(422, 'Validation failed', 'Email is already in use');
+	}
+
+	const existingAccount = await env.DB
+		.prepare('SELECT id FROM accounts WHERE username = ? COLLATE NOCASE AND domain IS NULL LIMIT 1')
+		.bind(username)
+		.first<{ id: string }>();
+	if (existingAccount) {
+		throw new AppError(422, 'Validation failed', 'Username is already taken');
+	}
+}
+
 // ----------------------------------------------------------------
 // Token resolution payload (matches middleware/auth.ts TokenPayload)
 // ----------------------------------------------------------------
@@ -84,37 +117,14 @@ export async function registerUser(
 	password: string,
 	username: string,
 	registrationMode: string,
+	initialRegistrationState: RegistrationState = 'active',
 ): Promise<{ account: AccountRow; user: UserRow }> {
 	if (registrationMode === 'closed' || registrationMode === 'none') {
 		throw new AppError(403, 'Registrations are currently closed');
 	}
 
-	// Validate input via schema
-	const parsed = v.safeParse(RegisterInput, { email, password, username });
-	if (!parsed.success) {
-		const issue = parsed.issues[0];
-		throw new AppError(422, 'Validation failed', issue?.message ?? 'Invalid input');
-	}
-
+	await validateRegistrationCredentials(email, password, username);
 	const lowerEmail = email.toLowerCase();
-
-	// Check for existing email
-	const existingUser = await env.DB
-		.prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
-		.bind(lowerEmail)
-		.first();
-	if (existingUser) {
-		throw new AppError(422, 'Validation failed', 'Email is already in use');
-	}
-
-	// Check for existing username on local domain (case-insensitive)
-	const existingAccount = await env.DB
-		.prepare('SELECT id FROM accounts WHERE username = ? COLLATE NOCASE AND domain IS NULL LIMIT 1')
-		.bind(username)
-		.first();
-	if (existingAccount) {
-		throw new AppError(422, 'Validation failed', 'Username is already taken');
-	}
 
 	const now = new Date().toISOString();
 	const accountId = generateUlid();
@@ -124,8 +134,6 @@ export async function registerUser(
 	const encryptedPassword = await hashPassword(password);
 	const { publicKeyPem, privateKeyPem } = await generateActorKeyPair();
 	const ed25519Keys = await generateEd25519KeyPair();
-
-	const approved = registrationMode === 'open' ? 1 : 0;
 
 	const uri = `https://${domain}/users/${username}`;
 	const url = `https://${domain}/@${username}`;
@@ -137,7 +145,7 @@ export async function registerUser(
 			locked, bot, discoverable, manually_approves_followers,
 			statuses_count, followers_count, following_count,
 			last_status_at, created_at, updated_at, suspended_at, silenced_at, memorial, moved_to_account_id)
-		VALUES (?, ?, NULL, ?, '', ?, ?, '', '', '', '', 0, 0, 1, 0, 0, 0, 0, NULL, ?, ?, NULL, NULL, 0, NULL)`,
+		VALUES (?, ?, NULL, ?, '', ?, ?, '', '', '', '', 0, 0, 0, 0, 0, 0, 0, NULL, ?, ?, NULL, NULL, 0, NULL)`,
 	);
 
 	const userStmt = env.DB.prepare(
@@ -145,8 +153,10 @@ export async function registerUser(
 			confirmed_at, confirmation_token, reset_password_token, reset_password_sent_at,
 			otp_secret, otp_enabled, otp_backup_codes, role, approved, disabled,
 			sign_in_count, current_sign_in_at, last_sign_in_at,
-			current_sign_in_ip, last_sign_in_ip, chosen_languages, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'en', ?, NULL, NULL, NULL, NULL, 0, NULL, 'user', ?, 0, 0, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+			current_sign_in_ip, last_sign_in_ip, chosen_languages,
+			registration_state, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'en', ?, NULL, NULL, NULL, NULL, 0, NULL, 'user', ?, 0, 0,
+			NULL, NULL, NULL, NULL, NULL, ?, ?, ?)`,
 	);
 
 	const actorKeyStmt = env.DB.prepare(
@@ -156,7 +166,17 @@ export async function registerUser(
 
 	await env.DB.batch([
 		accountStmt.bind(accountId, username, username, uri, url, now, now),
-		userStmt.bind(userId, accountId, lowerEmail, encryptedPassword, null, approved, now, now),
+		userStmt.bind(
+			userId,
+			accountId,
+			lowerEmail,
+			encryptedPassword,
+			null,
+			0,
+			initialRegistrationState,
+			now,
+			now,
+		),
 		actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
 	]);
 
@@ -203,9 +223,37 @@ export async function verifyPasswordByUsernameOrEmail(
 	identifier: string,
 	password: string,
 ): Promise<{ user: UserRow; account: AccountRow } | null> {
+	const result = await verifyPasswordForRegistration(identifier, password);
+	if (!result) return null;
+	if (!canUseAccount(
+		result.user.disabled,
+		result.user.approved,
+		result.account.suspended_at,
+		result.account.memorial,
+	)) return null;
+	return result;
+}
+
+/**
+ * Verify credentials without filtering out an account that is still moving
+ * through registration. Callers must enforce disabled/suspended/memorial
+ * state before issuing either a registration session or an access token.
+ */
+export async function verifyPasswordForRegistration(
+	identifier: string,
+	password: string,
+): Promise<{ user: UserRow; account: AccountRow } | null> {
 	// If it looks like an email, use email lookup directly
 	if (identifier.includes('@')) {
-		return verifyPassword(identifier, password);
+		const user = await env.DB
+			.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
+			.bind(identifier.toLowerCase())
+			.first<UserRow>();
+		if (!user || !await verifyPasswordHash(password, user.encrypted_password)) return null;
+		const account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?1')
+			.bind(user.account_id)
+			.first<AccountRow>();
+		return account ? { user, account } : null;
 	}
 
 	// Try username lookup (local accounts only: domain IS NULL).
@@ -226,7 +274,15 @@ export async function verifyPasswordByUsernameOrEmail(
 
 	if (!user) {
 		// Fall back to email lookup (in case someone's username looks non-email-like)
-		return verifyPassword(identifier, password);
+		const emailUser = await env.DB
+			.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
+			.bind(identifier.toLowerCase())
+			.first<UserRow>();
+		if (!emailUser || !await verifyPasswordHash(password, emailUser.encrypted_password)) return null;
+		const emailAccount = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?1')
+			.bind(emailUser.account_id)
+			.first<AccountRow>();
+		return emailAccount ? { user: emailUser, account: emailAccount } : null;
 	}
 
 	const valid = await verifyPasswordHash(password, user.encrypted_password);
@@ -236,10 +292,7 @@ export async function verifyPasswordByUsernameOrEmail(
 		.bind(user.account_id)
 		.first()) as AccountRow | null;
 
-	if (!account) return null;
-	if (!canUseAccount(user.disabled, user.approved, account.suspended_at, account.memorial)) return null;
-
-	return { user, account };
+	return account ? { user, account } : null;
 }
 
 /**
@@ -547,22 +600,20 @@ export async function resetPasswordWithToken(
  */
 export async function getUserForConfirmation(
 	email: string,
-): Promise<{ id: string; confirmed_at: string | null; confirmation_token: string | null } | null> {
+): Promise<{
+	id: string;
+	confirmed_at: string | null;
+	registration_state: RegistrationState;
+} | null> {
 	// Emails are stored lowercase (see registerUser); normalize here too so
 	// every caller compares case-insensitively.
 	return env.DB.prepare(
-		'SELECT id, confirmed_at, confirmation_token FROM users WHERE email = ?1 LIMIT 1',
-	).bind(email.toLowerCase()).first<{ id: string; confirmed_at: string | null; confirmation_token: string | null }>();
-}
-
-/**
- * Update the confirmation token for a user.
- */
-export async function setConfirmationToken(
-	userId: string,
-	token: string,
-): Promise<void> {
-	await env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(token, userId).run();
+		'SELECT id, confirmed_at, registration_state FROM users WHERE email = ?1 LIMIT 1',
+	).bind(email.toLowerCase()).first<{
+		id: string;
+		confirmed_at: string | null;
+		registration_state: RegistrationState;
+	}>();
 }
 
 // ----------------------------------------------------------------
