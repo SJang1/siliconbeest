@@ -1,13 +1,43 @@
 import { env, SELF } from 'cloudflare:test';
-import { describe, it, expect, beforeEach } from 'vitest';
-import { applyMigration, createTestUser, authHeaders } from './helpers';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { sha256 } from '../../server/worker/utils/crypto';
+import { applyMigration, authHeaders, createTestUser } from './helpers';
 
-/**
- * Email verification flow tests.
- *
- * Covers registration → confirmation → login lifecycle,
- * resend_confirmation endpoint, and admin approval interactions.
- */
+const BASE = 'https://test.siliconbeest.local';
+
+type RegistrationState =
+	| 'pending_approval'
+	| 'awaiting_confirmation'
+	| 'email_verification'
+	| 'active';
+
+interface RegistrationRequiredResponse {
+	registration_required: true;
+	registration_state: RegistrationState;
+}
+
+interface EmailVerificationResponse {
+	state: 'email_verification';
+	email_verification_expires_at: string;
+}
+
+interface ActivationResponse {
+	state: 'active';
+	access_token: string;
+	redirect_uri: string;
+	passkey_prompt: true;
+}
+
+interface PendingUserRow {
+	id: string;
+	approved: number;
+	confirmed_at: string | null;
+	confirmation_token: string | null;
+	registration_state: RegistrationState;
+	email_verification_code_hash: string | null;
+	email_verification_expires_at: string | null;
+	email_verification_attempts: number;
+}
 
 const TABLE_DELETE_ORDER = [
 	'webauthn_credentials', 'status_preview_cards', 'preview_cards', 'media_proxy_cache',
@@ -17,289 +47,453 @@ const TABLE_DELETE_ORDER = [
 	'tag_follows', 'status_tags', 'tags', 'mentions', 'notifications', 'bookmarks',
 	'mutes', 'blocks', 'favourites', 'follow_requests', 'follows', 'poll_votes', 'polls',
 	'media_attachments', 'statuses', 'oauth_authorization_codes', 'oauth_access_tokens',
-	'oauth_applications', 'actor_keys', 'users', 'accounts',
+	'oauth_applications', 'registration_email_delivery_limits', 'registration_invites',
+	'actor_keys', 'users', 'accounts',
 	'domain_allows', 'domain_blocks', 'email_domain_blocks', 'ip_blocks',
 	'instances', 'custom_emojis', 'announcements', 'rules', 'relays', 'settings',
-];
+] as const;
 
-async function resetDB() {
+let migrated = false;
+let registrationIpSuffix = 1;
+
+async function resetDB(): Promise<void> {
 	for (const table of TABLE_DELETE_ORDER) {
 		try {
 			await env.DB.prepare(`DELETE FROM "${table}"`).run();
-		} catch { /* table may not exist yet */ }
+		} catch {
+			// A table may not exist when an older migration set is under test.
+		}
 	}
+	await env.DB.batch([
+		env.DB.prepare(
+			"INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now'))",
+		),
+		env.DB.prepare(
+			"INSERT INTO settings (key, value, updated_at) VALUES ('require_email_verification', '1', datetime('now'))",
+		),
+		env.DB.prepare(
+			"INSERT INTO settings (key, value, updated_at) VALUES ('site_title', 'SiliconBeest', datetime('now'))",
+		),
+	]);
 }
 
-let migrated = false;
+async function setRegistrationSettings(
+	mode: 'open' | 'approval',
+	requireEmailVerification = true,
+): Promise<void> {
+	await env.DB.batch([
+		env.DB.prepare(
+			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', ?1, datetime('now'))",
+		).bind(mode),
+		env.DB.prepare(
+			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('require_email_verification', ?1, datetime('now'))",
+		).bind(requireEmailVerification ? '1' : '0'),
+	]);
+}
 
-const DEFAULT_SETTINGS_SQL = "INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))";
-
-async function registerUser(username: string, email?: string) {
-	const e = email || `${username}@test.local`;
-	const res = await SELF.fetch('https://test.siliconbeest.local/api/v1/accounts', {
+async function registerUser(username: string, reason?: string): Promise<Response> {
+	return SELF.fetch(`${BASE}/api/v1/accounts`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			'CF-Connecting-IP': `192.0.2.${registrationIpSuffix++}`,
+		},
 		body: JSON.stringify({
 			username,
-			email: e,
+			email: `${username}@test.local`,
 			password: 'securepassword123',
 			agreement: true,
+			locale: 'en',
+			...(reason ? { reason } : {}),
 		}),
 	});
-	return { res, email: e };
 }
 
-async function loginRequest(email: string, password: string) {
-	return SELF.fetch('https://test.siliconbeest.local/api/v1/auth/login', {
+function registrationCookie(response: Response): string {
+	const setCookie = response.headers.get('set-cookie');
+	expect(setCookie).toContain('siliconbeest_registration=');
+	expect(setCookie).toContain('HttpOnly');
+	expect(setCookie).toContain('SameSite=Lax');
+	const cookie = setCookie?.match(/(?:^|, )(siliconbeest_registration=[^;]+)/)?.[1];
+	expect(cookie).toBeTruthy();
+	return cookie ?? '';
+}
+
+async function registrationRequest(
+	path: '/continue' | '/verify' | '/resend',
+	cookie: string,
+	body?: { code: string },
+): Promise<Response> {
+	return SELF.fetch(`${BASE}/api/v1/registration${path}`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email, password }),
+		headers: {
+			Cookie: cookie,
+			...(body ? { 'Content-Type': 'application/json' } : {}),
+		},
+		body: body ? JSON.stringify(body) : undefined,
 	});
 }
 
-async function resendConfirmation(email: string) {
-	return SELF.fetch(
-		'https://test.siliconbeest.local/api/v1/auth/resend_confirmation',
-		{
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email }),
-		},
-	);
+async function pendingUser(email: string): Promise<PendingUserRow> {
+	const user = await env.DB.prepare(
+		`SELECT id, approved, confirmed_at, confirmation_token, registration_state,
+		        email_verification_code_hash, email_verification_expires_at,
+		        email_verification_attempts
+		 FROM users WHERE email = ?1`,
+	).bind(email).first<PendingUserRow>();
+	expect(user).toBeTruthy();
+	if (!user) throw new Error(`Expected pending user ${email}`);
+	return user;
 }
 
-describe('Email verification', () => {
+describe('registration email verification', () => {
 	beforeEach(async () => {
 		if (!migrated) {
 			await applyMigration();
 			migrated = true;
-		} else {
-			await resetDB();
-			await env.DB.prepare(DEFAULT_SETTINGS_SQL).run();
 		}
+		await resetDB();
 	});
 
-	// =========================================================================
-	// Registration behaviour
-	// =========================================================================
+	it('defers email verification and keeps an open registration private', async () => {
+		const response = await registerUser('verify_deferred');
+		expect(response.status).toBe(200);
+		expect(await response.json<RegistrationRequiredResponse>()).toEqual({
+			registration_required: true,
+			registration_state: 'awaiting_confirmation',
+		});
+		registrationCookie(response);
 
-	it('1. Registration sets confirmed_at = NULL', async () => {
-		const { res, email } = await registerUser('verify_reg');
-		expect(res.status).toBe(200);
-
-		const user = await env.DB.prepare(
-			'SELECT confirmed_at FROM users WHERE email = ?1',
-		)
-			.bind(email)
-			.first<{ confirmed_at: string | null }>();
-		expect(user).toBeTruthy();
-		expect(user!.confirmed_at).toBeNull();
+		expect(await pendingUser('verify_deferred@test.local')).toMatchObject({
+			approved: 0,
+			confirmed_at: null,
+			confirmation_token: null,
+			registration_state: 'awaiting_confirmation',
+			email_verification_code_hash: null,
+			email_verification_expires_at: null,
+		});
 	});
 
-	it('2. Registration returns { confirmation_required: true }', async () => {
-		const { res } = await registerUser('verify_reg2');
-		expect(res.status).toBe(200);
-		const json = (await res.json()) as { confirmation_required: boolean };
-		expect(json.confirmation_required).toBe(true);
+	it('logs a pending user back into the restricted registration session', async () => {
+		await registerUser('verify_login');
+
+		const response = await SELF.fetch(`${BASE}/api/v1/auth/login`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				username: 'verify_login',
+				password: 'securepassword123',
+			}),
+		});
+
+		expect(response.status).toBe(200);
+		const body = await response.json<RegistrationRequiredResponse>();
+		expect(body).toEqual({
+			registration_required: true,
+			registration_state: 'awaiting_confirmation',
+		});
+		expect('access_token' in body).toBe(false);
+		registrationCookie(response);
 	});
 
-	// =========================================================================
-	// Login with unconfirmed email
-	// =========================================================================
+	it('starts a 60-minute challenge only after the user continues', async () => {
+		const registration = await registerUser('verify_challenge');
+		const cookie = registrationCookie(registration);
 
-	it('3. Login with unconfirmed email returns 403', async () => {
-		// Register (confirmed_at stays NULL)
-		await registerUser('unconfirmed_user');
+		const response = await registrationRequest('/continue', cookie);
+		expect(response.status).toBe(200);
+		const challenge = await response.json<EmailVerificationResponse>();
+		expect(challenge.state).toBe('email_verification');
+		const remaining = new Date(challenge.email_verification_expires_at).getTime() - Date.now();
+		expect(remaining).toBeGreaterThan(55 * 60 * 1000);
+		expect(remaining).toBeLessThanOrEqual(60 * 60 * 1000);
 
-		// Attempt login
-		const res = await loginRequest('unconfirmed_user@test.local', 'securepassword123');
-		expect(res.status).toBe(403);
-		const json = (await res.json()) as { error: string };
-		expect(json.error.toLowerCase()).toContain('confirm');
+		expect(await pendingUser('verify_challenge@test.local')).toMatchObject({
+			approved: 0,
+			confirmed_at: null,
+			registration_state: 'email_verification',
+		});
+		const user = await pendingUser('verify_challenge@test.local');
+		expect(user.confirmation_token).toMatch(/^[0-9a-f]{64}$/);
+		expect(user.email_verification_code_hash).toMatch(/^[0-9a-f]{64}$/);
+		expect(user.email_verification_expires_at).toBe(challenge.email_verification_expires_at);
 	});
 
-	// =========================================================================
-	// Confirmation endpoint — GET /auth/confirm
-	// =========================================================================
+	it('rejects an invalid six-digit code without activating the registration', async () => {
+		const registration = await registerUser('verify_invalid');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		const user = await pendingUser('verify_invalid@test.local');
+		const invalidCode = user.email_verification_code_hash === await sha256('000000')
+			? '000001'
+			: '000000';
 
-	it('4. GET /auth/confirm with valid token confirms user and returns success HTML', async () => {
-		// Register to get a confirmation token
-		const { email } = await registerUser('confirm_valid');
-		const user = await env.DB.prepare(
-			'SELECT id, confirmation_token FROM users WHERE email = ?1',
-		)
-			.bind(email)
-			.first<{ id: string; confirmation_token: string }>();
-		expect(user).toBeTruthy();
-		expect(user!.confirmation_token).toBeTruthy();
-
-		const token = user!.confirmation_token;
-
-		const res = await SELF.fetch(
-			`https://test.siliconbeest.local/auth/confirm?token=${token}`,
-		);
-		expect(res.status).toBe(200);
-		const html = await res.text();
-		expect(html.toLowerCase()).toContain('confirmed');
-
-		// DB should now have confirmed_at set
-		const updated = await env.DB.prepare(
-			'SELECT confirmed_at FROM users WHERE id = ?1',
-		)
-			.bind(user!.id)
-			.first<{ confirmed_at: string | null }>();
-		expect(updated!.confirmed_at).toBeTruthy();
+		const response = await registrationRequest('/verify', cookie, { code: invalidCode });
+		expect(response.status).toBe(422);
+		expect(await pendingUser('verify_invalid@test.local')).toMatchObject({
+			approved: 0,
+			confirmed_at: null,
+			registration_state: 'email_verification',
+			email_verification_attempts: 1,
+		});
 	});
 
-	it('5. GET /auth/confirm with invalid/expired token returns error HTML', async () => {
-		const res = await SELF.fetch(
-			'https://test.siliconbeest.local/auth/confirm?token=invalid_token_12345',
-		);
-		expect(res.status).toBe(400);
-		const html = await res.text();
-		expect(html.toLowerCase()).toContain('expired');
+	it('atomically limits parallel verification guesses to eight attempts', async () => {
+		const registration = await registerUser('verify_parallel_limit');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		const user = await pendingUser('verify_parallel_limit@test.local');
+		const invalidCode = user.email_verification_code_hash === await sha256('000000')
+			? '000001'
+			: '000000';
+
+		const responses = await Promise.all(Array.from({ length: 24 }, (_, index) =>
+			SELF.fetch(`${BASE}/api/v1/registration/verify`, {
+				method: 'POST',
+				headers: {
+					Cookie: cookie,
+					'Content-Type': 'application/json',
+					'CF-Connecting-IP': `203.0.113.${index + 1}`,
+				},
+				body: JSON.stringify({ code: invalidCode }),
+			}),
+		));
+		const statuses = responses.map((response) => response.status);
+		expect(statuses.filter((status) => status === 422)).toHaveLength(8);
+		expect(statuses.filter((status) => status === 429)).toHaveLength(16);
+		expect(await pendingUser('verify_parallel_limit@test.local')).toMatchObject({
+			approved: 0,
+			confirmed_at: null,
+			registration_state: 'email_verification',
+			email_verification_attempts: 8,
+		});
 	});
 
-	it('6. GET /auth/confirm with already-used token returns error (KV entry deleted)', async () => {
-		// Register user
-		const { email } = await registerUser('confirm_reuse');
-		const user = await env.DB.prepare(
-			'SELECT confirmation_token FROM users WHERE email = ?1',
-		)
-			.bind(email)
-			.first<{ confirmation_token: string }>();
-		const token = user!.confirmation_token;
+	it('activates a registration after a valid six-digit code', async () => {
+		const registration = await registerUser('verify_code');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
 
-		// First confirmation — should succeed
-		const res1 = await SELF.fetch(
-			`https://test.siliconbeest.local/auth/confirm?token=${token}`,
-		);
-		expect(res1.status).toBe(200);
-
-		// Second attempt — KV entry deleted, should fail
-		const res2 = await SELF.fetch(
-			`https://test.siliconbeest.local/auth/confirm?token=${token}`,
-		);
-		expect(res2.status).toBe(400);
-	});
-
-	// =========================================================================
-	// Resend confirmation
-	// =========================================================================
-
-	it('7. POST /api/v1/auth/resend_confirmation returns 200', async () => {
-		await registerUser('resend_user');
-
-		const res = await resendConfirmation('resend_user@test.local');
-		expect(res.status).toBe(200);
-	});
-
-	it('8. POST /api/v1/auth/resend_confirmation rate limit returns 429 on second call within 60s', async () => {
-		await registerUser('ratelimit_user');
-
-		const res1 = await resendConfirmation('ratelimit_user@test.local');
-		expect(res1.status).toBe(200);
-
-		// Second call within 60s should be rate limited
-		const res2 = await resendConfirmation('ratelimit_user@test.local');
-		expect(res2.status).toBe(429);
-	});
-
-	it('9. POST /api/v1/auth/resend_confirmation for confirmed user returns 200 (silent)', async () => {
-		// createTestUser sets confirmed_at to NOW, so the user is already confirmed
-		await createTestUser('already_confirmed');
-
-		const res = await resendConfirmation('already_confirmed@test.local');
-		expect(res.status).toBe(200);
-		const json = (await res.json()) as { message: string };
-		expect(json.message).toBeTruthy();
-	});
-
-	it('10. POST /api/v1/auth/resend_confirmation for nonexistent email returns 200 (silent)', async () => {
-		const res = await resendConfirmation('nonexistent@test.local');
-		expect(res.status).toBe(200);
-	});
-
-	// =========================================================================
-	// Login after confirmation
-	// =========================================================================
-
-	it('11. Login after confirmation succeeds', async () => {
-		// Register user
-		const { email } = await registerUser('confirm_then_login');
-
-		// Get the confirmation token
-		const user = await env.DB.prepare(
-			'SELECT confirmation_token FROM users WHERE email = ?1',
-		)
-			.bind(email)
-			.first<{ confirmation_token: string }>();
-		const token = user!.confirmation_token;
-
-		// Confirm
-		const confirmRes = await SELF.fetch(
-			`https://test.siliconbeest.local/auth/confirm?token=${token}`,
-		);
-		expect(confirmRes.status).toBe(200);
-
-		// Now login should work
-		const loginRes = await loginRequest(email, 'securepassword123');
-		expect(loginRes.status).toBe(200);
-		const json = (await loginRes.json()) as { access_token: string };
-		expect(json.access_token).toBeTruthy();
-	});
-
-	// =========================================================================
-	// Admin approval interactions
-	// =========================================================================
-
-	it('12. Admin cannot approve unconfirmed user — returns 422', async () => {
-		// Set approval mode
+		const code = '314159';
+		const user = await pendingUser('verify_code@test.local');
 		await env.DB.prepare(
-			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', 'approval', datetime('now'))",
-		).run();
+			'UPDATE users SET email_verification_code_hash = ?1 WHERE id = ?2',
+		).bind(await sha256(code), user.id).run();
 
-		// Register user (unconfirmed, unapproved)
-		await registerUser('unapproved_user');
+		const response = await registrationRequest('/verify', cookie, { code });
+		expect(response.status).toBe(200);
+		expect(await response.json<ActivationResponse>()).toMatchObject({
+			state: 'active',
+			redirect_uri: '/home',
+			passkey_prompt: true,
+		});
+		expect(await pendingUser('verify_code@test.local')).toMatchObject({
+			approved: 1,
+			registration_state: 'active',
+			email_verification_code_hash: null,
+			email_verification_expires_at: null,
+			email_verification_attempts: 0,
+		});
+		expect((await pendingUser('verify_code@test.local')).confirmed_at).toBeTruthy();
+	});
 
-		// Get account id
+	it('issues credentials only once for parallel valid code submissions', async () => {
+		const registration = await registerUser('verify_parallel_valid');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		const code = '271828';
+		const user = await pendingUser('verify_parallel_valid@test.local');
+		await env.DB.prepare(
+			'UPDATE users SET email_verification_code_hash = ?1 WHERE id = ?2',
+		).bind(await sha256(code), user.id).run();
+
+		const responses = await Promise.all([1, 2].map((suffix) =>
+			SELF.fetch(`${BASE}/api/v1/registration/verify`, {
+				method: 'POST',
+				headers: {
+					Cookie: cookie,
+					'Content-Type': 'application/json',
+					'CF-Connecting-IP': `198.51.100.${suffix}`,
+				},
+				body: JSON.stringify({ code }),
+			}),
+		));
+		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+		expect(responses.filter((response) => [401, 409, 410].includes(response.status))).toHaveLength(1);
+		expect(await env.DB.prepare(
+			'SELECT COUNT(*) AS count FROM oauth_access_tokens WHERE user_id = ?1',
+		).bind(user.id).first<{ count: number }>()).toEqual({ count: 1 });
+	});
+
+	it('rate-limits resends and replaces a challenge without resetting failed attempts', async () => {
+		const registration = await registerUser('verify_resend');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		let before = await pendingUser('verify_resend@test.local');
+		const invalidCode = before.email_verification_code_hash === await sha256('000000')
+			? '000001'
+			: '000000';
+		expect((await registrationRequest('/verify', cookie, { code: invalidCode })).status).toBe(422);
+		before = await pendingUser('verify_resend@test.local');
+
+		const tooSoon = await registrationRequest('/resend', cookie);
+		expect(tooSoon.status).toBe(429);
+		expect(await pendingUser('verify_resend@test.local')).toMatchObject({
+			confirmation_token: before.confirmation_token,
+			email_verification_code_hash: before.email_verification_code_hash,
+			email_verification_attempts: 1,
+		});
+
+		await env.DB.prepare(
+			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
+		).bind(await sha256('verify_resend@test.local')).run();
+		const response = await registrationRequest('/resend', cookie);
+		expect(response.status).toBe(200);
+		expect(await response.json<EmailVerificationResponse>()).toMatchObject({
+			state: 'email_verification',
+		});
+		const after = await pendingUser('verify_resend@test.local');
+		expect(after.confirmation_token).not.toBe(before.confirmation_token);
+		expect(after.email_verification_code_hash).not.toBe(before.email_verification_code_hash);
+		expect(after.email_verification_attempts).toBe(1);
+	});
+
+	it('atomically enforces the persistent daily email delivery limit', async () => {
+		const registration = await registerUser('verify_daily_limit');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		await env.DB.prepare(
+			`UPDATE registration_email_delivery_limits
+			 SET send_count = 9, last_sent_at = datetime('now', '-2 minutes')
+			 WHERE email_hash = ?1`,
+		).bind(await sha256('verify_daily_limit@test.local')).run();
+
+		const responses = await Promise.all([1, 2].map((suffix) =>
+			SELF.fetch(`${BASE}/api/v1/registration/resend`, {
+				method: 'POST',
+				headers: {
+					Cookie: cookie,
+					'CF-Connecting-IP': `203.0.113.${suffix}`,
+				},
+			}),
+		));
+		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+		expect(responses.filter((response) => response.status === 429)).toHaveLength(1);
+		expect(await env.DB.prepare(
+			'SELECT send_count FROM registration_email_delivery_limits WHERE email_hash = ?1',
+		).bind(await sha256('verify_daily_limit@test.local')).first<{ send_count: number }>())
+			.toEqual({ send_count: 10 });
+
+		await env.DB.prepare(
+			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
+		).bind(await sha256('verify_daily_limit@test.local')).run();
+		expect((await registrationRequest('/resend', cookie)).status).toBe(429);
+	});
+
+	it('keeps email delivery limits after a pending registration is cancelled', async () => {
+		const firstRegistration = await registerUser('verify_cancel_limit');
+		const firstCookie = registrationCookie(firstRegistration);
+		expect((await registrationRequest('/continue', firstCookie)).status).toBe(200);
+		expect((await SELF.fetch(`${BASE}/api/v1/registration/cancel`, {
+			method: 'POST',
+			headers: { Cookie: firstCookie },
+		})).status).toBe(200);
+
+		const secondRegistration = await registerUser('verify_cancel_limit');
+		const secondCookie = registrationCookie(secondRegistration);
+		expect((await registrationRequest('/continue', secondCookie)).status).toBe(429);
+		expect(await env.DB.prepare(
+			'SELECT send_count FROM registration_email_delivery_limits WHERE email_hash = ?1',
+		).bind(await sha256('verify_cancel_limit@test.local')).first<{ send_count: number }>())
+			.toEqual({ send_count: 1 });
+	});
+
+	it('resends directly after an open challenge expires', async () => {
+		const registration = await registerUser('verify_expired_resend');
+		const cookie = registrationCookie(registration);
+		await registrationRequest('/continue', cookie);
+		const before = await pendingUser('verify_expired_resend@test.local');
+		await env.DB.prepare(
+			"UPDATE users SET email_verification_expires_at = datetime('now', '-1 minute') WHERE id = ?1",
+		).bind(before.id).run();
+		await env.DB.prepare(
+			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
+		).bind(await sha256('verify_expired_resend@test.local')).run();
+
+		const response = await registrationRequest('/resend', cookie);
+		expect(response.status).toBe(200);
+		expect(await response.json<EmailVerificationResponse>()).toMatchObject({
+			state: 'email_verification',
+		});
+		const after = await pendingUser('verify_expired_resend@test.local');
+		expect(after.registration_state).toBe('email_verification');
+		expect(after.confirmation_token).not.toBe(before.confirmation_token);
+		expect(new Date(after.email_verification_expires_at ?? '').getTime()).toBeGreaterThan(Date.now());
+	});
+
+	it('activates immediately on continue when email verification is disabled', async () => {
+		await setRegistrationSettings('open', false);
+		const registration = await registerUser('verify_disabled');
+		const cookie = registrationCookie(registration);
+
+		const response = await registrationRequest('/continue', cookie);
+		expect(response.status).toBe(200);
+		expect(await response.json<ActivationResponse>()).toMatchObject({
+			state: 'active',
+			redirect_uri: '/home',
+		});
+		expect(await pendingUser('verify_disabled@test.local')).toMatchObject({
+			approved: 1,
+			registration_state: 'active',
+		});
+	});
+
+	it('issues credentials only once for parallel continuation without email verification', async () => {
+		await setRegistrationSettings('open', false);
+		const registration = await registerUser('verify_parallel_continue');
+		const cookie = registrationCookie(registration);
+		const user = await pendingUser('verify_parallel_continue@test.local');
+
+		const responses = await Promise.all([3, 4].map((suffix) =>
+			SELF.fetch(`${BASE}/api/v1/registration/continue`, {
+				method: 'POST',
+				headers: {
+					Cookie: cookie,
+					'CF-Connecting-IP': `198.51.100.${suffix}`,
+				},
+			}),
+		));
+		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+		expect(responses.filter((response) => [401, 409, 410].includes(response.status))).toHaveLength(1);
+		expect(await env.DB.prepare(
+			'SELECT COUNT(*) AS count FROM oauth_access_tokens WHERE user_id = ?1',
+		).bind(user.id).first<{ count: number }>()).toEqual({ count: 1 });
+	});
+
+	it('lets an admin approve before email verification and then requires user confirmation', async () => {
+		await setRegistrationSettings('approval');
+		const registration = await registerUser('verify_approval', 'I would like to join.');
+		expect(registration.status).toBe(200);
+		expect(await registration.json<RegistrationRequiredResponse>()).toMatchObject({
+			registration_state: 'pending_approval',
+		});
+
 		const account = await env.DB.prepare(
-			"SELECT id FROM accounts WHERE username = 'unapproved_user' AND domain IS NULL",
+			"SELECT id FROM accounts WHERE username = 'verify_approval' AND domain IS NULL",
 		).first<{ id: string }>();
 		expect(account).toBeTruthy();
-
-		// Create admin user
-		const admin = await createTestUser('admin_approver', { role: 'admin' });
-
-		// Try to approve — should fail because user is not confirmed
-		const res = await SELF.fetch(
-			`https://test.siliconbeest.local/api/v1/admin/accounts/${account!.id}/approve`,
-			{
-				method: 'POST',
-				headers: authHeaders(admin.token),
-			},
+		const admin = await createTestUser('verification_admin', { role: 'admin' });
+		const response = await SELF.fetch(
+			`${BASE}/api/v1/admin/accounts/${account?.id}/approve`,
+			{ method: 'POST', headers: authHeaders(admin.token) },
 		);
-		expect(res.status).toBe(422);
-	});
 
-	// =========================================================================
-	// Open mode still requires email verification
-	// =========================================================================
-
-	it('13. In open mode: confirmed_at is still NULL on registration', async () => {
-		// Ensure open registration mode (already default from migration)
-		await env.DB.prepare(
-			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now'))",
-		).run();
-
-		const { email } = await registerUser('open_mode_user');
-
-		const user = await env.DB.prepare(
-			'SELECT confirmed_at FROM users WHERE email = ?1',
-		)
-			.bind(email)
-			.first<{ confirmed_at: string | null }>();
-		expect(user).toBeTruthy();
-		expect(user!.confirmed_at).toBeNull();
+		expect(response.status).toBe(200);
+		expect(await pendingUser('verify_approval@test.local')).toMatchObject({
+			approved: 0,
+			confirmed_at: null,
+			registration_state: 'awaiting_confirmation',
+			confirmation_token: null,
+		});
 	});
 });

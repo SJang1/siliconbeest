@@ -32,7 +32,8 @@ app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), asy
   ).bind(currentAccountId, statusId).first();
 
   const canView = await canViewStatusById(statusId, currentAccountId);
-  await unfavouriteStatus(currentAccountId, statusId);
+  const removed = await unfavouriteStatus(currentAccountId, statusId);
+  c.set('contributionApplied', removed);
 
   // Federation: deliver Undo(Like)
   if (existing) {

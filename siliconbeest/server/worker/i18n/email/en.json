@@ -2,7 +2,20 @@
   "confirmation_subject": "Confirm your email - {title}",
   "confirmation_heading": "Confirm your email - {title}",
   "confirmation_body": "Click the link below to confirm your email address:",
-  "confirmation_expiry": "This link expires in 24 hours.",
+  "confirmation_code": "Verification code: {code}",
+  "confirmation_code_help": "Enter this code on the registration page, or use the link below.",
+  "confirmation_expiry": "This code and link expire in 60 minutes.",
+  "confirmation_page_title": "Confirm your email",
+  "confirmation_page_body": "Continue to verify your email address and activate your account.",
+  "confirmation_page_action": "Confirm email",
+  "confirmation_invalid_title": "Token expired or invalid",
+  "confirmation_invalid_body": "This confirmation link has expired or has already been used. Request a new confirmation email.",
+  "confirmation_missing_token": "No confirmation token was provided.",
+
+  "registration_ready_subject": "Continue your registration at {title}",
+  "registration_ready_heading": "Your registration can continue",
+  "registration_ready_body": "Sign in to review and complete your registration.",
+  "registration_ready_action": "Continue registration",
 
   "password_reset_subject": "Reset your password",
   "password_reset_heading": "Password Reset",
@@ -11,7 +24,7 @@
 
   "welcome_subject": "Welcome to {title}!",
   "welcome_heading": "Welcome to {title}!",
-  "welcome_body": "Your account has been approved.",
+  "welcome_body": "Your registration is complete and your account is now active.",
 
   "rejection_subject": "Registration update",
   "rejection_heading": "Registration Update",

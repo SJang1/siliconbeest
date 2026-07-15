@@ -28,6 +28,7 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
   await assertStatusInteractable(statusId, currentAccountId);
 
   const { created } = await favouriteStatus(currentAccountId, statusId);
+  c.set('contributionApplied', created);
 
   if (created) {
     // Create notification for the status author (don't notify yourself)

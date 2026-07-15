@@ -132,10 +132,14 @@ app.post('/', async (c) => {
              approved = 1,
              confirmed_at = ?1,
              confirmation_token = NULL,
+             registration_state = 'active',
              locale = ?2,
              updated_at = ?1
          WHERE id = ?3`,
       ).bind(now, locale, user.id),
+      env.DB.prepare(
+        'UPDATE accounts SET discoverable = 1, updated_at = ?1 WHERE id = ?2',
+      ).bind(now, account.id),
       env.DB.prepare(
         'UPDATE settings SET value = ?1, updated_at = ?2 WHERE key = ?3',
       ).bind(user.id, now, SETUP_LOCK_KEY),

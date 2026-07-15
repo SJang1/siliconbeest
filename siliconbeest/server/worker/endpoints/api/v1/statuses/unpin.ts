@@ -21,7 +21,8 @@ app.post('/:id/unpin', authRequired, requireScope('write:accounts'), async (c) =
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
-  await unpinStatus(currentAccountId, statusId);
+  const changed = await unpinStatus(currentAccountId, statusId);
+  c.set('contributionApplied', changed);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);
   status.pinned = false;

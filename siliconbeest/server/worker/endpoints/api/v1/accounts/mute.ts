@@ -28,7 +28,8 @@ app.post('/:id/mute', authRequired, requireScope('write:mutes'), async (c) => {
   const duration = body.duration || 0;
   const expiresAt = duration > 0 ? new Date(Date.now() + duration * 1000).toISOString() : null;
 
-  await createMute(currentAccountId, targetId, notifications, expiresAt);
+  const changed = await createMute(currentAccountId, targetId, notifications, expiresAt);
+  c.set('contributionApplied', changed);
 
   return c.json(await getRelationship(currentAccountId, targetId));
 });

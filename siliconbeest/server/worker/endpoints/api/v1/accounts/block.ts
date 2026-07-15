@@ -20,10 +20,11 @@ app.post('/:id/block', authRequired, requireScope('write:blocks'), async (c) => 
   const target = await env.DB.prepare('SELECT id, domain, uri FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
-  await createBlock(currentAccountId, targetId);
+  const changed = await createBlock(currentAccountId, targetId);
+  c.set('contributionApplied', changed);
 
   // Federation: deliver Block activity if target is remote
-  if (target.domain) {
+  if (changed && target.domain) {
     try {
       const currentAccount = await env.DB.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',

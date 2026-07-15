@@ -25,6 +25,8 @@ export type AppVariables = {
   /** The oauth_access_tokens row ID for the current bearer token. */
   tokenId: string | null;
   requestId: string;
+  /** Set by idempotent mutation handlers when the request changed state. */
+  contributionApplied?: boolean;
   /** True when the client accepts ActivityPub content types. */
   isActivityPub: boolean;
   /** Fedify Federation instance (created per-request in middleware). */

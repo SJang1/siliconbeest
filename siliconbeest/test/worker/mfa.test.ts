@@ -286,7 +286,11 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			).bind(email).first<{ id: string }>();
 
 			await env.DB.prepare(
-				"UPDATE users SET confirmed_at = datetime('now') WHERE id = ?",
+				`UPDATE users
+				 SET approved = 1,
+				     confirmed_at = datetime('now'),
+				     registration_state = 'active'
+				 WHERE id = ?`,
 			).bind(user!.id).run();
 
 			// Login to get token

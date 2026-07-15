@@ -77,6 +77,7 @@ app.post('/', authRequired, requireScope('write:filters'), async (c) => {
     expires_in: body.expires_in,
     keywords_attributes: body.keywords_attributes,
   });
+  c.set('contributionApplied', true);
   return c.json(result);
 });
 
@@ -112,8 +113,9 @@ app.put('/:id', authRequired, requireScope('write:filters'), async (c) => {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
-  const result = await updateFilter(filterId, currentUser.id, body);
-  return c.json(result);
+  const { filter, changed } = await updateFilter(filterId, currentUser.id, body);
+  c.set('contributionApplied', changed);
+  return c.json(filter);
 });
 
 // ---------------------------------------------------------------------------
@@ -123,7 +125,8 @@ app.put('/:id', authRequired, requireScope('write:filters'), async (c) => {
 app.delete('/:id', authRequired, requireScope('write:filters'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
-  await deleteFilter(filterId, currentUser.id);
+  const changed = await deleteFilter(filterId, currentUser.id);
+  c.set('contributionApplied', changed);
   return c.json({}, 200);
 });
 
@@ -147,6 +150,7 @@ app.post('/:id/keywords', authRequired, requireScope('write:filters'), async (c)
   }
 
   const result = await addFilterKeyword(filterId, currentUser.id, body.keyword, !!body.whole_word);
+  c.set('contributionApplied', true);
   return c.json(result);
 });
 
@@ -169,7 +173,8 @@ app.delete('/:id/keywords/:keyword_id', authRequired, requireScope('write:filter
   const currentUser = c.get('currentUser')!;
   const filterId = c.req.param('id');
   const keywordId = c.req.param('keyword_id');
-  await deleteFilterKeyword(filterId, keywordId, currentUser.id);
+  const changed = await deleteFilterKeyword(filterId, keywordId, currentUser.id);
+  c.set('contributionApplied', changed);
   return c.json({}, 200);
 });
 

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/api/client'
 import { useInstanceStore } from '@/stores/instance'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -41,7 +42,7 @@ async function handleSubmit() {
       }),
     })
     success.value = true
-    setTimeout(() => router.push('/login'), 2000)
+    setTimeout(() => router.push(withCurrentDesign('/login', route.path)), 2000)
   } catch (e: any) {
     if (e?.status === 410 || e?.status === 400) {
       error.value = t('passwords.reset_expired')
@@ -69,7 +70,7 @@ async function handleSubmit() {
             {{ t('passwords.reset_success') }}
           </div>
           <router-link
-            to="/login"
+            :to="withCurrentDesign('/login', route.path)"
             class="block text-center text-sm font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
           >
             {{ t('auth.sign_in') }}
@@ -115,7 +116,7 @@ async function handleSubmit() {
           </button>
 
           <p class="text-center text-sm text-slate-500 dark:text-slate-400">
-            <router-link to="/login" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
+            <router-link :to="withCurrentDesign('/login', route.path)" class="font-medium text-brand-600 hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300">
               {{ t('auth.sign_in') }}
             </router-link>
           </p>

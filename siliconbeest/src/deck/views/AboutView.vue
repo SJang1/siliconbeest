@@ -12,6 +12,18 @@ const { data: ssrInstance, pending } = await usePublicInstance()
 
 const instance = computed(() => ssrInstance.value ?? instanceStore.instance)
 const loading = computed(() => pending.value || instanceStore.loading)
+const registrationDescription = computed(() => {
+  const registrations = instance.value?.registrations
+  if (!registrations) return t('about.registration_closed')
+  if (registrations.mode === 'referral') return t('about.registration_referral')
+  if (registrations.mode === 'closed') return t('about.registration_closed')
+  if (registrations.mode === 'approval') return t('about.registration_approval')
+  if (registrations.mode === 'open') return t('about.registration_open')
+  if (!registrations.enabled) return t('about.registration_closed')
+  return registrations.approval_required
+    ? t('about.registration_approval')
+    : t('about.registration_open')
+})
 </script>
 
 <template>
@@ -79,12 +91,7 @@ const loading = computed(() => pending.value || instanceStore.loading)
           <div class="sb-card p-6">
             <h3 class="sb-heading mb-2 text-base">{{ t('about.registration') }}</h3>
             <p class="text-sm text-slate-600 dark:text-slate-400">
-              {{ instance.registrations?.enabled
-                ? (instance.registrations.approval_required
-                  ? t('about.registration_approval')
-                  : t('about.registration_open'))
-                : t('about.registration_closed')
-              }}
+              {{ registrationDescription }}
             </p>
           </div>
 

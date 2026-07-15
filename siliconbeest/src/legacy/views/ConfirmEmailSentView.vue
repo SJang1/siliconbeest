@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { apiFetch } from '@/api/client'
 import { useInstanceStore } from '@/stores/instance'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -100,7 +101,7 @@ onUnmounted(() => {
 
           <!-- Back to login -->
           <p class="text-center text-sm text-gray-500 dark:text-gray-400">
-            <router-link to="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+            <router-link :to="withCurrentDesign('/login', route.path)" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
               {{ t('auth.sign_in') }}
             </router-link>
           </p>

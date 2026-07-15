@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { env } from 'cloudflare:workers';
 import type { AppVariables } from '../../../../types';
-import { generateToken } from '../../../../utils/crypto';
-import { sendConfirmation } from '../../../../services/email';
-import { getUserForConfirmation, setConfirmationToken } from '../../../../services/auth';
+import { getUserForConfirmation } from '../../../../services/auth';
+import { startEmailVerification } from '../../../../services/registration';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -33,32 +32,21 @@ app.post('/', async (c) => {
 	// Look up user by email
 	const user = await getUserForConfirmation(email);
 
-	// If not found or already confirmed, return 200 silently
-	if (!user || user.confirmed_at) {
+	// If not found, already confirmed, or still awaiting administrator approval,
+	// return 200 silently. Approval sends its own continuation email.
+	if (!user
+		|| user.confirmed_at
+		|| user.registration_state === 'pending_approval'
+		|| user.registration_state === 'active') {
 		return c.json({ message: 'If your email is in our system, a confirmation link has been sent.' }, 200);
 	}
-
-	// Delete old KV entry if there was a previous token
-	if (user.confirmation_token) {
-		await env.CACHE.delete('email_confirm:' + user.confirmation_token);
-	}
-
-	// Generate new token
-	const newToken = generateToken(64);
-	await env.CACHE.put(
-		'email_confirm:' + newToken,
-		JSON.stringify({ userId: user.id, email }),
-		{ expirationTtl: 86400 },
-	);
-	await setConfirmationToken(user.id, newToken);
 
 	// Set cooldown
 	await env.CACHE.put(cooldownKey, '1', { expirationTtl: 60 });
 
-	// Send confirmation email
-	try {
-		await sendConfirmation(email, newToken);
-	} catch { /* best-effort */ }
+	// Use the same 60-minute code/link lifecycle as the registration UI.
+	// The service invalidates the previous challenge before issuing a new one.
+	await startEmailVerification(user.id).catch(() => undefined);
 
 	return c.json({ message: 'If your email is in our system, a confirmation link has been sent.' }, 200);
 });

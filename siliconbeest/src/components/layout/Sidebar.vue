@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useInstanceStore } from '@/stores/instance'
@@ -8,10 +8,11 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { SUPPORTED_LOCALES, setDisplayLocale } from '@/i18n'
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api/client'
+import { stripAuroraPrefix, toOldPath } from '@/utils/designVersion'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import Avatar from '../common/Avatar.vue'
 
 const { t, locale } = useI18n()
-const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -34,8 +35,12 @@ const navItems = [
 
 const myProfilePath = computed(() => {
   const acct = auth.currentUser?.acct || auth.currentUser?.username
-  return acct ? `/@${acct}` : '/settings/profile'
+  return designedPath(acct ? `/@${acct}` : '/settings/profile')
 })
+
+function designedPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
 
 const followRequestCount = ref(0)
 
@@ -66,7 +71,7 @@ function handleLocaleChange(event: Event) {
 <template>
   <nav class="flex flex-col h-full p-4" :aria-label="t('nav.main_navigation')">
     <!-- Logo -->
-    <router-link to="/" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
+    <router-link :to="designedPath('/')" class="flex items-center gap-2 px-3 py-2 mb-4 no-underline">
       <span class="sb-heading sb-gradient-text text-2xl">{{ instanceStore.instance?.title }}</span>
     </router-link>
 
@@ -76,7 +81,7 @@ function handleLocaleChange(event: Event) {
       <ul class="space-y-1 flex-1">
         <li v-for="item in navItems" :key="item.key">
           <router-link
-            :to="item.path"
+            :to="designedPath(item.path)"
             class="sb-nav-item no-underline"
             active-class="sb-nav-item-active"
           >
@@ -95,7 +100,7 @@ function handleLocaleChange(event: Event) {
       <!-- Follow Requests -->
       <router-link
         v-if="followRequestCount > 0"
-        to="/follow-requests"
+        :to="designedPath('/follow-requests')"
         class="sb-nav-item mb-1 no-underline"
         active-class="sb-nav-item-active"
       >
@@ -108,7 +113,7 @@ function handleLocaleChange(event: Event) {
 
       <!-- Settings -->
       <router-link
-        to="/settings"
+        :to="designedPath('/settings')"
         class="sb-nav-item mb-1 no-underline"
         active-class="sb-nav-item-active"
       >
@@ -121,7 +126,7 @@ function handleLocaleChange(event: Event) {
       <!-- Admin/Moderator Link -->
       <router-link
         v-if="auth.isAdmin || auth.isModerator"
-        to="/admin"
+        :to="designedPath('/admin')"
         class="sb-nav-item mb-2 no-underline"
         active-class="sb-nav-item-active"
       >
@@ -145,7 +150,7 @@ function handleLocaleChange(event: Event) {
     <template v-else>
       <div class="space-y-2 flex-1">
         <router-link
-          to="/explore/local"
+          :to="designedPath('/explore/local')"
           class="sb-nav-item no-underline"
           active-class="sb-nav-item-active"
         >
@@ -155,7 +160,7 @@ function handleLocaleChange(event: Event) {
           <span>{{ t('nav.explore') }}</span>
         </router-link>
         <router-link
-          to="/about"
+          :to="designedPath('/about')"
           class="sb-nav-item no-underline"
           active-class="sb-nav-item-active"
         >
@@ -167,13 +172,13 @@ function handleLocaleChange(event: Event) {
       </div>
 
       <router-link
-        to="/login"
+        :to="designedPath('/login')"
         class="sb-btn sb-btn-primary mb-2 w-full py-3 text-base no-underline"
       >
         {{ t('auth.login') }}
       </router-link>
       <router-link
-        to="/register"
+        :to="designedPath('/register')"
         class="sb-btn sb-btn-secondary mb-4 w-full py-3 text-base no-underline"
       >
         {{ t('auth.register') }}
@@ -221,7 +226,7 @@ function handleLocaleChange(event: Event) {
 
     <!-- Back to classic design -->
     <a
-      :href="'/old' + route.fullPath"
+      :href="toOldPath(stripAuroraPrefix(route.fullPath))"
       class="mt-2 block px-3 py-1.5 text-center text-xs text-slate-400 no-underline transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
     >
       {{ t('design.backToClassic') }}

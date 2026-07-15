@@ -54,9 +54,10 @@ app.patch('/', authRequired, requireScope('write:accounts'), async (c) => {
     return c.json({ error: 'No valid preference keys provided' }, 422);
   }
 
-  await Promise.all(
+  const changed = await Promise.all(
     updates.map(({ key, value }) => userPreferences.set(user.id, key, value)),
   );
+  c.set('contributionApplied', changed.some(Boolean));
 
   return c.json({});
 });

@@ -23,7 +23,8 @@ app.post('/:id/unmute', authRequired, requireScope('write:mutes'), async (c) => 
   if (!row) throw new AppError(404, 'Record not found');
 
   const canView = await canViewStatusById(statusId, currentAccountId);
-  await unmuteStatus(currentAccountId, statusId);
+  const changed = await unmuteStatus(currentAccountId, statusId);
+  c.set('contributionApplied', changed);
   if (!canView) throw new AppError(404, 'Record not found');
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);

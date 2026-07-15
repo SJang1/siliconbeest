@@ -7,6 +7,7 @@
 
 import { env } from 'cloudflare:workers';
 import type { SendEmailMessage } from '../types/queue';
+import type { RegistrationDesign } from '../types/db';
 import { getEmailTranslations, t as emailT } from './emailTranslations';
 import { getInstanceTitle } from './instance';
 
@@ -20,6 +21,12 @@ function escapeHtml(str: string): string {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#039;');
+}
+
+function registrationDesignPrefix(design: RegistrationDesign): string {
+	if (design === 'old') return '/old';
+	if (design === 'aurora') return '/aurora';
+	return '';
 }
 
 /**
@@ -78,16 +85,41 @@ export async function sendConfirmation(
 	email: string,
 	token: string,
 	locale = 'en',
+	code?: string,
+	design: RegistrationDesign = 'default',
 ): Promise<boolean> {
 	const domain = env.INSTANCE_DOMAIN;
 	const title = await getInstanceTitle();
-	const confirmUrl = `https://${domain}/auth/confirm?token=${token}`;
+	const query = new URLSearchParams({ token, locale });
+	const confirmUrl = `https://${domain}${registrationDesignPrefix(design)}/auth/confirm?${query.toString()}`;
 	const t = getEmailTranslations(locale);
 	const html = `<h1>${escapeHtml(t.confirmation.heading(title))}</h1>
 <p>${escapeHtml(t.confirmation.body)}</p>
+${code ? `<p>${escapeHtml(t.confirmation.codeHelp)}</p>
+<p style="font-size:24px;font-weight:700;letter-spacing:0.2em;">${escapeHtml(t.confirmation.code(code))}</p>` : ''}
 <p><a href="${escapeHtml(confirmUrl)}">${escapeHtml(confirmUrl)}</a></p>
 <p>${escapeHtml(t.confirmation.expiry)}</p>`;
 	return sendEmail(email, t.confirmation.subject(title), html);
+}
+
+/**
+ * Tell an approved applicant that they may sign in and finish registration.
+ * Account activation and the welcome email happen only after that final step.
+ */
+export async function sendRegistrationReady(
+	email: string,
+	locale = 'en',
+	design: RegistrationDesign = 'default',
+): Promise<boolean> {
+	const domain = env.INSTANCE_DOMAIN;
+	const title = await getInstanceTitle();
+	const prefix = registrationDesignPrefix(design);
+	const loginUrl = `https://${domain}${prefix}/login?redirect=${encodeURIComponent(`${prefix}/auth/registration`)}`;
+	const t = getEmailTranslations(locale);
+	const html = `<h1>${escapeHtml(t.registrationReady.heading)}</h1>
+<p>${escapeHtml(t.registrationReady.body)}</p>
+<p><a href="${escapeHtml(loginUrl)}">${escapeHtml(t.registrationReady.action)}</a></p>`;
+	return sendEmail(email, t.registrationReady.subject(title), html);
 }
 
 /**

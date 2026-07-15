@@ -2,7 +2,20 @@
   "confirmation_subject": "验证您的邮箱 - {title}",
   "confirmation_heading": "验证您的邮箱 - {title}",
   "confirmation_body": "请点击以下链接验证您的邮箱地址：",
-  "confirmation_expiry": "此链接将在24小时后过期。",
+  "confirmation_code": "验证码：{code}",
+  "confirmation_code_help": "请在注册页面输入此验证码，或使用下方链接。",
+  "confirmation_expiry": "此验证码和链接将在60分钟后过期。",
+  "confirmation_page_title": "确认电子邮箱",
+  "confirmation_page_body": "请继续验证电子邮箱地址并启用账户。",
+  "confirmation_page_action": "确认电子邮箱",
+  "confirmation_invalid_title": "令牌已过期或无效",
+  "confirmation_invalid_body": "此确认链接已过期或已被使用。请重新请求确认邮件。",
+  "confirmation_missing_token": "未提供确认令牌。",
+
+  "registration_ready_subject": "继续完成您在 {title} 的注册",
+  "registration_ready_heading": "您可以继续注册",
+  "registration_ready_body": "请登录并确认注册信息以完成流程。",
+  "registration_ready_action": "继续注册",
 
   "password_reset_subject": "重置密码",
   "password_reset_heading": "重置密码",
@@ -11,7 +24,7 @@
 
   "welcome_subject": "欢迎加入 {title}！",
   "welcome_heading": "欢迎加入 {title}！",
-  "welcome_body": "您的账号已被批准。",
+  "welcome_body": "注册已完成，您的账号现已启用。",
 
   "rejection_subject": "注册审核结果",
   "rejection_heading": "注册审核结果",

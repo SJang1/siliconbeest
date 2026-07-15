@@ -2,7 +2,20 @@
   "confirmation_subject": "驗證您的電子郵件 - {title}",
   "confirmation_heading": "驗證您的電子郵件 - {title}",
   "confirmation_body": "請點擊以下連結驗證您的電子郵件地址：",
-  "confirmation_expiry": "此連結將在24小時後失效。",
+  "confirmation_code": "驗證碼：{code}",
+  "confirmation_code_help": "請在註冊頁面輸入此驗證碼，或使用下方連結。",
+  "confirmation_expiry": "此驗證碼與連結將在60分鐘後失效。",
+  "confirmation_page_title": "確認電子郵件",
+  "confirmation_page_body": "請繼續驗證電子郵件地址並啟用帳戶。",
+  "confirmation_page_action": "確認電子郵件",
+  "confirmation_invalid_title": "權杖已過期或無效",
+  "confirmation_invalid_body": "此確認連結已過期或已被使用。請重新要求確認郵件。",
+  "confirmation_missing_token": "未提供確認權杖。",
+
+  "registration_ready_subject": "繼續完成您在 {title} 的註冊",
+  "registration_ready_heading": "您可以繼續註冊",
+  "registration_ready_body": "請登入並確認註冊資料以完成流程。",
+  "registration_ready_action": "繼續註冊",
 
   "password_reset_subject": "重設密碼",
   "password_reset_heading": "重設密碼",
@@ -11,7 +24,7 @@
 
   "welcome_subject": "歡迎加入 {title}！",
   "welcome_heading": "歡迎加入 {title}！",
-  "welcome_body": "您的帳號已通過審核。",
+  "welcome_body": "註冊已完成，您的帳號現已啟用。",
 
   "rejection_subject": "註冊審核結果",
   "rejection_heading": "註冊審核結果",

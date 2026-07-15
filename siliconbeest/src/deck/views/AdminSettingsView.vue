@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/auth'
 import { getAdminSettings, updateAdminSettings, testSmtp } from '@/api/mastodon/admin'
 import { uploadMedia } from '@/api/mastodon/media'
 import DeckAdminLayout from '@/deck/layout/DeckAdminLayout.vue'
+import AdminInvitationSettingsFields from '@/components/admin/AdminInvitationSettingsFields.vue'
+import { createDefaultInvitationAdminSettings } from '@/types/registration'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -32,6 +34,8 @@ const settings = ref({
   privacy_policy: '',
   registration_mode: 'closed',
   registration_message: '',
+  require_email_verification: '1',
+  ...createDefaultInvitationAdminSettings(),
   max_toot_chars: '500',
   max_media_attachments: '4',
   smtp_host: '',
@@ -252,6 +256,7 @@ const toggleClass =
             <select v-model="settings.registration_mode" :class="inputClass" class="!w-64">
               <option value="open">{{ t('admin_settings.reg_open') }}</option>
               <option value="approval">{{ t('admin_settings.reg_approval') }}</option>
+              <option value="referral">{{ t('admin_settings.reg_referral') }}</option>
               <option value="closed">{{ t('admin_settings.reg_closed') }}</option>
             </select>
           </div>
@@ -259,8 +264,22 @@ const toggleClass =
             <label :class="labelClass">{{ t('admin_settings.fields.registration_message') }}</label>
             <textarea v-model="settings.registration_message" rows="3" :class="inputClass" :placeholder="t('admin_settings.registration_message_help')" />
           </div>
+          <label class="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              :checked="settings.require_email_verification === '1'"
+              class="mt-0.5 h-4 w-4 rounded border-outline text-brand-600 accent-brand-600 dark:border-outline-dark dark:bg-surface-2-dark"
+              @change="settings.require_email_verification = ($event.target as HTMLInputElement).checked ? '1' : '0'"
+            />
+            <span>
+              <span class="block text-sm font-medium text-slate-900 dark:text-white">{{ t('admin_settings.fields.require_email_verification') }}</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ t('admin_settings.require_email_verification_help') }}</span>
+            </span>
+          </label>
         </div>
       </section>
+
+      <AdminInvitationSettingsFields :settings="settings" />
 
       <!-- Limits -->
       <section class="sb-card p-6">

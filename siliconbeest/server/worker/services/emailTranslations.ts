@@ -52,7 +52,15 @@ export type EmailStrings = {
 		subject: (title: string) => string;
 		heading: (title: string) => string;
 		body: string;
+		code: (code: string) => string;
+		codeHelp: string;
 		expiry: string;
+	};
+	registrationReady: {
+		subject: (title: string) => string;
+		heading: string;
+		body: string;
+		action: string;
 	};
 	passwordReset: {
 		subject: string;
@@ -101,7 +109,15 @@ function buildEmailStrings(locale: string): EmailStrings {
 			subject: (title) => t(locale, 'confirmation_subject', { title }),
 			heading: (title) => t(locale, 'confirmation_heading', { title }),
 			body: t(locale, 'confirmation_body'),
+			code: (code) => t(locale, 'confirmation_code', { code }),
+			codeHelp: t(locale, 'confirmation_code_help'),
 			expiry: t(locale, 'confirmation_expiry'),
+		},
+		registrationReady: {
+			subject: (title) => t(locale, 'registration_ready_subject', { title }),
+			heading: t(locale, 'registration_ready_heading'),
+			body: t(locale, 'registration_ready_body'),
+			action: t(locale, 'registration_ready_action'),
 		},
 		passwordReset: {
 			subject: t(locale, 'password_reset_subject'),

@@ -28,6 +28,7 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
 
   const canView = await canViewStatusById(statusId, currentAccountId);
   const { reblogId } = await unreblogStatus(currentAccountId, statusId);
+  c.set('contributionApplied', reblogId !== null);
 
   // Federation: deliver Undo(Announce) to followers
   if (reblogId && row) {

@@ -23,7 +23,7 @@ const AUTH_ONLY_PREFIXES = [
   '/admin',
 ];
 
-const GUEST_ONLY_PATHS = new Set(['/', '/login', '/register']);
+const GUEST_ONLY_PATHS = new Set(['/', '/login', '/register', '/auth/registration']);
 
 function isAuthOnly(path: string): boolean {
   return AUTH_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -47,7 +47,9 @@ export default defineNuxtRouteMiddleware((to) => {
   const aurora = isAuroraDesignPath(to.path);
   const path = old ? stripOldPrefix(to.path) : aurora ? stripAuroraPrefix(to.path) : to.path;
 
-  if (GUEST_ONLY_PATHS.has(path) && token.value) {
+  const isRegistrationCompletion = path === '/auth/registration' && to.query.ticket !== undefined;
+
+  if (GUEST_ONLY_PATHS.has(path) && token.value && !isRegistrationCompletion) {
     return navigateTo(old ? '/old/home' : aurora ? '/aurora/home' : '/home');
   }
 

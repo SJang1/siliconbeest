@@ -1,6 +1,11 @@
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
-import { isOldDesignPath, stripOldPrefix } from '@/utils/designVersion';
+import {
+  isAuroraDesignPath,
+  isOldDesignPath,
+  stripAuroraPrefix,
+  stripOldPrefix,
+} from '@/utils/designVersion';
 
 const AUTH_ONLY_PREFIXES = [
   '/home',
@@ -15,7 +20,7 @@ const AUTH_ONLY_PREFIXES = [
 ];
 
 const ADMIN_PREFIXES = ['/admin'];
-const GUEST_ONLY_PATHS = new Set(['/', '/login', '/register']);
+const GUEST_ONLY_PATHS = new Set(['/', '/login', '/register', '/auth/registration']);
 
 function isAuthOnly(path: string): boolean {
   return AUTH_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -32,17 +37,27 @@ export default defineNuxtPlugin((nuxtApp) => {
     const auth = useAuthStore();
     auth.syncTokenFromCookie();
     const currentRoute = router.currentRoute.value;
-    // /old/* mirrors the canonical routes with the classic design.
+    // /old/* and /aurora/* mirror the canonical routes.
     const old = isOldDesignPath(currentRoute.path);
-    const path = stripOldPrefix(currentRoute.path);
+    const aurora = isAuroraDesignPath(currentRoute.path);
+    const path = old
+      ? stripOldPrefix(currentRoute.path)
+      : aurora
+        ? stripAuroraPrefix(currentRoute.path)
+        : currentRoute.path;
+    const loginPath = old ? '/old/login' : aurora ? '/aurora/login' : '/login';
+    const homePath = old ? '/old/home' : aurora ? '/aurora/home' : '/home';
 
     if ((isAuthOnly(path) || isAdminOnly(path)) && !auth.isAuthenticated) {
-      router.replace({ path: old ? '/old/login' : '/login', query: { redirect: currentRoute.fullPath } });
+      router.replace({ path: loginPath, query: { redirect: currentRoute.fullPath } });
       return;
     }
 
-    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path)) {
-      router.replace(old ? '/old/home' : '/home');
+    const isRegistrationCompletion = path === '/auth/registration'
+      && currentRoute.query.ticket !== undefined;
+
+    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path) && !isRegistrationCompletion) {
+      router.replace(homePath);
     }
   }
 
@@ -51,9 +66,10 @@ export default defineNuxtPlugin((nuxtApp) => {
     auth.syncTokenFromCookie();
 
     const old = isOldDesignPath(to.path);
-    const path = stripOldPrefix(to.path);
-    const loginPath = old ? '/old/login' : '/login';
-    const homePath = old ? '/old/home' : '/home';
+    const aurora = isAuroraDesignPath(to.path);
+    const path = old ? stripOldPrefix(to.path) : aurora ? stripAuroraPrefix(to.path) : to.path;
+    const loginPath = old ? '/old/login' : aurora ? '/aurora/login' : '/login';
+    const homePath = old ? '/old/home' : aurora ? '/aurora/home' : '/home';
 
     if ((isAuthOnly(path) || isAdminOnly(path)) && !auth.isAuthenticated) {
       return { path: loginPath, query: { redirect: to.fullPath } };
@@ -63,7 +79,9 @@ export default defineNuxtPlugin((nuxtApp) => {
       void auth.fetchCurrentUser();
     }
 
-    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path)) {
+    const isRegistrationCompletion = path === '/auth/registration' && to.query.ticket !== undefined;
+
+    if (auth.isAuthenticated && GUEST_ONLY_PATHS.has(path) && !isRegistrationCompletion) {
       return homePath;
     }
 

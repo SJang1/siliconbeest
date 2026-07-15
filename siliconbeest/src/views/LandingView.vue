@@ -1,20 +1,65 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useInstanceStore } from '@/stores/instance'
 import { usePublicInstance } from '@/composables/usePublicInstance'
+import { previewInvitation } from '@/api/mastodon/registration'
+import { getApiErrorMessage } from '@/utils/apiError'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import { renderMarkdown } from '@/utils/markdown'
 import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
+import type { InvitationPreview } from '@/types/registration'
 
 const { t } = useI18n()
+const route = useRoute()
 const instanceStore = useInstanceStore()
 const { data: ssrInstance } = await usePublicInstance()
 
+const invitation = ref<InvitationPreview | null>(null)
+const invitationLoading = ref(false)
+const invitationError = ref('')
+
 const instance = computed(() => ssrInstance.value ?? instanceStore.instance)
+const invitationToken = computed(() => {
+  const value = route.query.invite
+  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
+})
+const registrationTarget = computed(() => ({
+  path: withCurrentDesign('/register', route.path),
+  query: {
+    invite: invitationToken.value || undefined,
+    redirect: route.query.redirect,
+  },
+}))
 
 const landingHtml = computed(() => {
   const md = instance.value?.site_landing_markdown
   return md ? renderMarkdown(md) : ''
+})
+
+async function loadInvitation() {
+  invitation.value = null
+  invitationError.value = ''
+  if (!invitationToken.value) return
+
+  invitationLoading.value = true
+  try {
+    const { data } = await previewInvitation(invitationToken.value)
+    invitation.value = data
+  } catch (requestError) {
+    invitationError.value = getApiErrorMessage(
+      requestError,
+      t('auth.registration_invite_invalid'),
+    )
+  } finally {
+    invitationLoading.value = false
+  }
+}
+
+onMounted(loadInvitation)
+watch(invitationToken, () => {
+  if (typeof window !== 'undefined') void loadInvitation()
 })
 </script>
 
@@ -35,15 +80,44 @@ const landingHtml = computed(() => {
         <p class="mt-6 max-w-2xl animate-rise-in text-lg text-slate-600 [animation-delay:100ms] sm:text-xl dark:text-slate-300">
           {{ instance?.description || t('landing.tagline') }}
         </p>
+        <div
+          v-if="invitationLoading || invitation || invitationError"
+          class="sb-card mt-8 w-full max-w-md p-4 text-left animate-rise-in [animation-delay:150ms]"
+        >
+          <p v-if="invitationLoading" class="text-center text-sm text-slate-500 dark:text-slate-400">
+            {{ t('common.loading') }}
+          </p>
+          <div v-else-if="invitation" class="flex items-center gap-3">
+            <img
+              :src="invitation.inviter.avatar || '/default-avatar.svg'"
+              :alt="invitation.inviter.display_name || invitation.inviter.username"
+              class="h-12 w-12 rounded-full object-cover"
+            />
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
+                {{ t('auth.registration_invited_by') }}
+              </p>
+              <p class="truncate font-semibold text-slate-900 dark:text-white">
+                {{ invitation.inviter.display_name || invitation.inviter.username }}
+              </p>
+              <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+                @{{ invitation.inviter.username }}
+              </p>
+            </div>
+          </div>
+          <p v-else class="text-sm text-red-600 dark:text-red-400" role="alert">
+            {{ invitationError }}
+          </p>
+        </div>
         <div class="mt-10 flex flex-wrap items-center justify-center gap-4 animate-rise-in [animation-delay:200ms]">
           <router-link
-            to="/register"
+            :to="registrationTarget"
             class="sb-btn sb-btn-primary px-8 py-3 text-base"
           >
             {{ t('auth.sign_up') }}
           </router-link>
           <router-link
-            to="/login"
+            :to="withCurrentDesign('/login', route.path)"
             class="sb-btn sb-btn-secondary px-8 py-3 text-base"
           >
             {{ t('auth.sign_in') }}

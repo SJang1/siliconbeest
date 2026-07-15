@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getSafeRedirect, withCurrentDesign } from '@/utils/safeRedirect'
 import { mfaSetup, mfaConfirm, mfaDisable } from '@/api/mastodon/mfa'
 import { listSessions as fetchSessions, revokeSession as apiRevokeSession, revokeAllOtherSessions, type Session } from '@/api/mastodon/sessions'
 import {
@@ -15,7 +17,14 @@ import {
 } from '@/api/mastodon/webauthn'
 
 const { t } = useI18n()
+const route = useRoute()
 const auth = useAuthStore()
+
+const hasOnboardingRedirect = computed(() => route.query.redirect !== undefined)
+const onboardingTarget = computed(() => withCurrentDesign(
+  getSafeRedirect(route.query.redirect, '/home'),
+  route.path,
+))
 
 // ── Passkeys ──
 const credentials = ref<WebAuthnCredential[]>([])
@@ -531,6 +540,15 @@ onMounted(() => {
       <div v-else class="text-sm text-slate-500 dark:text-slate-400">
         {{ t('webauthn.error_not_supported') }}
       </div>
+    </div>
+
+    <div v-if="hasOnboardingRedirect" class="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-brand-950/40">
+      <p class="text-sm text-slate-600 dark:text-slate-300">
+        {{ t('auth.registration_passkey_description') }}
+      </p>
+      <router-link :to="onboardingTarget" class="sb-btn sb-btn-primary mt-3">
+        {{ t('auth.registration_finish') }}
+      </router-link>
     </div>
 
     <!-- ═══ Active Sessions ═══ -->

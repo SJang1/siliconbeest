@@ -102,16 +102,20 @@ export async function getConversationLastStatus(
 export async function markConversationRead(
 	conversationId: string,
 	accountId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const entry = await env.DB.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare(
-		'UPDATE conversation_accounts SET unread = 0 WHERE conversation_id = ?1 AND account_id = ?2',
+	const result = await env.DB.prepare(
+		`UPDATE conversation_accounts
+		 SET unread = 0
+		 WHERE conversation_id = ?1 AND account_id = ?2 AND unread != 0`,
 	).bind(conversationId, accountId).run();
+
+	return (result.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -125,14 +129,16 @@ export async function markConversationRead(
 export async function deleteConversation(
 	conversationId: string,
 	accountId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const entry = await env.DB.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare(
+	const result = await env.DB.prepare(
 		'DELETE FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).run();
+
+	return (result.meta?.changes ?? 0) > 0;
 }

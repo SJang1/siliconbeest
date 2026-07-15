@@ -94,16 +94,24 @@ export async function updateList(listId: string, accountId: string, data: Update
   const repliesPolicy = data.replies_policy ?? existing.replies_policy;
   const exclusive = data.exclusive !== undefined ? (data.exclusive ? 1 : 0) : existing.exclusive;
 
-  await env.DB
-    .prepare('UPDATE lists SET title = ?1, replies_policy = ?2, exclusive = ?3, updated_at = ?4 WHERE id = ?5')
+  const update = await env.DB
+    .prepare(
+      `UPDATE lists
+       SET title = ?1, replies_policy = ?2, exclusive = ?3, updated_at = ?4
+       WHERE id = ?5
+         AND (title IS NOT ?1 OR replies_policy IS NOT ?2 OR exclusive IS NOT ?3)`,
+    )
     .bind(title, repliesPolicy, exclusive, now, listId)
     .run();
 
   return {
-    id: listId,
-    title,
-    replies_policy: repliesPolicy,
-    exclusive: !!exclusive,
+    list: {
+      id: listId,
+      title,
+      replies_policy: repliesPolicy,
+      exclusive: !!exclusive,
+    },
+    changed: (update.meta?.changes ?? 0) > 0,
   };
 }
 
@@ -154,7 +162,7 @@ export async function addListMembers(
   listId: string,
   accountId: string,
   memberAccountIds: string[],
-): Promise<void> {
+): Promise<boolean> {
   const uniqueMemberIds = [...new Set(memberAccountIds)];
   const permittedMembers = await Promise.all(uniqueMemberIds.map(async (memberId) => ({
     memberId,
@@ -170,7 +178,8 @@ export async function addListMembers(
     );
   }
 
-  await env.DB.batch(stmts);
+  const results = await env.DB.batch(stmts);
+  return results.some((result) => (result.meta?.changes ?? 0) > 0);
 }
 
 // ----------------------------------------------------------------
@@ -181,7 +190,7 @@ export async function removeListMembers(
   listId: string,
   accountId: string,
   memberAccountIds: string[],
-): Promise<void> {
+): Promise<boolean> {
   const list = await env.DB
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
@@ -200,5 +209,6 @@ export async function removeListMembers(
     );
   }
 
-  await env.DB.batch(stmts);
+  const results = await env.DB.batch(stmts);
+  return results.some((result) => (result.meta?.changes ?? 0) > 0);
 }

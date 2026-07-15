@@ -83,7 +83,8 @@ app.put('/:id/react/:emoji', authRequired, requireScope('write:favourites'), asy
 		throw new AppError(422, 'Custom emoji not found');
 	}
 
-	await addReaction(currentAccountId, statusId, emoji, domain);
+	const reaction = await addReaction(currentAccountId, statusId, emoji, domain);
+	c.set('contributionApplied', reaction.created);
 
 	// Live-update connected clients
 	await broadcastReactionEvent(statusId);
@@ -150,6 +151,7 @@ app.delete('/:id/react/:emoji', authRequired, requireScope('write:favourites'), 
 
 	const canView = await canViewStatusById(statusId, currentAccountId);
 	const { changes } = await removeReaction(currentAccountId, statusId, emoji);
+	c.set('contributionApplied', changes > 0);
 
 	// Live-update connected clients
 	if (changes > 0) await broadcastReactionEvent(statusId);

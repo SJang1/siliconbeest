@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { withCurrentDesign } from '@/utils/safeRedirect'
 import AppShell from './AppShell.vue'
 
 const { t } = useI18n()
@@ -17,6 +18,8 @@ const allNavItems = [
   { key: 'reports', path: '/admin/reports', icon: 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5', adminOnly: false },
   { key: 'domain_blocks', path: '/admin/domain-blocks', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', adminOnly: true },
   { key: 'settings', path: '/admin/settings', icon: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z M15 12a3 3 0 11-6 0 3 3 0 016 0z', adminOnly: true },
+  { key: 'invitation_credits', path: '/admin/invitation-credits', icon: 'M15.75 5.25a3 3 0 11-6 0 3 3 0 016 0z M4.5 21a7.5 7.5 0 0115 0', adminOnly: true },
+  { key: 'invitation_audit_logs', path: '/admin/invitation-audit-logs', icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5 M8.25 12.75h7.5m-7.5 3H12', adminOnly: true },
   { key: 'announcements', path: '/admin/announcements', icon: 'M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46', adminOnly: false },
   { key: 'rules', path: '/admin/rules', icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z', adminOnly: true },
   { key: 'relays', path: '/admin/relays', icon: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244', adminOnly: true },
@@ -28,11 +31,16 @@ const navItems = computed(() =>
   auth.isAdmin ? allNavItems : allNavItems.filter(item => !item.adminOnly)
 )
 
+function designedPath(path: string): string {
+  return withCurrentDesign(path, route.path)
+}
+
 function isActive(path: string): boolean {
+  const target = designedPath(path)
   if (path === '/admin') {
-    return route.path === '/admin'
+    return route.path === target
   }
-  return route.path.startsWith(path)
+  return route.path.startsWith(target)
 }
 
 function toggleSidebar() {
@@ -97,7 +105,7 @@ function closeSidebar() {
             <ul class="space-y-1">
               <li v-for="item in navItems" :key="item.key">
                 <router-link
-                  :to="item.path"
+                  :to="designedPath(item.path)"
                   class="sb-nav-item no-underline"
                   :class="isActive(item.path) ? 'sb-nav-item-active' : ''"
                   @click="closeSidebar"

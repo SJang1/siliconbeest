@@ -30,6 +30,7 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
     locked: target.locked as number,
     manually_approves_followers: target.manually_approves_followers as number,
   });
+  c.set('contributionApplied', result.uri !== '');
 
   // Existing follow or existing request — return current relationship
   if (result.uri === '') {

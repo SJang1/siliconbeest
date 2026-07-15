@@ -24,14 +24,16 @@ export const getByUserIdAndKeys = async (
 	return Object.fromEntries(results.map((row) => [row.key, row.value]));
 };
 
-export const set = async (userId: string, key: string, value: string): Promise<void> => {
+export const set = async (userId: string, key: string, value: string): Promise<boolean> => {
 	const id = generateUlid();
-	await env.DB
+	const saved = await env.DB
 		.prepare(
 			`INSERT INTO user_preferences (id, user_id, key, value)
 			 VALUES (?, ?, ?, ?)
-			 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+			 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value
+			 WHERE user_preferences.value IS NOT excluded.value`,
 		)
 		.bind(id, userId, key, value)
 		.run();
+	return (saved.meta?.changes ?? 0) > 0;
 };

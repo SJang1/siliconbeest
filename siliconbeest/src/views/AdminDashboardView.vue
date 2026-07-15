@@ -55,6 +55,19 @@ const stats = computed(() => {
   ]
 })
 
+const registrationModeLabel = computed(() => {
+  const registrations = instanceStore.instance?.registrations
+  if (!registrations) return ''
+  if (registrations.mode === 'referral') return t('admin.registrationMode.referral')
+  if (registrations.mode === 'closed') return t('admin.registrationMode.closed')
+  if (registrations.mode === 'approval') return t('admin.registrationMode.approval')
+  if (registrations.mode === 'open') return t('admin.registrationMode.open')
+  if (!registrations.enabled) return t('admin.registrationMode.closed')
+  return registrations.approval_required
+    ? t('admin.registrationMode.approval')
+    : t('admin.registrationMode.open')
+})
+
 // Presentation only: heroicons (24 outline) paths for the stat tile icon chips
 const iconPaths: Record<string, string> = {
   users:
@@ -119,7 +132,7 @@ const iconPaths: Record<string, string> = {
         <div class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
           <dt class="text-sm text-slate-500 dark:text-slate-400">{{ t('admin.registrations') }}</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            {{ !instanceStore.instance.registrations.enabled ? t('admin.registrationMode.closed') : instanceStore.instance.registrations.approval_required ? t('admin.registrationMode.approval') : t('admin.registrationMode.open') }}
+            {{ registrationModeLabel }}
           </dd>
         </div>
       </dl>

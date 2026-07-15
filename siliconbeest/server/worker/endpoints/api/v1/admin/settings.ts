@@ -4,6 +4,8 @@ import type { AppVariables } from '../../../../types';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { requireScopeForMethod } from '../../../../middleware/scopeCheck';
 import { getAllSettings, setSettings } from '../../../../services/instance';
+import { CONTRIBUTION_EVENTS, contributionSettingKey } from '../../../../services/contribution';
+import { updateInvitationSettings } from '../../../../services/invitationCredits';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -31,13 +33,63 @@ app.patch('/', async (c) => {
 	if (body.accent_color !== undefined && body.accent_color !== '' && !/^#[0-9a-fA-F]{6}$/.test(body.accent_color)) {
 		return c.json({ error: 'accent_color must be a #rrggbb hex color' }, 422);
 	}
+	if (body.registration_mode !== undefined
+		&& !['open', 'approval', 'referral', 'closed'].includes(body.registration_mode)) {
+		return c.json({ error: 'registration_mode must be open, approval, referral, or closed' }, 422);
+	}
+	if (body.require_email_verification !== undefined
+		&& body.require_email_verification !== '0'
+		&& body.require_email_verification !== '1') {
+		return c.json({ error: 'require_email_verification must be 0 or 1' }, 422);
+	}
+	for (const key of ['invite_link_issuance_enabled', 'invite_contribution_enabled']) {
+		if (body[key] !== undefined && body[key] !== '0' && body[key] !== '1') {
+			return c.json({ error: `${key} must be 0 or 1` }, 422);
+		}
+	}
+	if (body.invite_credit_max_per_account !== undefined
+		&& !isSafeSettingInteger(body.invite_credit_max_per_account, 0)) {
+		return c.json({ error: 'invite_credit_max_per_account must be an integer between 0 and 1000000000' }, 422);
+	}
+	if (body.invite_contribution_threshold !== undefined
+		&& !isSafeSettingInteger(body.invite_contribution_threshold, 1)) {
+		return c.json({ error: 'invite_contribution_threshold must be an integer between 1 and 1000000000' }, 422);
+	}
+	for (const event of CONTRIBUTION_EVENTS) {
+		const key = contributionSettingKey(event);
+		if (body[key] !== undefined && !isSafeSettingInteger(body[key], -1_000_000_000)) {
+			return c.json({ error: `${key} must be an integer between -1000000000 and 1000000000` }, 422);
+		}
+	}
 
-	await setSettings(body);
+	const invitationChanges = Object.fromEntries(Object.entries(body).filter(([key]) =>
+		key === 'invite_credit_max_per_account'
+		|| key === 'invite_link_issuance_enabled'
+		|| key === 'invite_contribution_enabled'
+		|| key === 'invite_contribution_threshold'
+		|| key.startsWith('invite_contribution_points_'),
+	));
+	const generalChanges = Object.fromEntries(Object.entries(body).filter(([key]) =>
+		!(key === 'invite_credit_max_per_account'
+			|| key === 'invite_link_issuance_enabled'
+			|| key === 'invite_contribution_enabled'
+			|| key === 'invite_contribution_threshold'
+			|| key.startsWith('invite_contribution_points_')),
+	));
+	await setSettings(generalChanges);
+	const actor = c.get('currentAccount')!;
+	await updateInvitationSettings(actor.id, invitationChanges);
 
 	// Return the full settings after update
 	const settings = await getAllSettings();
 	return c.json(settings);
 });
+
+function isSafeSettingInteger(value: string, minimum: number): boolean {
+	if (typeof value !== 'string' || !/^-?\d+$/.test(value)) return false;
+	const parsed = Number(value);
+	return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= 1_000_000_000;
+}
 
 /**
  * POST /api/v1/admin/settings/thumbnail — upload instance thumbnail

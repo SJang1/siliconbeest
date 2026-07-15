@@ -88,7 +88,7 @@ describe('account API permissions', () => {
         .bind(new Date().toISOString(), suspended.accountId),
       env.DB.prepare('UPDATE users SET disabled = 1 WHERE account_id = ?1')
         .bind(frozen.accountId),
-      env.DB.prepare('UPDATE users SET approved = 0 WHERE account_id = ?1')
+      env.DB.prepare("UPDATE users SET approved = 0, registration_state = 'pending_approval' WHERE account_id = ?1")
         .bind(pendingApproval.accountId),
       env.DB.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
         .bind(memorial.accountId),
@@ -97,18 +97,20 @@ describe('account API permissions', () => {
     ]);
   });
 
-  it('hides suspended exact resources but preserves frozen, pending-approval, limited, memorial, muted, and blocked canonical profiles', async () => {
+  it('hides suspended and pending-registration resources but preserves frozen, limited, memorial, muted, and blocked canonical profiles', async () => {
     for (const endpoint of [
       `${BASE}/api/v1/accounts/${suspended.accountId}`,
       `${BASE}/api/v1/accounts/lookup?acct=acctpermsuspended`,
       `${BASE}/api/v1/accounts/${suspended.accountId}/statuses`,
       `${BASE}/api/v1/accounts/${suspended.accountId}/followers`,
+      `${BASE}/api/v1/accounts/${pendingApproval.accountId}`,
+      `${BASE}/api/v1/accounts/lookup?acct=acctpermpending`,
     ]) {
       const response = await SELF.fetch(endpoint, { headers: authHeaders(viewer.token) });
       expect(response.status).toBe(404);
     }
 
-    for (const target of [frozen, pendingApproval, moved, muted, reverseBlocked]) {
+    for (const target of [frozen, moved, muted, reverseBlocked]) {
       const response = await SELF.fetch(`${BASE}/api/v1/accounts/${target.accountId}`, {
         headers: authHeaders(viewer.token),
       });

@@ -59,7 +59,7 @@ describe('Authentication & Registration', () => {
   // POST /api/v1/accounts — register
   // -------------------------------------------------------------------
   describe('POST /api/v1/accounts', () => {
-    it('registers a new user (returns confirmation_required)', async () => {
+    it('registers a new user into the confirmation workflow', async () => {
       const res = await SELF.fetch(`${BASE}/api/v1/accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,8 +73,12 @@ describe('Authentication & Registration', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json<Record<string, any>>();
-      expect(body.confirmation_required).toBe(true);
+      const body = await res.json<{
+        registration_required: boolean;
+        registration_state: string;
+      }>();
+      expect(body.registration_required).toBe(true);
+      expect(body.registration_state).toBe('awaiting_confirmation');
     });
 
     it('returns 422 for missing fields', async () => {

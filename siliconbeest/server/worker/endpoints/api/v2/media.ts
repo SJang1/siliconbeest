@@ -222,11 +222,14 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   const newDescription =
     body.description !== undefined ? body.description : row.description;
 
-  await env.DB.prepare(
-    'UPDATE media_attachments SET description = ?1, updated_at = ?2 WHERE id = ?3',
+  const update = await env.DB.prepare(
+    `UPDATE media_attachments
+     SET description = ?1, updated_at = ?2
+     WHERE id = ?3 AND description IS NOT ?1`,
   )
     .bind(newDescription, now, mediaId)
     .run();
+  c.set('contributionApplied', (update.meta?.changes ?? 0) > 0);
 
   const mediaUrl = `https://${domain}/media/${row.file_key}`;
   const previewUrl = row.thumbnail_key

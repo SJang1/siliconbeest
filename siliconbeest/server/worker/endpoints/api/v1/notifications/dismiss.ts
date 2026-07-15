@@ -10,7 +10,8 @@ app.post('/:id/dismiss', authRequired, requireScope('write:notifications'), asyn
   const account = c.get('currentAccount')!;
   const id = c.req.param('id');
 
-  await dismissNotification(id, account.id);
+  const changed = await dismissNotification(id, account.id);
+  c.set('contributionApplied', changed);
 
   return c.json({});
 });

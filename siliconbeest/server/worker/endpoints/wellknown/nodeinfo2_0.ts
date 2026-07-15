@@ -12,6 +12,7 @@ import { env } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import type { AppVariables } from '../../types';
 import { SILICONBEEST_VERSION } from '../../version';
+import { getSetting } from '../../services/instance';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -50,7 +51,10 @@ async function getStats(): Promise<NodeInfoStats> {
 // GET /nodeinfo/2.0
 app.get('/2.0', async (c) => {
 	const stats = await getStats();
-	const registrationOpen = (env.REGISTRATION_MODE as string) === 'open';
+	const registrationMode = await getSetting('registration_mode').catch(() => null)
+		|| env.REGISTRATION_MODE
+		|| 'closed';
+	const registrationOpen = registrationMode === 'open' || registrationMode === 'approval';
 
 	return c.json(
 		{

@@ -41,6 +41,7 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
     currentAccount.username,
     statusId,
   );
+  c.set('contributionApplied', created);
 
   if (!created) {
     // Return the existing reblog

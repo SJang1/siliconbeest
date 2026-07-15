@@ -2,7 +2,20 @@
   "confirmation_subject": "이메일 인증 - {title}",
   "confirmation_heading": "이메일 인증 - {title}",
   "confirmation_body": "아래 링크를 클릭하여 이메일 주소를 인증해 주세요:",
-  "confirmation_expiry": "이 링크는 24시간 후에 만료됩니다.",
+  "confirmation_code": "인증 코드: {code}",
+  "confirmation_code_help": "가입 페이지에 이 코드를 입력하거나 아래 링크를 이용하세요.",
+  "confirmation_expiry": "이 코드와 링크는 60분 후에 만료됩니다.",
+  "confirmation_page_title": "이메일 확인",
+  "confirmation_page_body": "계정을 활성화하려면 이메일 주소 확인을 계속하세요.",
+  "confirmation_page_action": "이메일 확인",
+  "confirmation_invalid_title": "만료되었거나 유효하지 않은 토큰",
+  "confirmation_invalid_body": "이 확인 링크는 만료되었거나 이미 사용되었습니다. 확인 이메일을 다시 요청해 주세요.",
+  "confirmation_missing_token": "확인 토큰이 제공되지 않았습니다.",
+
+  "registration_ready_subject": "{title} 가입을 계속해 주세요",
+  "registration_ready_heading": "가입 절차를 계속할 수 있습니다",
+  "registration_ready_body": "로그인한 뒤 가입 내용을 확인하고 절차를 완료해 주세요.",
+  "registration_ready_action": "가입 계속하기",
 
   "password_reset_subject": "비밀번호 재설정",
   "password_reset_heading": "비밀번호 재설정",
@@ -11,7 +24,7 @@
 
   "welcome_subject": "{title}에 오신 것을 환영합니다!",
   "welcome_heading": "{title}에 오신 것을 환영합니다!",
-  "welcome_body": "회원님의 계정이 승인되었습니다.",
+  "welcome_body": "가입이 완료되어 계정이 정상적으로 활성화되었습니다.",
 
   "rejection_subject": "가입 심사 결과",
   "rejection_heading": "가입 심사 결과",

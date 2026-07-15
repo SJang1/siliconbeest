@@ -227,7 +227,7 @@ export async function favouriteStatus(
 export async function unfavouriteStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
+): Promise<boolean> {
   const existing = await env.DB
     .prepare('SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
@@ -238,7 +238,9 @@ export async function unfavouriteStatus(
       env.DB.prepare('DELETE FROM favourites WHERE id = ?1').bind(existing.id as string),
       env.DB.prepare('UPDATE statuses SET favourites_count = MAX(0, favourites_count - 1) WHERE id = ?1').bind(statusId),
     ]);
+    return true;
   }
+  return false;
 }
 
 // ----------------------------------------------------------------
@@ -380,7 +382,7 @@ export async function unreblogStatus(
 export async function bookmarkStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
+): Promise<boolean> {
   const existing = await env.DB
     .prepare('SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
@@ -393,7 +395,9 @@ export async function bookmarkStatus(
       .prepare('INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
       .bind(id, accountId, statusId, now)
       .run();
+    return true;
   }
+  return false;
 }
 
 // ----------------------------------------------------------------
@@ -403,11 +407,12 @@ export async function bookmarkStatus(
 export async function unbookmarkStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
-  await env.DB
+): Promise<boolean> {
+  const result = await env.DB
     .prepare('DELETE FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .run();
+  return (result.meta.changes ?? 0) === 1;
 }
 
 // ----------------------------------------------------------------
@@ -1155,12 +1160,13 @@ export async function editStatus(
 export async function pinStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
+): Promise<boolean> {
   const status = await env.DB.prepare(
-    `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id
+    `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id, pinned
      FROM statuses WHERE id = ?1 LIMIT 1`,
-  ).bind(statusId).first<StatusMutationPermissionRecord>();
+  ).bind(statusId).first<StatusMutationPermissionRecord & { pinned: number | null }>();
   assertStatusMutationAllowedForRecord(status, accountId, 'pin');
+  if (status?.pinned === 1) return false;
 
   const pinned = await env.DB.prepare(
     `UPDATE statuses SET pinned = 1
@@ -1174,6 +1180,7 @@ export async function pinStatus(
   if ((pinned.meta?.changes ?? 0) !== 1) {
     throw new AppError(404, 'Record not found');
   }
+  return true;
 }
 
 // ----------------------------------------------------------------
@@ -1183,12 +1190,13 @@ export async function pinStatus(
 export async function unpinStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
+): Promise<boolean> {
   const status = await env.DB.prepare(
-    `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id
+    `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id, pinned
      FROM statuses WHERE id = ?1 LIMIT 1`,
-  ).bind(statusId).first<StatusMutationPermissionRecord>();
+  ).bind(statusId).first<StatusMutationPermissionRecord & { pinned: number | null }>();
   assertStatusMutationAllowedForRecord(status, accountId, 'unpin');
+  if (status?.pinned !== 1) return false;
 
   const unpinned = await env.DB.prepare(
     `UPDATE statuses SET pinned = 0
@@ -1200,6 +1208,7 @@ export async function unpinStatus(
   if ((unpinned.meta?.changes ?? 0) !== 1) {
     throw new AppError(404, 'Record not found');
   }
+  return true;
 }
 
 // ----------------------------------------------------------------
@@ -1209,20 +1218,14 @@ export async function unpinStatus(
 export async function muteStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
-  const existing = await env.DB
-    .prepare('SELECT id FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
-    .bind(accountId, statusId)
-    .first();
-
-  if (!existing) {
-    const now = new Date().toISOString();
-    const id = generateUlid();
-    await env.DB
-      .prepare('INSERT INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
-      .bind(id, accountId, statusId, now)
-      .run();
-  }
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const id = generateUlid();
+  const inserted = await env.DB
+    .prepare('INSERT OR IGNORE INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+    .bind(id, accountId, statusId, now)
+    .run();
+  return (inserted.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -1232,11 +1235,12 @@ export async function muteStatus(
 export async function unmuteStatus(
   accountId: string,
   statusId: string,
-): Promise<void> {
-  await env.DB
+): Promise<boolean> {
+  const removed = await env.DB
     .prepare('DELETE FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .run();
+  return (removed.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------

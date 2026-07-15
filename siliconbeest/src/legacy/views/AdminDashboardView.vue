@@ -55,6 +55,19 @@ const stats = computed(() => {
   ]
 })
 
+const registrationModeLabel = computed(() => {
+  const registrations = instanceStore.instance?.registrations
+  if (!registrations) return ''
+  if (registrations.mode === 'referral') return t('admin.registrationMode.referral')
+  if (registrations.mode === 'closed') return t('admin.registrationMode.closed')
+  if (registrations.mode === 'approval') return t('admin.registrationMode.approval')
+  if (registrations.mode === 'open') return t('admin.registrationMode.open')
+  if (!registrations.enabled) return t('admin.registrationMode.closed')
+  return registrations.approval_required
+    ? t('admin.registrationMode.approval')
+    : t('admin.registrationMode.open')
+})
+
 const colorClasses: Record<string, string> = {
   indigo: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
   green: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
@@ -105,7 +118,7 @@ const colorClasses: Record<string, string> = {
         <div class="flex justify-between">
           <dt class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.registrations') }}</dt>
           <dd class="text-sm font-medium text-gray-900 dark:text-white">
-            {{ !instanceStore.instance.registrations.enabled ? t('admin.registrationMode.closed') : instanceStore.instance.registrations.approval_required ? t('admin.registrationMode.approval') : t('admin.registrationMode.open') }}
+            {{ registrationModeLabel }}
           </dd>
         </div>
       </dl>

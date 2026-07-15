@@ -506,7 +506,7 @@ export async function removeFollow(
 export async function createBlock(
 	accountId: string,
 	targetId: string,
-): Promise<void> {
+): Promise<boolean> {
 	await assertAccountRelationshipMutable(accountId, targetId);
 
 	const existing = await env.DB
@@ -520,7 +520,7 @@ export async function createBlock(
 	// Blocking tears down both relationship directions and their derived counts.
 	// Conditional count updates run before deletion so idempotent re-blocks do
 	// not drift counters.
-	await env.DB.batch([
+	const results = await env.DB.batch([
 		env.DB
 			.prepare('INSERT OR IGNORE INTO blocks (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
 			.bind(id, accountId, targetId, now),
@@ -568,17 +568,20 @@ export async function createBlock(
 			    OR (account_id = ?2 AND target_account_id = ?1)`,
 		).bind(accountId, targetId),
 	]);
+
+	return results.some((result) => (result.meta?.changes ?? 0) > 0);
 }
 
 // ----------------------------------------------------------------
 // Remove block
 // ----------------------------------------------------------------
 
-export async function removeBlock(accountId: string, targetId: string): Promise<void> {
-	await env.DB
+export async function removeBlock(accountId: string, targetId: string): Promise<boolean> {
+	const removed = await env.DB
 		.prepare('DELETE FROM blocks WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
+	return (removed.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -590,31 +593,39 @@ export async function createMute(
 	targetId: string,
 	notifications: boolean = true,
 	expiresAt: string | null = null,
-): Promise<void> {
+): Promise<boolean> {
 	await assertAccountRelationshipMutable(accountId, targetId);
 
 	const hideNotifications = notifications ? 1 : 0;
 	const now = new Date().toISOString();
 
 	const existing = await env.DB
-		.prepare('SELECT id FROM mutes WHERE account_id = ?1 AND target_account_id = ?2')
+		.prepare(
+			`SELECT id, hide_notifications, expires_at FROM mutes
+			 WHERE account_id = ?1 AND target_account_id = ?2`,
+		)
 		.bind(accountId, targetId)
-		.first();
+		.first<{ id: string; hide_notifications: number; expires_at: string | null }>();
 
 	if (existing) {
-		await env.DB
+		if (existing.hide_notifications === hideNotifications && existing.expires_at === expiresAt) {
+			return false;
+		}
+		const updated = await env.DB
 			.prepare('UPDATE mutes SET hide_notifications = ?1, expires_at = ?2, updated_at = ?3 WHERE id = ?4')
-			.bind(hideNotifications, expiresAt, now, existing.id as string)
+			.bind(hideNotifications, expiresAt, now, existing.id)
 			.run();
+		return (updated.meta?.changes ?? 0) > 0;
 	} else {
 		const id = generateUlid();
-		await env.DB
+		const inserted = await env.DB
 			.prepare(
 				`INSERT INTO mutes (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
 			)
 			.bind(id, accountId, targetId, hideNotifications, expiresAt, now)
 			.run();
+		return (inserted.meta?.changes ?? 0) > 0;
 	}
 }
 
@@ -622,11 +633,12 @@ export async function createMute(
 // Remove mute
 // ----------------------------------------------------------------
 
-export async function removeMute(accountId: string, targetId: string): Promise<void> {
-	await env.DB
+export async function removeMute(accountId: string, targetId: string): Promise<boolean> {
+	const removed = await env.DB
 		.prepare('DELETE FROM mutes WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
+	return (removed.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -737,25 +749,29 @@ export async function setAccountNote(
 	accountId: string,
 	targetId: string,
 	comment: string,
-): Promise<void> {
+): Promise<boolean> {
 	const target = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
 	if (!target) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
 	if (comment) {
-		await env.DB
+		const saved = await env.DB
 			.prepare(
 				`INSERT INTO account_notes (id, account_id, target_account_id, comment, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-				 ON CONFLICT(account_id, target_account_id) DO UPDATE SET comment = ?4, updated_at = ?6`,
+				 ON CONFLICT(account_id, target_account_id) DO UPDATE
+				 SET comment = excluded.comment, updated_at = excluded.updated_at
+				 WHERE account_notes.comment IS NOT excluded.comment`,
 			)
 			.bind(generateUlid(), accountId, targetId, comment, now, now)
 			.run();
+		return (saved.meta?.changes ?? 0) > 0;
 	} else {
-		await env.DB
+		const removed = await env.DB
 			.prepare('DELETE FROM account_notes WHERE account_id = ?1 AND target_account_id = ?2')
 			.bind(accountId, targetId)
 			.run();
+		return (removed.meta?.changes ?? 0) > 0;
 	}
 }
 
@@ -766,7 +782,7 @@ export async function setAccountNote(
 export async function pinAccount(
 	accountId: string,
 	targetId: string,
-): Promise<void> {
+): Promise<boolean> {
 	await assertAccountFeatureable(accountId, targetId);
 
 	const existing = await env.DB
@@ -774,13 +790,14 @@ export async function pinAccount(
 		.bind(accountId, targetId)
 		.first();
 
-	if (!existing) {
-		const now = new Date().toISOString();
-		await env.DB
-			.prepare('INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
-			.bind(generateUlid(), accountId, targetId, now)
-			.run();
-	}
+	if (existing) return false;
+
+	const now = new Date().toISOString();
+	const inserted = await env.DB
+		.prepare('INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
+		.bind(generateUlid(), accountId, targetId, now)
+		.run();
+	return (inserted.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -795,7 +812,7 @@ export async function pinAccount(
 export async function removeFollower(
 	accountId: string,
 	targetId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const target = await env.DB.prepare(
 		'SELECT id FROM accounts WHERE id = ?1 LIMIT 1',
 	).bind(targetId).first<{ id: string }>();
@@ -806,7 +823,7 @@ export async function removeFollower(
 		 WHERE account_id = ?1 AND target_account_id = ?2
 		 LIMIT 1`,
 	).bind(targetId, accountId).first<{ id: string }>();
-	if (!follow) return;
+	if (!follow) return false;
 
 	await env.DB.batch([
 		env.DB.prepare('DELETE FROM follows WHERE id = ?1').bind(follow.id),
@@ -817,6 +834,7 @@ export async function removeFollower(
 			'UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1',
 		).bind(targetId),
 	]);
+	return true;
 }
 
 // ----------------------------------------------------------------
@@ -826,11 +844,12 @@ export async function removeFollower(
 export async function unpinAccount(
 	accountId: string,
 	targetId: string,
-): Promise<void> {
-	await env.DB
+): Promise<boolean> {
+	const removed = await env.DB
 		.prepare('DELETE FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
+	return (removed.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------
@@ -856,35 +875,41 @@ export async function getAliases(accountId: string): Promise<string[]> {
  * Add an alias to an account's also_known_as list.
  * Returns the updated alias list.
  */
-export async function addAlias(accountId: string, actorUri: string): Promise<string[]> {
+export type AliasMutationResult = {
+	aliases: string[];
+	changed: boolean;
+};
+
+export async function addAlias(accountId: string, actorUri: string): Promise<AliasMutationResult> {
 	const aliases = await getAliases(accountId);
 
-	if (aliases.includes(actorUri)) return aliases;
+	if (aliases.includes(actorUri)) return { aliases, changed: false };
 
 	aliases.push(actorUri);
 
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	const updated = await env.DB.prepare(
 		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
 	).bind(JSON.stringify(aliases), now, accountId).run();
 
-	return aliases;
+	return { aliases, changed: (updated.meta?.changes ?? 0) > 0 };
 }
 
 /**
  * Remove an alias from an account's also_known_as list.
  * Returns the updated alias list.
  */
-export async function removeAlias(accountId: string, alias: string): Promise<string[]> {
+export async function removeAlias(accountId: string, alias: string): Promise<AliasMutationResult> {
 	const aliases = await getAliases(accountId);
 	const filtered = aliases.filter((a) => a !== alias);
+	if (filtered.length === aliases.length) return { aliases, changed: false };
 
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	const updated = await env.DB.prepare(
 		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
 	).bind(filtered.length > 0 ? JSON.stringify(filtered) : null, now, accountId).run();
 
-	return filtered;
+	return { aliases: filtered, changed: (updated.meta?.changes ?? 0) > 0 };
 }
 
 // ----------------------------------------------------------------
@@ -908,11 +933,13 @@ export async function getAccountUri(
 export async function setMovedTo(
 	accountId: string,
 	targetAccountId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
-		'UPDATE accounts SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?3 WHERE id = ?4',
+	const updated = await env.DB.prepare(
+		`UPDATE accounts SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?3
+		 WHERE id = ?4 AND moved_to_account_id IS NOT ?1`,
 	).bind(targetAccountId, now, now, accountId).run();
+	return (updated.meta?.changes ?? 0) > 0;
 }
 
 // ----------------------------------------------------------------

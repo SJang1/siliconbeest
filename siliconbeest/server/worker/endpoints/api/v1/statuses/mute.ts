@@ -23,7 +23,8 @@ app.post('/:id/mute', authRequired, requireScope('write:mutes'), async (c) => {
   if (!row) throw new AppError(404, 'Record not found');
   await assertStatusViewable(statusId, currentAccountId);
 
-  await muteStatus(currentAccountId, statusId);
+  const changed = await muteStatus(currentAccountId, statusId);
+  c.set('contributionApplied', changed);
 
   const status = await serializeStatusEnriched(row as Record<string, unknown>, domain, currentAccountId, env.CACHE);
   status.muted = true;

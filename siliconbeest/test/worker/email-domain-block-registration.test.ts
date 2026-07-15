@@ -52,7 +52,7 @@ describe('Email domain block registration check', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json<Record<string, any>>();
-    expect(body.confirmation_required).toBe(true);
+    const body = await res.json<{ registration_required?: boolean }>();
+    expect(body.registration_required).toBe(true);
   });
 });
