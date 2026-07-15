@@ -187,6 +187,72 @@ describe('contribution scoring', () => {
 		});
 	});
 
+	it('immediately reconciles already-earned tiers when an administrator enables awards', async () => {
+		await adjustContributionScore({
+			targetAccountId: member.accountId,
+			actorAccountId: admin.accountId,
+			delta: 250,
+			reason: 'Seed disabled contribution balance',
+		});
+		expect(await getBalance(member.accountId)).toMatchObject({
+			available_credits: 0,
+			contribution_score: 250,
+			contribution_award_level: 0,
+		});
+
+		const enabled = await SELF.fetch(`${BASE}/api/v1/admin/settings`, {
+			method: 'PATCH',
+			headers: authHeaders(admin.token),
+			body: JSON.stringify({ invite_contribution_enabled: '1' }),
+		});
+		expect(enabled.status).toBe(200);
+		expect(await getBalance(member.accountId)).toMatchObject({
+			available_credits: 2,
+			contribution_score: 250,
+			contribution_award_level: 2,
+		});
+		expect((await getAudits(member.accountId)).map((audit) => audit.action))
+			.toContain('contribution.tier_awarded');
+	});
+
+	it('keeps the lifetime paid award level when the threshold increases', async () => {
+		await setContributionSettings({
+			invite_contribution_enabled: '1',
+			invite_contribution_threshold: '100',
+			invite_contribution_points_status_create: '500',
+		});
+		await recordContributionEvent(member.accountId, 'status_create');
+		expect(await getBalance(member.accountId)).toMatchObject({
+			available_credits: 5,
+			contribution_score: 500,
+			contribution_award_level: 5,
+		});
+
+		await setContributionSettings({ invite_contribution_threshold: '1000' });
+		const belowNextLifetimeTier = await adjustContributionScore({
+			targetAccountId: member.accountId,
+			actorAccountId: admin.accountId,
+			delta: 5000,
+		});
+		expect(belowNextLifetimeTier).toMatchObject({
+			availableCredits: 5,
+			contributionScore: 5500,
+			contributionAwardLevel: 5,
+			creditsAwarded: 0,
+		});
+		const nextLifetimeTier = await adjustContributionScore({
+			targetAccountId: member.accountId,
+			actorAccountId: admin.accountId,
+			delta: 500,
+		});
+		expect(nextLifetimeTier).toMatchObject({
+			availableCredits: 6,
+			contributionScore: 6000,
+			contributionAwardLevel: 6,
+			creditsAwarded: 1,
+		});
+	});
+
 	it('records an admin adjustment while automatic scoring is disabled', async () => {
 		const result = await adjustContributionScore({
 			targetAccountId: member.accountId,
