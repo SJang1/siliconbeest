@@ -1,14 +1,15 @@
 import { execSync } from 'node:child_process';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 
 import tailwindcss from '@tailwindcss/vite';
+import { transformWithEsbuild } from 'vite';
 import { SILICONBEEST_BASE_VERSION } from './server/worker/version';
 
 const INSTANCE_TITLE = process.env.INSTANCE_TITLE;
 const STREAMING_DO_SOURCE = fileURLToPath(
-  new URL('./server/worker/durableObjects/streaming-do.module.mjs', import.meta.url),
+  new URL('./server/worker/durableObjects/streaming.ts', import.meta.url),
 );
 const CLOUDFLARE_ENTRY = fileURLToPath(new URL('./server/cloudflare-entry.ts', import.meta.url));
 
@@ -80,7 +81,17 @@ export default defineNuxtConfig({
         const entryPath = join(serverDir, 'index.mjs');
 
         await mkdir(chunkDir, { recursive: true });
-        await copyFile(STREAMING_DO_SOURCE, chunkPath);
+        const streamingDoSource = await readFile(STREAMING_DO_SOURCE, 'utf8');
+        const transformedStreamingDo = await transformWithEsbuild(
+          streamingDoSource,
+          STREAMING_DO_SOURCE,
+          {
+            loader: 'ts',
+            format: 'esm',
+            target: 'es2022',
+          },
+        );
+        await writeFile(chunkPath, transformedStreamingDo.code);
 
         const entry = await readFile(entryPath, 'utf-8');
         const actorExport = [

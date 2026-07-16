@@ -11,6 +11,9 @@ export default defineConfig({
         d1Databases: ['DB'],
         r2Buckets: ['MEDIA_BUCKET'],
         kvNamespaces: ['CACHE', 'SESSIONS', 'FEDIFY_KV'],
+        durableObjects: {
+          STREAMING_DO: 'StreamingDO',
+        },
         queueProducers: {
           QUEUE_FEDERATION: { queueName: 'siliconbeest-federation' },
           QUEUE_INTERNAL: { queueName: 'siliconbeest-internal' },
