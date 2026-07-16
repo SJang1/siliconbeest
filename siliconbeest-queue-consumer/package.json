@@ -6,7 +6,7 @@
 		"deploy": "pnpm wrangler deploy",
 		"dev": "pnpm wrangler dev",
 		"start": "pnpm wrangler dev",
-		"cf-typegen": "pnpm wrangler types",
+		"cf-typegen": "pnpm wrangler types -c wrangler.jsonc -c ../siliconbeest/wrangler.rpc-typegen.jsonc",
 		"test": "vitest run"
 	},
 	"devDependencies": {

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   env: {
     DB: {},
-    WORKER: { fetch: vi.fn() },
+    INTERNAL: { sendStreamEvent: vi.fn() },
   },
 }));
 
@@ -12,7 +12,7 @@ vi.mock('cloudflare:workers', () => ({ env: mocks.env }));
 import { sendStreamEvent } from '../../siliconbeest/server/worker/services/streaming';
 
 beforeEach(() => {
-  mocks.env.WORKER.fetch.mockReset();
+  mocks.env.INTERNAL.sendStreamEvent.mockReset();
   delete (mocks.env as Record<string, unknown>).STREAMING_DO;
 });
 
@@ -32,36 +32,29 @@ describe('streaming transport', () => {
     expect(idFromName).toHaveBeenCalledWith('user-1');
     expect(get).toHaveBeenCalledWith('do-id');
     expect(stub.fetch).toHaveBeenCalledTimes(1);
-    expect(mocks.env.WORKER.fetch).not.toHaveBeenCalled();
+    expect(mocks.env.INTERNAL.sendStreamEvent).not.toHaveBeenCalled();
   });
 
   it('routes events through the main Worker service binding', async () => {
-    mocks.env.WORKER.fetch.mockResolvedValue(new Response(null, { status: 204 }));
+    mocks.env.INTERNAL.sendStreamEvent.mockResolvedValue(undefined);
 
-    await sendStreamEvent('user-1', {
+    const event = {
       event: 'reaction',
       payload: JSON.stringify({ status_id: 'status-1' }),
       stream: ['user'],
-    });
+    };
+    await sendStreamEvent('user-1', event);
 
-    expect(mocks.env.WORKER.fetch).toHaveBeenCalledTimes(1);
-    const request = mocks.env.WORKER.fetch.mock.calls[0][0] as Request;
-    expect(request.url).toBe('http://internal/internal/stream-event');
-    expect(request.method).toBe('POST');
-    await expect(request.json()).resolves.toEqual({
-      userId: 'user-1',
-      event: 'reaction',
-      payload: JSON.stringify({ status_id: 'status-1' }),
-      stream: ['user'],
-    });
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledWith('user-1', event);
   });
 
-  it('reports a failed main Worker response', async () => {
-    mocks.env.WORKER.fetch.mockResolvedValue(new Response(null, { status: 503 }));
+  it('propagates a failed main Worker RPC', async () => {
+    mocks.env.INTERNAL.sendStreamEvent.mockRejectedValue(new Error('Streaming RPC failed'));
 
     await expect(sendStreamEvent('user-1', {
       event: 'reaction',
       payload: '{}',
-    })).rejects.toThrow('Streaming service returned 503');
+    })).rejects.toThrow('Streaming RPC failed');
   });
 });

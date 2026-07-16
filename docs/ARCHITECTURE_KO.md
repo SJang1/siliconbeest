@@ -149,7 +149,7 @@ SiliconBeest는 공유 데이터 저장소와 큐를 통해 협력하는 3개의
 **주요 바인딩:**
 - `DB` (D1), `MEDIA_BUCKET` (R2), `CACHE` (KV) -- API Worker와 동일한 리소스
 - `QUEUE_FEDERATION` + `QUEUE_INTERNAL` -- 소비자와 생산자 모두 (재큐잉 용)
-- `WORKER` (서비스 바인딩) -- Durable Object 접근을 위해 API Worker 호출
+- `INTERNAL` (서비스 바인딩) -- Durable Object 접근을 위해 메인 Worker의 비공개 `Internal` RPC 엔트리포인트 호출
 
 **큐 설정:**
 - 연합 큐: 최대 5회 재시도, Dead Letter Queue (`siliconbeest-federation-dlq`)
@@ -1721,7 +1721,7 @@ SiliconBeest는 비용을 낮추기 위해 Cloudflare Containers를 사용하지
 | `CACHE` | KV Namespace | (ID별) |
 | `QUEUE_FEDERATION` | Queue Producer/Consumer | `siliconbeest-federation` |
 | `QUEUE_INTERNAL` | Queue Producer/Consumer | `siliconbeest-internal` |
-| `WORKER` | Service Binding | `siliconbeest-worker` |
+| `INTERNAL` | Service Binding (RPC) | `siliconbeest` / `Internal` 엔트리포인트 |
 
 #### Vue 프론트엔드 (`siliconbeest-vue/wrangler.jsonc`)
 

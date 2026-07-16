@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r --if-present build",
-    "deploy": "pnpm -r --if-present deploy",
+    "deploy": "pnpm --filter siliconbeest-vue deploy && pnpm --filter siliconbeest-queue-consumer deploy && pnpm --filter siliconbeest-email-sender deploy",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm -r --if-present lint"
   },

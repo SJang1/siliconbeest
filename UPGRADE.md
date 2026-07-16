@@ -85,9 +85,13 @@ curl -A "Twitterbot/1.0" https://YOUR_DOMAIN/@YOUR_USERNAME
 ### 6. Queue Consumer 업데이트
 ```bash
 cd siliconbeest-queue-consumer
-# wrangler.jsonc의 services[0].service를 "siliconbeest"로 변경
+# wrangler.jsonc의 service binding을 다음처럼 변경
+# { "binding": "INTERNAL", "service": "siliconbeest", "entrypoint": "Internal" }
 pnpm exec wrangler deploy
 ```
+
+메인 Worker를 먼저 배포한 뒤 Queue Consumer를 배포해야 named entrypoint가
+항상 존재합니다.
 
 ### 7. 기존 Workers 삭제
 ```bash
@@ -110,7 +114,7 @@ pnpm exec wrangler delete -n siliconbeest-worker
 - **VAPID 키**: 이제 DB settings 테이블에서만 조회됩니다. Admin 설정 페이지에서 VAPID 키가 설정되어 있는지 확인하세요.
 - **OTP_ENCRYPTION_KEY**: 현재 코드에서 사용하지 않지만, 향후 2FA 구현 시 필요합니다.
 - **siliconbeest-worker/ 디렉토리**: 이전 아키텍처의 디렉토리입니다. 통합 후에는 삭제되었습니다.
-- **Queue Consumer**: `WORKER` service binding이 새 Worker 이름(`siliconbeest`)을 가리키도록 반드시 업데이트하세요. 안 하면 Push 알림, 스트리밍이 안 됩니다.
+- **Queue Consumer**: `INTERNAL` service binding이 새 Worker(`siliconbeest`)의 `Internal` 엔트리포인트를 가리키도록 반드시 업데이트하세요. 안 하면 Push 알림, 스트리밍이 안 됩니다.
 
 ## 새 환경에서 처음부터 배포 (Zero-State)
 

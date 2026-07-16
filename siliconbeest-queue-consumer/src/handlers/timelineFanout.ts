@@ -13,6 +13,7 @@ import {
   canBroadcastStatusToPublicStreams,
   canFanOutStatus,
 } from '../../../packages/shared/permissions';
+import { sendStreamEvent } from '../../../siliconbeest/server/worker/services/streaming';
 
 export async function handleTimelineFanout(
   msg: TimelineFanoutMessage,
@@ -234,18 +235,11 @@ export async function handleTimelineFanout(
         const statusPayload = await payloadPromise;
         if (!statusPayload) return;
 
-        await env.WORKER.fetch(
-          new Request('http://internal/internal/stream-event', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user.id,
-              event: 'update',
-              payload: statusPayload,
-              stream: ['user'],
-            }),
-          }),
-        ).catch((err) => {
+        await sendStreamEvent(user.id, {
+          event: 'update',
+          payload: statusPayload,
+          stream: ['user'],
+        }).catch((err) => {
           console.error(`Failed to send stream event to user ${user.id}:`, err);
         });
       });
@@ -288,18 +282,11 @@ export async function handleTimelineFanout(
     if (statusCheck.author_domain === null) publicStreams.push('public:local');
 
     console.log(`Broadcasting to public streams: ${publicStreams.join(', ')} for status ${statusId}`);
-    await env.WORKER.fetch(
-      new Request('http://internal/internal/stream-event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: '__public__',
-          event: 'update',
-          payload: publicStatusPayload,
-          stream: publicStreams,
-        }),
-      }),
-    ).catch((err) => {
+    await sendStreamEvent('__public__', {
+      event: 'update',
+      payload: publicStatusPayload,
+      stream: publicStreams,
+    }).catch((err) => {
       console.error(`Failed to broadcast to public streams:`, err);
     });
   }

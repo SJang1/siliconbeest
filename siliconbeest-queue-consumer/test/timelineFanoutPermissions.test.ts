@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
       prepare: vi.fn(),
       batch: vi.fn(),
     },
-    WORKER: { fetch: vi.fn() },
+    INTERNAL: { sendStreamEvent: vi.fn() },
     INSTANCE_DOMAIN: 'local.example',
   },
   buildStatusStreamingPayload: vi.fn(),
@@ -110,8 +110,8 @@ beforeEach(() => {
   mocks.env.DB.prepare.mockReset();
   mocks.env.DB.batch.mockReset();
   mocks.env.DB.batch.mockResolvedValue([]);
-  mocks.env.WORKER.fetch.mockReset();
-  mocks.env.WORKER.fetch.mockResolvedValue(new Response(null, { status: 202 }));
+  mocks.env.INTERNAL.sendStreamEvent.mockReset();
+  mocks.env.INTERNAL.sendStreamEvent.mockResolvedValue(undefined);
   mocks.buildStatusStreamingPayload.mockReset();
   mocks.buildStatusStreamingPayload.mockResolvedValue('{"id":"status-1"}');
   configureDatabase();
@@ -160,7 +160,7 @@ describe('timeline fanout permission binding', () => {
       expect(mocks.bindings[0]).toEqual(['status-1']);
       expect(mocks.env.DB.batch).not.toHaveBeenCalled();
       expect(mocks.buildStatusStreamingPayload).not.toHaveBeenCalled();
-      expect(mocks.env.WORKER.fetch).not.toHaveBeenCalled();
+      expect(mocks.env.INTERNAL.sendStreamEvent).not.toHaveBeenCalled();
     },
   );
 
@@ -184,7 +184,7 @@ describe('timeline fanout permission binding', () => {
       { kind: 'account', accountId: 'follower-account' },
     );
     expect(mocks.buildStatusStreamingPayload).toHaveBeenCalledTimes(1);
-    expect(mocks.env.WORKER.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledTimes(2);
   });
 
   it('filters recipients blocked by the author even when the follow row is stale', async () => {
@@ -233,7 +233,7 @@ describe('timeline fanout permission binding', () => {
       'follower-account',
     ]);
     expect(mocks.env.DB.batch).not.toHaveBeenCalled();
-    expect(mocks.env.WORKER.fetch).not.toHaveBeenCalled();
+    expect(mocks.env.INTERNAL.sendStreamEvent).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -253,7 +253,7 @@ describe('timeline fanout permission binding', () => {
 
     expect(mocks.queries[1]).toContain(clause);
     expect(mocks.env.DB.batch).not.toHaveBeenCalled();
-    expect(mocks.env.WORKER.fetch).not.toHaveBeenCalled();
+    expect(mocks.env.INTERNAL.sendStreamEvent).not.toHaveBeenCalled();
   });
 
   it('rechecks recipient operational state in follower and stream lookups', async () => {
@@ -300,7 +300,7 @@ describe('timeline fanout permission binding', () => {
     });
 
     expect(mocks.env.DB.batch).not.toHaveBeenCalled();
-    expect(mocks.env.WORKER.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledTimes(2);
     expect(mocks.streamUserRows.map((row) => row.account_id)).toEqual([
       'follower-account',
       'author-account',
@@ -326,10 +326,10 @@ describe('timeline fanout permission binding', () => {
       'local.example',
       { kind: 'public' },
     );
-    expect(mocks.env.WORKER.fetch).toHaveBeenCalledTimes(1);
-    const request = mocks.env.WORKER.fetch.mock.calls[0]?.[0] as Request;
-    await expect(request.json()).resolves.toMatchObject({
-      userId: '__public__',
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.env.INTERNAL.sendStreamEvent).toHaveBeenCalledWith('__public__', {
+      event: 'update',
+      payload: '{"id":"status-1"}',
       stream: ['public'],
     });
   });
@@ -348,14 +348,13 @@ describe('timeline fanout permission binding', () => {
     });
 
     expect(mocks.buildStatusStreamingPayload).toHaveBeenCalledTimes(3);
-    const requestBodies = await Promise.all(
-      mocks.env.WORKER.fetch.mock.calls.map(async ([request]) =>
-        (request as Request).json() as Promise<{
-          userId: string;
-          payload: string;
-        }>),
+    const rpcCalls = mocks.env.INTERNAL.sendStreamEvent.mock.calls.map(
+      ([userId, event]) => ({
+        userId: userId as string,
+        payload: (event as { payload: string }).payload,
+      }),
     );
-    expect(requestBodies).toEqual(expect.arrayContaining([
+    expect(rpcCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({
         userId: 'follower-user',
         payload: '{"audience":"follower-account"}',

@@ -1,0 +1,10 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+
+	// Type generation only. Runtime deployments use wrangler.jsonc and the
+	// Nitro-built .output/server/index.mjs entrypoint.
+	"name": "siliconbeest",
+	"main": "server/worker/internal-typegen.ts",
+	"compatibility_date": "2026-06-16",
+	"compatibility_flags": ["nodejs_compat"]
+}

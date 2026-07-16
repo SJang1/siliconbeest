@@ -25,7 +25,6 @@ const WORKER_PREFIXES = [
   '/default-avatar.svg',
   '/default-header.svg',
   '/pwa-icon',
-  '/internal/',
 ];
 
 function appendHeaderValue(existing: string | null, value: string): string {
@@ -114,6 +113,10 @@ export default defineEventHandler(async (event) => {
   const request = toWebRequest(event);
   const url = new URL(request.url);
   const db = event.context.cloudflare?.env?.DB as D1Database | undefined;
+
+  if (url.pathname === '/internal' || url.pathname.startsWith('/internal/')) {
+    return new Response(null, { status: 404 });
+  }
 
   if (isWorkerPath(url.pathname, request)) {
     return app.fetch(request, event.context.cloudflare?.env, event.context.cloudflare?.context);

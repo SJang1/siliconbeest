@@ -91,7 +91,7 @@ The consumer is configured in `wrangler.jsonc`:
 | `CACHE`            | KV      | Cache remote actor/status lookups                            |
 | `QUEUE_FEDERATION` | Queues  | Re-enqueue federation jobs (fanout -> individual deliveries) |
 | `QUEUE_INTERNAL`   | Queues  | Re-enqueue internal jobs                                     |
-| `WORKER`           | Service | Service binding to main worker (for Durable Object access)  |
+| `INTERNAL`         | Service | Named RPC binding to the main worker's private `Internal` entrypoint |
 
 ### Queue Consumer Settings
 
@@ -136,8 +136,12 @@ When a forwarded activity is received (e.g., a reply to a local post from a remo
 
 ```bash
 npm install
+npm run cf-typegen
 npm run dev
 ```
+
+The type-generation command reads the main Worker's `Internal` entrypoint so
+RPC method signatures stay synchronized without requiring a production build.
 
 Note: Queue consumption in local development requires `wrangler dev` to be running for both the main worker and the consumer simultaneously. Messages enqueued by the worker will be delivered to the consumer in the local environment.
 

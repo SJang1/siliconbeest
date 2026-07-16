@@ -5,6 +5,8 @@ import { requestHasBody, runCronTasks } from 'nitropack/runtime/internal';
 import { isPublicAssetURL } from '#nitro-internal-virtual/public-assets';
 import app from './worker/index';
 
+export { Internal } from './worker/internal';
+
 const nitroApp = useNitroApp();
 const ws = import.meta._websocket ? wsAdapter(nitroApp.h3App.websocket) : undefined;
 
@@ -51,6 +53,10 @@ export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const ctxExt = {};
     const url = new URL(request.url);
+
+    if (url.pathname === '/internal' || url.pathname.startsWith('/internal/')) {
+      return new Response(null, { status: 404 });
+    }
 
     if (url.pathname === '/api/v1/streaming') {
       return app.fetch(request, env, context);

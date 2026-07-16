@@ -14,6 +14,8 @@ import {
 } from './activitypub-alternate';
 import { StreamingDO as StreamingDOBase } from './worker/durableObjects/streaming';
 
+export { Internal } from './worker/internal';
+
 // Export a top-level Durable Object class so workerd can register the actor.
 export class StreamingDO extends StreamingDOBase {}
 
@@ -36,7 +38,6 @@ const WORKER_PREFIXES = [
   '/default-avatar.svg',
   '/default-header.svg',
   '/pwa-icon',
-  '/internal/',
 ];
 
 // Paths that are static PWA files — always serve as-is, never SPA fallback
@@ -132,6 +133,10 @@ export default {
   async fetch(request: Request, _env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
+
+    if (pathname === '/internal' || pathname.startsWith('/internal/')) {
+      return new Response(null, { status: 404 });
+    }
 
     // 1. Worker paths → Hono app
     if (isWorkerPath(pathname, request)) {

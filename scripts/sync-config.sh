@@ -517,11 +517,12 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 		]
 	},
 
-	// Service binding to main worker (for Durable Object + streaming)
+	// Capability-scoped RPC binding to the main Worker's private entrypoint
 	"services": [
 		{
-			"binding": "WORKER",
-			"service": "${MAIN_WORKER_NAME}"
+			"binding": "INTERNAL",
+			"service": "${MAIN_WORKER_NAME}",
+			"entrypoint": "Internal"
 		}
 	]
 }

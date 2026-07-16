@@ -83,11 +83,12 @@
 		]
 	},
 
-	// Service binding to main worker (for Durable Object access)
+	// Capability-scoped RPC binding to the main Worker's private entrypoint
 	"services": [
 		{
-			"binding": "WORKER",
-			"service": "siliconbeest"
+			"binding": "INTERNAL",
+			"service": "siliconbeest",
+			"entrypoint": "Internal"
 		}
 	]
 }

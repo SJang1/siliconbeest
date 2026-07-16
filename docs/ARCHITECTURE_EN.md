@@ -149,7 +149,7 @@ A dedicated worker that consumes messages from both queues and processes them as
 **Key bindings:**
 - `DB` (D1), `MEDIA_BUCKET` (R2), `CACHE` (KV) -- same resources as the API worker
 - `QUEUE_FEDERATION` + `QUEUE_INTERNAL` -- both as consumer and producer (for re-enqueue)
-- `WORKER` (Service binding) -- calls back to the API worker for Durable Object access
+- `INTERNAL` (Service binding) -- invokes the main Worker's private `Internal` RPC entrypoint for Durable Object access
 
 **Queue configuration:**
 - Federation queue: max 5 retries, Dead Letter Queue (`siliconbeest-federation-dlq`)
@@ -2399,7 +2399,7 @@ SiliconBeest avoids Cloudflare Containers to keep costs low. This means:
 | `CACHE` | KV Namespace | (by ID) |
 | `QUEUE_FEDERATION` | Queue Producer/Consumer | `siliconbeest-federation` |
 | `QUEUE_INTERNAL` | Queue Producer/Consumer | `siliconbeest-internal` |
-| `WORKER` | Service Binding | `siliconbeest-worker` |
+| `INTERNAL` | Service Binding (RPC) | `siliconbeest` / `Internal` entrypoint |
 
 #### Vue Frontend (`siliconbeest-vue/wrangler.jsonc`)
 

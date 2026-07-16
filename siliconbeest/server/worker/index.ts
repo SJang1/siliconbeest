@@ -583,28 +583,6 @@ app.get('/favicon.ico', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-// Internal — Stream event delivery (called by queue consumer via service binding)
-// ---------------------------------------------------------------------------
-
-app.post('/internal/stream-event', async (c) => {
-  const body = await c.req.json<{
-    userId: string;
-    event: string;
-    payload: string;
-    stream?: string[];
-  }>();
-
-  const { sendStreamEvent } = await import('./services/streaming');
-  await sendStreamEvent(body.userId, {
-    event: body.event,
-    payload: body.payload,
-    stream: body.stream,
-  });
-
-  return c.json({ ok: true });
-});
-
-// ---------------------------------------------------------------------------
 // Fallback — Mastodon-compatible 404
 // ---------------------------------------------------------------------------
 

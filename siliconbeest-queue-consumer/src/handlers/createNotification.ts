@@ -15,6 +15,7 @@ import {
   canDeliverNotification,
   canViewStatus,
 } from '../../../packages/shared/permissions';
+import { sendStreamEvent } from '../../../siliconbeest/server/worker/services/streaming';
 
 interface NotificationPermissionRow {
   recipient_domain: string | null;
@@ -383,20 +384,13 @@ export async function handleCreateNotification(
       }
     }
 
-    // Send to streaming via worker service binding
+    // Send to streaming through the main Worker's internal RPC entrypoint.
     try {
-      await env.WORKER.fetch(
-        new Request('http://internal/internal/stream-event', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: permissionRow.recipient_user_id,
-            event: 'notification',
-            payload: JSON.stringify(notificationPayload),
-            stream: ['user', 'user:notification'],
-          }),
-        }),
-      );
+      await sendStreamEvent(permissionRow.recipient_user_id, {
+        event: 'notification',
+        payload: JSON.stringify(notificationPayload),
+        stream: ['user', 'user:notification'],
+      });
       console.log(`Sent streaming notification event for ${notificationId}`);
     } catch (err) {
       console.error(`Failed to send streaming notification event:`, err);
