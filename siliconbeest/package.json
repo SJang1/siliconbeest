@@ -34,6 +34,7 @@
 		"@sentry/vue": "^10.63.0",
 		"@vueuse/core": "^14.3.0",
 		"bcryptjs": "^3.0.3",
+		"entities": "^7.0.1",
 		"hono": "^4.12.27",
 		"marked": "^17.0.6",
 		"neverthrow": "^8.2.0",
