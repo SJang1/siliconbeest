@@ -30,6 +30,7 @@ const gridClass = computed(() => {
   if (count === 0) return ''
   if (count === 1) return 'grid-cols-1'
   if (count === 2) return 'grid-cols-2'
+  if (count === 3) return 'grid-cols-2 grid-rows-2 aspect-video'
   return 'grid-cols-2'
 })
 </script>
@@ -48,8 +49,11 @@ const gridClass = computed(() => {
         v-for="(attachment, index) in visualAttachments.slice(0, 4)"
         :key="attachment.id"
         @click="emit('expand', index)"
-        class="group relative aspect-video bg-gray-200 dark:bg-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-zoom-in"
-        :class="{ 'row-span-2': visualAttachments.length === 3 && index === 0 }"
+        class="group relative min-h-0 bg-gray-200 dark:bg-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-zoom-in"
+        :class="{
+          'aspect-video': visualAttachments.length !== 3,
+          'row-span-2': visualAttachments.length === 3 && index === 0,
+        }"
       >
         <img
           v-if="attachment.type === 'image' || attachment.type === 'gifv'"
