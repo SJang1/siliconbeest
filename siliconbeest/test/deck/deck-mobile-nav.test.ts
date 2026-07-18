@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import DeckMobileNav from '@/deck/layout/DeckMobileNav.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAnnouncementsStore } from '@/stores/announcements'
 import { createTestI18n } from '../helpers'
 
 describe('DeckMobileNav', () => {
@@ -82,5 +83,27 @@ describe('DeckMobileNav', () => {
       '/aurora/home',
       '/old/',
     ]))
+  })
+
+  it('does not show an announcement badge to signed-out users', async () => {
+    useAuthStore().clearToken()
+    useAnnouncementsStore().items = [{
+      id: 'public-announcement',
+      content: 'Public announcement',
+      starts_at: null,
+      ends_at: null,
+      all_day: false,
+      published_at: '2026-07-18T00:00:00.000Z',
+      updated_at: '2026-07-18T00:00:00.000Z',
+      read: false,
+      mentions: [],
+      statuses: [],
+      tags: [],
+      emojis: [],
+      reactions: [],
+    }]
+    const wrapper = await mountNav()
+
+    expect(wrapper.get('button[aria-label="More"]').find('.dk-rail-badge').exists()).toBe(false)
   })
 })

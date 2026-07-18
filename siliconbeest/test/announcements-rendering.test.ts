@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -12,8 +12,13 @@ vi.mock('@/api/mastodon/instance', () => ({
   dismissAnnouncement: vi.fn().mockResolvedValue({ data: {}, headers: new Headers() }),
 }))
 
+const authState = vi.hoisted(() => ({
+  token: 'token' as string | null,
+  isAuthenticated: true,
+}))
+
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ token: 'token' }),
+  useAuthStore: () => authState,
 }))
 
 const t = (key: string, params?: Record<string, unknown>) => params?.count ? `${params.count} ${key}` : key
@@ -53,6 +58,11 @@ function seedAnnouncements() {
 }
 
 describe('announcement rendering', () => {
+  beforeEach(() => {
+    authState.token = 'token'
+    authState.isAuthenticated = true
+  })
+
   it('renders the banner announcement as plain text', () => {
     seedAnnouncements()
 
@@ -91,5 +101,34 @@ describe('announcement rendering', () => {
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.find('b').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('&lt;img')
+  })
+
+  it('keeps announcements visible without dismiss controls for signed-out users', () => {
+    authState.token = null
+    authState.isAuthenticated = false
+    seedAnnouncements()
+
+    const banner = mount(AnnouncementBanner, {
+      global: {
+        stubs: { RouterLink: RouterLinkStub },
+        mocks: { $t: t },
+        plugins: [i18nPlugin()],
+      },
+    })
+    const center = mount(DeckAnnouncementsView, {
+      global: {
+        stubs: {
+          DeckPageShell: { template: '<section><slot /></section>' },
+        },
+        mocks: { $t: t },
+        plugins: [i18nPlugin()],
+      },
+    })
+
+    expect(banner.text()).toContain('XSS')
+    expect(banner.find('button').exists()).toBe(false)
+    expect(center.text()).toContain('XSS')
+    expect(center.text()).not.toContain('announcement.mark_all_read')
+    expect(center.text()).not.toContain('announcement.mark_read')
   })
 })
