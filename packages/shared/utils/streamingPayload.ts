@@ -30,6 +30,8 @@ export type StatusStreamingAudience =
 interface StatusWithAccountJoin {
   id: string;
   uri: string;
+  object_type: 'Note' | 'Article';
+  title: string;
   content: string;
   visibility: string;
   sensitive: number | boolean;
@@ -76,7 +78,7 @@ interface StatusWithAccountJoin {
 }
 
 const STATUS_ACCOUNT_QUERY = `
-  SELECT s.id, s.uri, s.content, s.visibility, s.sensitive,
+  SELECT s.id, s.uri, s.object_type, s.title, s.content, s.visibility, s.sensitive,
          s.content_warning, s.language, s.url, s.created_at,
          s.in_reply_to_id, s.in_reply_to_account_id, s.reblog_of_id,
          s.quote_id, s.quote_approval_status, s.quote_policy,
@@ -272,6 +274,8 @@ function toStatusRow(row: StatusWithAccountJoin): StatusRow {
     id: row.id,
     uri: row.uri,
     url: row.url,
+    object_type: row.object_type,
+    title: row.title,
     account_id: row.account_id,
     in_reply_to_id: row.in_reply_to_id,
     in_reply_to_account_id: row.in_reply_to_account_id,

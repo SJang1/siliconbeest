@@ -360,7 +360,7 @@ async function handleDelete() {
 
 <template>
   <article
-    v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
+    v-if="displayStatus.content || displayStatus.title || isReblog || displayStatus.media_attachments?.length"
     class="dk-card dk-note-in relative cursor-pointer"
     :class="{ 'z-30': overlayOpen }"
     style="padding: var(--dk-pad)"
@@ -495,6 +495,10 @@ async function handleDelete() {
 
     <!-- Normal content display -->
     <template v-else>
+      <h2
+        v-if="displayStatus.object_type === 'Article' && displayStatus.title"
+        class="dk-text mt-2.5 text-xl font-bold leading-snug"
+      >{{ displayStatus.title }}</h2>
       <div class="mt-2.5" style="font-size: var(--dk-fs)">
         <StatusContent
           :content="displayStatus.content"
@@ -540,6 +544,10 @@ async function handleDelete() {
           <span class="dk-text truncate font-semibold">{{ displayStatus.quote.account.display_name || displayStatus.quote.account.username }}</span>
           <span class="truncate">@{{ displayStatus.quote.account.acct }}</span>
         </div>
+        <h3
+          v-if="displayStatus.quote.object_type === 'Article' && displayStatus.quote.title"
+          class="dk-text mb-1.5 font-bold"
+        >{{ displayStatus.quote.title }}</h3>
         <StatusContent
           :content="displayStatus.quote.content"
           :spoiler-text="displayStatus.quote.spoiler_text"

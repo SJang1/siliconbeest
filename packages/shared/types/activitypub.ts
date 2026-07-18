@@ -132,6 +132,15 @@ export interface APNote extends APObject {
 }
 
 // ============================================================
+// ARTICLE
+// ============================================================
+
+/** A long-form ActivityStreams Article. Its title is carried in `name`. */
+export interface APArticle extends Omit<APNote, 'type'> {
+  type: 'Article';
+}
+
+// ============================================================
 // QUESTION (Poll)
 // ============================================================
 

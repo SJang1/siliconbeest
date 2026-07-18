@@ -13,9 +13,11 @@ export {
   AS_PUBLIC,
   toTemporalInstant,
   buildMediaAttachment,
+  buildFedifyArticle,
   buildFedifyNote,
   buildFedifyQuestion,
   resolveAddressing,
   type FedifyNoteResult,
+  type FedifyArticleResult,
   type FedifyQuestionResult,
 } from './collections/index';

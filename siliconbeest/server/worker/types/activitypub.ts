@@ -14,6 +14,7 @@ export type {
   APMultikey,
   APActor,
   APNote,
+  APArticle,
   APQuestionOption,
   APQuestion,
   APDocument,

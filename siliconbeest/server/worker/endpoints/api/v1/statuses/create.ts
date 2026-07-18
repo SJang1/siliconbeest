@@ -391,7 +391,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         });
         const dmAcct = dmRow.a_domain ? `${dmRow.a_username}@${dmRow.a_domain}` : dmRow.a_username;
         const dmPayload = JSON.stringify({
-          id: statusId, uri: statusUri, created_at: now, content: fixedContent, visibility,
+          id: statusId, uri: statusUri, object_type: pollData ? 'Question' : 'Note', title: '',
+          created_at: now, content: fixedContent, visibility,
           sensitive: !!sensitive, spoiler_text: spoilerText, language, url: statusUrl,
           in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
           reblogs_count: dmRow.reblogs_count || 0, favourites_count: dmRow.favourites_count || 0,
@@ -753,6 +754,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         : (quotedRow.account_username as string);
       quoteStatus = {
         id: quotedRow.id as string,
+        object_type: quotedRow.poll_id ? 'Question' : quotedRow.object_type === 'Article' ? 'Article' : 'Note',
+        title: (quotedRow.title as string) || '',
         created_at: quotedRow.created_at as string,
         in_reply_to_id: (quotedRow.in_reply_to_id as string) || null,
         in_reply_to_account_id: (quotedRow.in_reply_to_account_id as string) || null,
@@ -811,6 +814,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
   return c.json({
     id: statusId,
+    object_type: pollData ? 'Question' : 'Note',
+    title: '',
     created_at: now,
     in_reply_to_id: inReplyToId,
     in_reply_to_account_id: inReplyToAccountId,

@@ -5,6 +5,8 @@ export type Status = {
 	id: string;
 	uri: string;
 	url: string | null;
+	object_type: 'Note' | 'Article';
+	title: string;
 	account_id: string;
 	in_reply_to_id: string | null;
 	in_reply_to_account_id: string | null;
@@ -40,6 +42,8 @@ export type CreateStatusInput = {
 	uri: string;
 	account_id: string;
 	url?: string | null;
+	object_type?: 'Note' | 'Article';
+	title?: string;
 	in_reply_to_id?: string | null;
 	in_reply_to_account_id?: string | null;
 	reblog_of_id?: string | null;
@@ -126,6 +130,8 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 		id,
 		uri: input.uri,
 		url: input.url ?? null,
+		object_type: input.object_type ?? 'Note',
+		title: input.title ?? '',
 		account_id: input.account_id,
 		in_reply_to_id: input.in_reply_to_id ?? null,
 		in_reply_to_account_id: input.in_reply_to_account_id ?? null,
@@ -160,7 +166,7 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 	await env.DB
 		.prepare(
 			`INSERT INTO statuses (
-				id, uri, url, account_id,
+				id, uri, url, object_type, title, account_id,
 				in_reply_to_id, in_reply_to_account_id, reblog_of_id,
 				text, content, content_warning, visibility,
 				sensitive, language, conversation_id, reply,
@@ -169,10 +175,10 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 					quote_id, quote_authorization_uri, quote_approval_status, quote_request_uri, quote_policy,
 					quote_policy_automatic_approvals, quote_policy_manual_approvals,
 					created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 		.bind(
-			status.id, status.uri, status.url, status.account_id,
+			status.id, status.uri, status.url, status.object_type, status.title, status.account_id,
 			status.in_reply_to_id, status.in_reply_to_account_id, status.reblog_of_id,
 			status.text, status.content, status.content_warning, status.visibility,
 			status.sensitive, status.language, status.conversation_id, status.reply,

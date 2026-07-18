@@ -43,6 +43,8 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
 
   return {
     id: row.id as string,
+    object_type: row.poll_id ? 'Question' : row.object_type === 'Article' ? 'Article' : 'Note',
+    title: (row.title as string) || '',
     created_at: toISO(row.created_at),
     in_reply_to_id: (row.in_reply_to_id as string) || null,
     in_reply_to_account_id: (row.in_reply_to_account_id as string) || null,

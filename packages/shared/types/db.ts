@@ -162,6 +162,10 @@ export type StatusRow = {
   readonly id: string;
   readonly uri: string;
   readonly url: string | null;
+  /** ActivityStreams object type. Poll rows are serialized as Question. */
+  readonly object_type: 'Note' | 'Article';
+  /** ActivityStreams name, used as the title of an Article. */
+  readonly title: string;
   readonly account_id: string;
   readonly in_reply_to_id: string | null;
   readonly in_reply_to_account_id: string | null;

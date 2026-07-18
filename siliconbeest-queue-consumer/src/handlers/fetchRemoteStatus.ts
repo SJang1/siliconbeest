@@ -228,8 +228,12 @@ export async function handleFetchRemoteStatus(
     authorAccountId = placeholder.id;
   }
 
-  // Parse the AP Note fields
+  // Parse the common ActivityStreams object fields.
   const statusId = crypto.randomUUID();
+  const normalizedObjectType = objectType === 'Article' ? 'Article' : 'Note';
+  const title = normalizedObjectType === 'Article' && typeof objectDoc.name === 'string'
+    ? objectDoc.name
+    : '';
   const content = (objectDoc.content as string) || '';
   const contentWarning = (objectDoc.summary as string) || null;
   const url = (objectDoc.url as string) || uri;
@@ -255,16 +259,18 @@ export async function handleFetchRemoteStatus(
   // Insert into statuses table
   const insertResult = await env.DB.prepare(
     `INSERT OR IGNORE INTO statuses (
-       id, account_id, uri, url, content, content_warning,
+       id, account_id, uri, url, object_type, title, content, content_warning,
        visibility, language, in_reply_to_id, sensitive,
        local, quote_policy, emoji_tags, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, datetime('now'))`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, datetime('now'))`,
   )
     .bind(
       statusId,
       authorAccountId,
       uri,
       url,
+      normalizedObjectType,
+      title,
       content,
       contentWarning,
       visibility,

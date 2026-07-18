@@ -351,7 +351,7 @@ async function handleDelete() {
 
 <template>
   <article
-    v-if="displayStatus.content || isReblog || displayStatus.media_attachments?.length"
+    v-if="displayStatus.content || displayStatus.title || isReblog || displayStatus.media_attachments?.length"
     class="cursor-pointer border-b border-outline px-4 py-3.5 transition-colors hover:bg-surface-2/60 dark:border-outline-dark dark:hover:bg-surface-2-dark/40 sm:px-5"
     :aria-label="t('status.by', { name: displayStatus.account.display_name })"
     @click="handleCardClick"
@@ -474,6 +474,10 @@ async function handleDelete() {
 
         <!-- Normal content display -->
         <template v-else>
+          <h2
+            v-if="displayStatus.object_type === 'Article' && displayStatus.title"
+            class="mt-2 text-xl font-bold leading-snug text-slate-950 dark:text-white"
+          >{{ displayStatus.title }}</h2>
           <StatusContent
             :content="displayStatus.content"
             :spoiler-text="displayStatus.spoiler_text"
@@ -515,6 +519,10 @@ async function handleDelete() {
               <span class="truncate font-semibold text-slate-900 dark:text-slate-100">{{ displayStatus.quote.account.display_name || displayStatus.quote.account.username }}</span>
               <span class="truncate text-slate-500 dark:text-slate-400">@{{ displayStatus.quote.account.acct }}</span>
             </div>
+            <h3
+              v-if="displayStatus.quote.object_type === 'Article' && displayStatus.quote.title"
+              class="mt-2 font-bold text-slate-950 dark:text-white"
+            >{{ displayStatus.quote.title }}</h3>
             <StatusContent
               :content="displayStatus.quote.content"
               :spoiler-text="displayStatus.quote.spoiler_text"

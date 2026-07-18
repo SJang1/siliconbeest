@@ -14,7 +14,7 @@ import {
 import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from '../../fedify';
 import type { AccountRow, StatusRow } from '../../../types/db';
-import { AS_PUBLIC, toTemporalInstant, buildFedifyNote } from './helpers';
+import { AS_PUBLIC, toTemporalInstant, buildFedifyArticle, buildFedifyNote } from './helpers';
 import {
   authorizeAccountCollectionRequest,
   getLocalAccountCollectionFirstCursor,
@@ -297,20 +297,23 @@ function setupOutboxDispatcher(
             });
           }
 
-          const note = buildFedifyNote(status, account, domain, {
+          const helpers = {
             convMap,
             mediaMap,
             replyUriMap,
             quoteUriMap,
-          });
+          };
+          const object = status.object_type === 'Article'
+            ? buildFedifyArticle(status, account, domain, helpers)
+            : buildFedifyNote(status, account, domain, helpers);
 
           return new Create({
             id: new URL(`${status.uri}/activity`),
             actor: new URL(actorUri),
             published: toTemporalInstant(status.created_at),
-            tos: note.tos,
-            ccs: note.ccs,
-            object: note.note,
+            tos: object.tos,
+            ccs: object.ccs,
+            object: 'article' in object ? object.article : object.note,
           });
         });
 
@@ -472,13 +475,15 @@ function setupFeaturedDispatcher(
       }
 
       const items = rows.map((status) => {
-        const { note } = buildFedifyNote(status, account, domain, {
+        const helpers = {
           convMap,
           mediaMap,
           replyUriMap,
           quoteUriMap,
-        });
-        return note;
+        };
+        return status.object_type === 'Article'
+          ? buildFedifyArticle(status, account, domain, helpers).article
+          : buildFedifyNote(status, account, domain, helpers).note;
       });
 
       return { items };

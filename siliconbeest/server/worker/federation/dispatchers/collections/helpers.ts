@@ -7,6 +7,7 @@
  */
 
 import {
+  Article,
   Note,
   Question,
   Image,
@@ -98,6 +99,117 @@ export interface FedifyNoteResult {
   ccs: URL[];
 }
 
+/** Result from building a Fedify Article with addressing info. */
+export interface FedifyArticleResult {
+  article: Article;
+  tos: URL[];
+  ccs: URL[];
+}
+
+type StatusObjectHelpers = {
+  convMap: Map<string, string | null>;
+  mediaMap: Map<
+    string,
+    {
+      url: string;
+      mediaType: string;
+      description: string;
+      width: number | null;
+      height: number | null;
+      blurhash: string | null;
+      type: string;
+    }[]
+  >;
+  replyUriMap: Map<string, string>;
+  quoteUriMap: Map<string, string>;
+};
+
+function buildFedifyObjectValues(
+  status: StatusRow,
+  account: AccountRow,
+  domain: string,
+  helpers: StatusObjectHelpers,
+): {
+  values: ConstructorParameters<typeof Note>[0];
+  tos: URL[];
+  ccs: URL[];
+} {
+  const actorUri = `https://${domain}/users/${account.username}`;
+  const followersUri = `${actorUri}/followers`;
+  const { tos, ccs } = resolveAddressing(status.visibility, followersUri);
+
+  let replyTarget: URL | null = null;
+  if (status.in_reply_to_id) {
+    if (status.in_reply_to_id.startsWith('http')) {
+      replyTarget = new URL(status.in_reply_to_id);
+    } else {
+      const resolvedUri = helpers.replyUriMap.get(status.in_reply_to_id);
+      replyTarget = new URL(
+        resolvedUri ?? `https://${domain}/users/${account.username}/statuses/${status.in_reply_to_id}`,
+      );
+    }
+  }
+
+  const attachments = (helpers.mediaMap.get(status.id) ?? []).map(buildMediaAttachment);
+  const values: ConstructorParameters<typeof Note>[0] = {
+    id: new URL(status.uri),
+    attribution: new URL(actorUri),
+    content: status.content,
+    url: new URL(status.url ?? `https://${domain}/@${account.username}/${status.id}`),
+    published: toTemporalInstant(status.created_at),
+    tos,
+    ccs,
+    sensitive: status.sensitive === 1,
+    summary: status.content_warning || null,
+    replies: buildStatusCollection(status.uri, 'replies', status.replies_count ?? 0),
+    shares: buildStatusCollection(status.uri, 'shares', status.reblogs_count ?? 0),
+    likes: buildStatusCollection(status.uri, 'likes', status.favourites_count ?? 0),
+    interactionPolicy: new InteractionPolicy({
+      canQuote: buildCanQuoteRule(status, actorUri),
+    }),
+  };
+
+  if (replyTarget) values.replyTarget = replyTarget;
+  if (attachments.length > 0) values.attachments = attachments;
+  if (status.edited_at) values.updated = toTemporalInstant(status.edited_at);
+  if (status.text) {
+    values.source = new Source({ content: status.text, mediaType: 'text/plain' });
+  }
+
+  const quoteStatusId = status.quote_id;
+  if (quoteStatusId && canEmbedQuote({
+    quoteStatusId,
+    quoteApprovalStatus: status.quote_approval_status ?? null,
+  })) {
+    const quoteUri = helpers.quoteUriMap.get(quoteStatusId);
+    if (quoteUri) {
+      values.quote = new URL(quoteUri);
+      values.quoteUrl = new URL(quoteUri);
+    }
+  }
+  if (status.quote_authorization_uri) {
+    values.quoteAuthorization = new URL(status.quote_authorization_uri);
+  }
+
+  const emojiTagObjects: APEmoji[] = [];
+  if (status.emoji_tags) {
+    try {
+      const emojiTags = JSON.parse(status.emoji_tags) as Array<{ shortcode: string; url: string }>;
+      for (const et of emojiTags) {
+        if (!et.shortcode || !et.url) continue;
+        emojiTagObjects.push(new APEmoji({
+          id: new URL(et.url),
+          name: `:${et.shortcode}:`,
+          icon: new Image({ url: new URL(et.url), mediaType: 'image/png' }),
+        }));
+      }
+    } catch { /* ignore malformed JSON */ }
+  }
+  if (emojiTagObjects.length > 0) values.tags = emojiTagObjects;
+
+  return { values, tos, ccs };
+}
+
 /** Result from building a Fedify Question with addressing info. */
 export interface FedifyQuestionResult {
   question: Question;
@@ -113,131 +225,26 @@ export function buildFedifyNote(
   status: StatusRow,
   account: AccountRow,
   domain: string,
-  helpers: {
-    convMap: Map<string, string | null>;
-    mediaMap: Map<
-      string,
-      {
-        url: string;
-        mediaType: string;
-        description: string;
-        width: number | null;
-        height: number | null;
-        blurhash: string | null;
-        type: string;
-      }[]
-    >;
-    replyUriMap: Map<string, string>;
-    quoteUriMap: Map<string, string>;
-  },
+  helpers: StatusObjectHelpers,
 ): FedifyNoteResult {
-  const actorUri = `https://${domain}/users/${account.username}`;
-  const followersUri = `${actorUri}/followers`;
-
-  // Determine to/cc based on visibility
-  const { tos, ccs } = resolveAddressing(status.visibility, followersUri);
-
-  // Determine inReplyTo
-  let replyTarget: URL | null = null;
-  if (status.in_reply_to_id) {
-    if (status.in_reply_to_id.startsWith('http')) {
-      replyTarget = new URL(status.in_reply_to_id);
-    } else {
-      const resolvedUri = helpers.replyUriMap.get(status.in_reply_to_id);
-      if (resolvedUri) {
-        replyTarget = new URL(resolvedUri);
-      } else {
-        replyTarget = new URL(
-          `https://${domain}/users/${account.username}/statuses/${status.in_reply_to_id}`,
-        );
-      }
-    }
-  }
-
-  // Build attachments
-  const attachments = (helpers.mediaMap.get(status.id) ?? []).map(
-    buildMediaAttachment,
-  );
-
-  // Build Note values
-  const noteValues: ConstructorParameters<typeof Note>[0] = {
-    id: new URL(status.uri),
-    attribution: new URL(actorUri),
-    content: status.content,
-    url: new URL(
-      status.url ?? `https://${domain}/@${account.username}/${status.id}`,
-    ),
-    published: toTemporalInstant(status.created_at),
-    tos: tos.map((u) => u),
-    ccs: ccs.map((u) => u),
-    sensitive: status.sensitive === 1,
-    summary: status.content_warning || null,
-    replies: buildStatusCollection(status.uri, 'replies', status.replies_count ?? 0),
-    shares: buildStatusCollection(status.uri, 'shares', status.reblogs_count ?? 0),
-    likes: buildStatusCollection(status.uri, 'likes', status.favourites_count ?? 0),
-    interactionPolicy: new InteractionPolicy({
-      canQuote: buildCanQuoteRule(status, actorUri),
-    }),
-  };
-
-  if (replyTarget) {
-    noteValues.replyTarget = replyTarget;
-  }
-
-  if (attachments.length > 0) {
-    noteValues.attachments = attachments;
-  }
-
-  if (status.edited_at) {
-    noteValues.updated = toTemporalInstant(status.edited_at);
-  }
-
-  if (status.text) {
-    noteValues.source = new Source({
-      content: status.text,
-      mediaType: 'text/plain',
-    });
-  }
-
-  const quoteStatusId = status.quote_id;
-  if (quoteStatusId && canEmbedQuote({
-    quoteStatusId,
-    quoteApprovalStatus: status.quote_approval_status ?? null,
-  })) {
-    const quoteUri = helpers.quoteUriMap.get(quoteStatusId);
-    if (quoteUri) {
-      noteValues.quote = new URL(quoteUri);
-      noteValues.quoteUrl = new URL(quoteUri);
-    }
-  }
-
-  if (status.quote_authorization_uri) {
-    noteValues.quoteAuthorization = new URL(status.quote_authorization_uri);
-  }
-
-  // Build custom emoji tags from emoji_tags JSON
-  const emojiTagObjects: APEmoji[] = [];
-  if (status.emoji_tags) {
-    try {
-      const emojiTags = JSON.parse(status.emoji_tags) as Array<{ shortcode: string; url: string; static_url?: string }>;
-      for (const et of emojiTags) {
-        if (!et.shortcode || !et.url) continue;
-        emojiTagObjects.push(new APEmoji({
-          id: new URL(et.url),
-          name: `:${et.shortcode}:`,
-          icon: new Image({ url: new URL(et.url), mediaType: 'image/png' }),
-        }));
-      }
-    } catch { /* ignore malformed JSON */ }
-  }
-
-  if (emojiTagObjects.length > 0) {
-    noteValues.tags = [...(noteValues.tags ?? []), ...emojiTagObjects];
-  }
-
-  const note = new Note(noteValues);
-
+  const { values, tos, ccs } = buildFedifyObjectValues(status, account, domain, helpers);
+  const note = new Note(values);
   return { note, tos, ccs };
+}
+
+/** Build a long-form ActivityStreams Article from a status row. */
+export function buildFedifyArticle(
+  status: StatusRow,
+  account: AccountRow,
+  domain: string,
+  helpers: StatusObjectHelpers,
+): FedifyArticleResult {
+  const { values, tos, ccs } = buildFedifyObjectValues(status, account, domain, helpers);
+  const article = new Article({
+    ...values,
+    name: status.title || null,
+  } as ConstructorParameters<typeof Article>[0]);
+  return { article, tos, ccs };
 }
 
 /**

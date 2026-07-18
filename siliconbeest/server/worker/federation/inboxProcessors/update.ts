@@ -9,7 +9,7 @@
 
 import type { APActivity, APObject, APActor, APQuestion, APQuestionOption } from '../../types/activitypub';
 import type { UpdateAccountInput } from '../../repositories/account';
-import { sanitizeHtml } from '../../utils/sanitize';
+import { sanitizeHtml, sanitizePlainText } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
 import { env } from 'cloudflare:workers';
 import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../packages/shared/utils/quotePolicy';
@@ -107,6 +107,8 @@ class UpdateProcessor extends BaseProcessor {
 			const sanitizedCw = sanitizeHtml(obj.summary ?? '');
 			const interactionPolicy = (obj as Record<string, unknown>).interactionPolicy;
 			const statusUpdates: Parameters<typeof this.statusRepo.update>[1] = {
+				object_type: obj.type === 'Article' ? 'Article' : 'Note',
+				title: obj.type === 'Article' ? sanitizePlainText(obj.name ?? '') : '',
 				content: sanitizedContent,
 				content_warning: sanitizedCw,
 				sensitive: obj.sensitive ? 1 : 0,

@@ -73,7 +73,9 @@ async function loadThread() {
     const displayName = statusData.account?.display_name || statusData.account?.username || ''
     const acct = statusData.account?.acct || ''
     const contentSnippet = (statusData.content || '').replace(/<[^>]*>/g, '').substring(0, 50)
-    const statusTitle = contentSnippet
+    const statusTitle = statusData.object_type === 'Article' && statusData.title
+      ? statusData.title
+      : contentSnippet
       ? `${displayName}: "${contentSnippet}"`
       : `${displayName} (@${acct})`
     document.title = siteName ? `${statusTitle} | ${siteName}` : statusTitle

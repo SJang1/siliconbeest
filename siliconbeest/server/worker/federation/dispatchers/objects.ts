@@ -7,6 +7,7 @@
  */
 
 import {
+  Article,
   Note,
   Question,
   Create,
@@ -19,6 +20,7 @@ import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from '../fedify';
 import type { AccountRow, StatusRow, PollRow } from '../../types/db';
 import {
+  buildFedifyArticle,
   buildFedifyNote,
   buildFedifyQuestion,
   toTemporalInstant,
@@ -146,6 +148,15 @@ export function setupObjectDispatchers(
         }
       }
 
+      if (row.object_type === 'Article') {
+        const { article } = buildFedifyArticle(row as StatusRow, account, domain, {
+          convMap, mediaMap, replyUriMap, quoteUriMap,
+        });
+        // Fedify associates one vocabulary class with a path. The concrete
+        // object remains an Article at runtime and therefore serializes as one.
+        return (tags.length > 0 ? article.clone({ tags }) : article) as unknown as Note;
+      }
+
       // Build core Note
       const { note } = buildFedifyNote(row as StatusRow, account, domain, {
         convMap, mediaMap, replyUriMap, quoteUriMap,
@@ -226,7 +237,7 @@ export async function handleActivityRequest(
     const { convMap, mediaMap, replyUriMap, quoteUriMap } = await loadStatusContext(row, id, domain);
 
     // Check for poll → build Question instead of Note
-    let objectToWrap: Note | Question;
+    let objectToWrap: Note | Article | Question;
     let tos: URL[];
     let ccs: URL[];
 
@@ -249,6 +260,13 @@ export async function handleActivityRequest(
         tos = result.tos;
         ccs = result.ccs;
       }
+    } else if (row.object_type === 'Article') {
+      const result = buildFedifyArticle(row as StatusRow, account, domain, {
+        convMap, mediaMap, replyUriMap, quoteUriMap,
+      });
+      objectToWrap = result.article;
+      tos = result.tos;
+      ccs = result.ccs;
     } else {
       const result = buildFedifyNote(row as StatusRow, account, domain, {
         convMap, mediaMap, replyUriMap, quoteUriMap,

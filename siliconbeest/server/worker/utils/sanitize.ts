@@ -79,6 +79,18 @@ export function sanitizeHtml(html: string): string {
 	return result;
 }
 
+/** Strip markup from a value that is stored and rendered as plain text. */
+export function sanitizePlainText(value: string): string {
+	if (!value) return '';
+	return value
+		.replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+		.replace(/<style[\s\S]*?<\/style\s*>/gi, '')
+		.replace(/<!--[\s\S]*?-->/g, '')
+		.replace(/<[^>]*>/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
 /**
  * Sanitize attributes for a given tag, keeping only allowed ones.
  */

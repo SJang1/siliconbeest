@@ -227,6 +227,8 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
 
   return c.json({
     id: statusId,
+    object_type: updatedRow.poll_id ? 'Question' : updatedRow.object_type,
+    title: updatedRow.title || '',
     created_at: updatedRow.created_at as string,
     in_reply_to_id: (updatedRow.in_reply_to_id as string) || null,
     in_reply_to_account_id: (updatedRow.in_reply_to_account_id as string) || null,

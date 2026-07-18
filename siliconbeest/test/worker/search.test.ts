@@ -127,6 +127,7 @@ describe('Search API', () => {
         object: {
           type: 'Article',
           id: articleUri,
+          name: 'A long-form title',
           attributedTo: remoteActorUri,
           to: 'as:Public',
           content: '<h1>Long-form post</h1><p>Article body</p>',
@@ -134,12 +135,22 @@ describe('Search API', () => {
       }, user.accountId, { fanout: false, notify: false });
 
       const stored = await env.DB.prepare(
-        'SELECT content, visibility FROM statuses WHERE uri = ?1 LIMIT 1',
-      ).bind(articleUri).first<{ content: string; visibility: string }>();
+        'SELECT id, object_type, title, content, visibility FROM statuses WHERE uri = ?1 LIMIT 1',
+      ).bind(articleUri).first<{ id: string; object_type: string; title: string; content: string; visibility: string }>();
       expect(stored).toMatchObject({
+        object_type: 'Article',
+        title: 'A long-form title',
         content: '<h1>Long-form post</h1><p>Article body</p>',
         visibility: 'public',
       });
+
+      const articleResponse = await SELF.fetch(`${BASE}/api/v1/statuses/${stored!.id}`, {
+        headers: authHeaders(user.token),
+      });
+      expect(articleResponse.status).toBe(200);
+      const articleStatus = await articleResponse.json<Record<string, unknown>>();
+      expect(articleStatus.object_type).toBe('Article');
+      expect(articleStatus.title).toBe('A long-form title');
     });
 
     it('does not return private or direct statuses by URL to unauthorized users', async () => {

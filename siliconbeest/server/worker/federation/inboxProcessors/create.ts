@@ -11,7 +11,7 @@ import { env } from 'cloudflare:workers';
 import type { APActivity, APObject, APTag, APNote, APQuestion, APQuestionOption } from '../../types/activitypub';
 import type { StatusWithJoinedAccountRow } from '../../types/db';
 import { generateUlid } from '../../utils/ulid';
-import { sanitizeHtml } from '../../utils/sanitize';
+import { sanitizeHtml, sanitizePlainText } from '../../utils/sanitize';
 import { BaseProcessor } from './BaseProcessor';
 import { getQuoteUri, verifyQuoteAuthorization } from '../helpers/quote';
 import { customEmojiTagDomain, emojiTagToCustomEmoji } from '../../../../../packages/shared/utils/customEmoji';
@@ -207,6 +207,10 @@ class CreateProcessor extends BaseProcessor {
 			|| firstString((apNote as Record<string, unknown>).summaryMap)
 			|| firstString(apNote._misskey_summary);
 		const contentWarning = sanitizeHtml(rawCw);
+		const objectType = note.type === 'Article' ? 'Article' : 'Note';
+		const title = objectType === 'Article'
+			? sanitizePlainText(firstString(note.name) || firstString(note.nameMap))
+			: '';
 		const language = firstLanguage((apNote as Record<string, unknown>).contentMap) ?? 'en';
 		const statusUrl = firstUrl(note.url) ?? note.id;
 
@@ -275,17 +279,17 @@ class CreateProcessor extends BaseProcessor {
 			// Insert the status
 			await env.DB.prepare(
 				`INSERT INTO statuses
-				 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
+				 (id, uri, url, object_type, title, account_id, in_reply_to_id, in_reply_to_account_id,
 				  content, content_warning, visibility, sensitive, language,
 				  conversation_id, local, reply, quote_id, quote_authorization_uri, quote_approval_status,
 				  quote_policy, quote_policy_automatic_approvals, quote_policy_manual_approvals,
 				  emoji_tags, created_at, updated_at)
-				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)`,
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 0, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)`,
 			)
 			.bind(
 				statusId, note.id,
 				statusUrl,
-				authorAccountId, inReplyToId, inReplyToAccountId,
+				objectType, title, authorAccountId, inReplyToId, inReplyToAccountId,
 				noteContent, contentWarning, visibility,
 				note.sensitive ? 1 : 0, language, conversationId,
 				inReplyToId ? 1 : 0, quoteId, quoteAuthorizationUri, quoteApprovalStatus,
@@ -634,7 +638,9 @@ class CreateProcessor extends BaseProcessor {
 					? `${dmStatusRow.a_username}@${dmStatusRow.a_domain}`
 					: dmStatusRow.a_username;
 				const dmPayload = JSON.stringify({
-					id: statusId, uri: dmStatusRow.uri, created_at: dmStatusRow.created_at,
+						id: statusId, uri: dmStatusRow.uri,
+						object_type: dmStatusRow.poll_id ? 'Question' : dmStatusRow.object_type,
+						title: dmStatusRow.title || '', created_at: dmStatusRow.created_at,
 					content: dmStatusRow.content, visibility: 'direct',
 					sensitive: !!dmStatusRow.sensitive, spoiler_text: dmStatusRow.content_warning || '',
 					language: dmStatusRow.language, url: dmStatusRow.url,

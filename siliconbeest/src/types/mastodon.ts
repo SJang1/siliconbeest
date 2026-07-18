@@ -91,6 +91,8 @@ export interface Status {
   id: string;
   uri: string;
   created_at: string;
+  object_type: 'Note' | 'Article' | 'Question';
+  title: string;
   account: Account;
   content: string;
   visibility: StatusVisibility;

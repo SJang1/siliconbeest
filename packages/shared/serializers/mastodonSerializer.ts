@@ -204,6 +204,8 @@ export function serializeStatus(
     id: row.id,
     uri: row.uri,
     url: row.url ?? null,
+    object_type: row.poll_id ? 'Question' : row.object_type === 'Article' ? 'Article' : 'Note',
+    title: row.title || '',
     account: opts.account,
     content: row.content || '',
     visibility: row.visibility as MastodonStatus['visibility'],
