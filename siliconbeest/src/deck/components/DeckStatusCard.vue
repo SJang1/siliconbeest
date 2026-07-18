@@ -423,7 +423,7 @@ async function handleDelete() {
         class="dk-text mt-2.5 text-xl font-bold leading-snug"
         >{{ displayStatus.title }}</h2>
         <p
-          v-if="isArticle && (expanded ? displayStatus.article_summary : articlePreview)"
+          v-if="isArticle && (expanded ? displayStatus.article_summary : (!displayStatus.sensitive && articlePreview))"
           data-testid="article-preview"
           class="dk-dim-text mt-1.5 whitespace-pre-line text-sm leading-relaxed"
           :class="{ 'line-clamp-4': !displayStatus.article_summary }"
@@ -501,7 +501,7 @@ async function handleDelete() {
         data-testid="read-full-article"
         class="dk-mono mt-3 flex w-full items-center justify-center rounded-xl px-4 py-3 text-[12px] font-semibold transition-colors"
         style="border: 1px solid var(--dk-border); background: var(--dk-surface2); color: var(--dk-acc)"
-        @click.stop="handleCardClick"
+        @click.stop
       >
         {{ t('status.read_full_article') }}
       </router-link>

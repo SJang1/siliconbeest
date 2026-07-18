@@ -102,6 +102,10 @@ function sanitizeWithRules(
 		const isClosing = match.startsWith('</');
 		const isSelfClosing = tag === 'br' || tag === 'img' || tag === 'source';
 
+		if (isClosing && isSelfClosing) {
+			return '';
+		}
+
 		if (isClosing) {
 			return `</${tag}>`;
 		}
@@ -126,7 +130,7 @@ export function sanitizePlainText(value: string): string {
 		.replace(/<script[\s\S]*?<\/script\s*>/gi, '')
 		.replace(/<style[\s\S]*?<\/style\s*>/gi, '')
 		.replace(/<!--[\s\S]*?-->/g, '')
-		.replace(/<[^>]*>/g, ' ')
+		.replace(/<[a-zA-Z/][^>]*>/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
 }

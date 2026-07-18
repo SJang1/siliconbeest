@@ -405,7 +405,10 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         const dmPayload = JSON.stringify({
           id: statusId, uri: statusUri, object_type: pollData ? 'Question' : storedObjectType, title,
           created_at: now, content: fixedContent, visibility,
-          sensitive: !!sensitive, spoiler_text: spoilerText, language, url: statusUrl,
+          article_summary: storedObjectType === 'Article' ? spoilerText : '',
+          sensitive: !!sensitive,
+          spoiler_text: storedObjectType === 'Article' ? '' : spoilerText,
+          language, url: statusUrl,
           in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
           reblogs_count: dmRow.reblogs_count || 0, favourites_count: dmRow.favourites_count || 0,
           replies_count: dmRow.replies_count || 0, edited_at: dmRow.edited_at || null,

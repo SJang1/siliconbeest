@@ -20,4 +20,10 @@ describe('Article timeline previews', () => {
       'One < Two',
     );
   });
+
+  it('preserves comparison text and invalid numeric entities', () => {
+    expect(articlePlainText('<p>X < Y but Z > W &#9999999999; &#xD800;</p>')).toBe(
+      'X < Y but Z > W &#9999999999; &#xD800;',
+    );
+  });
 });

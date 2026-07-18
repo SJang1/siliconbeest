@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeArticleHtml, sanitizeHtml } from '../../server/worker/utils/sanitize';
+import { sanitizeArticleHtml, sanitizeHtml, sanitizePlainText } from '../../server/worker/utils/sanitize';
 
 describe('sanitizeArticleHtml', () => {
   it('keeps the embedded media subset recommended by FEP-b2b8', () => {
@@ -16,6 +16,18 @@ describe('sanitizeArticleHtml', () => {
     expect(sanitizeArticleHtml(
       '<img src="javascript:alert(1)" onerror="alert(1)" alt="Unsafe">',
     )).toBe('<img alt="Unsafe" />');
+  });
+
+  it('drops invalid closing tags for self-closing media elements', () => {
+    expect(sanitizeArticleHtml('<p>Before</p></img></source><p>After</p>')).toBe(
+      '<p>Before</p><p>After</p>',
+    );
+  });
+});
+
+describe('sanitizePlainText', () => {
+  it('keeps comparison operators while stripping actual tags', () => {
+    expect(sanitizePlainText('<strong>X</strong> < Y but Z > W')).toBe('X < Y but Z > W');
   });
 });
 

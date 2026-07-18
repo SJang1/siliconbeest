@@ -888,6 +888,7 @@ export interface EditStatusData {
   text?: string;
   objectType?: 'Note' | 'Article';
   title?: string;
+  summary?: string;
   sensitive?: boolean;
   spoilerText?: string;
   language?: string;
@@ -934,7 +935,9 @@ export async function editStatus(
     throw new AppError(422, 'Validation failed', 'Article body is too long');
   }
   const sensitive = data.sensitive !== undefined ? (data.sensitive ? 1 : 0) : row.sensitive;
-  const requestedSummary = data.spoilerText !== undefined ? data.spoilerText : row.content_warning || '';
+  const requestedSummary = objectType === 'Article'
+    ? (data.summary !== undefined ? data.summary : row.content_warning || '')
+    : (data.spoilerText !== undefined ? data.spoilerText : row.content_warning || '');
   const spoilerText = objectType === 'Article' ? sanitizeHtml(requestedSummary) : requestedSummary;
   if (objectType === 'Article' && spoilerText.length > MAX_ARTICLE_SUMMARY_CHARACTERS) {
     throw new AppError(422, 'Validation failed', 'Article summary is too long');

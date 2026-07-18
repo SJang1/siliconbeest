@@ -58,8 +58,9 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
     text: body.status,
     objectType: body.object_type as 'Note' | 'Article' | undefined,
     title: body.title,
+    summary: body.summary,
     sensitive: body.sensitive,
-    spoilerText: body.object_type === 'Article' ? (body.summary ?? body.spoiler_text) : body.spoiler_text,
+    spoilerText: body.spoiler_text,
     language: body.language,
     mediaIds: body.media_ids,
   });

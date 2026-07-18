@@ -57,11 +57,17 @@ export function parseContent(text: string, domain: string): ParsedContent {
 
 /** Render long-form Article source as safe Markdown while retaining mention/tag discovery. */
 export function parseArticleContent(text: string, domain: string): ParsedContent {
-	const metadata = parseContent(text, domain);
 	const rendered = marked.parse(text, { async: false, gfm: true }) as string;
+	const html = sanitizeArticleHtml(rendered);
+	const metadataText = sanitizePlainText(
+		html
+			.replace(/<pre\b[^>]*>[\s\S]*?<\/pre\s*>/gi, ' ')
+			.replace(/<code\b[^>]*>[\s\S]*?<\/code\s*>/gi, ' '),
+	);
+	const metadata = parseContent(metadataText, domain);
 	return {
 		...metadata,
-		html: sanitizeArticleHtml(rendered),
+		html,
 	};
 }
 

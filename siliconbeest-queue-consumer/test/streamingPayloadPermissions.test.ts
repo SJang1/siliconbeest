@@ -14,6 +14,9 @@ type BindValue = string | number | null;
 interface StreamingStatusRecord {
   id: string;
   uri: string;
+  object_type: 'Note' | 'Article';
+  title: string;
+  poll_id: string | null;
   content: string;
   visibility: string;
   sensitive: number;
@@ -60,6 +63,7 @@ interface StreamingStatusRecord {
 
 interface StreamingPayloadShape {
   id: string;
+  object_type: 'Note' | 'Article' | 'Question';
   reblog: { id: string } | null;
   quote: { id: string } | null;
 }
@@ -71,6 +75,9 @@ function statusRecord(
   return {
     id,
     uri: `https://remote.example/statuses/${id}`,
+    object_type: 'Note',
+    title: '',
+    poll_id: null,
     content: `<p>${id}</p>`,
     visibility: 'public',
     sensitive: 0,
@@ -328,5 +335,20 @@ describe('streaming payload nested status permissions', () => {
     expect(queries.every((sql) => !sql.includes(accountId))).toBe(true);
     expect(bindings[0]?.[0]).toBe(statusId);
     expect(bindings[0]?.[1]).toBe(accountId);
+  });
+
+  it('selects poll ids so streaming polls keep the Question object type', async () => {
+    const poll = statusRecord('poll', { poll_id: 'poll-id' });
+    const { db, queries } = databaseForRows([poll]);
+
+    const payload = parsePayload(await buildStatusStreamingPayload(
+      db,
+      poll.id,
+      'local.example',
+      { kind: 'public' },
+    ));
+
+    expect(payload.object_type).toBe('Question');
+    expect(queries.some(sql => sql.includes('s.poll_id'))).toBe(true);
   });
 });

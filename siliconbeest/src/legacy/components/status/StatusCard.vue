@@ -389,7 +389,7 @@ async function handleDelete() {
             class="mt-2 text-xl font-bold leading-snug text-gray-950 dark:text-white"
             >{{ displayStatus.title }}</h2>
             <p
-              v-if="isArticle && (expanded ? displayStatus.article_summary : articlePreview)"
+              v-if="isArticle && (expanded ? displayStatus.article_summary : (!displayStatus.sensitive && articlePreview))"
               data-testid="article-preview"
               class="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-500 dark:text-slate-400"
               :class="{ 'line-clamp-4': !displayStatus.article_summary }"
@@ -462,7 +462,7 @@ async function handleDelete() {
             :to="`/@${displayStatus.account.acct}/${displayStatus.id}`"
             data-testid="read-full-article"
             class="mt-3 flex w-full items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-indigo-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-gray-700 dark:bg-gray-800 dark:text-indigo-400 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30"
-            @click.stop="handleCardClick"
+            @click.stop
           >
             {{ t('status.read_full_article') }}
           </router-link>

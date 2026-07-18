@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseContent } from '../../server/worker/utils/contentParser';
+import { parseArticleContent, parseContent } from '../../server/worker/utils/contentParser';
 
 const DOMAIN = 'test.siliconbeest.local';
 
@@ -193,5 +193,19 @@ describe('parseContent', () => {
 
       expect(result.html).toContain('A &amp; B');
     });
+  });
+});
+
+describe('parseArticleContent', () => {
+  it('ignores mentions and hashtags inside inline and fenced code', () => {
+    const result = parseArticleContent(
+      'Hello @alice #outside\n\n`npm install @scope/pkg #not-a-tag`\n\n```css\n@media #code-tag {}\n```',
+      DOMAIN,
+    );
+
+    expect(result.mentions.map(mention => mention.acct)).toEqual(['alice']);
+    expect(result.tags).toEqual(['outside']);
+    expect(result.html).toContain('<code>npm install @scope/pkg #not-a-tag</code>');
+    expect(result.html).toContain('@media #code-tag {}');
   });
 });

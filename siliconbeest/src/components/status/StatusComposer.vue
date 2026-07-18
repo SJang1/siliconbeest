@@ -660,7 +660,16 @@ function loadEditingDraft() {
 }
 
 watch(() => compose.editingId, (editingId) => {
-  if (editingId) loadEditingDraft()
+  if (editingId) {
+    loadEditingDraft()
+  } else {
+    content.value = ''
+    objectType.value = 'Note'
+    articleTitle.value = ''
+    articleSummary.value = ''
+    spoilerText.value = ''
+    showCw.value = false
+  }
 }, { immediate: true })
 
 const canSubmit = computed(() => {

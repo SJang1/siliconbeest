@@ -11,12 +11,25 @@ function decodeHtmlEntities(value: string): string {
     quot: '"',
   };
 
+  const decodeCodePoint = (entity: string, value: string, radix: number): string => {
+    const codePoint = Number.parseInt(value, radix);
+    if (
+      !Number.isInteger(codePoint)
+      || codePoint < 0
+      || codePoint > 0x10FFFF
+      || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
+    ) {
+      return entity;
+    }
+    return String.fromCodePoint(codePoint);
+  };
+
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
     if (code.startsWith('#x')) {
-      return String.fromCodePoint(Number.parseInt(code.slice(2), 16));
+      return decodeCodePoint(entity, code.slice(2), 16);
     }
     if (code.startsWith('#')) {
-      return String.fromCodePoint(Number.parseInt(code.slice(1), 10));
+      return decodeCodePoint(entity, code.slice(1), 10);
     }
     return named[code.toLowerCase()] ?? entity;
   });
@@ -29,7 +42,7 @@ export function articlePlainText(html: string): string {
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|blockquote|pre|li|h[1-6])>/gi, '\n')
       .replace(/<li\b[^>]*>/gi, '• ')
-      .replace(/<[^>]+>/g, ''),
+      .replace(/<[a-zA-Z/][^>]*>/g, ''),
   )
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())

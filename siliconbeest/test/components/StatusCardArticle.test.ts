@@ -109,10 +109,12 @@ describe.each(variants)('$name Article cards', ({ component }) => {
       'Only this summary belongs in the timeline.',
     );
     expect(wrapper.find('status-content-stub').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="read-full-article"]').text()).toBe('Read full article');
+    const readFullArticle = wrapper.get('[data-testid="read-full-article"]');
+    expect(readFullArticle.text()).toBe('Read full article');
+    expect(readFullArticle.attributes('href')).toBe('/@author/article-1');
 
-    await wrapper.get('[data-testid="read-full-article"]').trigger('click');
-    expect(wrapper.emitted('navigate')?.[0]).toEqual([article]);
+    await readFullArticle.trigger('click');
+    expect(wrapper.emitted('navigate')).toBeUndefined();
   });
 
   it('falls back to a truncated opening when there is no summary', () => {
@@ -129,5 +131,15 @@ describe.each(variants)('$name Article cards', ({ component }) => {
 
     expect(wrapper.find('status-content-stub').exists()).toBe(true);
     expect(wrapper.find('[data-testid="read-full-article"]').exists()).toBe(false);
+  });
+
+  it('does not expose a sensitive Article preview in timelines', () => {
+    const wrapper = mountCard(component, {
+      ...makeArticle('Sensitive summary'),
+      sensitive: true,
+    });
+
+    expect(wrapper.find('[data-testid="article-preview"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="read-full-article"]').exists()).toBe(true);
   });
 });

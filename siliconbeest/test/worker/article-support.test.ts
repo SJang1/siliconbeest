@@ -154,4 +154,50 @@ describe('ActivityStreams Article support', () => {
     });
     expect(response.status).toBe(422);
   });
+
+  it('updates summaries without object_type and preserves them for legacy edits', async () => {
+    const createResponse = await SELF.fetch(`${BASE}/api/v1/statuses`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({
+        object_type: 'Article',
+        title: 'Partial edit article',
+        summary: 'Original summary',
+        status: 'Original body',
+      }),
+    });
+    expect(createResponse.status).toBe(200);
+    const created = await createResponse.json<Record<string, any>>();
+
+    const summaryResponse = await SELF.fetch(`${BASE}/api/v1/statuses/${created.id}`, {
+      method: 'PUT',
+      headers: authHeaders(token),
+      body: JSON.stringify({ summary: 'Updated independently' }),
+    });
+    expect(summaryResponse.status).toBe(200);
+    expect(await summaryResponse.json<Record<string, any>>()).toMatchObject({
+      object_type: 'Article',
+      title: 'Partial edit article',
+      article_summary: 'Updated independently',
+    });
+
+    const legacyResponse = await SELF.fetch(`${BASE}/api/v1/statuses/${created.id}`, {
+      method: 'PUT',
+      headers: authHeaders(token),
+      body: JSON.stringify({ status: 'Edited by a legacy client', spoiler_text: '' }),
+    });
+    expect(legacyResponse.status).toBe(200);
+    expect(await legacyResponse.json<Record<string, any>>()).toMatchObject({
+      object_type: 'Article',
+      title: 'Partial edit article',
+      article_summary: 'Updated independently',
+    });
+
+    const historyResponse = await SELF.fetch(`${BASE}/api/v1/statuses/${created.id}/history`, {
+      headers: authHeaders(token),
+    });
+    expect(historyResponse.status).toBe(200);
+    const history = await historyResponse.json<Array<Record<string, unknown>>>();
+    expect(history.every(entry => entry.object_type === 'Article')).toBe(true);
+  });
 });

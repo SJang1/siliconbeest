@@ -32,6 +32,7 @@ interface StatusWithAccountJoin {
   uri: string;
   object_type: 'Note' | 'Article';
   title: string;
+  poll_id: string | null;
   content: string;
   visibility: string;
   sensitive: number | boolean;
@@ -78,7 +79,7 @@ interface StatusWithAccountJoin {
 }
 
 const STATUS_ACCOUNT_QUERY = `
-  SELECT s.id, s.uri, s.object_type, s.title, s.content, s.visibility, s.sensitive,
+  SELECT s.id, s.uri, s.object_type, s.title, s.poll_id, s.content, s.visibility, s.sensitive,
          s.content_warning, s.language, s.url, s.created_at,
          s.in_reply_to_id, s.in_reply_to_account_id, s.reblog_of_id,
          s.quote_id, s.quote_approval_status, s.quote_policy,
@@ -295,7 +296,7 @@ function toStatusRow(row: StatusWithAccountJoin): StatusRow {
     federated_at: null,
     edited_at: row.edited_at,
     deleted_at: row.deleted_at ?? null,
-    poll_id: null,
+    poll_id: row.poll_id,
     quote_id: row.quote_id,
     quote_approval_status: row.quote_approval_status,
     quote_policy: row.quote_policy,

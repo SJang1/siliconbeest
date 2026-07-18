@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Status } from '@/types/mastodon'
 import StatusComposer from '@/components/status/StatusComposer.vue'
+import LegacyStatusComposer from '@/legacy/components/status/StatusComposer.vue'
 import { useComposeStore } from '@/stores/compose'
 import { createTestI18n } from '../helpers'
 
@@ -84,5 +85,43 @@ describe('StatusComposer edit mode', () => {
 
     expect(compose.text).toBe('First & second\nNext line\n\nFinal paragraph')
     expect(compose.contentWarning).toBe('Existing CW')
+  })
+
+  it('clears local edit fields when editing is cancelled', async () => {
+    const compose = useComposeStore()
+    compose.setEditing(editableArticle())
+    const wrapper = mount(StatusComposer, {
+      global: { plugins: [createTestI18n()] },
+    })
+
+    compose.reset()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find<HTMLInputElement>('input[placeholder="Article title"]').exists()).toBe(false)
+    expect(wrapper.get<HTMLTextAreaElement>('textarea[placeholder="What\'s on your mind?"]').element.value).toBe('')
+  })
+
+  it('loads Article edits into an already-mounted legacy composer', async () => {
+    const compose = useComposeStore()
+    const wrapper = mount(LegacyStatusComposer, {
+      global: { plugins: [createTestI18n()] },
+    })
+
+    compose.setEditing(editableArticle())
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get<HTMLInputElement>('input[placeholder="Article title"]').element.value).toBe('Original title')
+    expect(wrapper.get<HTMLTextAreaElement>('textarea[placeholder="Article summary (optional)"]').element.value).toBe('Original summary')
+    expect(wrapper.get<HTMLTextAreaElement>('textarea[placeholder="What\'s on your mind?"]').element.value).toBe('Original body')
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      object_type: 'Article',
+      title: 'Original title',
+      summary: 'Original summary',
+      content: 'Original body',
+      visibility: 'private',
+      language: 'ko',
+    })
   })
 })

@@ -25,6 +25,7 @@ const emit = defineEmits<{
     content: string
     object_type: 'Note' | 'Article'
     title?: string
+    summary?: string
     spoiler_text: string
     visibility: string
     language: string
@@ -35,11 +36,13 @@ const emit = defineEmits<{
   }]
 }>()
 
-const content = ref('')
-const objectType = ref<'Note' | 'Article'>('Note')
-const articleTitle = ref('')
-const spoilerText = ref('')
-const showCw = ref(false)
+const isEditing = computed(() => compose.editingId !== null)
+const content = ref(isEditing.value ? compose.text : '')
+const objectType = ref<'Note' | 'Article'>(isEditing.value ? compose.objectType : 'Note')
+const articleTitle = ref(isEditing.value ? compose.title : '')
+const articleSummary = ref(isEditing.value ? compose.articleSummary : '')
+const spoilerText = ref(isEditing.value ? compose.contentWarning : '')
+const showCw = ref(isEditing.value ? compose.showContentWarning : false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const charLimit = computed(() => objectType.value === 'Article' ? 100_000 : (props.maxChars ?? 500))
@@ -445,6 +448,33 @@ const quotePolicyIcons: Record<import('@/types/mastodon').QuotePolicy, string> =
   nobody: '⊘',
 }
 
+function loadEditingDraft() {
+  if (!compose.editingId) return
+  content.value = compose.text
+  objectType.value = compose.objectType
+  articleTitle.value = compose.title
+  articleSummary.value = compose.articleSummary
+  spoilerText.value = compose.contentWarning
+  showCw.value = compose.showContentWarning
+  selectedVisibility.value = visibilityOptions.find(option => option.value === compose.visibility)
+    ?? visibilityOptions[0]!
+  selectedLanguage.value = languageOptions.find(option => option.code === compose.language)
+    ?? languageOptions[1]!
+}
+
+watch(() => compose.editingId, (editingId) => {
+  if (editingId) {
+    loadEditingDraft()
+  } else {
+    content.value = ''
+    objectType.value = 'Note'
+    articleTitle.value = ''
+    articleSummary.value = ''
+    spoilerText.value = ''
+    showCw.value = false
+  }
+}, { immediate: true })
+
 const canSubmit = computed(() => {
   const hasContent = content.value.trim().length > 0 || compose.mediaAttachments.length > 0 || !!compose.quoteStatus
   const validTitle = objectType.value !== 'Article'
@@ -551,6 +581,7 @@ function submit() {
     content: content.value,
     object_type: objectType.value,
     title: objectType.value === 'Article' ? articleTitle.value.trim() : undefined,
+    summary: objectType.value === 'Article' ? articleSummary.value.trim() : undefined,
     spoiler_text: showCw.value ? spoilerText.value : '',
     visibility: selectedVisibility.value.value,
     language: selectedLanguage.value.code,
@@ -562,6 +593,7 @@ function submit() {
   content.value = ''
   objectType.value = 'Note'
   articleTitle.value = ''
+  articleSummary.value = ''
   spoilerText.value = ''
   showCw.value = false
   compose.mediaAttachments.splice(0)
@@ -717,6 +749,13 @@ function submit() {
         class="w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-xl font-bold text-gray-950 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
       />
       <div class="mt-1 text-right text-xs text-gray-400">{{ articleTitle.length }}/200</div>
+      <textarea
+        v-model="articleSummary"
+        maxlength="500"
+        rows="2"
+        :placeholder="t('compose.article_summary_placeholder')"
+        class="mt-2 w-full resize-y rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
+      />
     </div>
 
     <!-- CW input -->
