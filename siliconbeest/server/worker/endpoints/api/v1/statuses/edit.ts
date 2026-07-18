@@ -11,6 +11,7 @@ import { serializeAccount } from '../../../../utils/mastodonSerializer';
 import type { AccountRow } from '../../../../types/db';
 import {
   Update,
+  Article,
   Note,
   Mention,
   Hashtag,
@@ -34,6 +35,8 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
 
   let body: {
     status?: string;
+    object_type?: string;
+    title?: string;
     sensitive?: boolean;
     spoiler_text?: string;
     language?: string;
@@ -44,9 +47,14 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   } catch {
     throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
+  if (body.object_type !== undefined && body.object_type !== 'Note' && body.object_type !== 'Article') {
+    throw new AppError(422, 'Validation failed', 'Invalid object type');
+  }
 
   const result = await editStatus(domain, statusId, currentAccountId, {
     text: body.status,
+    objectType: body.object_type as 'Note' | 'Article' | undefined,
+    title: body.title,
     sensitive: body.sensitive,
     spoilerText: body.spoiler_text,
     language: body.language,
@@ -159,7 +167,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
         return new APDocument({ url: attUrl, mediaType: attMediaType, name: attName });
       });
 
-      // -- Build Fedify Note --
+      // -- Build the Fedify status object --
       const noteValues: ConstructorParameters<typeof Note>[0] = {
         id: new URL(updatedRow.uri as string),
         attribution: new URL(actorUri),
@@ -205,13 +213,18 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
         noteValues.contexts = [new URL(editConvApUri)];
       }
 
-      const fedifyNote = new Note(noteValues);
+      const fedifyObject = updatedRow.object_type === 'Article'
+        ? new Article({
+            ...noteValues,
+            name: updatedRow.title || null,
+          } as ConstructorParameters<typeof Article>[0])
+        : new Note(noteValues);
 
       // -- Build Update activity --
       const update = new Update({
         id: new URL(`https://${domain}/activities/${generateUlid()}`),
         actor: new URL(actorUri),
-        object: fedifyNote,
+        object: fedifyObject,
         published: Temporal.Instant.from(now),
         tos: toUrls,
         ccs: ccUrls,

@@ -153,6 +153,8 @@
     "search_emoji": "Search emoji...",
     "no_custom_emoji": "No custom emojis",
     "poll_toggle": "Add poll",
+    "article_toggle": "Write a long-form article",
+    "article_title_placeholder": "Article title",
     "poll_option_placeholder": "Option {n}",
     "poll_add_option": "Add option",
     "poll_multiple": "Multiple choices",

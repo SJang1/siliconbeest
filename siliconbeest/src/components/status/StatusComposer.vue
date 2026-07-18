@@ -21,6 +21,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   submit: [payload: {
     content: string
+    object_type: 'Note' | 'Article'
+    title?: string
     spoiler_text: string
     visibility: string
     language: string
@@ -32,11 +34,13 @@ const emit = defineEmits<{
 }>()
 
 const content = ref('')
+const objectType = ref<'Note' | 'Article'>('Note')
+const articleTitle = ref('')
 const spoilerText = ref('')
 const showCw = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const charLimit = computed(() => props.maxChars ?? 500)
+const charLimit = computed(() => objectType.value === 'Article' ? 100_000 : (props.maxChars ?? 500))
 const charsRemaining = computed(() => charLimit.value - content.value.length)
 
 // ── Emoji picker state ──────────────────────────────────────────────
@@ -414,8 +418,15 @@ const quotePolicyIcons: Record<import('@/types/mastodon').QuotePolicy, string> =
 
 const canSubmit = computed(() => {
   const hasContent = content.value.trim().length > 0 || compose.mediaAttachments.length > 0 || !!compose.quoteStatus
-  return hasContent && charsRemaining.value >= 0 && !compose.uploading
+  const validTitle = objectType.value !== 'Article'
+    || (articleTitle.value.trim().length > 0 && articleTitle.value.length <= 200)
+  return hasContent && validTitle && charsRemaining.value >= 0 && !compose.uploading
 })
+
+function toggleArticle() {
+  objectType.value = objectType.value === 'Article' ? 'Note' : 'Article'
+  if (objectType.value === 'Article' && compose.showPoll) togglePoll()
+}
 
 function togglePoll() {
   if (compose.showPoll) {
@@ -503,6 +514,8 @@ function submit() {
   if (!canSubmit.value) return
   emit('submit', {
     content: content.value,
+    object_type: objectType.value,
+    title: objectType.value === 'Article' ? articleTitle.value.trim() : undefined,
     spoiler_text: showCw.value ? spoilerText.value : '',
     visibility: selectedVisibility.value.value,
     language: selectedLanguage.value.code,
@@ -518,6 +531,8 @@ function submit() {
 
 watch(() => compose.publishedTick, () => {
   content.value = ''
+  objectType.value = 'Note'
+  articleTitle.value = ''
   spoilerText.value = ''
   showCw.value = false
 })
@@ -660,6 +675,17 @@ watch(() => compose.publishedTick, () => {
     <!-- Reply indicator -->
     <div v-if="replyTo" class="mb-2 text-sm text-slate-500 dark:text-slate-400">
       {{ t('compose.replying_to', { name: `@${replyTo.account.acct}` }) }}
+    </div>
+
+    <div v-if="objectType === 'Article'" class="mb-2">
+      <input
+        v-model="articleTitle"
+        type="text"
+        maxlength="200"
+        :placeholder="t('compose.article_title_placeholder')"
+        class="w-full rounded-xl border border-outline bg-surface px-3.5 py-3 text-xl font-bold text-slate-950 transition placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-outline-dark dark:bg-surface-2-dark dark:text-white dark:placeholder:text-slate-500"
+      />
+      <div class="mt-1 text-right text-xs tabular-nums text-slate-400">{{ articleTitle.length }}/200</div>
     </div>
 
     <!-- CW input -->
@@ -903,7 +929,7 @@ watch(() => compose.publishedTick, () => {
         <button
           type="button"
           @click="togglePoll"
-          :disabled="compose.mediaAttachments.length > 0"
+          :disabled="compose.mediaAttachments.length > 0 || objectType === 'Article'"
           class="sb-btn sb-btn-ghost rounded-xl p-2"
           :class="compose.showPoll
             ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500 dark:hover:bg-brand-500'
@@ -913,6 +939,18 @@ watch(() => compose.publishedTick, () => {
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M4 19V9m5 10V5m5 14v-7m5 7V8" /></svg>
         </button>
+
+        <!-- Article toggle -->
+        <button
+          type="button"
+          @click="toggleArticle"
+          class="sb-btn sb-btn-ghost rounded-xl px-2.5 py-2 text-sm font-bold"
+          :class="objectType === 'Article'
+            ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500'
+            : 'text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40'"
+          :aria-label="t('compose.article_toggle')"
+          :title="t('compose.article_toggle')"
+        >A</button>
 
         <!-- Emoji picker -->
         <div class="relative" ref="emojiPickerRef">

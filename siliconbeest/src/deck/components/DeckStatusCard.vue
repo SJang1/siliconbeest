@@ -59,6 +59,7 @@ const displayStatus = computed(() => {
 
 const isEditing = ref(false)
 const editText = ref('')
+const editTitle = ref('')
 const editSpoilerText = ref('')
 const editSensitive = ref(false)
 const editLoading = ref(false)
@@ -292,6 +293,7 @@ function handleEdit() {
   if (!statusActionPermissions.value.edit) return
   const s = displayStatus.value
   editText.value = s.text || stripHtml(s.content || '')
+  editTitle.value = s.title || ''
   editSpoilerText.value = s.spoiler_text || ''
   editSensitive.value = s.sensitive || false
   isEditing.value = true
@@ -300,6 +302,7 @@ function handleEdit() {
 function cancelEdit() {
   isEditing.value = false
   editText.value = ''
+  editTitle.value = ''
   editSpoilerText.value = ''
   editSensitive.value = false
 }
@@ -310,6 +313,8 @@ async function submitEdit() {
   try {
     await statusesStore.editStatus(displayStatus.value.id, {
       status: editText.value,
+      object_type: displayStatus.value.object_type === 'Article' ? 'Article' : 'Note',
+      title: displayStatus.value.object_type === 'Article' ? editTitle.value.trim() : undefined,
       spoiler_text: editSpoilerText.value || undefined,
       sensitive: editSensitive.value,
     })
@@ -450,6 +455,14 @@ async function handleDelete() {
       <div class="dk-mono text-[10.5px] font-semibold uppercase tracking-wide" style="color: var(--dk-acc)">
         {{ t('status.editing') }}
       </div>
+      <input
+        v-if="displayStatus.object_type === 'Article'"
+        v-model="editTitle"
+        type="text"
+        maxlength="200"
+        :placeholder="t('compose.article_title_placeholder')"
+        class="dk-input text-lg font-bold"
+      />
       <textarea
         v-model="editText"
         class="dk-input resize-none"
@@ -478,7 +491,7 @@ async function handleDelete() {
       </div>
       <div class="flex items-center gap-2">
         <button
-          :disabled="editLoading || !editText.trim()"
+          :disabled="editLoading || !editText.trim() || (displayStatus.object_type === 'Article' && !editTitle.trim())"
           class="dk-btn-accent !px-4 !py-2 !text-[13px]"
           @click="submitEdit"
         >

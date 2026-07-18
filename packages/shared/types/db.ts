@@ -657,6 +657,8 @@ export type StatusWithJoinedAccountRow = StatusRow & {
 
 /** Result of `SELECT content, spoiler_text, sensitive, created_at, ... FROM status_edits` */
 export type StatusEditRow = {
+  readonly object_type: 'Note' | 'Article';
+  readonly title: string;
   readonly content: string;
   readonly spoiler_text: string;
   readonly sensitive: number;

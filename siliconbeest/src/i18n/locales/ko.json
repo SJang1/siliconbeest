@@ -153,6 +153,8 @@
     "search_emoji": "이모지 검색...",
     "no_custom_emoji": "커스텀 이모지 없음",
     "poll_toggle": "투표 추가",
+    "article_toggle": "장문 Article 작성",
+    "article_title_placeholder": "글 제목",
     "poll_option_placeholder": "선택지 {n}",
     "poll_add_option": "선택지 추가",
     "poll_multiple": "복수 선택",

@@ -415,6 +415,8 @@ export async function unbookmarkStatus(
 
 export interface CreateStatusData {
   text: string;
+  objectType?: 'Note' | 'Article';
+  title?: string;
   visibility?: string;
   sensitive?: boolean;
   spoilerText?: string;
@@ -430,6 +432,9 @@ export interface CreateStatusData {
   quotePolicy?: QuotePolicy;
 }
 
+export const MAX_ARTICLE_TITLE_CHARACTERS = 200;
+export const MAX_ARTICLE_CHARACTERS = 100_000;
+
 export interface LocalMention {
   account_id: string;
   actor_uri: string;
@@ -442,6 +447,8 @@ export interface CreateStatusResult {
   statusId: string;
   statusUri: string;
   statusUrl: string;
+  objectType: 'Note' | 'Article';
+  title: string;
   content: string;
   parsed: ParsedContent;
   localMentions: LocalMention[];
@@ -480,6 +487,20 @@ export async function createStatus(
   const spoilerText = data.spoilerText || '';
   const language = data.language || 'en';
   const statusText = (data.text || '').trim();
+  const objectType = data.objectType === 'Article' ? 'Article' : 'Note';
+  const title = objectType === 'Article' ? (data.title || '').trim() : '';
+  if (objectType === 'Article' && !title) {
+    throw new AppError(422, 'Validation failed', 'Article title is required');
+  }
+  if (title.length > MAX_ARTICLE_TITLE_CHARACTERS) {
+    throw new AppError(422, 'Validation failed', 'Article title is too long');
+  }
+  if (objectType === 'Article' && statusText.length > MAX_ARTICLE_CHARACTERS) {
+    throw new AppError(422, 'Validation failed', 'Article body is too long');
+  }
+  if (objectType === 'Article' && data.pollOptions?.length) {
+    throw new AppError(422, 'Validation failed', 'Articles cannot contain polls');
+  }
   const mediaIds = data.mediaIds || [];
   let quotePolicy = normalizeQuotePolicy(data.quotePolicy);
   if (!data.quotePolicy) {
@@ -621,12 +642,14 @@ export async function createStatus(
   // -- Main batch: status INSERT + account count + reply count --
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare(
-      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, quote_approval_status, quote_request_uri, quote_policy, local, emoji_tags, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 1, ?19, ?20, ?20)`,
+      `INSERT INTO statuses (id, uri, url, object_type, title, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, quote_approval_status, quote_request_uri, quote_policy, local, emoji_tags, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, 1, ?21, ?22, ?22)`,
     ).bind(
       statusId,
       statusUri,
       statusUrl,
+      objectType,
+      title,
       accountId,
       inReplyToId,
       inReplyToAccountId,
@@ -823,6 +846,8 @@ export async function createStatus(
     statusId,
     statusUri,
     statusUrl,
+    objectType,
+    title,
     content,
     parsed,
     localMentions,
@@ -852,6 +877,8 @@ export async function createStatus(
 
 export interface EditStatusData {
   text?: string;
+  objectType?: 'Note' | 'Article';
+  title?: string;
   sensitive?: boolean;
   spoilerText?: string;
   language?: string;
@@ -881,6 +908,22 @@ export async function editStatus(
 
   const now = new Date().toISOString();
   const statusText = data.text !== undefined ? data.text.trim() : row.text;
+  const objectType = data.objectType ?? row.object_type;
+  if (objectType !== row.object_type) {
+    throw new AppError(422, 'Validation failed', 'Status type cannot be changed after publishing');
+  }
+  const title = objectType === 'Article'
+    ? (data.title !== undefined ? data.title.trim() : row.title)
+    : '';
+  if (objectType === 'Article' && !title) {
+    throw new AppError(422, 'Validation failed', 'Article title is required');
+  }
+  if (title.length > MAX_ARTICLE_TITLE_CHARACTERS) {
+    throw new AppError(422, 'Validation failed', 'Article title is too long');
+  }
+  if (objectType === 'Article' && statusText.length > MAX_ARTICLE_CHARACTERS) {
+    throw new AppError(422, 'Validation failed', 'Article body is too long');
+  }
   const sensitive = data.sensitive !== undefined ? (data.sensitive ? 1 : 0) : row.sensitive;
   const spoilerText = data.spoilerText !== undefined ? data.spoilerText : row.content_warning || '';
   const language = data.language !== undefined ? data.language : row.language || 'en';
@@ -936,15 +979,16 @@ export async function editStatus(
 
   const updated = await env.DB.prepare(
     `UPDATE statuses
-     SET text = ?1, content = ?2, content_warning = ?3, sensitive = ?4,
-         language = ?5, emoji_tags = ?6, edited_at = ?7, updated_at = ?7
-     WHERE id = ?8
-       AND account_id = ?9
+     SET text = ?1, title = ?2, content = ?3, content_warning = ?4, sensitive = ?5,
+         language = ?6, emoji_tags = ?7, edited_at = ?8, updated_at = ?8
+     WHERE id = ?9
+       AND account_id = ?10
        AND deleted_at IS NULL
        AND local = 1
        AND reblog_of_id IS NULL`,
   ).bind(
     statusText,
+    title,
     content,
     spoilerText,
     sensitive,
@@ -960,11 +1004,13 @@ export async function editStatus(
 
   await env.DB.prepare(
     `INSERT INTO status_edits
-       (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+       (id, status_id, object_type, title, content, spoiler_text, sensitive, media_attachments_json, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
   ).bind(
     generateUlid(),
     statusId,
+    row.object_type,
+    row.title,
     row.content || '',
     row.content_warning || '',
     row.sensitive,

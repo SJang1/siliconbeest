@@ -153,6 +153,8 @@
     "search_emoji": "搜索表情...",
     "no_custom_emoji": "没有自定义表情",
     "poll_toggle": "添加投票",
+    "article_toggle": "撰写长文 Article",
+    "article_title_placeholder": "文章标题",
     "poll_option_placeholder": "选项 {n}",
     "poll_add_option": "添加选项",
     "poll_multiple": "多选",

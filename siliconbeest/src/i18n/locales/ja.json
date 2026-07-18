@@ -153,6 +153,8 @@
     "search_emoji": "絵文字を検索...",
     "no_custom_emoji": "カスタム絵文字はありません",
     "poll_toggle": "投票を追加",
+    "article_toggle": "長文記事を書く",
+    "article_title_placeholder": "記事のタイトル",
     "poll_option_placeholder": "選択肢 {n}",
     "poll_add_option": "選択肢を追加",
     "poll_multiple": "複数選択",

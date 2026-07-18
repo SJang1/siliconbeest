@@ -15,6 +15,8 @@ interface StatusWithAccountRow {
   visibility: string;
   content: string;
   content_warning: string;
+  object_type: 'Note' | 'Article';
+  title: string;
   sensitive: number;
   created_at: string;
   edited_at: string | null;
@@ -101,6 +103,8 @@ app.get('/:id/history', authOptional, requireScope('read:statuses'), async (c) =
   }));
 
   const history: Array<{
+    object_type: 'Note' | 'Article';
+    title: string;
     content: string;
     spoiler_text: string;
     sensitive: boolean;
@@ -119,6 +123,8 @@ app.get('/:id/history', authOptional, requireScope('read:statuses'), async (c) =
       } catch { /* use current media */ }
     }
     history.push({
+      object_type: e.object_type,
+      title: e.title || '',
       content: e.content,
       spoiler_text: e.spoiler_text || '',
       sensitive: !!e.sensitive,
@@ -131,6 +137,8 @@ app.get('/:id/history', authOptional, requireScope('read:statuses'), async (c) =
 
   // Always add the current version as the last entry
   history.push({
+    object_type: status.object_type,
+    title: status.title || '',
     content: status.content || '',
     spoiler_text: status.content_warning || '',
     sensitive: !!status.sensitive,

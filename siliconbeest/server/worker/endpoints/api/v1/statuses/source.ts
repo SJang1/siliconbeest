@@ -17,6 +17,8 @@ interface StatusSourceRow extends StatusMutationPermissionRecord {
   text: string | null;
   content: string | null;
   content_warning: string | null;
+  object_type: 'Note' | 'Article';
+  title: string;
 }
 
 const app = new Hono<HonoEnv>();
@@ -28,7 +30,7 @@ app.get('/:id/source', authRequired, requireScope('read:statuses'), async (c) =>
 
   const status = await env.DB.prepare(
     `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id,
-            text, content_warning, content
+            text, content_warning, content, object_type, title
      FROM statuses
      WHERE id = ?1`,
   )
@@ -40,6 +42,8 @@ app.get('/:id/source', authRequired, requireScope('read:statuses'), async (c) =>
 
   return c.json({
     id: status.id,
+    object_type: status.object_type,
+    title: status.title || '',
     text: status.text || status.content || '',
     spoiler_text: status.content_warning || '',
   });

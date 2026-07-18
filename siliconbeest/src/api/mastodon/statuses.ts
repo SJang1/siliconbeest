@@ -3,6 +3,8 @@ import type { Account, Status, Context } from '@/types/mastodon';
 
 export interface CreateStatusParams {
   status?: string;
+  object_type?: 'Note' | 'Article';
+  title?: string;
   media_ids?: string[];
   poll?: {
     options: string[];

@@ -8,7 +8,9 @@ import { useAuthStore } from './auth';
 import { useStatusesStore } from './statuses';
 import { useTimelinesStore } from './timelines';
 
-const MAX_CHARACTERS = 500;
+const MAX_NOTE_CHARACTERS = 500;
+const MAX_ARTICLE_CHARACTERS = 100_000;
+const MAX_ARTICLE_TITLE_CHARACTERS = 200;
 
 export const useComposeStore = defineStore('compose', () => {
   const defaultVisibility = ref<StatusVisibility>('public');
@@ -23,6 +25,8 @@ export const useComposeStore = defineStore('compose', () => {
     defaultQuotePolicy.value = policy ?? 'public';
   }, { immediate: true });
   const text = ref('');
+  const objectType = ref<'Note' | 'Article'>('Note');
+  const title = ref('');
   const contentWarning = ref('');
   const showContentWarning = ref(false);
   const visibility = ref<StatusVisibility>(defaultVisibility.value);
@@ -49,17 +53,21 @@ export const useComposeStore = defineStore('compose', () => {
   const showPoll = ref(false);
 
   const charCount = computed(() => text.value.length);
-  const remaining = computed(() => MAX_CHARACTERS - charCount.value);
+  const characterLimit = computed(() => objectType.value === 'Article' ? MAX_ARTICLE_CHARACTERS : MAX_NOTE_CHARACTERS);
+  const remaining = computed(() => characterLimit.value - charCount.value);
   const canPublish = computed(
     () =>
       !publishing.value &&
       !uploading.value &&
       (text.value.trim().length > 0 || mediaAttachments.value.length > 0) &&
+      (objectType.value !== 'Article' || (title.value.trim().length > 0 && title.value.length <= MAX_ARTICLE_TITLE_CHARACTERS)) &&
       remaining.value >= 0,
   );
 
   function reset() {
     text.value = '';
+    objectType.value = 'Note';
+    title.value = '';
     contentWarning.value = '';
     showContentWarning.value = false;
     visibility.value = defaultVisibility.value;
@@ -128,6 +136,8 @@ export const useComposeStore = defineStore('compose', () => {
 
   function setEditing(status: Status) {
     editingId.value = status.id;
+    objectType.value = status.object_type === 'Article' ? 'Article' : 'Note';
+    title.value = status.title ?? '';
     text.value = status.text ?? '';
     contentWarning.value = status.spoiler_text;
     showContentWarning.value = !!status.spoiler_text;
@@ -162,6 +172,8 @@ export const useComposeStore = defineStore('compose', () => {
     try {
       const params = {
         status: text.value,
+        object_type: objectType.value,
+        title: objectType.value === 'Article' ? title.value.trim() : undefined,
         media_ids: mediaAttachments.value.map((m) => m.id),
         in_reply_to_id: inReplyToId.value ?? undefined,
         sensitive: sensitive.value,
@@ -216,6 +228,8 @@ export const useComposeStore = defineStore('compose', () => {
 
   return {
     text,
+    objectType,
+    title,
     contentWarning,
     showContentWarning,
     visibility,
@@ -241,6 +255,7 @@ export const useComposeStore = defineStore('compose', () => {
     showPoll,
     charCount,
     remaining,
+    characterLimit,
     canPublish,
     reset,
     setReplyTo,

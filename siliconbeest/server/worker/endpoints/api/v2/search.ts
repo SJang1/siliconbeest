@@ -667,13 +667,14 @@ app.get('/', authOptional, async (c) => {
       );
       const { results } = await env.DB.prepare(`
         ${STATUS_SEARCH_SELECT}
-        WHERE s.content LIKE ?
+        WHERE (s.content LIKE ? OR s.title LIKE ?)
           AND ${visibility.sql}
           AND ${relationship.sql}
           AND ${reblogOriginal.sql}
         ORDER BY s.id DESC
         LIMIT ? OFFSET ?
       `).bind(
+        searchTerm,
         searchTerm,
         ...visibility.bindings,
         ...relationship.bindings,

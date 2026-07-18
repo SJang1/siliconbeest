@@ -193,10 +193,13 @@ export async function handleOgRequest(url: URL): Promise<Response | null> {
       const image: string | undefined =
         statusData.media_attachments?.[0]?.preview_url ||
         statusData.media_attachments?.[0]?.url;
+      const articleTitle = statusData.object_type === 'Article' && statusData.title
+        ? statusData.title
+        : null;
 
       return new Response(
         generateOgHtml({
-          title: `${displayName} (@${acct})`,
+          title: articleTitle || `${displayName} (@${acct})`,
           description: contentText || `Post by @${acct}`,
           url: url.toString(),
           image,

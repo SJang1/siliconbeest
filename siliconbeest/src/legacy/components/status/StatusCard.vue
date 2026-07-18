@@ -54,6 +54,7 @@ const displayStatus = computed(() => {
 
 const isEditing = ref(false)
 const editText = ref('')
+const editTitle = ref('')
 const editSpoilerText = ref('')
 const editSensitive = ref(false)
 const editLoading = ref(false)
@@ -281,6 +282,7 @@ function handleEdit() {
   const s = displayStatus.value
   // Use text field if available, otherwise strip HTML from content
   editText.value = s.text || stripHtml(s.content || '')
+  editTitle.value = s.title || ''
   editSpoilerText.value = s.spoiler_text || ''
   editSensitive.value = s.sensitive || false
   isEditing.value = true
@@ -289,6 +291,7 @@ function handleEdit() {
 function cancelEdit() {
   isEditing.value = false
   editText.value = ''
+  editTitle.value = ''
   editSpoilerText.value = ''
   editSensitive.value = false
 }
@@ -299,6 +302,8 @@ async function submitEdit() {
   try {
     await statusesStore.editStatus(displayStatus.value.id, {
       status: editText.value,
+      object_type: displayStatus.value.object_type === 'Article' ? 'Article' : 'Note',
+      title: displayStatus.value.object_type === 'Article' ? editTitle.value.trim() : undefined,
       spoiler_text: editSpoilerText.value || undefined,
       sensitive: editSensitive.value,
     })
@@ -418,6 +423,14 @@ async function handleDelete() {
           <div class="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">
             {{ t('status.editing') }}
           </div>
+          <input
+            v-if="displayStatus.object_type === 'Article'"
+            v-model="editTitle"
+            type="text"
+            maxlength="200"
+            :placeholder="t('compose.article_title_placeholder')"
+            class="w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-lg font-bold dark:border-gray-600"
+          />
           <textarea
             v-model="editText"
             class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -447,7 +460,7 @@ async function handleDelete() {
           <div class="flex items-center gap-2 mt-2">
             <button
               @click="submitEdit"
-              :disabled="editLoading || !editText.trim()"
+              :disabled="editLoading || !editText.trim() || (displayStatus.object_type === 'Article' && !editTitle.trim())"
               class="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {{ t('common.save') }}

@@ -8,6 +8,8 @@ import type { StatusVisibility, QuotePolicy } from '@/types/mastodon';
 
 export interface PublishPayload {
   content: string;
+  object_type?: 'Note' | 'Article';
+  title?: string;
   visibility?: string;
   sensitive?: boolean;
   spoiler_text?: string;
@@ -51,6 +53,8 @@ export function usePublish() {
     if (!auth.token) return;
 
     compose.text = payload.content;
+    compose.objectType = payload.object_type ?? 'Note';
+    compose.title = payload.title ?? '';
 
     // Determine visibility: if replying, clamp to parent visibility
     if (payload.in_reply_to_id) {

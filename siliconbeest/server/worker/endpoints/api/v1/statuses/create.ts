@@ -8,6 +8,7 @@ import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccoun
 import { getFedifyContext, sendToFollowers, sendToRecipient } from '../../../../federation/helpers/send';
 import {
   Create,
+  Article,
   Note,
   Question,
   Mention,
@@ -43,6 +44,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
   let body: {
     status?: string;
+    object_type?: string;
+    title?: string;
     media_ids?: string[];
     poll?: { options: string[]; expires_in: number; multiple?: boolean };
     in_reply_to_id?: string;
@@ -63,6 +66,10 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
   const statusText = (body.status || '').trim();
   const mediaIds = body.media_ids || [];
+  if (body.object_type !== undefined && body.object_type !== 'Note' && body.object_type !== 'Article') {
+    throw new AppError(422, 'Validation failed', 'Invalid object type');
+  }
+  const objectType = body.object_type === 'Article' ? 'Article' : 'Note';
 
   if (!statusText && mediaIds.length === 0) {
     throw new AppError(422, 'Validation failed', 'Status text or media is required');
@@ -82,6 +89,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   // ============================================================
   const result = await createStatus(domain, currentUser.account_id, currentAccount.username, {
     text: statusText,
+    objectType,
+    title: body.title,
     visibility: requestedVisibility,
     sensitive: body.sensitive,
     spoilerText: body.spoiler_text,
@@ -96,7 +105,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   });
 
   const {
-    statusId, statusUri, statusUrl, content, parsed,
+    statusId, statusUri, statusUrl, objectType: storedObjectType, title, content, parsed,
     localMentions, hashtags, emojiTags: resolvedEmojiTags,
     pollData, conversationApUri,
     inReplyToId, inReplyToAccountId,
@@ -391,7 +400,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         });
         const dmAcct = dmRow.a_domain ? `${dmRow.a_username}@${dmRow.a_domain}` : dmRow.a_username;
         const dmPayload = JSON.stringify({
-          id: statusId, uri: statusUri, object_type: pollData ? 'Question' : 'Note', title: '',
+          id: statusId, uri: statusUri, object_type: pollData ? 'Question' : storedObjectType, title,
           created_at: now, content: fixedContent, visibility,
           sensitive: !!sensitive, spoiler_text: spoilerText, language, url: statusUrl,
           in_reply_to_id: inReplyToId, in_reply_to_account_id: inReplyToAccountId,
@@ -586,7 +595,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     }
 
     // Build Note or Question depending on whether this is a poll
-    let fedifyObject: Note | Question;
+    let fedifyObject: Note | Article | Question;
 
     if (pollData) {
       const options: Array<{ title: string; votes_count: number }> = JSON.parse(
@@ -611,6 +620,11 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
       questionValues.voters = 0;
       fedifyObject = new Question(questionValues);
+    } else if (storedObjectType === 'Article') {
+      fedifyObject = new Article({
+        ...noteValues,
+        name: title,
+      } as ConstructorParameters<typeof Article>[0]);
     } else {
       fedifyObject = new Note(noteValues);
     }
@@ -814,8 +828,8 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
   return c.json({
     id: statusId,
-    object_type: pollData ? 'Question' : 'Note',
-    title: '',
+    object_type: pollData ? 'Question' : storedObjectType,
+    title,
     created_at: now,
     in_reply_to_id: inReplyToId,
     in_reply_to_account_id: inReplyToAccountId,
