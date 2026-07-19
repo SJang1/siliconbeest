@@ -7,11 +7,15 @@ const DOMAIN = 'test.siliconbeest.local';
 
 describe('ActivityPub Endpoints', () => {
   let user: { accountId: string; userId: string; token: string };
+  let noteStatusId: string;
+  let articleStatusId: string;
+  let announceStatusId: string;
   let suspendedStatusId: string;
 
   beforeAll(async () => {
     await applyMigration();
     user = await createTestUser('apuser');
+    const booster = await createTestUser('apbooster');
     const disabled = await createTestUser('apdisabled');
     const pending = await createTestUser('appending');
     const memorial = await createTestUser('apmemorial');
@@ -37,12 +41,35 @@ describe('ActivityPub Endpoints', () => {
         .bind(new Date().toISOString(), suspended.accountId),
     ]);
 
-    // Create a public status so the outbox has content
-    await SELF.fetch(`${BASE}/api/v1/statuses`, {
+    // Create public objects used by the outbox and activity-wrapper tests.
+    const noteStatus = await SELF.fetch(`${BASE}/api/v1/statuses`, {
       method: 'POST',
       headers: authHeaders(user.token),
       body: JSON.stringify({ status: 'Hello from ActivityPub!', visibility: 'public' }),
     });
+    expect(noteStatus.status).toBe(200);
+    noteStatusId = (await noteStatus.json<{ id: string }>()).id;
+
+    const articleStatus = await SELF.fetch(`${BASE}/api/v1/statuses`, {
+      method: 'POST',
+      headers: authHeaders(user.token),
+      body: JSON.stringify({
+        object_type: 'Article',
+        title: 'Activity wrapper article',
+        summary: 'Article summary',
+        status: 'Long-form ActivityPub content.',
+        visibility: 'public',
+      }),
+    });
+    expect(articleStatus.status).toBe(200);
+    articleStatusId = (await articleStatus.json<{ id: string }>()).id;
+
+    const announceStatus = await SELF.fetch(`${BASE}/api/v1/statuses/${noteStatusId}/reblog`, {
+      method: 'POST',
+      headers: authHeaders(booster.token),
+    });
+    expect(announceStatus.status).toBe(200);
+    announceStatusId = (await announceStatus.json<{ id: string }>()).id;
   });
 
   // -------------------------------------------------------------------
@@ -120,6 +147,47 @@ describe('ActivityPub Endpoints', () => {
         expect(m.controller).toBe(`https://${DOMAIN}/users/apuser`);
         expect(m.publicKeyMultibase).toBeDefined();
       }
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Activity wrappers
+  // -------------------------------------------------------------------
+  describe('GET /users/:username/statuses/:id/activity', () => {
+    it('returns Create(Note) for a regular status', async () => {
+      const res = await SELF.fetch(`${BASE}/users/apuser/statuses/${noteStatusId}/activity`, {
+        headers: { Accept: 'application/activity+json' },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toContain('activity+json');
+
+      const activity = await res.json<Record<string, any>>();
+      expect(activity.type).toBe('Create');
+      expect(activity.object?.type).toBe('Note');
+      expect(activity.object?.id).toBe(`${BASE}/users/apuser/statuses/${noteStatusId}`);
+    });
+
+    it('returns Create(Article) for a long-form status', async () => {
+      const res = await SELF.fetch(`${BASE}/users/apuser/statuses/${articleStatusId}/activity`, {
+        headers: { Accept: 'application/activity+json' },
+      });
+      expect(res.status).toBe(200);
+
+      const activity = await res.json<Record<string, any>>();
+      expect(activity.type).toBe('Create');
+      expect(activity.object?.type).toBe('Article');
+      expect(activity.object?.name).toBe('Activity wrapper article');
+    });
+
+    it('returns Announce for a reblog', async () => {
+      const res = await SELF.fetch(`${BASE}/users/apbooster/statuses/${announceStatusId}/activity`, {
+        headers: { Accept: 'application/activity+json' },
+      });
+      expect(res.status).toBe(200);
+
+      const activity = await res.json<Record<string, any>>();
+      expect(activity.type).toBe('Announce');
+      expect(activity.object).toBe(`${BASE}/users/apuser/statuses/${noteStatusId}`);
     });
   });
 

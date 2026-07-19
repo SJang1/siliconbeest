@@ -373,6 +373,17 @@ app.get('/users/:identifier/statuses/:id', async (c, next) => {
   return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
 });
 
+// Activity wrapper for statuses (Create/Announce) — register this concrete
+// route before the generic status collection route so "activity" is not
+// consumed as an unsupported :collection value.
+app.get('/users/:identifier/statuses/:id/activity', async (c) => {
+  const accept = c.req.header('Accept') || '';
+  if (!accept.includes('activity+json') && !accept.includes('ld+json')) {
+    return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
+  }
+  return handleActivityRequest(c.req.param('identifier'), c.req.param('id'));
+});
+
 app.get('/users/:identifier/statuses/:id/:collection', async (c) => {
   const collection = c.req.param('collection');
   if (collection !== 'replies' && collection !== 'shares' && collection !== 'likes') {
@@ -394,16 +405,6 @@ app.get('/users/:identifier/statuses/:id/:collection', async (c) => {
 
 app.route('/users', apActor);
 app.route('/actor', apInstanceActor);
-
-// Activity wrapper for statuses (Create/Announce) — Hono route because
-// Fedify only allows one type per path pattern
-app.get('/users/:identifier/statuses/:id/activity', async (c) => {
-  const accept = c.req.header('Accept') || '';
-  if (!accept.includes('activity+json') && !accept.includes('ld+json')) {
-    return c.redirect(`https://${env.INSTANCE_DOMAIN}/@${c.req.param('identifier')}/${c.req.param('id')}`);
-  }
-  return handleActivityRequest(c.req.param('identifier'), c.req.param('id'));
-});
 
 // ---------------------------------------------------------------------------
 // Media serving (R2)
