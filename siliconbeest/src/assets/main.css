@@ -123,6 +123,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .ellipsis::after {
+    content: '\2026';
+  }
 }
 
 @layer components {
