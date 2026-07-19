@@ -370,15 +370,20 @@ export function canStoreFetchedRemoteActor(
 export interface FetchedRemoteStatusFacts {
   requestedStatusUri: string | null;
   statusUri: string | null;
+  /** Human-facing URLs explicitly advertised by the fetched AP object. */
+  statusUrlAliases?: readonly string[];
   authorUri: string | null;
   localInstanceDomain: string | null;
   authorSuspended: boolean | null;
 }
 
 /**
- * Directly fetched objects need exact resource identity and trustworthy
- * same-host attribution. Otherwise any remote host could claim a local or
- * unrelated actor as the author of an attacker-controlled object.
+ * Directly fetched objects need exact resource identity, or an exact match
+ * against a same-host URL explicitly advertised by the fetched object, plus
+ * trustworthy same-host attribution. The advertised-URL case permits normal
+ * fediverse permalinks whose HTML points to a separate canonical AP object.
+ * Otherwise any remote host could claim a local or unrelated actor as the
+ * author of an attacker-controlled object.
  */
 export function canStoreFetchedRemoteStatus(
   facts: FetchedRemoteStatusFacts,
@@ -396,7 +401,13 @@ export function canStoreFetchedRemoteStatus(
   }
 
   const localDomain = facts.localInstanceDomain.toLowerCase();
-  return requested.href === status.href
+  const requestedMatchesAdvertisedUrl = facts.statusUrlAliases?.some((value) => {
+    const advertised = parseRemoteHttpUrl(value);
+    return advertised?.href === requested.href
+      && advertised.hostname.toLowerCase() === status.hostname.toLowerCase();
+  }) ?? false;
+
+  return (requested.href === status.href || requestedMatchesAdvertisedUrl)
     && status.hostname.toLowerCase() === author.hostname.toLowerCase()
     && status.hostname.toLowerCase() !== localDomain
     && author.hostname.toLowerCase() !== localDomain

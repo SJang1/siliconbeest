@@ -23,6 +23,7 @@
 		"@fedify/fedify": "^2.3.2",
 		"@fedify/hono": "^2.3.2",
 		"@fedify/vocab": "^2.3.2",
+		"@fedify/vocab-runtime": "^2.3.2",
 		"@fedify/webfinger": "^2.3.2",
 		"@fontsource-variable/bricolage-grotesque": "^5.2.10",
 		"@fontsource-variable/inter": "^5.2.8",

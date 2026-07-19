@@ -19,6 +19,7 @@ import { pickSignerUsername } from '../../../../packages/shared/services/signer'
 import { emojiTagToCustomEmoji } from '../../../../packages/shared/utils/customEmoji';
 import { getSuspendedDomains } from '../../../../packages/shared/domain-blocks';
 import { canStoreFetchedRemoteActor } from '../../../../packages/shared/permissions';
+import type { DocumentLoader } from '@fedify/vocab-runtime';
 
 /**
  * Resolve or upsert a remote ActivityPub account.
@@ -31,6 +32,7 @@ import { canStoreFetchedRemoteActor } from '../../../../packages/shared/permissi
 export async function resolveRemoteAccount(
 	actorUri: string,
 	signerAccountId: string | null = null,
+	documentLoader?: DocumentLoader,
 ): Promise<string | null> {
 	// URI hosts are case-insensitive (DNS): normalize through the WHATWG URL
 	// parser (lowercases scheme+host, preserves path case) so the dedup lookup
@@ -112,7 +114,8 @@ export async function resolveRemoteAccount(
 			console.warn(`[resolveRemoteAccount] No local signer available for ${actorUri}, skipping`);
 			return null;
 		}
-		const docLoader = await ctx.getDocumentLoader({ identifier: signerUsername });
+		const docLoader = documentLoader
+			?? await ctx.getDocumentLoader({ identifier: signerUsername });
 		const actorObj = await ctx.lookupObject(actorUri, { documentLoader: docLoader });
 		if (actorObj && isActor(actorObj) && actorObj.id && canStoreFetchedRemoteActor({
 			requestedActorUri: lookupUri,

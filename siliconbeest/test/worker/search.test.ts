@@ -164,6 +164,18 @@ describe('Search API', () => {
       expect(articleStatus.title).toBe('A long-form title');
       expect(articleStatus.article_summary).toBe('A compact summary');
       expect(articleStatus.spoiler_text).toBe('');
+
+      const permalinkResponse = await SELF.fetch(
+        `${BASE}/api/v2/search?q=${encodeURIComponent(stored!.url)}&type=statuses`,
+      );
+      expect(permalinkResponse.status).toBe(200);
+      const permalinkSearch = await permalinkResponse.json<{
+        statuses: Array<{ id: string; object_type: string }>;
+      }>();
+      expect(permalinkSearch.statuses).toContainEqual(expect.objectContaining({
+        id: stored!.id,
+        object_type: 'Article',
+      }));
     });
 
     it('does not return private or direct statuses by URL to unauthorized users', async () => {

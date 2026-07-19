@@ -27,6 +27,7 @@ import {
   canQuoteStatus,
   canReblogStatus,
   canSignActivity,
+  canStoreFetchedRemoteStatus,
   canAccessStreamingChannel,
   canSurfaceStatus,
   canViewStatus,
@@ -55,6 +56,45 @@ function statusFacts(overrides: Partial<StatusViewFacts> = {}): StatusViewFacts 
 }
 
 describe('shared permission policy', () => {
+  describe('directly fetched remote status identity', () => {
+    const canonical = 'https://articles.example/ap/articles/123';
+    const permalink = 'https://articles.example/@author/2026/article';
+    const allowed = {
+      requestedStatusUri: canonical,
+      statusUri: canonical,
+      authorUri: 'https://articles.example/ap/actors/author',
+      localInstanceDomain: 'local.example',
+      authorSuspended: false,
+    } as const;
+
+    it('accepts the canonical AP id and an explicitly advertised same-host permalink', () => {
+      expect(canStoreFetchedRemoteStatus(allowed)).toBe(true);
+      expect(canStoreFetchedRemoteStatus({
+        ...allowed,
+        requestedStatusUri: permalink,
+        statusUrlAliases: [permalink],
+      })).toBe(true);
+    });
+
+    it('rejects unadvertised, cross-host, and mismatched-author aliases', () => {
+      expect(canStoreFetchedRemoteStatus({
+        ...allowed,
+        requestedStatusUri: permalink,
+      })).toBe(false);
+      expect(canStoreFetchedRemoteStatus({
+        ...allowed,
+        requestedStatusUri: 'https://other.example/@author/2026/article',
+        statusUrlAliases: ['https://other.example/@author/2026/article'],
+      })).toBe(false);
+      expect(canStoreFetchedRemoteStatus({
+        ...allowed,
+        requestedStatusUri: permalink,
+        statusUrlAliases: [permalink],
+        authorUri: 'https://attacker.example/users/author',
+      })).toBe(false);
+    });
+  });
+
   describe('status visibility parsing', () => {
     it.each(['public', 'unlisted', 'private', 'direct'] as const)(
       'accepts %s',

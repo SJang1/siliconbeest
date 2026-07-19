@@ -27,6 +27,7 @@ import {
   canStoreFetchedRemoteStatus,
   hasOAuthScope,
 } from '../../../../../../packages/shared/permissions';
+import { withCloudflareCnameFallback } from '../../../federation/documentLoader';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -238,7 +239,9 @@ async function resolveRemoteStatusFromUrl(
     return existingVisible ? existing?.id ?? null : null;
   }
 
-  const docLoader = await ctx.getDocumentLoader({ identifier: signerUsername });
+  const docLoader = withCloudflareCnameFallback(
+    await ctx.getDocumentLoader({ identifier: signerUsername }),
+  );
   let remoteObject: unknown;
   try {
     remoteObject = await ctx.lookupObject(normalizedUrl, { documentLoader: docLoader });
@@ -268,6 +271,7 @@ async function resolveRemoteStatusFromUrl(
       : 'Note';
   const jsonLd = await statusObject.toJsonLd({ contextLoader: docLoader });
   const object = normalizeApObject(jsonLd, objectId, fallbackType);
+  const objectUrls = idsFrom((object as Record<string, unknown>).url);
   const actor = statusObject.attributionId?.href ?? idsFrom((object as Record<string, unknown>).attributedTo)[0];
   if (!actor) {
     console.warn(`[search] remote status has no attributedTo: ${objectId}`);
@@ -276,6 +280,7 @@ async function resolveRemoteStatusFromUrl(
   if (!canStoreFetchedRemoteStatus({
     requestedStatusUri: normalizedUrl,
     statusUri: objectId,
+    statusUrlAliases: objectUrls,
     authorUri: actor,
     localInstanceDomain: env.INSTANCE_DOMAIN,
     authorSuspended: false,
@@ -283,7 +288,11 @@ async function resolveRemoteStatusFromUrl(
     console.warn(`[search] remote status identity or attribution mismatch: ${normalizedUrl}`);
     return null;
   }
-  const actorAccountId = await resolveRemoteAccount(actor, viewer?.id ?? null);
+  const actorAccountId = await resolveRemoteAccount(
+    actor,
+    viewer?.id ?? null,
+    docLoader,
+  );
   if (!actorAccountId) return null;
   const actorState = await env.DB.prepare(
     'SELECT suspended_at FROM accounts WHERE id = ? LIMIT 1',
@@ -291,6 +300,7 @@ async function resolveRemoteStatusFromUrl(
   if (!actorState || !canStoreFetchedRemoteStatus({
     requestedStatusUri: normalizedUrl,
     statusUri: objectId,
+    statusUrlAliases: objectUrls,
     authorUri: actor,
     localInstanceDomain: env.INSTANCE_DOMAIN,
     authorSuspended: actorState.suspended_at !== null,
