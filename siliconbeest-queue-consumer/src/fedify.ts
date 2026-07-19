@@ -6,9 +6,8 @@
  */
 
 import { createFederation, type Federation } from '@fedify/fedify';
-import { WorkersKvStore } from '@fedify/cfworkers';
+import { WorkersKvStore, WorkersMessageQueue } from '@fedify/cfworkers';
 import { env } from 'cloudflare:workers';
-import { ByteLimitedWorkersMessageQueue } from './byteLimitedWorkersMessageQueue';
 
 /** Context data passed to Fedify dispatchers. Empty — use import { env } instead. */
 export interface FedifyContextData {}
@@ -28,7 +27,7 @@ export function createFed(): Federation<FedifyContextData> {
 
   cachedFed = createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV),
-    queue: new ByteLimitedWorkersMessageQueue(env.QUEUE_FEDERATION),
+    queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),

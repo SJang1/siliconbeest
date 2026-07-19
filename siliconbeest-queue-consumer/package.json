@@ -18,9 +18,9 @@
 		"wrangler": "4.107.0"
 	},
 	"dependencies": {
-		"@fedify/cfworkers": "^2.3.2",
-		"@fedify/fedify": "^2.3.2",
-		"@fedify/vocab": "^2.3.2",
+		"@fedify/cfworkers": "^2.3.3",
+		"@fedify/fedify": "^2.3.3",
+		"@fedify/vocab": "^2.3.3",
 		"glob": "^13.0.6"
 	},
 	"engines": {

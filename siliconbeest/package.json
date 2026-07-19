@@ -19,12 +19,12 @@
 		"lint:fix": "oxlint -c oxlint.config.ts --fix server/worker/services server/worker/repositories server/worker/middleware server/worker/utils server/worker/webpush server/worker/types && eslint --fix"
 	},
 	"dependencies": {
-		"@fedify/cfworkers": "^2.3.2",
-		"@fedify/fedify": "^2.3.2",
-		"@fedify/hono": "^2.3.2",
-		"@fedify/vocab": "^2.3.2",
-		"@fedify/vocab-runtime": "^2.3.2",
-		"@fedify/webfinger": "^2.3.2",
+		"@fedify/cfworkers": "^2.3.3",
+		"@fedify/fedify": "^2.3.3",
+		"@fedify/hono": "^2.3.3",
+		"@fedify/vocab": "^2.3.3",
+		"@fedify/vocab-runtime": "^2.3.3",
+		"@fedify/webfinger": "^2.3.3",
 		"@fontsource-variable/bricolage-grotesque": "^5.2.10",
 		"@fontsource-variable/inter": "^5.2.8",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",

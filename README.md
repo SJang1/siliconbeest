@@ -44,7 +44,7 @@ SiliconBeest is a **GitHub Template Repository**. Deploy your own Fediverse inst
 - Admin API for moderation (accounts, reports, domain blocks, domain allows, IP blocks, email domain blocks, rules, settings, announcements, custom emojis, relays, measures)
 
 ### Federation (powered by Fedify)
-- **[Fedify](https://fedify.dev/) v2.3.2** -- TypeScript ActivityPub framework handling the protocol layer (signatures, WebFinger, NodeInfo, delivery)
+- **[Fedify](https://fedify.dev/) v2.3.3** -- TypeScript ActivityPub framework handling the protocol layer (signatures, WebFinger, NodeInfo, delivery)
 - **[`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers)** -- Cloudflare Workers adapter (KV store + Queue message dispatcher)
 - **ActivityPub** server-to-server protocol
 - **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing, handled by Fedify
@@ -163,7 +163,7 @@ A `packages/shared/` directory contains code shared between workers:
 | Layer         | Technology                                 |
 | ------------- | ------------------------------------------ |
 | API Server    | Hono + Chanfana + Zod on Cloudflare Workers |
-| Federation    | Fedify v2.3.2 + @fedify/cfworkers            |
+| Federation    | Fedify v2.3.3 + @fedify/cfworkers            |
 | Frontend      | Vue 3 + Vite + Tailwind CSS + Headless UI   |
 | Database      | Cloudflare D1 (SQLite)                      |
 | Object Store  | Cloudflare R2                               |

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useStatusesStore } from '@/stores/statuses'
 import { apiFetch, parseLinkHeader } from '@/api/client'
 import type { Status } from '@/types/mastodon'
+import { useStatusPagePrefetch } from '@/composables/useStatusPagePrefetch'
 import AppShell from '@/components/layout/AppShell.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
@@ -29,29 +30,61 @@ const activeTab = ref<'timeline' | 'members'>('timeline')
 const searchQuery = ref('')
 const searchResults = ref<ListAccount[]>([])
 const searching = ref(false)
+const pagePrefetch = useStatusPagePrefetch({
+  feedKey: () => `list:${String(route.params.id ?? '')}`,
+  visibleStatuses: () => statuses.value,
+})
+
+function requestListPage(
+  id: string,
+  cursor: string | undefined,
+  signal?: AbortSignal,
+) {
+  const maxIdParam = cursor ? `&max_id=${cursor}` : ''
+  return apiFetch<Status[]>(
+    `/v1/timelines/list/${id}?limit=20${maxIdParam}`,
+    { token: auth.token!, signal },
+  )
+}
 
 async function loadList() {
   const id = route.params.id as string
   if (!auth.token) return
+  const generation = pagePrefetch.reset()
   loading.value = true
+  statuses.value = []
+  maxId.value = null
+  done.value = false
   try {
     const { data } = await apiFetch<ListInfo>(`/v1/lists/${id}`, { token: auth.token })
+    if (!pagePrefetch.isCurrent(generation)) return
     list.value = data
-    await Promise.all([loadTimeline(), loadMembers()])
+    await Promise.all([
+      loadTimeline(id, generation),
+      loadMembers(id, generation),
+    ])
   } catch { /* */ }
-  loading.value = false
+  if (pagePrefetch.isCurrent(generation)) loading.value = false
 }
 
-async function loadTimeline() {
-  const id = route.params.id as string
+async function loadTimeline(id: string, generation: number) {
   if (!auth.token) return
   try {
-    const { data, headers } = await apiFetch<Status[]>(`/v1/timelines/list/${id}?limit=20`, { token: auth.token })
+    const { data, headers } = await requestListPage(id, undefined)
+    if (!pagePrefetch.isCurrent(generation)) return
     statuses.value = data
     data.forEach(s => statusesStore.cacheStatus(s))
     const links = parseLinkHeader(headers.get('Link'))
-    done.value = !links.next
+    done.value = !links.next || data.length === 0
     maxId.value = data.length > 0 ? data[data.length - 1]!.id : null
+    if (!done.value && maxId.value) {
+      const nextCursor = maxId.value
+      pagePrefetch.prefetch(
+        `${id}:${nextCursor}`,
+        signal => requestListPage(id, nextCursor, signal),
+        generation,
+      )
+    }
   } catch { /* */ }
 }
 
@@ -60,21 +93,36 @@ async function loadMore() {
   if (!auth.token || loadingMore.value || done.value || !maxId.value) return
   loadingMore.value = true
   try {
-    const { data, headers } = await apiFetch<Status[]>(`/v1/timelines/list/${id}?limit=20&max_id=${maxId.value}`, { token: auth.token })
+    const cursor = maxId.value
+    const response = await pagePrefetch.consume(
+      `${id}:${cursor}`,
+      signal => requestListPage(id, cursor, signal),
+    )
+    if (!response) return
+    const { data, headers } = response
     statuses.value.push(...data)
     data.forEach(s => statusesStore.cacheStatus(s))
     const links = parseLinkHeader(headers.get('Link'))
     done.value = !links.next || data.length === 0
     maxId.value = data.length > 0 ? data[data.length - 1]!.id : null
+    if (!done.value && maxId.value) {
+      const nextCursor = maxId.value
+      pagePrefetch.prefetch(
+        `${id}:${nextCursor}`,
+        signal => requestListPage(id, nextCursor, signal),
+      )
+    }
   } catch { /* */ }
-  loadingMore.value = false
+  finally {
+    loadingMore.value = false
+  }
 }
 
-async function loadMembers() {
-  const id = route.params.id as string
+async function loadMembers(id: string, generation?: number) {
   if (!auth.token) return
   try {
     const { data } = await apiFetch<ListAccount[]>(`/v1/lists/${id}/accounts`, { token: auth.token })
+    if (generation !== undefined && !pagePrefetch.isCurrent(generation)) return
     accounts.value = data
   } catch { /* */ }
 }

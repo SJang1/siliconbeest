@@ -44,7 +44,7 @@ siliconbeest/
 | Technology                  | Purpose                            |
 | --------------------------- | ---------------------------------- |
 | Hono                        | API server framework               |
-| Fedify v2.3.2               | ActivityPub federation              |
+| Fedify v2.3.3               | ActivityPub federation              |
 | Vue 3                       | Reactive UI framework              |
 | Vue Router 5                | Client-side routing with auth guards |
 | Vite 7                      | Build tool and dev server          |

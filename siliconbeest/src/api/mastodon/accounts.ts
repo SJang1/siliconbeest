@@ -100,6 +100,7 @@ export function getAccountStatuses(
     exclude_reblogs?: boolean;
     pinned?: boolean;
     tagged?: string;
+    signal?: AbortSignal;
   },
 ) {
   const qs = buildQueryString({
@@ -113,7 +114,10 @@ export function getAccountStatuses(
     pinned: opts?.pinned,
     tagged: opts?.tagged,
   });
-  return apiFetch<Status[]>(`/v1/accounts/${id}/statuses${qs}`, { token: opts?.token });
+  return apiFetch<Status[]>(`/v1/accounts/${id}/statuses${qs}`, {
+    token: opts?.token,
+    signal: opts?.signal,
+  });
 }
 
 export function lookupAccount(acct: string, token?: string) {

@@ -4,6 +4,7 @@ import type { Notification, PaginationOpts } from '@/types/mastodon';
 export function getNotifications(
   opts: PaginationOpts & {
     token: string;
+    signal?: AbortSignal;
     types?: string[];
     exclude_types?: string[];
     account_id?: string;
@@ -18,7 +19,10 @@ export function getNotifications(
     exclude_types: opts.exclude_types,
     account_id: opts.account_id,
   });
-  return apiFetch<Notification[]>(`/v1/notifications${qs}`, { token: opts.token });
+  return apiFetch<Notification[]>(`/v1/notifications${qs}`, {
+    token: opts.token,
+    signal: opts.signal,
+  });
 }
 
 export function getNotification(id: string, token: string) {

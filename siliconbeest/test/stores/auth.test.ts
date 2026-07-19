@@ -73,21 +73,21 @@ describe('Auth Store', () => {
     expect(timelines.timelines.size).toBe(0);
   });
 
-  it('resets timelines and disconnects notifications when the token changes', () => {
+  it('resets timelines and notifications when the token changes', () => {
     const store = useAuthStore();
     const timelines = useTimelinesStore();
     const notifications = useNotificationsStore();
     const resetTimelines = vi.spyOn(timelines, 'reset');
-    const disconnectNotifications = vi.spyOn(notifications, 'disconnectStream');
+    const resetNotifications = vi.spyOn(notifications, 'reset');
 
     store.setToken('first-token');
     resetTimelines.mockClear();
-    disconnectNotifications.mockClear();
+    resetNotifications.mockClear();
 
     store.setToken('second-token');
 
     expect(resetTimelines).toHaveBeenCalledOnce();
-    expect(disconnectNotifications).toHaveBeenCalledOnce();
+    expect(resetNotifications).toHaveBeenCalledOnce();
   });
 
   it('leaves timeline stream startup to mounted views', async () => {

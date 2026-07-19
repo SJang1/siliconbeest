@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { markRaw, ref } from 'vue';
 import type { Status } from '@/types/mastodon';
-import { parseLinkHeader } from '@/api/client';
+import { parseLinkHeader, type ApiResponse } from '@/api/client';
 import {
   getHomeTimeline,
   getRecommendedTimeline,
@@ -11,12 +11,45 @@ import {
   getTagTimeline,
 } from '@/api/mastodon/timelines';
 import { StreamingClient } from '@/api/streaming';
+import { refreshAffectedStatusPagePrefetches } from '@/composables/useStatusPagePrefetch';
 import { playNewPostSound } from '@/utils/newPostSound';
 import { useStatusesStore } from './statuses';
 import { useAccountsStore } from './accounts';
 
 export type TimelineType = 'home' | 'recommended' | 'social' | 'public' | 'local' | 'tag';
 export type AudibleTimelineScopeOwner = string | symbol;
+
+type TimelineFetchOptions = { tag?: string; token?: string };
+
+type TimelinePageCursor = {
+  identity: string;
+  maxId?: string;
+  nextPage?: string;
+};
+
+type TimelinePagePrefetchResult =
+  | { ok: true; response: ApiResponse<Status[]> }
+  | { ok: false; error: unknown };
+
+type PrefetchStatusPredicate = (status: Status) => boolean;
+
+interface TimelinePagePrefetch {
+  type: TimelineType;
+  opts: TimelineFetchOptions;
+  cursor: TimelinePageCursor;
+  requestGeneration: number;
+  lifecycleGeneration: number;
+  controller: AbortController;
+  expiresAt: number;
+  invalidators: PrefetchStatusPredicate[];
+  refreshAfterSettle: boolean;
+  promise: Promise<TimelinePagePrefetchResult>;
+}
+
+// Recommended cursors expire after five minutes on the server. Keeping every
+// look-ahead page below that window also bounds memory for abandoned tag feeds.
+const TIMELINE_PREFETCH_TTL_MS = 4 * 60 * 1000;
+const MAX_TIMELINE_PREFETCHES = 24;
 
 interface TimelineState {
   statusIds: string[];
@@ -51,6 +84,11 @@ export const useTimelinesStore = defineStore('timelines', () => {
   // can therefore invalidate an old request even when the next account starts
   // the same feed at generation 1 again.
   let lifecycleGeneration = 0;
+  // Raw next-page responses live here until infinite scroll consumes them.
+  // They deliberately do not populate status/account caches or timeline state.
+  const pagePrefetches = new Map<string, TimelinePagePrefetch>();
+  const queuedPrefetchRestarts = new Map<string, TimelinePagePrefetch>();
+  let prefetchRestartQueued = false;
   // Multiple streaming connections — one per stream type
   const streamingClients = ref<Map<string, StreamingClient>>(new Map());
   // Streams the user toggled off (LIVE toggle) — connectStream respects this
@@ -105,6 +143,293 @@ export const useTimelinesStore = defineStore('timelines', () => {
       && (requestGenerations.get(key) ?? 0) === requestGeneration;
   }
 
+  function getNextPageCursor(
+    type: TimelineType,
+    timeline: TimelineState,
+  ): TimelinePageCursor | null {
+    if (!timeline.hasMore) return null;
+
+    if (type === 'recommended') {
+      return timeline.nextPage
+        ? { identity: `next:${timeline.nextPage}`, nextPage: timeline.nextPage }
+        : null;
+    }
+
+    return timeline.maxId
+      ? { identity: `max:${timeline.maxId}`, maxId: timeline.maxId }
+      : null;
+  }
+
+  async function requestTimelinePage(
+    type: TimelineType,
+    opts: TimelineFetchOptions,
+    cursor: TimelinePageCursor,
+    signal?: AbortSignal,
+  ): Promise<ApiResponse<Status[]>> {
+    const paginationOpts = {
+      max_id: cursor.maxId,
+      token: opts.token,
+      signal,
+    };
+
+    switch (type) {
+      case 'home':
+        return getHomeTimeline({ ...paginationOpts, token: opts.token! });
+      case 'recommended':
+        return getRecommendedTimelinePage(cursor.nextPage!, opts.token!, signal);
+      case 'social':
+        return getSocialTimeline({ ...paginationOpts, token: opts.token! });
+      case 'public':
+        return getPublicTimeline(paginationOpts);
+      case 'local':
+        return getPublicTimeline({ ...paginationOpts, local: true });
+      case 'tag':
+        return getTagTimeline(opts.tag!, paginationOpts);
+    }
+  }
+
+  function removePagePrefetch(key: string, abort: boolean) {
+    const entry = pagePrefetches.get(key);
+    if (!entry) return;
+    pagePrefetches.delete(key);
+    if (abort) entry.controller.abort();
+  }
+
+  function clearPagePrefetches() {
+    for (const entry of pagePrefetches.values()) {
+      entry.controller.abort();
+    }
+    pagePrefetches.clear();
+    queuedPrefetchRestarts.clear();
+  }
+
+  function cleanupPagePrefetches(now: number) {
+    for (const [key, entry] of pagePrefetches) {
+      if (entry.expiresAt <= now) removePagePrefetch(key, true);
+    }
+
+    while (pagePrefetches.size >= MAX_TIMELINE_PREFETCHES) {
+      const oldestKey = pagePrefetches.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      removePagePrefetch(oldestKey, true);
+    }
+  }
+
+  function isMatchingPrefetch(
+    entry: TimelinePagePrefetch,
+    cursor: TimelinePageCursor,
+    requestGeneration: number,
+    requestLifecycleGeneration: number,
+    token?: string,
+  ): boolean {
+    return entry.cursor.identity === cursor.identity
+      && entry.requestGeneration === requestGeneration
+      && entry.lifecycleGeneration === requestLifecycleGeneration
+      && entry.opts.token === token
+      && entry.expiresAt > Date.now();
+  }
+
+  function startPagePrefetch(
+    type: TimelineType,
+    opts: TimelineFetchOptions,
+    force = false,
+  ) {
+    const key = getTimelineKey(type, opts.tag);
+    const timeline = getTimeline(type, opts.tag);
+    const cursor = getNextPageCursor(type, timeline);
+    if (!cursor) {
+      removePagePrefetch(key, true);
+      return;
+    }
+
+    const requestGeneration = requestGenerations.get(key) ?? 0;
+    const requestLifecycleGeneration = lifecycleGeneration;
+    const existing = pagePrefetches.get(key);
+    if (
+      !force
+      && existing
+      && isMatchingPrefetch(
+        existing,
+        cursor,
+        requestGeneration,
+        requestLifecycleGeneration,
+        opts.token,
+      )
+    ) return;
+
+    removePagePrefetch(key, true);
+    cleanupPagePrefetches(Date.now());
+
+    const controller = new AbortController();
+    const stableOpts = { tag: opts.tag, token: opts.token };
+    const promise = requestTimelinePage(type, stableOpts, cursor, controller.signal).then(
+      (response): TimelinePagePrefetchResult => ({ ok: true, response }),
+      (error): TimelinePagePrefetchResult => ({ ok: false, error }),
+    );
+    pagePrefetches.set(key, {
+      type,
+      opts: stableOpts,
+      cursor,
+      requestGeneration,
+      lifecycleGeneration: requestLifecycleGeneration,
+      controller,
+      expiresAt: Date.now() + TIMELINE_PREFETCH_TTL_MS,
+      invalidators: [],
+      refreshAfterSettle: false,
+      promise,
+    });
+  }
+
+  function restartPagePrefetch(key: string, expected?: TimelinePagePrefetch) {
+    const entry = pagePrefetches.get(key);
+    if (!entry || (expected && entry !== expected)) return;
+    const { type, opts } = entry;
+    startPagePrefetch(type, opts, true);
+  }
+
+  function queuePagePrefetchRestart(key: string, entry: TimelinePagePrefetch) {
+    queuedPrefetchRestarts.set(key, entry);
+    if (prefetchRestartQueued) return;
+    prefetchRestartQueued = true;
+    queueMicrotask(() => {
+      prefetchRestartQueued = false;
+      const restarts = [...queuedPrefetchRestarts];
+      queuedPrefetchRestarts.clear();
+      for (const [queuedKey, queuedEntry] of restarts) {
+        restartPagePrefetch(queuedKey, queuedEntry);
+      }
+    });
+  }
+
+  function responseMatchesInvalidator(entry: TimelinePagePrefetch, statuses: Status[]) {
+    return entry.invalidators.some((predicate) => statuses.some(predicate));
+  }
+
+  async function consumePagePrefetch(
+    type: TimelineType,
+    opts: TimelineFetchOptions,
+    cursor: TimelinePageCursor,
+    requestGeneration: number,
+    requestLifecycleGeneration: number,
+    retryAfterPrefetchFailure?: boolean,
+  ): Promise<ApiResponse<Status[]> | undefined> {
+    const key = getTimelineKey(type, opts.tag);
+    if (!isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
+      return undefined;
+    }
+
+    let entry = pagePrefetches.get(key);
+    if (!entry) {
+      // Keep even a user-triggered fallback in the same tracked slot as a
+      // look-ahead request. A concurrent delete/block/mute can then replace
+      // this response before it is allowed to enter the visible timeline.
+      startPagePrefetch(type, opts);
+      entry = pagePrefetches.get(key);
+      retryAfterPrefetchFailure = false;
+      if (!entry) return undefined;
+    } else if (retryAfterPrefetchFailure === undefined) {
+      // An entry that existed before consume() is the speculative request. If
+      // it failed silently, the actual scroll gets one normal tracked retry.
+      retryAfterPrefetchFailure = true;
+    }
+
+    if (!isMatchingPrefetch(
+      entry,
+      cursor,
+      requestGeneration,
+      requestLifecycleGeneration,
+      opts.token,
+    )) {
+      removePagePrefetch(key, true);
+      startPagePrefetch(type, opts);
+      return consumePagePrefetch(
+        type,
+        opts,
+        cursor,
+        requestGeneration,
+        requestLifecycleGeneration,
+        false,
+      );
+    }
+
+    const result = await entry.promise;
+    const currentEntry = pagePrefetches.get(key);
+    if (currentEntry !== entry) {
+      return consumePagePrefetch(
+        type,
+        opts,
+        cursor,
+        requestGeneration,
+        requestLifecycleGeneration,
+        retryAfterPrefetchFailure,
+      );
+    }
+    if (!isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
+      removePagePrefetch(key, true);
+      return undefined;
+    }
+    if (!result.ok) {
+      removePagePrefetch(key, false);
+      if (retryAfterPrefetchFailure) {
+        startPagePrefetch(type, opts);
+        return consumePagePrefetch(
+          type,
+          opts,
+          cursor,
+          requestGeneration,
+          requestLifecycleGeneration,
+          false,
+        );
+      }
+      throw result.error;
+    }
+    if (
+      entry.refreshAfterSettle
+      || responseMatchesInvalidator(entry, result.response.data)
+    ) {
+      restartPagePrefetch(key, entry);
+      return consumePagePrefetch(
+        type,
+        opts,
+        cursor,
+        requestGeneration,
+        requestLifecycleGeneration,
+        retryAfterPrefetchFailure,
+      );
+    }
+
+    removePagePrefetch(key, false);
+    return result.response;
+  }
+
+  function refreshAffectedPagePrefetches(
+    predicate: PrefetchStatusPredicate,
+    immediatelyAffectedKeys: ReadonlySet<string>,
+  ) {
+    for (const [key, entry] of [...pagePrefetches]) {
+      entry.invalidators.push(predicate);
+      if (immediatelyAffectedKeys.has(key)) {
+        entry.refreshAfterSettle = true;
+        if (entry.type === 'recommended') {
+          void entry.promise.then(() => queuePagePrefetchRestart(key, entry));
+        } else {
+          queuePagePrefetchRestart(key, entry);
+        }
+        continue;
+      }
+
+      void entry.promise.then((result) => {
+        if (
+          result.ok
+          && pagePrefetches.get(key) === entry
+          && responseMatchesInvalidator(entry, result.response.data)
+        ) {
+          queuePagePrefetchRestart(key, entry);
+        }
+      });
+    }
+  }
+
   function cacheStatusesFromResponse(statuses: Status[]) {
     const statusStore = useStatusesStore();
     const accountStore = useAccountsStore();
@@ -120,7 +445,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
   async function fetchTimeline(
     type: TimelineType,
-    opts?: { tag?: string; token?: string },
+    opts?: TimelineFetchOptions,
   ) {
     const key = getTimelineKey(type, opts?.tag);
     const timeline = getTimeline(type, opts?.tag);
@@ -128,6 +453,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
     const requestGeneration = (requestGenerations.get(key) ?? 0) + 1;
     requestGenerations.set(key, requestGeneration);
     const requestLifecycleGeneration = lifecycleGeneration;
+    removePagePrefetch(key, true);
     // The new initial request supersedes any cursor request already in flight.
     // Clear its flag here because the stale request's finally block must not
     // mutate state owned by this generation.
@@ -171,6 +497,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       if (type !== 'recommended' && response.data.length > 0) {
         timeline.maxId = response.data[response.data.length - 1]!.id;
       }
+      startPagePrefetch(type, opts ?? {});
 
       // Auto-connect streaming for each timeline type
       if (opts?.token) {
@@ -212,11 +539,17 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
   async function fetchMore(
     type: TimelineType,
-    opts?: { tag?: string; token?: string },
+    opts?: TimelineFetchOptions,
   ) {
     const key = getTimelineKey(type, opts?.tag);
     const timeline = getTimeline(type, opts?.tag);
     if (timeline.loadingMore || !timeline.hasMore) return;
+
+    const cursor = getNextPageCursor(type, timeline);
+    if (!cursor) {
+      timeline.hasMore = false;
+      return;
+    }
 
     const requestGeneration = requestGenerations.get(key) ?? 0;
     const requestLifecycleGeneration = lifecycleGeneration;
@@ -224,33 +557,15 @@ export const useTimelinesStore = defineStore('timelines', () => {
     timeline.error = null;
 
     try {
-      let response;
-      const paginationOpts = { max_id: timeline.maxId, token: opts?.token };
-
-      switch (type) {
-        case 'home':
-          response = await getHomeTimeline({ ...paginationOpts, token: opts?.token! });
-          break;
-        case 'recommended':
-          if (!timeline.nextPage) {
-            timeline.hasMore = false;
-            return;
-          }
-          response = await getRecommendedTimelinePage(timeline.nextPage, opts?.token!);
-          break;
-        case 'social':
-          response = await getSocialTimeline({ ...paginationOpts, token: opts?.token! });
-          break;
-        case 'public':
-          response = await getPublicTimeline(paginationOpts);
-          break;
-        case 'local':
-          response = await getPublicTimeline({ ...paginationOpts, local: true });
-          break;
-        case 'tag':
-          response = await getTagTimeline(opts?.tag!, paginationOpts);
-          break;
-      }
+      const stableOpts = opts ?? {};
+      const response = await consumePagePrefetch(
+        type,
+        stableOpts,
+        cursor,
+        requestGeneration,
+        requestLifecycleGeneration,
+      );
+      if (!response) return;
 
       if (!isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) return;
 
@@ -263,6 +578,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       if (type !== 'recommended' && response.data.length > 0) {
         timeline.maxId = response.data[response.data.length - 1]!.id;
       }
+      startPagePrefetch(type, stableOpts);
     } catch (e) {
       if (isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
         timeline.error = (e as Error).message;
@@ -303,10 +619,25 @@ export const useTimelinesStore = defineStore('timelines', () => {
       if (cachedStatus.reblog?.id === statusId) removedIds.add(cachedId);
     }
 
-    for (const timeline of timelines.value.values()) {
+    const affectedKeys = new Set<string>();
+    for (const [key, timeline] of timelines.value) {
+      const previousStatusCount = timeline.statusIds.length;
+      const previousNewStatusCount = timeline.newStatusIds.length;
       timeline.statusIds = timeline.statusIds.filter((id) => !removedIds.has(id));
       timeline.newStatusIds = timeline.newStatusIds.filter((id) => !removedIds.has(id));
+      if (
+        timeline.statusIds.length !== previousStatusCount
+        || timeline.newStatusIds.length !== previousNewStatusCount
+      ) {
+        affectedKeys.add(key);
+      }
     }
+
+    const affectsRemovedStatus = (status: Status) => (
+      removedIds.has(status.id) || !!status.reblog && removedIds.has(status.reblog.id)
+    );
+    refreshAffectedPagePrefetches(affectsRemovedStatus, affectedKeys);
+    refreshAffectedStatusPagePrefetches(affectsRemovedStatus);
   }
 
   function removeAccountStatuses(accountId: string) {
@@ -321,10 +652,25 @@ export const useTimelinesStore = defineStore('timelines', () => {
       }
     }
 
-    for (const timeline of timelines.value.values()) {
+    const affectedKeys = new Set<string>();
+    for (const [key, timeline] of timelines.value) {
+      const previousStatusCount = timeline.statusIds.length;
+      const previousNewStatusCount = timeline.newStatusIds.length;
       timeline.statusIds = timeline.statusIds.filter((id) => !removedIds.has(id));
       timeline.newStatusIds = timeline.newStatusIds.filter((id) => !removedIds.has(id));
+      if (
+        timeline.statusIds.length !== previousStatusCount
+        || timeline.newStatusIds.length !== previousNewStatusCount
+      ) {
+        affectedKeys.add(key);
+      }
     }
+
+    const belongsToRemovedAccount = (status: Status) => (
+      status.account.id === accountId || status.reblog?.account.id === accountId
+    );
+    refreshAffectedPagePrefetches(belongsToRemovedAccount, affectedKeys);
+    refreshAffectedStatusPagePrefetches(belongsToRemovedAccount);
   }
 
   function isStreamPaused(stream: string): boolean {
@@ -350,7 +696,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
   async function resumeStream(
     stream: string,
     type: TimelineType,
-    opts?: { tag?: string; token?: string },
+    opts?: TimelineFetchOptions,
   ) {
     pausedStreams.value = new Set([...pausedStreams.value].filter((s) => s !== stream));
     await fetchTimeline(type, opts);
@@ -468,6 +814,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
   function reset() {
     lifecycleGeneration += 1;
     disconnectStream();
+    clearPagePrefetches();
 
     for (const timeline of timelines.value.values()) {
       Object.assign(timeline, createEmptyTimeline());

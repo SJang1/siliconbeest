@@ -96,7 +96,11 @@ describe('Timelines Store', () => {
       expect(timelineApi.getRecommendedTimeline).toHaveBeenCalledWith({
         token: 'token',
       });
-      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledWith(nextPage, 'token');
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledWith(
+        nextPage,
+        'token',
+        expect.anything(),
+      );
       expect(store.getTimeline('recommended').statusIds).toEqual(['ranked-1', 'ranked-2']);
       expect(store.getTimeline('recommended').hasMore).toBe(false);
       expect(store.streamingClients.size).toBe(0);
@@ -264,6 +268,269 @@ describe('Timelines Store', () => {
       expect(store.streamingClients.size).toBe(0);
       expect(store.timelines.has('home')).toBe(false);
       expect(useStatusesStore().cache.has('account-a-private-stream-event')).toBe(false);
+    });
+  });
+
+  describe('next-page prefetch', () => {
+    it('loads one page ahead without exposing it and reuses it on scroll', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      let resolveNextPage: ((value: unknown) => void) | undefined;
+      const nextPage = new Promise((resolve) => { resolveNextPage = resolve; });
+      vi.mocked(timelineApi.getHomeTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'home-first', account: { id: 'author-1' }, reblog: null }],
+          headers: { get: () => 'home-first-link' },
+        } as never)
+        .mockReturnValueOnce(nextPage as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'home-first-link'
+          ? { next: '/api/v1/timelines/home?max_id=home-first&limit=20' }
+          : {}
+      ));
+
+      const store = useTimelinesStore();
+      const statuses = useStatusesStore();
+      await store.fetchTimeline('home', { token: 'token' });
+
+      expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(2);
+      expect(timelineApi.getHomeTimeline).toHaveBeenLastCalledWith(expect.objectContaining({
+        max_id: 'home-first',
+        signal: expect.anything(),
+        token: 'token',
+      }));
+      expect(store.getTimeline('home').statusIds).toEqual(['home-first']);
+      expect(store.getTimeline('home').loadingMore).toBe(false);
+      expect(statuses.cache.has('home-next')).toBe(false);
+
+      const loadMore = store.fetchMore('home', { token: 'token' });
+      await Promise.resolve();
+      expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(2);
+
+      resolveNextPage?.({
+        data: [{ id: 'home-next', account: { id: 'author-2' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      await loadMore;
+
+      expect(store.getTimeline('home').statusIds).toEqual(['home-first', 'home-next']);
+      expect(statuses.cache.has('home-next')).toBe(true);
+    });
+
+    it('keeps a background failure silent and retries when the page is requested', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      vi.mocked(timelineApi.getHomeTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'first', account: { id: 'author-1' }, reblog: null }],
+          headers: { get: () => 'first-link' },
+        } as never)
+        .mockRejectedValueOnce(new Error('prefetch network failure'))
+        .mockResolvedValueOnce({
+          data: [{ id: 'retried', account: { id: 'author-2' }, reblog: null }],
+          headers: { get: () => null },
+        } as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'first-link'
+          ? { next: '/api/v1/timelines/home?max_id=first&limit=20' }
+          : {}
+      ));
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('home', { token: 'token' });
+      await Promise.resolve();
+
+      expect(store.getTimeline('home').error).toBeNull();
+      expect(store.getTimeline('home').hasMore).toBe(true);
+
+      await store.fetchMore('home', { token: 'token' });
+
+      expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(3);
+      expect(store.getTimeline('home').statusIds).toEqual(['first', 'retried']);
+      expect(store.getTimeline('home').error).toBeNull();
+    });
+
+    it('replaces an in-flight fallback when its visible feed is mutated', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      let resolveStaleFallback: ((value: unknown) => void) | undefined;
+      let resolveFreshFallback: ((value: unknown) => void) | undefined;
+      const staleFallback = new Promise((resolve) => { resolveStaleFallback = resolve; });
+      const freshFallback = new Promise((resolve) => { resolveFreshFallback = resolve; });
+      vi.mocked(timelineApi.getHomeTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'visible-deleted', account: { id: 'author-1' }, reblog: null }],
+          headers: { get: () => 'first-link' },
+        } as never)
+        .mockRejectedValueOnce(new Error('background failed'))
+        .mockReturnValueOnce(staleFallback as never)
+        .mockReturnValueOnce(freshFallback as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'first-link'
+          ? { next: '/api/v1/timelines/home?max_id=visible-deleted&limit=20' }
+          : {}
+      ));
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('home', { token: 'token' });
+
+      const loadMore = store.fetchMore('home', { token: 'token' });
+      await vi.waitFor(() => {
+        expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(3);
+      });
+      const staleSignal = vi.mocked(timelineApi.getHomeTimeline).mock.calls[2]![0].signal!;
+
+      store.removeStatus('visible-deleted');
+      await vi.waitFor(() => {
+        expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(4);
+      });
+      expect(staleSignal.aborted).toBe(true);
+
+      resolveStaleFallback?.({
+        data: [{ id: 'visible-deleted', account: { id: 'author-1' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      resolveFreshFallback?.({
+        data: [{ id: 'fresh-next', account: { id: 'author-2' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      await loadMore;
+
+      expect(store.getTimeline('home').statusIds).toEqual(['fresh-next']);
+      expect(store.getTimeline('home').statusIds).not.toContain('visible-deleted');
+    });
+
+    it('refetches only a prefetched feed whose raw response contains a deleted status', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      vi.mocked(timelineApi.getHomeTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'home-visible', account: { id: 'home-author' }, reblog: null }],
+          headers: { get: () => 'home-link' },
+        } as never)
+        .mockResolvedValueOnce({
+          data: [{ id: 'deleted-next', account: { id: 'deleted-author' }, reblog: null }],
+          headers: { get: () => null },
+        } as never)
+        .mockResolvedValueOnce({
+          data: [{ id: 'home-fresh-next', account: { id: 'fresh-author' }, reblog: null }],
+          headers: { get: () => null },
+        } as never);
+      vi.mocked(timelineApi.getPublicTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'local-visible', account: { id: 'local-author' }, reblog: null }],
+          headers: { get: () => 'local-link' },
+        } as never)
+        .mockResolvedValueOnce({
+          data: [{ id: 'local-next', account: { id: 'other-author' }, reblog: null }],
+          headers: { get: () => null },
+        } as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => {
+        if (header === 'home-link') {
+          return { next: '/api/v1/timelines/home?max_id=home-visible&limit=20' };
+        }
+        if (header === 'local-link') {
+          return { next: '/api/v1/timelines/public?max_id=local-visible&limit=20' };
+        }
+        return {};
+      });
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('home', { token: 'token' });
+      await store.fetchTimeline('local', { token: 'token' });
+      await Promise.resolve();
+
+      store.removeStatus('deleted-next');
+      await vi.waitFor(() => {
+        expect(timelineApi.getHomeTimeline).toHaveBeenCalledTimes(3);
+      });
+
+      expect(timelineApi.getPublicTimeline).toHaveBeenCalledTimes(2);
+      await store.fetchMore('home', { token: 'token' });
+      expect(store.getTimeline('home').statusIds).toEqual([
+        'home-visible',
+        'home-fresh-next',
+      ]);
+      expect(store.getTimeline('home').statusIds).not.toContain('deleted-next');
+    });
+
+    it('serializes a recommended replacement behind the in-flight AI page', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      let resolveOldPrefetch: ((value: unknown) => void) | undefined;
+      const oldPrefetch = new Promise((resolve) => { resolveOldPrefetch = resolve; });
+      const cursor = '/api/v1/timelines/recommended?cursor=opaque&limit=30';
+      vi.mocked(timelineApi.getRecommendedTimeline).mockResolvedValue({
+        data: [{ id: 'recommended-visible', account: { id: 'author-1' }, reblog: null }],
+        headers: { get: () => 'recommended-link' },
+      } as never);
+      vi.mocked(timelineApi.getRecommendedTimelinePage)
+        .mockReturnValueOnce(oldPrefetch as never)
+        .mockResolvedValueOnce({
+          data: [{ id: 'recommended-fresh', account: { id: 'author-2' }, reblog: null }],
+          headers: { get: () => null },
+        } as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'recommended-link' ? { next: cursor } : {}
+      ));
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('recommended', { token: 'token' });
+      store.removeStatus('recommended-visible');
+      await Promise.resolve();
+
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledOnce();
+
+      resolveOldPrefetch?.({
+        data: [{ id: 'old-page', account: { id: 'old-author' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      await vi.waitFor(() => {
+        expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledTimes(2);
+      });
+
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenLastCalledWith(
+        cursor,
+        'token',
+        expect.anything(),
+      );
+      await store.fetchMore('recommended', { token: 'token' });
+      expect(store.getTimeline('recommended').statusIds).toEqual(['recommended-fresh']);
+    });
+
+    it('aborts and forgets a prefetched page when account state resets', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      let resolvePrivatePage: ((value: unknown) => void) | undefined;
+      const privatePage = new Promise((resolve) => { resolvePrivatePage = resolve; });
+      vi.mocked(timelineApi.getHomeTimeline)
+        .mockResolvedValueOnce({
+          data: [{ id: 'account-a-visible', account: { id: 'account-a' }, reblog: null }],
+          headers: { get: () => 'account-a-link' },
+        } as never)
+        .mockReturnValueOnce(privatePage as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'account-a-link'
+          ? { next: '/api/v1/timelines/home?max_id=account-a-visible&limit=20' }
+          : {}
+      ));
+
+      const store = useTimelinesStore();
+      const statuses = useStatusesStore();
+      await store.fetchTimeline('home', { token: 'account-a-token' });
+      const prefetchSignal = vi.mocked(timelineApi.getHomeTimeline).mock.calls[1]![0].signal!;
+
+      store.reset();
+      expect(prefetchSignal.aborted).toBe(true);
+
+      resolvePrivatePage?.({
+        data: [{ id: 'account-a-private', account: { id: 'account-a' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      await Promise.resolve();
+
+      expect(store.timelines.size).toBe(0);
+      expect(statuses.cache.has('account-a-private')).toBe(false);
     });
   });
 

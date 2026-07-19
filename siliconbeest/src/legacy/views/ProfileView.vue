@@ -9,6 +9,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useStatusesStore } from '@/stores/statuses'
 import { useInstanceStore } from '@/stores/instance'
 import { parseLinkHeader } from '@/api/client'
+import { useStatusPagePrefetch } from '@/composables/useStatusPagePrefetch'
 import AppShell from '@/legacy/components/layout/AppShell.vue'
 import AccountHeader from '@/legacy/components/account/AccountHeader.vue'
 import TimelineFeed from '@/legacy/components/timeline/TimelineFeed.vue'
@@ -29,6 +30,10 @@ const feedLoading = ref(false)
 const feedDone = ref(false)
 const maxId = ref<string>()
 const error = ref<string | null>(null)
+const pagePrefetch = useStatusPagePrefetch({
+  feedKey: () => `profile:${account.value?.id ?? String(route.params.acct ?? '')}`,
+  visibleStatuses: () => statuses.value,
+})
 
 const isOwn = computed(() => {
   if (!auth.currentUser || !account.value) return false
@@ -36,14 +41,17 @@ const isOwn = computed(() => {
 })
 
 async function loadProfile(acct: string) {
+  const generation = pagePrefetch.reset()
   loading.value = true
   error.value = null
+  relationship.value = null
   statuses.value = []
   maxId.value = undefined
   feedDone.value = false
 
   try {
     const { data: acctData } = await lookupAccount(acct, auth.token ?? undefined)
+    if (!pagePrefetch.isCurrent(generation)) return
     account.value = acctData
     accountsStore.cacheAccount(acctData)
 
@@ -56,6 +64,7 @@ async function loadProfile(acct: string) {
     // Load relationship if authenticated and not own profile
     if (auth.token && !isOwn.value) {
       const rels = await accountsStore.getRelationships([acctData.id], auth.token)
+      if (!pagePrefetch.isCurrent(generation)) return
       if (rels.length > 0) {
         relationship.value = rels[0]!
       }
@@ -66,36 +75,71 @@ async function loadProfile(acct: string) {
       token: auth.token ?? undefined,
       exclude_replies: true,
     })
+    if (!pagePrefetch.isCurrent(generation)) return
     statusesStore.cacheStatuses(statusData)
     statuses.value = statusData
     const links = parseLinkHeader(headers.get('Link'))
-    feedDone.value = !links.next
+    feedDone.value = !links.next || statusData.length === 0
     if (statusData.length > 0) {
       maxId.value = statusData[statusData.length - 1]!.id
     }
+    if (!feedDone.value && maxId.value) {
+      const nextCursor = maxId.value
+      pagePrefetch.prefetch(
+        `${acctData.id}:${nextCursor}`,
+        signal => getAccountStatuses(acctData.id, {
+          max_id: nextCursor,
+          token: auth.token ?? undefined,
+          exclude_replies: true,
+          signal,
+        }),
+        generation,
+      )
+    }
   } catch (e) {
+    if (!pagePrefetch.isCurrent(generation)) return
     error.value = (e as Error).message
     account.value = null
   } finally {
-    loading.value = false
+    if (pagePrefetch.isCurrent(generation)) loading.value = false
   }
 }
 
 async function loadMoreStatuses() {
-  if (feedLoading.value || feedDone.value || !account.value) return
+  if (feedLoading.value || feedDone.value || !account.value || !maxId.value) return
   feedLoading.value = true
   try {
-    const { data, headers } = await getAccountStatuses(account.value.id, {
-      max_id: maxId.value,
-      token: auth.token ?? undefined,
-      exclude_replies: true,
-    })
+    const accountId = account.value.id
+    const cursor = maxId.value
+    const response = await pagePrefetch.consume(
+      `${accountId}:${cursor}`,
+      signal => getAccountStatuses(accountId, {
+        max_id: cursor,
+        token: auth.token ?? undefined,
+        exclude_replies: true,
+        signal,
+      }),
+    )
+    if (!response) return
+    const { data, headers } = response
     statusesStore.cacheStatuses(data)
     statuses.value.push(...data)
     const links = parseLinkHeader(headers.get('Link'))
-    feedDone.value = !links.next
+    feedDone.value = !links.next || data.length === 0
     if (data.length > 0) {
       maxId.value = data[data.length - 1]!.id
+    }
+    if (!feedDone.value && maxId.value) {
+      const nextCursor = maxId.value
+      pagePrefetch.prefetch(
+        `${accountId}:${nextCursor}`,
+        signal => getAccountStatuses(accountId, {
+          max_id: nextCursor,
+          token: auth.token ?? undefined,
+          exclude_replies: true,
+          signal,
+        }),
+      )
     }
   } finally {
     feedLoading.value = false

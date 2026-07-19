@@ -11,6 +11,7 @@ import {
   base64urlDecode,
 } from '@/api/mastodon/webauthn';
 import { setOnUnauthorized } from '@/api/client';
+import { resetStatusPagePrefetches } from '@/composables/useStatusPagePrefetch';
 import { useTimelinesStore } from './timelines';
 import { useNotificationsStore } from './notifications';
 import { useUiStore } from './ui';
@@ -86,9 +87,9 @@ export const useAuthStore = defineStore('auth', () => {
     // that requested them. Reset also invalidates in-flight responses and
     // disconnects old-token streams before the next account can reuse them.
     useTimelinesStore().reset();
-    if (typeof window !== 'undefined') {
-      useNotificationsStore().disconnectStream();
-    }
+    // Notifications and their prefetched raw page are account-scoped too.
+    useNotificationsStore().reset();
+    resetStatusPagePrefetches();
   }
 
   function setToken(newToken: string) {

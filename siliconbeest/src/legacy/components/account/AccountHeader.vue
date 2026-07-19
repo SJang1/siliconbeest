@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Relationship } from '@/types/mastodon'
 import { useAuthStore } from '@/stores/auth'
+import { useTimelinesStore } from '@/stores/timelines'
 import { blockAccount, unblockAccount, muteAccount, unmuteAccount } from '@/api/mastodon/accounts'
 import Avatar from '../common/Avatar.vue'
 import FollowButton from './FollowButton.vue'
@@ -40,6 +41,7 @@ const emojifiedFields = computed(() => (props.account.fields ?? []).map((field) 
 })))
 
 const auth = useAuthStore()
+const timelinesStore = useTimelinesStore()
 const accountCanAct = computed(() => canUseAuthenticatedActions({
   authenticated: auth.isAuthenticated,
   accountLoaded: auth.currentUser !== null,
@@ -74,9 +76,11 @@ async function toggleBlock() {
   showMoreMenu.value = false
   actionLoading.value = true
   try {
-    const fn = props.relationship?.blocking ? unblockAccount : blockAccount
+    const wasBlocking = !!props.relationship?.blocking
+    const fn = wasBlocking ? unblockAccount : blockAccount
     const { data } = await fn(props.account.id, auth.token)
     emit('relationship-updated', data as Relationship)
+    if (!wasBlocking) timelinesStore.removeAccountStatuses(props.account.id)
   } catch (e) {
     console.error('Block toggle failed:', e)
   } finally {
@@ -89,9 +93,11 @@ async function toggleMute() {
   showMoreMenu.value = false
   actionLoading.value = true
   try {
-    const fn = props.relationship?.muting ? unmuteAccount : muteAccount
+    const wasMuting = !!props.relationship?.muting
+    const fn = wasMuting ? unmuteAccount : muteAccount
     const { data } = await fn(props.account.id, auth.token)
     emit('relationship-updated', data as Relationship)
+    if (!wasMuting) timelinesStore.removeAccountStatuses(props.account.id)
   } catch (e) {
     console.error('Mute toggle failed:', e)
   } finally {

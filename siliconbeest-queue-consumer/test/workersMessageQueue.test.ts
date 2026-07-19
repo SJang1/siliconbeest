@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ByteLimitedWorkersMessageQueue } from '../src/byteLimitedWorkersMessageQueue';
+import { WorkersMessageQueue } from '@fedify/cfworkers';
 
-describe('ByteLimitedWorkersMessageQueue', () => {
+describe('Fedify WorkersMessageQueue', () => {
   const send = vi.fn();
   const sendBatch = vi.fn();
   const queue = { send, sendBatch } as unknown as Queue;
@@ -14,7 +14,7 @@ describe('ByteLimitedWorkersMessageQueue', () => {
   });
 
   it('splits batches at Cloudflare\'s 100-message limit', async () => {
-    const messageQueue = new ByteLimitedWorkersMessageQueue(queue);
+    const messageQueue = new WorkersMessageQueue(queue);
     const messages = Array.from({ length: 101 }, (_, id) => ({ id }));
 
     await messageQueue.enqueueMany(messages);
@@ -29,7 +29,7 @@ describe('ByteLimitedWorkersMessageQueue', () => {
   ])(
     'splits %s payloads by UTF-8 byte size before reaching 256 KB',
     async (_label, character, repetitions) => {
-      const messageQueue = new ByteLimitedWorkersMessageQueue(queue);
+      const messageQueue = new WorkersMessageQueue(queue);
       const messages = Array.from({ length: 3 }, (_, id) => ({
         id,
         // Each content value is 80,000 UTF-8 bytes regardless of whether its
@@ -53,7 +53,7 @@ describe('ByteLimitedWorkersMessageQueue', () => {
   );
 
   it('does not enqueue an empty batch', async () => {
-    const messageQueue = new ByteLimitedWorkersMessageQueue(queue);
+    const messageQueue = new WorkersMessageQueue(queue);
 
     await messageQueue.enqueueMany([]);
 
