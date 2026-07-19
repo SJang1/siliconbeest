@@ -223,6 +223,24 @@ export type MediaAttachmentRow = {
   readonly updated_at: string;
 };
 
+export type AdvertisementFormat = 'text' | 'image' | 'text_image' | 'status';
+
+export type AdvertisementRow = {
+  readonly id: string;
+  readonly format: AdvertisementFormat;
+  readonly text: string | null;
+  readonly image_media_attachment_id: string | null;
+  readonly image_alt_text: string;
+  readonly status_id: string | null;
+  readonly link_url: string | null;
+  readonly enabled: number;
+  readonly starts_at: string | null;
+  readonly ends_at: string | null;
+  readonly created_by_account_id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
+
 export type PollRow = {
   readonly id: string;
   readonly status_id: string;
