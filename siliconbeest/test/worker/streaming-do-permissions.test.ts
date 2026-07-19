@@ -1,10 +1,17 @@
 import { env } from 'cloudflare:workers';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const ALLOWED_STREAMS_HEADER = 'X-Siliconbeest-Allowed-Streams';
 const STREAMING_REQUEST_URL = 'https://test.siliconbeest.local/api/v1/streaming';
 
 describe('StreamingDO subscription permissions', () => {
+  beforeAll(async () => {
+    // First DO call evaluates the whole worker bundle; pay that cold-start
+    // cost here so it doesn't count against per-test timeouts under load.
+    const stub = env.STREAMING_DO.getByName('warm-up');
+    await stub.fetch(STREAMING_REQUEST_URL);
+  }, 30_000);
+
   it('rejects an initial stream outside the endpoint-authorized channels', async () => {
     const stub = env.STREAMING_DO.getByName('initial-stream-scope');
     const response = await stub.fetch(`${STREAMING_REQUEST_URL}?stream=user:notification`, {
