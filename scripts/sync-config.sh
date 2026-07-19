@@ -487,7 +487,10 @@ cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"name": "${MAIN_WORKER_NAME}",
 	"preview_urls": true,
 	"compatibility_date": "2026-06-16",
-	"main": ".output/server/index.mjs",
+	// Keep type generation source-based so Durable Object RPC methods are
+	// available before Nuxt creates .output. Deploy/preview override this
+	// with the built .output/server/index.mjs entrypoint.
+	"main": "server/index.ts",
 	"assets": {
 		"directory": "./.output/public",
 		"not_found_handling": "none",
