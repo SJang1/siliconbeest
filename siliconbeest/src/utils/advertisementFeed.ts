@@ -3,7 +3,7 @@ import type { Advertisement, AdvertisementFeedItem } from '@/types/advertisement
 
 const FIRST_AD_MIN_INDEX = 9;
 const FIRST_AD_JITTER = 4;
-const NEXT_AD_MIN_GAP = 16;
+const NEXT_AD_MIN_GAP = 26;
 const NEXT_AD_JITTER = 25;
 
 /** Small deterministic hash: stable rendering without tracking a viewer. */
@@ -18,7 +18,7 @@ function hash(value: string): number {
 
 /**
  * Add sparse advertisement slots to a feed. The first creative appears only
- * after 9–12 posts, then at 16–40-post gaps. Slots and creative rotation are
+ * after 9–12 posts, then at 26–50-post gaps. Slots and creative rotation are
  * deterministic for the visible status IDs, so Vue updates do not flicker.
  */
 export function mixAdvertisements(

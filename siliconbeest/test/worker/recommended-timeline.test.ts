@@ -243,11 +243,11 @@ describe('AI recommended timeline', () => {
     );
   });
 
-  it('uses a 30-item default page and samples from at least five pages of candidates', () => {
+  it('uses a 30-item default page and samples from four pages of candidates', () => {
     expect(RECOMMENDATION_DEFAULT_PAGE_LIMIT).toBe(30);
-    expect(RECOMMENDATION_CANDIDATE_MULTIPLIER).toBeGreaterThanOrEqual(5);
-    expect(candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT)).toBe(150);
-    expect(candidateLimitForPage(40)).toBe(200);
+    expect(RECOMMENDATION_CANDIDATE_MULTIPLIER).toBe(4);
+    expect(candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT)).toBe(120);
+    expect(candidateLimitForPage(40)).toBe(160);
 
     const candidates = Array.from({ length: 180 }, (_, index) => ({
       id: `candidate-${index}`,
@@ -268,8 +268,8 @@ describe('AI recommended timeline', () => {
       candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
     );
 
-    expect(first).toHaveLength(150);
-    expect(new Set(first.map((row) => row.id))).toHaveLength(150);
+    expect(first).toHaveLength(120);
+    expect(new Set(first.map((row) => row.id))).toHaveLength(120);
     expect(repeated).toEqual(first);
     expect(refreshed).not.toEqual(first);
   });
