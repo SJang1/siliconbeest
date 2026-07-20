@@ -258,8 +258,11 @@ export const useComposeStore = defineStore('compose', () => {
         if (
           controller.signal.aborted
           || manuallyEditedMediaDescriptions.has(media.id)
-          || !latest
         ) {
+          return null;
+        }
+        if (!latest) {
+          setLocalMediaDescriptionStatus(media, 'failed');
           return null;
         }
 

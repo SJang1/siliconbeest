@@ -83,6 +83,25 @@ describe('compose media description generation', () => {
     expect(compose.hasUnreviewedGeneratedAltText).toBe(false);
   });
 
+  it('clears the pending state when polling ends without a response', async () => {
+    vi.mocked(uploadMedia).mockResolvedValue({
+      data: attachment('pending'),
+      headers: new Headers(),
+    });
+    vi.mocked(pollMediaDescription).mockResolvedValue(null);
+    const compose = useComposeStore();
+
+    await compose.addMedia(new File(['image'], 'flower.png', { type: 'image/png' }));
+    await Promise.resolve();
+
+    expect(pollMediaDescription).toHaveBeenCalledWith(
+      'media-1',
+      'token-1',
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(compose.mediaAttachments[0]?.description_generation_status).toBe('failed');
+  });
+
   it('does not flag an existing generated description as a new compose-session upload', () => {
     const compose = useComposeStore();
     compose.mediaAttachments = [attachment('complete', 'Existing ALT text.')];

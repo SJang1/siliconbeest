@@ -377,6 +377,48 @@ describe('AI recommended timeline', () => {
     expect(modelText).not.toContain('boost original lost relationship permission marker');
   });
 
+  it('revalidates a full recommendation reservoir with one indexed set query', async () => {
+    const prepare = vi.spyOn(env.DB, 'prepare');
+    try {
+      const candidateIds = Array.from(
+        { length: 200 },
+        (_, index) => `missing-recommendation-candidate-${index}`,
+      );
+      await expect(getVisibleRecommendationStatusesByIds(
+        candidateIds,
+        viewer.accountId,
+      )).resolves.toEqual([]);
+
+      const validationQueries = prepare.mock.calls
+        .map(([sql]) => sql)
+        .filter((sql) => sql.includes('WITH candidate_ids(id)'));
+      expect(validationQueries).toHaveLength(1);
+      expect(validationQueries[0]).toContain('JOIN statuses s ON s.reblog_of_id = rs.id');
+      expect(validationQueries[0]).not.toContain('WHERE rs.id = s.reblog_of_id');
+    } finally {
+      prepare.mockRestore();
+    }
+
+    const { results: indexes } = await env.DB.prepare(
+      'PRAGMA index_list(statuses)',
+    ).all<{ name: string }>();
+    expect(indexes.map((index) => index.name)).toContain(
+      'idx_statuses_active_reblog_surface',
+    );
+
+    const { results: plan } = await env.DB.prepare(
+      `EXPLAIN QUERY PLAN
+       SELECT id
+       FROM statuses
+       WHERE reblog_of_id = ?
+         AND reblog_of_id IS NOT NULL
+         AND deleted_at IS NULL`,
+    ).bind(boostedOriginal.id).all<{ detail: string }>();
+    expect(plan.map((step) => step.detail).join('\n')).toContain(
+      'idx_statuses_active_reblog_surface',
+    );
+  });
+
   it('sends only visible public or home-eligible candidates to AI', async () => {
     let captured: Record<string, unknown> | undefined;
     const page = await createRecommendedTimelinePage(

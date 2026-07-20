@@ -332,6 +332,9 @@ export const useTimelinesStore = defineStore('timelines', () => {
       retryAfterPrefetchFailure = false;
       if (!entry) return undefined;
     } else if (retryAfterPrefetchFailure === undefined) {
+      // Consume a matching in-flight prefetch in place. Replacing it here would
+      // discard useful work and duplicate paid recommendation inference when
+      // infinite scroll reaches the end before the AI page has settled.
       // An entry that existed before consume() is the speculative request. If
       // it failed silently, the actual scroll gets one normal tracked retry.
       retryAfterPrefetchFailure = true;

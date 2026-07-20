@@ -422,128 +422,116 @@ export async function getRecommendationCandidateWindow({
  * restore their own ranking order after this query; this function returns only
  * rows that remain safe to show to the viewer now and never returns DMs.
  */
-const RECOMMENDATION_ID_QUERY_BATCH_SIZE = 50;
-
-async function getVisibleRecommendationStatusBatch(
-  uniqueIds: readonly string[],
+export async function getVisibleRecommendationStatusesByIds(
+  statusIds: readonly string[],
   viewerAccountId: string,
 ): Promise<TimelineStatusRow[]> {
-  const placeholders = uniqueIds.map(() => '?').join(',');
+  const uniqueIds = [...new Set(statusIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return [];
+
+  const now = new Date().toISOString();
   const homeMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const conditions: string[] = [
-    `s.id IN (${placeholders})`,
+  const directVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
+  const directRelationship = buildStatusRelationshipSqlPredicate(
+    'status',
+    viewerAccountId,
+    now,
+  );
+  const directConditions: string[] = [
     `(s.visibility = 'public' OR ${homeMembership.sql})`,
     `s.visibility != 'direct'`,
     's.deleted_at IS NULL',
     's.reblog_of_id IS NULL',
+    directVisibility.sql,
+    directRelationship.sql,
   ];
-  const binds: (string | number)[] = [
-    ...uniqueIds,
+  const directBinds: (string | number)[] = [
     ...homeMembership.bindings,
+    ...directVisibility.bindings,
+    ...directRelationship.bindings,
   ];
-  const visibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
-  conditions.push(visibility.sql);
-  binds.push(...visibility.bindings);
-  addStatusSurfaceFilters(conditions, binds, viewerAccountId);
-
-  const directQuery = env.DB.prepare(
-    `SELECT s.*, ${ACCOUNT_COLUMNS}
-     FROM statuses s
-     JOIN accounts a ON a.id = s.account_id
-     WHERE ${conditions.join(' AND ')}`,
-  ).bind(...binds).all<TimelineStatusRow>();
 
   // A followed account's boost is a home-timeline surface even when the
   // original author is not followed. Normalize that eligible wrapper to the
   // original row without weakening either side's visibility/relationship
-  // checks. Permission helpers intentionally use `s` for the wrapper and `rs`
-  // for the original here.
+  // checks. The outer `rs` row is validated exactly once below; applying the
+  // generic reblog-original surface predicate to wrapper `s` would reopen the
+  // same original and repeat every permission subquery.
   const originalVisibility = buildStatusVisibilitySqlPredicate(
     'reblogged_status',
     viewerAccountId,
   );
+  const originalRelationship = buildStatusRelationshipSqlPredicate(
+    'reblogged_status',
+    viewerAccountId,
+    now,
+  );
   const originalConditions: string[] = [
-    `rs.id IN (${placeholders})`,
     'rs.deleted_at IS NULL',
     'rs.reblog_of_id IS NULL',
     `rs.visibility != 'direct'`,
     originalVisibility.sql,
+    originalRelationship.sql,
   ];
   const originalBinds: (string | number)[] = [
-    ...uniqueIds,
     ...originalVisibility.bindings,
+    ...originalRelationship.bindings,
   ];
-  addStatusSurfaceFilters(
-    originalConditions,
-    originalBinds,
-    viewerAccountId,
-    'reblogged_status',
-  );
   const boostMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
   const boostVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
+  const boostRelationship = buildStatusRelationshipSqlPredicate(
+    'status',
+    viewerAccountId,
+    now,
+  );
   const boostConditions: string[] = [
     boostMembership.sql,
     's.deleted_at IS NULL',
     `s.visibility != 'direct'`,
     's.reblog_of_id IS NOT NULL',
     boostVisibility.sql,
+    boostRelationship.sql,
   ];
   const boostBinds: (string | number)[] = [
     ...boostMembership.bindings,
     ...boostVisibility.bindings,
+    ...boostRelationship.bindings,
   ];
-  addStatusSurfaceFilters(boostConditions, boostBinds, viewerAccountId);
-  const boostQuery = env.DB.prepare(
-    `SELECT rs.*, ${ACCOUNT_COLUMNS}
-     FROM statuses rs
-     JOIN accounts a ON a.id = rs.account_id
-     WHERE ${originalConditions.join(' AND ')}
-       AND EXISTS (
-         SELECT 1
-         FROM statuses s
-         WHERE s.reblog_of_id = rs.id
-           AND ${boostConditions.join(' AND ')}
-       )`,
-  ).bind(...originalBinds, ...boostBinds).all<TimelineStatusRow>();
 
-  const [direct, boosted] = await Promise.all([directQuery, boostQuery]);
-  return [...new Map(
-    [
-      ...(direct.results ?? []),
-      ...(boosted.results ?? []),
-    ].map((row) => [row.id, row] as const),
-  ).values()];
-}
+  // One JSON binding keeps the statement below D1's bound-parameter limit and
+  // lets the primary-key/reblog indexes drive both branches. Only eligible IDs
+  // flow out of the CTE, so wide status/account rows are materialized once.
+  const sql = `
+    WITH candidate_ids(id) AS (
+      SELECT CAST(value AS TEXT)
+      FROM json_each(?)
+    ), eligible_ids(id) AS (
+      SELECT s.id
+      FROM candidate_ids candidate
+      JOIN statuses s ON s.id = candidate.id
+      WHERE ${directConditions.join(' AND ')}
 
-export async function getVisibleRecommendationStatusesByIds(
-  statusIds: readonly string[],
-  viewerAccountId: string,
-): Promise<TimelineStatusRow[]> {
-  const uniqueIds = [...new Set(statusIds)].slice(0, 200);
+      UNION
 
-  // D1 allows at most 100 bound parameters per statement. Permission
-  // predicates add their own bindings, so keep ID batches comfortably below
-  // that limit while preserving the caller's larger recommendation reservoir.
-  const batches = Array.from(
-    { length: Math.ceil(uniqueIds.length / RECOMMENDATION_ID_QUERY_BATCH_SIZE) },
-    (_, index) => uniqueIds.slice(
-      index * RECOMMENDATION_ID_QUERY_BATCH_SIZE,
-      (index + 1) * RECOMMENDATION_ID_QUERY_BATCH_SIZE,
-    ),
-  );
-  // Keep batches sequential: each batch intentionally runs its two independent
-  // permission queries together, while D1 permits only six concurrent
-  // connections per Worker invocation.
-  const rows = await batches.reduce<Promise<TimelineStatusRow[]>>(
-    async (collectedPromise, batch) => {
-      const collected = await collectedPromise;
-      const batchRows = await getVisibleRecommendationStatusBatch(batch, viewerAccountId);
-      return [...collected, ...batchRows];
-    },
-    Promise.resolve([]),
-  );
-
-  return [...new Map(rows.map((row) => [row.id, row] as const)).values()];
+      SELECT rs.id
+      FROM candidate_ids candidate
+      JOIN statuses rs ON rs.id = candidate.id
+      JOIN statuses s ON s.reblog_of_id = rs.id
+      WHERE ${originalConditions.join(' AND ')}
+        AND ${boostConditions.join(' AND ')}
+    )
+    SELECT rs.*, ${ACCOUNT_COLUMNS}
+    FROM eligible_ids eligible
+    JOIN statuses rs ON rs.id = eligible.id
+    JOIN accounts a ON a.id = rs.account_id
+  `;
+  const { results } = await env.DB.prepare(sql).bind(
+    JSON.stringify(uniqueIds),
+    ...directBinds,
+    ...originalBinds,
+    ...boostBinds,
+  ).all<TimelineStatusRow>();
+  return results ?? [];
 }
 
 // ----------------------------------------------------------------

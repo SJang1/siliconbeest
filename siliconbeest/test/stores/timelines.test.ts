@@ -317,6 +317,49 @@ describe('Timelines Store', () => {
       expect(statuses.cache.has('home-next')).toBe(true);
     });
 
+    it('keeps an in-flight recommended AI prefetch and appends it when scrolling reaches the end', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      const { parseLinkHeader } = await import('@/api/client');
+      let resolveRecommendedPage: ((value: unknown) => void) | undefined;
+      const recommendedPage = new Promise((resolve) => { resolveRecommendedPage = resolve; });
+      const cursor = '/api/v1/timelines/recommended?cursor=in-flight&limit=30';
+      vi.mocked(timelineApi.getRecommendedTimeline).mockResolvedValue({
+        data: [{ id: 'recommended-first', account: { id: 'author-1' }, reblog: null }],
+        headers: { get: () => 'recommended-first-link' },
+      } as never);
+      vi.mocked(timelineApi.getRecommendedTimelinePage).mockReturnValue(recommendedPage as never);
+      vi.mocked(parseLinkHeader).mockImplementation((header) => (
+        header === 'recommended-first-link' ? { next: cursor } : {}
+      ));
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('recommended', { token: 'token' });
+
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledOnce();
+      const prefetchSignal = vi.mocked(timelineApi.getRecommendedTimelinePage).mock.calls[0]![2]!;
+      expect(prefetchSignal.aborted).toBe(false);
+
+      const loadMore = store.fetchMore('recommended', { token: 'token' });
+      await Promise.resolve();
+
+      expect(store.getTimeline('recommended').loadingMore).toBe(true);
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledOnce();
+      expect(prefetchSignal.aborted).toBe(false);
+
+      resolveRecommendedPage?.({
+        data: [{ id: 'recommended-next', account: { id: 'author-2' }, reblog: null }],
+        headers: { get: () => null },
+      });
+      await loadMore;
+
+      expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledOnce();
+      expect(store.getTimeline('recommended').statusIds).toEqual([
+        'recommended-first',
+        'recommended-next',
+      ]);
+      expect(store.getTimeline('recommended').loadingMore).toBe(false);
+    });
+
     it('keeps a background failure silent and retries when the page is requested', async () => {
       const timelineApi = await import('@/api/mastodon/timelines');
       const { parseLinkHeader } = await import('@/api/client');

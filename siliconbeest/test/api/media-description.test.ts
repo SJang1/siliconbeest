@@ -55,4 +55,28 @@ describe('media description polling', () => {
     expect(result?.description_generation_status).toBe('pending');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('times out when a media status request never responds', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        }, { once: true });
+      })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = pollMediaDescription('media-1', 'token-1', {
+      maxAttempts: 5,
+      intervalMs: 0,
+      timeoutMs: 50,
+    });
+    const rejection = expect(result).rejects.toThrow('Media description polling timed out');
+    await vi.advanceTimersByTimeAsync(50);
+
+    await rejection;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
 });
