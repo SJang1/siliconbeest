@@ -26,6 +26,7 @@ vi.mock('@/api/mastodon/media', () => ({
 function attachment(
   status: NonNullable<MediaAttachment['description_generation_status']> = 'pending',
   description: string | null = null,
+  error: MediaAttachment['description_generation_error'] = null,
 ): MediaAttachment {
   return {
     id: 'legacy-media-1',
@@ -36,6 +37,7 @@ function attachment(
     meta: null,
     description,
     description_generation_status: status,
+    description_generation_error: error,
     blurhash: null,
   };
 }
@@ -136,6 +138,29 @@ describe('Classic composer automatic ALT', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="generated-alt-notice"]').exists()).toBe(false);
+  });
+
+  it('shows failed generation and keeps manual ALT editing available', async () => {
+    vi.mocked(uploadMedia).mockResolvedValue({ data: attachment(), headers: new Headers() });
+    vi.mocked(pollMediaDescription).mockResolvedValue(
+      attachment('failed', null, 'rate_limiter_unavailable'),
+    );
+    const wrapper = mount(LegacyStatusComposer, {
+      global: { plugins: [createTestI18n()] },
+    });
+
+    await uploadImage(wrapper);
+    await vi.waitFor(() => {
+      expect(useComposeStore().mediaAttachments[0]?.description_generation_status)
+        .toBe('failed');
+    });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="media-alt-failed"]').text()).toContain('ALT failed');
+    await wrapper.get('[data-testid="media-alt-button"]').trigger('click');
+    expect(wrapper.get('[data-testid="media-alt-failure-message"]').text())
+      .toContain('temporarily unavailable');
+    expect(wrapper.get<HTMLTextAreaElement>('textarea[maxlength="1500"]').element.disabled)
+      .toBe(false);
   });
 });
 

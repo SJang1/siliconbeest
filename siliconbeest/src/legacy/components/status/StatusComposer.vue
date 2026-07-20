@@ -595,6 +595,16 @@ function openAltEditor(media: MediaAttachment) {
   altEditDirty.value = false
 }
 
+function altGenerationFailureMessage(media: MediaAttachment) {
+  if (media.description_generation_error === 'rate_limited') {
+    return t('compose.alt_generation_rate_limited')
+  }
+  if (media.description_generation_error === 'rate_limiter_unavailable') {
+    return t('compose.alt_generation_unavailable')
+  }
+  return t('compose.alt_generation_failed')
+}
+
 function onAltInput() {
   if (!altEditMedia.value || altEditDirty.value) return
   altEditDirty.value = true
@@ -934,10 +944,12 @@ function submit() {
           class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-opacity"
           :class="media.description_generation_status === 'pending'
             ? 'bg-black/75 text-white opacity-100'
+            : media.description_generation_status === 'failed'
+              ? 'bg-red-600 text-white opacity-100'
             : media.description
               ? 'bg-indigo-500 text-white opacity-90'
               : 'bg-black/60 text-white opacity-0 group-hover:opacity-100'"
-          :aria-live="media.description_generation_status === 'pending' ? 'polite' : undefined"
+          :aria-live="media.description_generation_status === 'pending' || media.description_generation_status === 'failed' ? 'polite' : undefined"
           data-testid="media-alt-button"
         >
           <span
@@ -947,6 +959,12 @@ function submit() {
           >
             <span class="h-2 w-2 animate-spin rounded-full border border-white/50 border-t-white" />
             {{ t('compose.alt_generating') }}
+          </span>
+          <span
+            v-else-if="media.description_generation_status === 'failed'"
+            data-testid="media-alt-failed"
+          >
+            ! {{ t('compose.alt_generation_failed_short') }}
           </span>
           <template v-else>ALT</template>
         </button>
@@ -1008,6 +1026,14 @@ function submit() {
           :src="altEditMedia.preview_url ?? altEditMedia.url"
           class="w-full h-40 object-contain rounded-lg bg-gray-100 dark:bg-gray-900 mb-3"
         />
+        <p
+          v-if="altEditMedia.description_generation_status === 'failed'"
+          class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300"
+          role="alert"
+          data-testid="media-alt-failure-message"
+        >
+          {{ altGenerationFailureMessage(altEditMedia) }}
+        </p>
         <textarea
           v-model="altEditText"
           @input="onAltInput"

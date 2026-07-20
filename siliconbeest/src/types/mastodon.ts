@@ -148,6 +148,16 @@ export interface MediaAttachment {
   description: string | null;
   /** SiliconBeest extension for optional background Workers AI captions. */
   description_generation_status?: 'pending' | 'complete' | 'failed' | 'disabled';
+  /** Stable failure category; internal provider errors are never exposed. */
+  description_generation_error?:
+    | 'rate_limited'
+    | 'rate_limiter_unavailable'
+    | 'generation_failed'
+    | 'persistence_failed'
+    | 'timeout'
+    | 'unknown'
+    | null;
+  description_generation_retry_after_seconds?: number | null;
   blurhash: string | null;
 }
 

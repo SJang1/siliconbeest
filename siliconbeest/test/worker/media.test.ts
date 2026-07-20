@@ -27,6 +27,8 @@ type MediaResponse = {
   type: string;
   description: string | null;
   description_generation_status: 'pending' | 'complete' | 'failed' | 'disabled';
+  description_generation_error: string | null;
+  description_generation_retry_after_seconds: number | null;
 };
 
 const MINIMAL_PNG_BYTES = new Uint8Array([
@@ -158,6 +160,44 @@ describe('Media API', () => {
         expect.any(ArrayBuffer),
         'image/png',
         expect.anything(),
+      );
+    });
+
+    it('reports a stable reason when automatic ALT generation is rate limited', async () => {
+      vi.mocked(isWorkersAiFeatureEnabled).mockResolvedValue(true);
+      vi.mocked(consumeWorkersAiRateLimit).mockResolvedValue({
+        allowed: false,
+        retryAfterSeconds: 60,
+        reason: 'limited',
+      });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const formData = new FormData();
+      formData.append(
+        'file',
+        new Blob([MINIMAL_PNG_BYTES], { type: 'image/png' }),
+        'rate-limited-alt.png',
+      );
+
+      const uploadResponse = await SELF.fetch(`${BASE}/api/v2/media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.token}` },
+        body: formData,
+      });
+      const uploaded = await uploadResponse.json<MediaResponse>();
+
+      await vi.waitFor(async () => {
+        const statusResponse = await SELF.fetch(`${BASE}/api/v1/media/${uploaded.id}`, {
+          headers: authHeaders(user.token),
+        });
+        const status = await statusResponse.json<MediaResponse>();
+        expect(status.description_generation_status).toBe('failed');
+        expect(status.description_generation_error).toBe('rate_limited');
+        expect(status.description_generation_retry_after_seconds).toBe(60);
+      });
+      expect(generateImageAltText).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        '[workers-ai]',
+        expect.stringContaining('rate_limited'),
       );
     });
 

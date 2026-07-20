@@ -41,6 +41,18 @@ const AI_ALT_MIME_TYPES = new Set([
 const AI_ALT_MAX_BYTES = 10 * 1024 * 1024;
 
 type DescriptionGenerationStatus = 'pending' | 'complete' | 'failed' | 'disabled';
+type DescriptionGenerationError =
+  | 'rate_limited'
+  | 'rate_limiter_unavailable'
+  | 'generation_failed'
+  | 'persistence_failed'
+  | 'unknown';
+
+type DescriptionGenerationState = {
+  readonly status: DescriptionGenerationStatus;
+  readonly error: DescriptionGenerationError | null;
+  readonly retryAfterSeconds: number | null;
+};
 
 const AI_ALT_STATUS_TTL_SECONDS = 10 * 60;
 
@@ -48,15 +60,47 @@ function descriptionGenerationStatusKey(accountId: string, mediaId: string): str
   return `workers-ai:media-description:v1:${accountId}:${mediaId}`;
 }
 
-async function readDescriptionGenerationStatus(
+function descriptionGenerationState(
+  status: DescriptionGenerationStatus,
+  error: DescriptionGenerationError | null = null,
+  retryAfterSeconds: number | null = null,
+): DescriptionGenerationState {
+  return { status, error, retryAfterSeconds };
+}
+
+async function readDescriptionGenerationState(
   accountId: string,
   mediaId: string,
-): Promise<DescriptionGenerationStatus | null> {
+): Promise<DescriptionGenerationState | null> {
   try {
     const value = await env.CACHE.get(descriptionGenerationStatusKey(accountId, mediaId));
-    return value === 'pending' || value === 'complete' || value === 'failed' || value === 'disabled'
-      ? value
+    if (value === 'pending' || value === 'complete' || value === 'disabled') {
+      return descriptionGenerationState(value);
+    }
+    if (value === 'failed') {
+      return descriptionGenerationState('failed', 'unknown');
+    }
+    if (!value) return null;
+    const parsed = JSON.parse(value) as Partial<DescriptionGenerationState>;
+    if (
+      parsed.status !== 'pending'
+      && parsed.status !== 'complete'
+      && parsed.status !== 'failed'
+      && parsed.status !== 'disabled'
+    ) return null;
+    const error = parsed.error === 'rate_limited'
+      || parsed.error === 'rate_limiter_unavailable'
+      || parsed.error === 'generation_failed'
+      || parsed.error === 'persistence_failed'
+      || parsed.error === 'unknown'
+      ? parsed.error
+      : parsed.status === 'failed' ? 'unknown' : null;
+    const retryAfterSeconds = typeof parsed.retryAfterSeconds === 'number'
+      && Number.isSafeInteger(parsed.retryAfterSeconds)
+      && parsed.retryAfterSeconds > 0
+      ? parsed.retryAfterSeconds
       : null;
+    return descriptionGenerationState(parsed.status, error, retryAfterSeconds);
   } catch {
     return null;
   }
@@ -66,17 +110,38 @@ async function writeDescriptionGenerationStatus(
   accountId: string,
   mediaId: string,
   status: DescriptionGenerationStatus,
+  options?: {
+    readonly error?: DescriptionGenerationError;
+    readonly retryAfterSeconds?: number;
+  },
 ): Promise<void> {
   try {
     await env.CACHE.put(
       descriptionGenerationStatusKey(accountId, mediaId),
-      status,
+      JSON.stringify(descriptionGenerationState(
+        status,
+        options?.error ?? null,
+        options?.retryAfterSeconds ?? null,
+      )),
       { expirationTtl: AI_ALT_STATUS_TTL_SECONDS },
     );
   } catch {
     // Generation status is a progressive-enhancement hint. Uploads and manual
     // ALT editing must keep working if KV is temporarily unavailable.
   }
+}
+
+function logDescriptionGenerationFailure(
+  mediaId: string,
+  error: DescriptionGenerationError,
+  retryAfterSeconds?: number,
+): void {
+  console.warn('[workers-ai]', JSON.stringify({
+    event: 'image_alt_generation_failed',
+    mediaId,
+    error,
+    ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
+  }));
 }
 
 async function generateAndPersistImageDescription(input: {
@@ -90,7 +155,14 @@ async function generateAndPersistImageDescription(input: {
   try {
     const rateLimit = await consumeWorkersAiRateLimit('imageDescription', accountId);
     if (!rateLimit.allowed) {
-      await writeDescriptionGenerationStatus(accountId, mediaId, 'failed');
+      const error = rateLimit.reason === 'limited'
+        ? 'rate_limited'
+        : 'rate_limiter_unavailable';
+      logDescriptionGenerationFailure(mediaId, error, rateLimit.retryAfterSeconds);
+      await writeDescriptionGenerationStatus(accountId, mediaId, 'failed', {
+        error,
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      });
       return;
     }
 
@@ -98,24 +170,36 @@ async function generateAndPersistImageDescription(input: {
     // well as production and avoids depending on a public media URL.
     const generatedDescription = await generateImageAltText(bytes, contentType, env);
     if (!generatedDescription) {
-      await writeDescriptionGenerationStatus(accountId, mediaId, 'failed');
+      logDescriptionGenerationFailure(mediaId, 'generation_failed');
+      await writeDescriptionGenerationStatus(accountId, mediaId, 'failed', {
+        error: 'generation_failed',
+      });
       return;
     }
 
-    await env.DB.prepare(
-      `UPDATE media_attachments
-       SET description = ?1, updated_at = ?2
-       WHERE id = ?3
-         AND account_id = ?4
-         AND description IS NULL`,
-    )
-      .bind(
-        generatedDescription,
-        new Date().toISOString(),
-        mediaId,
-        accountId,
+    try {
+      await env.DB.prepare(
+        `UPDATE media_attachments
+         SET description = ?1, updated_at = ?2
+         WHERE id = ?3
+           AND account_id = ?4
+           AND description IS NULL`,
       )
-      .run();
+        .bind(
+          generatedDescription,
+          new Date().toISOString(),
+          mediaId,
+          accountId,
+        )
+        .run();
+    } catch (error) {
+      console.warn('Workers AI ALT persistence failed; continuing without ALT text', error);
+      logDescriptionGenerationFailure(mediaId, 'persistence_failed');
+      await writeDescriptionGenerationStatus(accountId, mediaId, 'failed', {
+        error: 'persistence_failed',
+      });
+      return;
+    }
 
     // NULL is reserved for a pending automatic description. Manual saves use
     // a string (including ''), so metadata updates may freely change
@@ -123,7 +207,10 @@ async function generateAndPersistImageDescription(input: {
     await writeDescriptionGenerationStatus(accountId, mediaId, 'complete');
   } catch (error) {
     console.warn('Workers AI ALT generation failed; continuing without ALT text', error);
-    await writeDescriptionGenerationStatus(accountId, mediaId, 'failed');
+    logDescriptionGenerationFailure(mediaId, 'generation_failed');
+    await writeDescriptionGenerationStatus(accountId, mediaId, 'failed', {
+      error: 'generation_failed',
+    });
   }
 }
 
@@ -288,6 +375,8 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
       meta: null,
       description: hasClientDescription ? description : null,
       description_generation_status: descriptionGenerationStatus,
+      description_generation_error: null,
+      description_generation_retry_after_seconds: null,
       blurhash: null,
     },
     202,
@@ -314,9 +403,10 @@ app.get('/:id', authRequired, requireScope('write:media'), async (c) => {
   const previewUrl = row.thumbnail_key
     ? `https://${domain}/media/${row.thumbnail_key}`
     : mediaUrl;
-  const descriptionGenerationStatus = (row.description?.trim().length ?? 0) > 0
-    ? 'complete'
-    : await readDescriptionGenerationStatus(currentUser.account_id, mediaId) ?? 'disabled';
+  const descriptionState = (row.description?.trim().length ?? 0) > 0
+    ? descriptionGenerationState('complete')
+    : await readDescriptionGenerationState(currentUser.account_id, mediaId)
+      ?? descriptionGenerationState('disabled');
 
   return c.json({
     id: row.id,
@@ -330,7 +420,9 @@ app.get('/:id', authRequired, requireScope('write:media'), async (c) => {
         ? { original: { width: row.width, height: row.height } }
         : null,
     description: row.description || null,
-    description_generation_status: descriptionGenerationStatus,
+    description_generation_status: descriptionState.status,
+    description_generation_error: descriptionState.error,
+    description_generation_retry_after_seconds: descriptionState.retryAfterSeconds,
     blurhash: row.blurhash ?? null,
   });
 });
@@ -375,7 +467,7 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   const now = new Date().toISOString();
   const newDescription =
     body.description !== undefined ? body.description : row.description;
-  let descriptionGenerationStatus: DescriptionGenerationStatus;
+  let descriptionState: DescriptionGenerationState;
   if (body.description !== undefined) {
     // Explicit saves always replace the NULL pending sentinel with a string,
     // including an intentional blank, so background AI cannot overwrite it.
@@ -390,15 +482,16 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
       'contributionApplied',
       (update.meta?.changes ?? 0) > 0 && newDescription !== row.description,
     );
-    descriptionGenerationStatus = 'complete';
+    descriptionState = descriptionGenerationState('complete');
     c.executionCtx.waitUntil(
       writeDescriptionGenerationStatus(currentUser.account_id, mediaId, 'complete'),
     );
   } else {
     c.set('contributionApplied', false);
-    descriptionGenerationStatus = (row.description?.trim().length ?? 0) > 0
-      ? 'complete'
-      : await readDescriptionGenerationStatus(currentUser.account_id, mediaId) ?? 'disabled';
+    descriptionState = (row.description?.trim().length ?? 0) > 0
+      ? descriptionGenerationState('complete')
+      : await readDescriptionGenerationState(currentUser.account_id, mediaId)
+        ?? descriptionGenerationState('disabled');
   }
 
   const mediaUrl = `https://${domain}/media/${row.file_key}`;
@@ -418,7 +511,9 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
         ? { original: { width: row.width, height: row.height } }
         : null,
     description: newDescription || null,
-    description_generation_status: descriptionGenerationStatus,
+    description_generation_status: descriptionState.status,
+    description_generation_error: descriptionState.error,
+    description_generation_retry_after_seconds: descriptionState.retryAfterSeconds,
     blurhash: row.blurhash ?? null,
   });
 });

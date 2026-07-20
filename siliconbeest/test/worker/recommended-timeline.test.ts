@@ -459,6 +459,17 @@ describe('AI recommended timeline', () => {
       'idx_statuses_recommendation_original_cursor',
       'idx_statuses_recommendation_boost_cursor',
     ]));
+
+    const { results: domainBlockPlan } = await env.DB.prepare(
+      `EXPLAIN QUERY PLAN
+       SELECT 1
+       FROM user_domain_blocks
+       WHERE account_id = ?
+         AND lower(domain) = lower(?)`,
+    ).bind(viewer.accountId, 'example.test').all<{ detail: string }>();
+    expect(domainBlockPlan.map((step) => step.detail).join('\n')).toContain(
+      'idx_user_domain_blocks_account_domain_lower',
+    );
   });
 
   it('sends only visible public or home-eligible candidates to AI', async () => {

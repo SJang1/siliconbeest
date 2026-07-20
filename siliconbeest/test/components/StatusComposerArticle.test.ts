@@ -220,6 +220,35 @@ describe('StatusComposer Article selector', () => {
     expect(useComposeStore().mediaAttachments[0]?.description).toBe('My own description');
   });
 
+  it('shows an actionable error when automatic ALT generation fails', async () => {
+    const auth = useAuthStore();
+    auth.setToken('test-token');
+    vi.mocked(uploadMedia).mockResolvedValue({
+      data: pendingAttachment(),
+      headers: new Headers(),
+    });
+    vi.mocked(pollMediaDescription).mockResolvedValue(
+      pendingAttachment('failed', null, 'rate_limited'),
+    );
+
+    const wrapper = mount(StatusComposer, {
+      global: { plugins: [createTestI18n()] },
+    });
+    await uploadThroughComposer(wrapper);
+
+    await vi.waitFor(() => {
+      expect(useComposeStore().mediaAttachments[0]?.description_generation_status)
+        .toBe('failed');
+    });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="media-alt-failed"]').text()).toContain('ALT failed');
+    await wrapper.get('[data-testid="media-alt-button"]').trigger('click');
+    expect(wrapper.get('[data-testid="media-alt-failure-message"]').text())
+      .toContain('Too many automatic ALT requests');
+    expect(wrapper.get<HTMLTextAreaElement>('textarea[maxlength="1500"]').element.disabled)
+      .toBe(false);
+  });
+
   it('shows the generated ALT accuracy notice until the author saves a review', async () => {
     const auth = useAuthStore();
     auth.setToken('test-token');
@@ -327,8 +356,9 @@ describe('StatusComposer Article selector', () => {
 });
 
 function pendingAttachment(
-  status: 'pending' | 'complete' = 'pending',
+  status: 'pending' | 'complete' | 'failed' | 'disabled' = 'pending',
   description: string | null = null,
+  error: 'rate_limited' | null = null,
 ) {
   return {
     id: 'media-1',
@@ -339,6 +369,7 @@ function pendingAttachment(
     meta: null,
     description,
     description_generation_status: status,
+    description_generation_error: error,
     blurhash: null,
   };
 }

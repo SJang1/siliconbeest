@@ -239,10 +239,19 @@ export const useComposeStore = defineStore('compose', () => {
   function setLocalMediaDescriptionStatus(
     media: MediaAttachment,
     status: NonNullable<MediaAttachment['description_generation_status']>,
+    error: MediaAttachment['description_generation_error'] = null,
   ) {
     media.description_generation_status = status;
-    const attached = mediaAttachments.value.find((item) => item.id === media.id);
-    if (attached && attached !== media) attached.description_generation_status = status;
+    media.description_generation_error = error;
+    const attachedIndex = mediaAttachments.value.findIndex((item) => item.id === media.id);
+    const attached = mediaAttachments.value[attachedIndex];
+    if (attachedIndex >= 0 && attached) {
+      mediaAttachments.value[attachedIndex] = {
+        ...attached,
+        description_generation_status: status,
+        description_generation_error: error,
+      };
+    }
   }
 
   function startMediaDescriptionPolling(
@@ -262,16 +271,26 @@ export const useComposeStore = defineStore('compose', () => {
           return null;
         }
         if (!latest) {
-          setLocalMediaDescriptionStatus(media, 'failed');
+          setLocalMediaDescriptionStatus(media, 'failed', 'timeout');
           return null;
         }
 
         const resolved = latest.description_generation_status === 'pending'
-          ? { ...latest, description_generation_status: 'failed' as const }
+          ? {
+              ...latest,
+              description_generation_status: 'failed' as const,
+              description_generation_error: 'timeout' as const,
+            }
           : latest;
         Object.assign(media, resolved);
-        const attached = mediaAttachments.value.find((item) => item.id === media.id);
-        if (attached && attached !== media) Object.assign(attached, resolved);
+        const attachedIndex = mediaAttachments.value.findIndex((item) => item.id === media.id);
+        const attached = mediaAttachments.value[attachedIndex];
+        if (attachedIndex >= 0 && attached) {
+          mediaAttachments.value[attachedIndex] = {
+            ...attached,
+            ...resolved,
+          };
+        }
         if (
           resolved.description_generation_status === 'complete'
           && resolved.description
@@ -285,7 +304,7 @@ export const useComposeStore = defineStore('compose', () => {
           !controller.signal.aborted
           && !manuallyEditedMediaDescriptions.has(media.id)
         ) {
-          setLocalMediaDescriptionStatus(media, 'failed');
+          setLocalMediaDescriptionStatus(media, 'failed', 'timeout');
         }
         return null;
       })

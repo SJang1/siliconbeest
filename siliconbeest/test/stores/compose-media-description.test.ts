@@ -100,6 +100,7 @@ describe('compose media description generation', () => {
       { signal: expect.any(AbortSignal) },
     );
     expect(compose.mediaAttachments[0]?.description_generation_status).toBe('failed');
+    expect(compose.mediaAttachments[0]?.description_generation_error).toBe('timeout');
   });
 
   it('does not flag an existing generated description as a new compose-session upload', () => {
