@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, renderToString } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import DeckRail from '@/deck/layout/DeckRail.vue';
@@ -77,6 +77,36 @@ describe('DeckRail', () => {
 
     expect(link.attributes('href')).toBe('/timelines/recommended');
     expect(link.classes()).toContain('dk-rail-item-active');
+  });
+
+  it('includes AI recommendations in server-rendered navigation when enabled', async () => {
+    useAuthStore().setToken('rail-ssr-token');
+    useInstanceStore().instance = {
+      configuration: {
+        ai: { enabled: true, recommended_timeline: true, image_description: false },
+      },
+    } as Instance;
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/home', name: 'home', component: { template: '<div />' } },
+        { path: '/timelines/:type', name: 'timeline', component: { template: '<div />' } },
+      ],
+    });
+    await router.push('/home');
+    await router.isReady();
+
+    const html = await renderToString(DeckRail, {
+      props: { showMobileDeck: false },
+      global: {
+        plugins: [pinia, createTestI18n(), router],
+        stubs: { Avatar: true },
+      },
+    });
+
+    expect(html).toContain('data-recommended-nav');
+    expect(html).toContain('href="/timelines/recommended"');
   });
 
   it('hides the AI recommendation route when disabled', async () => {

@@ -30,8 +30,7 @@ const ACCOUNT_COLUMNS = `
   a.emoji_tags AS a_emoji_tags`;
 
 const RECOMMENDATION_ID_QUERY_BATCH_SIZE = 60;
-const RECOMMENDATION_SOURCE_SCAN_MULTIPLIER = 4;
-const RECOMMENDATION_SOURCE_SCAN_LIMIT = 800;
+const RECOMMENDATION_SOURCE_BACKUP_ROWS = 20;
 
 export interface TimelinePaginationOpts {
   maxId?: string;
@@ -108,6 +107,39 @@ function buildHomeTimelineMembershipPredicate(
           FROM mentions home_mention
           WHERE home_mention.status_id = s.id
             AND home_mention.account_id = ?
+        )
+      )
+    )`,
+    bindings: [accountId, accountId, accountId],
+  };
+}
+
+function buildRecommendationOriginalVisibilityScopePredicate(
+  accountId: string,
+): PermissionSqlPredicate {
+  return {
+    // Account suspension and bilateral author blocks are already enforced by
+    // the adjacent relationship predicate. Keep only the non-direct audience
+    // rules here so boosted originals do not repeat those indexed lookups.
+    sql: `(
+      rs.visibility IN ('public', 'unlisted')
+      OR rs.account_id = ?
+      OR (
+        rs.visibility = 'private'
+        AND EXISTS (
+          SELECT 1
+          FROM follows recommendation_original_follow
+          WHERE recommendation_original_follow.account_id = ?
+            AND recommendation_original_follow.target_account_id = rs.account_id
+        )
+      )
+      OR (
+        rs.visibility = 'private'
+        AND EXISTS (
+          SELECT 1
+          FROM mentions recommendation_original_mention
+          WHERE recommendation_original_mention.status_id = rs.id
+            AND recommendation_original_mention.account_id = ?
         )
       )
     )`,
@@ -327,27 +359,23 @@ export async function getRecommendationCandidateWindow({
   limit,
 }: RecommendationCandidateWindowOptions): Promise<TimelineStatusRow[]> {
   const candidateLimit = Math.min(200, Math.max(1, Math.trunc(limit)));
-  const sourceScanLimit = Math.min(
-    RECOMMENDATION_SOURCE_SCAN_LIMIT,
-    candidateLimit * RECOMMENDATION_SOURCE_SCAN_MULTIPLIER,
-  );
+  // The caller already requests page size × 4 candidates. Keep only a fixed
+  // invalidation/pagination reserve instead of multiplying that pool again.
+  const sourceScanLimit = candidateLimit + RECOMMENDATION_SOURCE_BACKUP_ROWS;
   const now = new Date().toISOString();
   const directMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const directVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
   const directRelationship = buildStatusRelationshipSqlPredicate(
     'status',
     viewerAccountId,
     now,
   );
   const boostMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const boostVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
   const boostRelationship = buildStatusRelationshipSqlPredicate(
     'status',
     viewerAccountId,
     now,
   );
-  const originalVisibility = buildStatusVisibilitySqlPredicate(
-    'reblogged_status',
+  const originalVisibility = buildRecommendationOriginalVisibilityScopePredicate(
     viewerAccountId,
   );
   const originalRelationship = buildStatusRelationshipSqlPredicate(
@@ -396,8 +424,8 @@ export async function getRecommendationCandidateWindow({
       WHERE s.reblog_of_id IS NULL
         AND s.deleted_at IS NULL
         AND s.visibility != 'direct'
+        AND s.visibility IN ('public', 'unlisted', 'private')
         AND (s.visibility = 'public' OR ${directMembership.sql})
-        AND ${directVisibility.sql}
         AND ${directRelationship.sql}
 
       UNION ALL
@@ -409,8 +437,8 @@ export async function getRecommendationCandidateWindow({
       WHERE s.reblog_of_id IS NOT NULL
         AND s.deleted_at IS NULL
         AND s.visibility != 'direct'
+        AND s.visibility IN ('public', 'unlisted', 'private')
         AND ${boostMembership.sql}
-        AND ${boostVisibility.sql}
         AND ${boostRelationship.sql}
         AND rs.reblog_of_id IS NULL
         AND rs.deleted_at IS NULL
@@ -439,10 +467,8 @@ export async function getRecommendationCandidateWindow({
     upperBound,
     sourceScanLimit,
     ...directMembership.bindings,
-    ...directVisibility.bindings,
     ...directRelationship.bindings,
     ...boostMembership.bindings,
-    ...boostVisibility.bindings,
     ...boostRelationship.bindings,
     ...originalVisibility.bindings,
     ...originalRelationship.bindings,
@@ -466,7 +492,6 @@ export async function getVisibleRecommendationStatusesByIds(
 
   const now = new Date().toISOString();
   const homeMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const directVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
   const directRelationship = buildStatusRelationshipSqlPredicate(
     'status',
     viewerAccountId,
@@ -475,14 +500,13 @@ export async function getVisibleRecommendationStatusesByIds(
   const directConditions: string[] = [
     `(s.visibility = 'public' OR ${homeMembership.sql})`,
     `s.visibility != 'direct'`,
+    `s.visibility IN ('public', 'unlisted', 'private')`,
     's.deleted_at IS NULL',
     's.reblog_of_id IS NULL',
-    directVisibility.sql,
     directRelationship.sql,
   ];
   const directBinds: (string | number)[] = [
     ...homeMembership.bindings,
-    ...directVisibility.bindings,
     ...directRelationship.bindings,
   ];
 
@@ -492,8 +516,7 @@ export async function getVisibleRecommendationStatusesByIds(
   // checks. The outer `rs` row is validated exactly once below; applying the
   // generic reblog-original surface predicate to wrapper `s` would reopen the
   // same original and repeat every permission subquery.
-  const originalVisibility = buildStatusVisibilitySqlPredicate(
-    'reblogged_status',
+  const originalVisibility = buildRecommendationOriginalVisibilityScopePredicate(
     viewerAccountId,
   );
   const originalRelationship = buildStatusRelationshipSqlPredicate(
@@ -513,7 +536,6 @@ export async function getVisibleRecommendationStatusesByIds(
     ...originalRelationship.bindings,
   ];
   const boostMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const boostVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
   const boostRelationship = buildStatusRelationshipSqlPredicate(
     'status',
     viewerAccountId,
@@ -523,13 +545,12 @@ export async function getVisibleRecommendationStatusesByIds(
     boostMembership.sql,
     's.deleted_at IS NULL',
     `s.visibility != 'direct'`,
+    `s.visibility IN ('public', 'unlisted', 'private')`,
     's.reblog_of_id IS NOT NULL',
-    boostVisibility.sql,
     boostRelationship.sql,
   ];
   const boostBinds: (string | number)[] = [
     ...boostMembership.bindings,
-    ...boostVisibility.bindings,
     ...boostRelationship.bindings,
   ];
 

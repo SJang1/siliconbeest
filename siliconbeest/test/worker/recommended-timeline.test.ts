@@ -448,6 +448,9 @@ describe('AI recommended timeline', () => {
       expect(candidateQuery).toContain('INDEXED BY idx_statuses_recommendation_boost_cursor');
       expect(candidateQuery).toContain('WHERE excluded.id = s.id');
       expect(candidateQuery).toContain('WHERE excluded.id = rs.id');
+      expect(candidateQuery).not.toContain('permission_author');
+      expect(candidateQuery).not.toContain('permission_author_block');
+      expect(candidateQuery).toContain('recommendation_original_follow');
     } finally {
       prepare.mockRestore();
     }
