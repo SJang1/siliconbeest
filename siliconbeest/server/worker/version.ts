@@ -6,7 +6,7 @@
  * "0.1.0+a9e597a"; otherwise it falls back to the plain semver string.
  */
 
-export const SILICONBEEST_BASE_VERSION = '1.2.17';
+export const SILICONBEEST_BASE_VERSION = '1.2.18';
 
 declare const __GIT_HASH__: string | undefined;
 
