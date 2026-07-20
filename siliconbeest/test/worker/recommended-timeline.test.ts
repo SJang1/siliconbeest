@@ -12,7 +12,10 @@ import {
   RecommendationGenerationError,
   sampleRecommendationCandidates,
 } from '../../server/worker/services/recommendation';
-import { getVisibleRecommendationStatusesByIds } from '../../server/worker/services/timeline';
+import {
+  getRecommendationCandidateWindow,
+  getVisibleRecommendationStatusesByIds,
+} from '../../server/worker/services/timeline';
 import { cacheWorkersAiFeatureFlags } from '../../server/worker/services/workersAiFeatures';
 import { generateUlid } from '../../server/worker/utils/ulid';
 import { applyMigration, authHeaders, createTestUser } from './helpers';
@@ -424,6 +427,38 @@ describe('AI recommended timeline', () => {
     expect(plan.map((step) => step.detail).join('\n')).toContain(
       'idx_statuses_active_reblog_surface',
     );
+  });
+
+  it('bounds candidate permission checks behind materialized cursor windows', async () => {
+    const prepare = vi.spyOn(env.DB, 'prepare');
+    try {
+      await getRecommendationCandidateWindow({
+        viewerAccountId: viewer.accountId,
+        upperBound: new Date(Date.now() + 60_000).toISOString(),
+        excludedIds: [],
+        limit: candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
+      });
+
+      const candidateQuery = prepare.mock.calls
+        .map(([sql]) => sql)
+        .find((sql) => sql.includes('recent_direct_surfaces(surface_id)'));
+      expect(candidateQuery).toContain('recent_direct_surfaces(surface_id) AS MATERIALIZED');
+      expect(candidateQuery).toContain('recent_boost_surfaces(surface_id) AS MATERIALIZED');
+      expect(candidateQuery).toContain('INDEXED BY idx_statuses_recommendation_original_cursor');
+      expect(candidateQuery).toContain('INDEXED BY idx_statuses_recommendation_boost_cursor');
+      expect(candidateQuery).toContain('WHERE excluded.id = s.id');
+      expect(candidateQuery).toContain('WHERE excluded.id = rs.id');
+    } finally {
+      prepare.mockRestore();
+    }
+
+    const { results: indexes } = await env.DB.prepare(
+      'PRAGMA index_list(statuses)',
+    ).all<{ name: string }>();
+    expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining([
+      'idx_statuses_recommendation_original_cursor',
+      'idx_statuses_recommendation_boost_cursor',
+    ]));
   });
 
   it('sends only visible public or home-eligible candidates to AI', async () => {

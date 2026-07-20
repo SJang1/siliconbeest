@@ -30,6 +30,8 @@ const ACCOUNT_COLUMNS = `
   a.emoji_tags AS a_emoji_tags`;
 
 const RECOMMENDATION_ID_QUERY_BATCH_SIZE = 60;
+const RECOMMENDATION_SOURCE_SCAN_MULTIPLIER = 4;
+const RECOMMENDATION_SOURCE_SCAN_LIMIT = 800;
 
 export interface TimelinePaginationOpts {
   maxId?: string;
@@ -324,6 +326,11 @@ export async function getRecommendationCandidateWindow({
   excludedIds,
   limit,
 }: RecommendationCandidateWindowOptions): Promise<TimelineStatusRow[]> {
+  const candidateLimit = Math.min(200, Math.max(1, Math.trunc(limit)));
+  const sourceScanLimit = Math.min(
+    RECOMMENDATION_SOURCE_SCAN_LIMIT,
+    candidateLimit * RECOMMENDATION_SOURCE_SCAN_MULTIPLIER,
+  );
   const now = new Date().toISOString();
   const directMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
   const directVisibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
@@ -350,14 +357,43 @@ export async function getRecommendationCandidateWindow({
   );
 
   const sql = `
-    WITH excluded_ids(id) AS (
+    WITH excluded_ids(id) AS MATERIALIZED (
       SELECT CAST(value AS TEXT)
       FROM json_each(?)
-    ), candidate_sources(candidate_id, surface_created_at) AS (
-      SELECT s.id, s.created_at
-      FROM statuses s
+    ), recent_direct_surfaces(surface_id) AS MATERIALIZED (
+      SELECT s.id
+      FROM statuses s INDEXED BY idx_statuses_recommendation_original_cursor
       WHERE s.created_at <= ?
         AND s.reblog_of_id IS NULL
+        AND s.deleted_at IS NULL
+        AND s.visibility != 'direct'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM excluded_ids excluded
+          WHERE excluded.id = s.id
+        )
+      ORDER BY s.created_at DESC, s.id DESC
+      LIMIT ?
+    ), recent_boost_surfaces(surface_id) AS MATERIALIZED (
+      SELECT s.id
+      FROM statuses s INDEXED BY idx_statuses_recommendation_boost_cursor
+      JOIN statuses rs ON rs.id = s.reblog_of_id
+      WHERE s.created_at <= ?
+        AND s.reblog_of_id IS NOT NULL
+        AND s.deleted_at IS NULL
+        AND s.visibility != 'direct'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM excluded_ids excluded
+          WHERE excluded.id = rs.id
+        )
+      ORDER BY s.created_at DESC, s.id DESC
+      LIMIT ?
+    ), candidate_sources(candidate_id, surface_created_at) AS (
+      SELECT s.id, s.created_at
+      FROM recent_direct_surfaces surface
+      JOIN statuses s ON s.id = surface.surface_id
+      WHERE s.reblog_of_id IS NULL
         AND s.deleted_at IS NULL
         AND s.visibility != 'direct'
         AND (s.visibility = 'public' OR ${directMembership.sql})
@@ -367,10 +403,10 @@ export async function getRecommendationCandidateWindow({
       UNION ALL
 
       SELECT rs.id, s.created_at
-      FROM statuses s
+      FROM recent_boost_surfaces surface
+      JOIN statuses s ON s.id = surface.surface_id
       JOIN statuses rs ON rs.id = s.reblog_of_id
-      WHERE s.created_at <= ?
-        AND s.reblog_of_id IS NOT NULL
+      WHERE s.reblog_of_id IS NOT NULL
         AND s.deleted_at IS NULL
         AND s.visibility != 'direct'
         AND ${boostMembership.sql}
@@ -385,11 +421,6 @@ export async function getRecommendationCandidateWindow({
       SELECT source.candidate_id,
              MAX(source.surface_created_at) AS surface_created_at
       FROM candidate_sources source
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM excluded_ids excluded
-        WHERE excluded.id = source.candidate_id
-      )
       GROUP BY source.candidate_id
       ORDER BY surface_created_at DESC, source.candidate_id DESC
       LIMIT ?
@@ -404,16 +435,18 @@ export async function getRecommendationCandidateWindow({
   const { results } = await env.DB.prepare(sql).bind(
     excludedJson,
     upperBound,
+    sourceScanLimit,
+    upperBound,
+    sourceScanLimit,
     ...directMembership.bindings,
     ...directVisibility.bindings,
     ...directRelationship.bindings,
-    upperBound,
     ...boostMembership.bindings,
     ...boostVisibility.bindings,
     ...boostRelationship.bindings,
     ...originalVisibility.bindings,
     ...originalRelationship.bindings,
-    Math.min(200, Math.max(1, Math.trunc(limit))),
+    candidateLimit,
   ).all<TimelineStatusRow>();
   return results ?? [];
 }

@@ -91,11 +91,12 @@ import m0046 from '../../migrations/0046_post_drafts.sql?raw';
 import m0047 from '../../migrations/0047_recommendation_activities.sql?raw';
 import m0049 from '../../migrations/0049_status_language_maps.sql?raw';
 import m0050 from '../../migrations/0050_recommendation_boost_lookup.sql?raw';
+import m0051 from '../../migrations/0051_recommendation_candidate_cursors.sql?raw';
 
 const MIGRATIONS: string[] = [
   m0001, m0002, m0003, m0004, m0005, m0006, m0007, m0008,
   m0009a, m0009b, m0010, m0011, m0012, m0013, m0014, m0015,
-  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024, m0025, m0026, m0027, m0028, m0029, m0030, m0031, m0032, m0033, m0034, m0035, m0036, m0037, m0038, m0039, m0040, m0041, m0042, m0043, m0044, m0045, m0046, m0047, m0049, m0050,
+  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024, m0025, m0026, m0027, m0028, m0029, m0030, m0031, m0032, m0033, m0034, m0035, m0036, m0037, m0038, m0039, m0040, m0041, m0042, m0043, m0044, m0045, m0046, m0047, m0049, m0050, m0051,
 ];
 
 async function applyMigrationSql(migrations: readonly string[]) {
