@@ -4,7 +4,6 @@ import { sanitizePlainText } from '../utils/sanitize';
 import type { TimelineStatusRow } from '../types/db';
 import {
   getRecommendationCandidateWindow,
-  getVisibleRecommendationStatusesByIds,
   RECOMMENDATION_CANDIDATE_WINDOW_LIMIT,
 } from './timeline';
 import {
@@ -21,7 +20,7 @@ export const RECOMMENDATION_INTEREST_MAX_CHARS = 7_000;
 const RECOMMENDATION_TAG_QUERY_BATCH_SIZE = 80;
 const RECOMMENDATION_CURSOR_TTL_SECONDS = 300;
 const RECOMMENDATION_CURSOR_PREFIX = 'workers-ai:recommended:v2';
-const RECOMMENDATION_PAGE_MEMO_PREFIX = 'workers-ai:recommended-page:v2';
+const RECOMMENDATION_PAGE_MEMO_PREFIX = 'workers-ai:recommended-page:v3';
 const MAX_INTEREST_TAGS = 12;
 const MAX_INTEREST_LANGUAGES = 5;
 const MAX_RECENT_ACTIVITY_ITEM_CHARS = 140;
@@ -386,8 +385,8 @@ type RecommendationRollingState = {
 };
 
 type RecommendationPageMemo = {
-  readonly version: 1;
-  readonly statusIds: readonly string[];
+  readonly version: 2;
+  readonly rows: readonly TimelineStatusRow[];
   readonly nextCursor?: string;
 };
 
@@ -482,9 +481,16 @@ function parseRecommendationPageMemo(cached: string): RecommendationPageMemo | n
     const parsed = JSON.parse(cached) as unknown;
     if (
       !isRecord(parsed)
-      || parsed.version !== 1
-      || !isValidStatusIdList(parsed.statusIds)
-      || parsed.statusIds.length > 40
+      || parsed.version !== 2
+      || !Array.isArray(parsed.rows)
+      || parsed.rows.length > 40
+      || !parsed.rows.every((row) => (
+        isRecord(row)
+        && typeof row.id === 'string'
+        && row.id.length > 0
+        && row.id.length <= 128
+      ))
+      || new Set(parsed.rows.map((row) => row.id)).size !== parsed.rows.length
       || (
         parsed.nextCursor !== undefined
         && (typeof parsed.nextCursor !== 'string'
@@ -494,8 +500,8 @@ function parseRecommendationPageMemo(cached: string): RecommendationPageMemo | n
       return null;
     }
     return {
-      version: 1,
-      statusIds: parsed.statusIds,
+      version: 2,
+      rows: parsed.rows as TimelineStatusRow[],
       ...(typeof parsed.nextCursor === 'string'
         ? { nextCursor: parsed.nextCursor }
         : {}),
@@ -543,8 +549,8 @@ async function storeRecommendationPageMemo(
   page: RecommendedTimelinePage,
 ): Promise<void> {
   const memo: RecommendationPageMemo = {
-    version: 1,
-    statusIds: page.rows.map((row) => row.id),
+    version: 2,
+    rows: page.rows,
     ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
   };
   try {
@@ -573,18 +579,8 @@ async function loadRecommendationPageMemo(
   const memo = parseRecommendationPageMemo(cached);
   if (memo === null) return null;
 
-  // Cached IDs are still permission-checked because a post or relationship may
-  // have changed after the first response for this cursor.
-  const visibleRows = await getVisibleRecommendationStatusesByIds(
-    memo.statusIds,
-    accountId,
-  );
-  const visibleById = new Map(visibleRows.map((row) => [row.id, row] as const));
-  const rows = memo.statusIds
-    .map((id) => visibleById.get(id))
-    .filter((row): row is TimelineStatusRow => row !== undefined);
   return {
-    rows,
+    rows: memo.rows,
     ...(memo.nextCursor ? { nextCursor: memo.nextCursor } : {}),
     source: 'cached',
   };
@@ -632,31 +628,18 @@ async function generateRecommendationPage(
     throw new RecommendationGenerationError('AI recommendation returned an invalid ranking');
   }
 
-  // Revalidate only the ranked page plus a full page of backups after the AI
-  // network hop. The source window already passed the same permission policy,
-  // and backups let a few concurrently changed posts be replaced cheaply.
-  const attempted = ordered.slice(0, Math.min(ordered.length, pageLimit * 2));
-  const visibleRows = await getVisibleRecommendationStatusesByIds(
-    attempted.map((row) => row.id),
-    accountId,
-  );
-  const visibleById = new Map(visibleRows.map((row) => [row.id, row] as const));
-  const rows = attempted
-    .map((row) => visibleById.get(row.id))
-    .filter((row): row is TimelineStatusRow => row !== undefined)
-    .slice(0, pageLimit);
+  // The candidate window already applied the complete visibility and
+  // relationship policy. Keep that validated snapshot through ranking instead
+  // of issuing another D1 permission query after the model call.
+  const rows = ordered.slice(0, pageLimit);
   const selectedIds = rows.map((row) => row.id);
-  const rejectedIds = attempted
-    .map((row) => row.id)
-    .filter((id) => !visibleById.has(id));
   const selectedSet = new Set(selectedIds);
-  const rejectedSet = new Set(rejectedIds);
 
-  // Only displayed and newly invalid rows enter the next exclusion set.
-  // Healthy candidates that were not selected remain in the rolling window,
-  // while D1 replenishes it with older rows as displayed IDs accumulate.
+  // Only displayed rows enter the next exclusion set. Healthy candidates that
+  // were not selected remain in the rolling window, while D1 replenishes it
+  // with older rows as displayed IDs accumulate.
   const hasRemainingWindowCandidate = candidates.some((row) => (
-    !selectedSet.has(row.id) && !rejectedSet.has(row.id)
+    !selectedSet.has(row.id)
   ));
   const mayHaveOlderCandidate = recentRows.length >= candidateLimit;
   const hasMore = hasRemainingWindowCandidate || mayHaveOlderCandidate;
@@ -666,7 +649,7 @@ async function generateRecommendationPage(
     version: 2,
     upperBound: state.upperBound,
     shownIds: [...state.shownIds, ...selectedIds],
-    rejectedIds: [...state.rejectedIds, ...rejectedIds],
+    rejectedIds: state.rejectedIds,
     query: state.query,
     seed: state.seed,
     page: state.page + 1,

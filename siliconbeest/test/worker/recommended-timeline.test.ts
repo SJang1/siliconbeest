@@ -13,7 +13,6 @@ import {
 } from '../../server/worker/services/recommendation';
 import {
   getRecommendationCandidateWindow,
-  getVisibleRecommendationStatusesByIds,
   RECOMMENDATION_HOME_SOURCE_LIMIT,
   RECOMMENDATION_PUBLIC_SOURCE_LIMIT,
 } from '../../server/worker/services/timeline';
@@ -278,7 +277,7 @@ describe('AI recommended timeline', () => {
     expect(refreshed).not.toEqual(first);
   });
 
-  it('revalidates boosted originals before exposing them or sending them to AI', async () => {
+  it('filters boosted originals before sending them to AI', async () => {
     const privacyAuthor = await createTestUser('recommendboostprivacy');
     const relationshipAuthor = await createTestUser('recommendboostrelation');
     const booster = await createTestUser('recommendboostwrapper');
@@ -322,13 +321,6 @@ describe('AI recommended timeline', () => {
       expect(boost.status).toBe(200);
     }
 
-    expect((await getVisibleRecommendationStatusesByIds(
-      originals.map((status) => status.id),
-      viewer.accountId,
-    )).map((status) => status.id)).toEqual(expect.arrayContaining(
-      originals.map((status) => status.id),
-    ));
-
     const followOriginalAuthor = await SELF.fetch(
       `${BASE}/api/v1/accounts/${relationshipAuthor.accountId}/follow`,
       { method: 'POST', headers: authHeaders(viewer.token) },
@@ -349,21 +341,11 @@ describe('AI recommended timeline', () => {
         'UPDATE accounts SET silenced_at = ?1 WHERE id = ?2',
       ).bind(changedAt, relationshipAuthor.accountId),
     ]);
-    expect((await getVisibleRecommendationStatusesByIds(
-      [relationshipOriginal.id],
-      viewer.accountId,
-    )).map((status) => status.id)).toContain(relationshipOriginal.id);
-
     const unfollowOriginalAuthor = await SELF.fetch(
       `${BASE}/api/v1/accounts/${relationshipAuthor.accountId}/unfollow`,
       { method: 'POST', headers: authHeaders(viewer.token) },
     );
     expect(unfollowOriginalAuthor.status).toBe(200);
-    expect(await getVisibleRecommendationStatusesByIds(
-      originals.map((status) => status.id),
-      viewer.accountId,
-    )).toEqual([]);
-
     let captured: Record<string, unknown> | undefined;
     await createRecommendedTimelinePage(
       viewer.accountId,
@@ -379,55 +361,6 @@ describe('AI recommended timeline', () => {
     expect(modelText).not.toContain('boost original changed to direct permission marker');
     expect(modelText).not.toContain('boost original deleted permission marker');
     expect(modelText).not.toContain('boost original lost relationship permission marker');
-  });
-
-  it('revalidates a default recommendation reservoir in one indexed D1 batch', async () => {
-    const prepare = vi.spyOn(env.DB, 'prepare');
-    const batch = vi.spyOn(env.DB, 'batch');
-    try {
-      const candidateIds = Array.from(
-        { length: 60 },
-        (_, index) => `missing-recommendation-candidate-${index}`,
-      );
-      await expect(getVisibleRecommendationStatusesByIds(
-        candidateIds,
-        viewer.accountId,
-      )).resolves.toEqual([]);
-
-      expect(batch).toHaveBeenCalledTimes(1);
-      const validationQueries = prepare.mock.calls
-        .map(([sql]) => sql)
-        .filter((sql) => sql.includes('recommendation-') && sql.includes('-revalidation'));
-      expect(validationQueries).toHaveLength(2);
-      expect(validationQueries.every((sql) => sql.includes('.id IN ('))).toBe(true);
-      const boostQuery = validationQueries.find((sql) =>
-        sql.includes('recommendation-boost-revalidation'));
-      expect(boostQuery).toContain('s.reblog_of_id = rs.id');
-      expect(boostQuery).not.toContain('WHERE rs.id = s.reblog_of_id');
-      expect(boostQuery).not.toContain('WITH candidate_ids');
-    } finally {
-      batch.mockRestore();
-      prepare.mockRestore();
-    }
-
-    const { results: indexes } = await env.DB.prepare(
-      'PRAGMA index_list(statuses)',
-    ).all<{ name: string }>();
-    expect(indexes.map((index) => index.name)).toContain(
-      'idx_statuses_active_reblog_surface',
-    );
-
-    const { results: plan } = await env.DB.prepare(
-      `EXPLAIN QUERY PLAN
-       SELECT id
-       FROM statuses
-       WHERE reblog_of_id = ?
-         AND reblog_of_id IS NOT NULL
-         AND deleted_at IS NULL`,
-    ).bind(boostedOriginal.id).all<{ detail: string }>();
-    expect(plan.map((step) => step.detail).join('\n')).toContain(
-      'idx_statuses_active_reblog_surface',
-    );
   });
 
   it('merges bounded public and home sources before bulk permission checks', async () => {
@@ -479,6 +412,53 @@ describe('AI recommended timeline', () => {
     );
   });
 
+  it('sends only the newest viewer-authored original to AI across pages', async () => {
+    const olderOwnStatus = await createStatus(
+      viewer,
+      'older viewer-authored recommendation marker',
+      'public',
+    );
+    const newestOwnStatus = await createStatus(
+      viewer,
+      'newest viewer-authored recommendation marker',
+      'public',
+    );
+    const upperBound = new Date(Date.now() + 60_000).toISOString();
+
+    const firstWindow = await getRecommendationCandidateWindow({
+      viewerAccountId: viewer.accountId,
+      upperBound,
+      excludedIds: [],
+      limit: RECOMMENDATION_CANDIDATE_LIMIT,
+    });
+    expect(firstWindow
+      .filter((status) => status.account_id === viewer.accountId)
+      .map((status) => status.id)).toEqual([newestOwnStatus.id]);
+
+    const nextWindow = await getRecommendationCandidateWindow({
+      viewerAccountId: viewer.accountId,
+      upperBound,
+      excludedIds: [newestOwnStatus.id],
+      limit: RECOMMENDATION_CANDIDATE_LIMIT,
+    });
+    expect(nextWindow.some((status) => status.account_id === viewer.accountId)).toBe(false);
+
+    let captured: Record<string, unknown> | undefined;
+    await createRecommendedTimelinePage(
+      viewer.accountId,
+      1,
+      MODEL,
+      indexedRunner((input) => { captured = input; }),
+      'newest-own-status-only',
+    );
+    const modelText = (captured?.contexts as Array<{ text: string }> | undefined)
+      ?.map((context) => context.text)
+      .join('\n') ?? '';
+    expect(modelText).toContain('newest viewer-authored recommendation marker');
+    expect(modelText).not.toContain('older viewer-authored recommendation marker');
+    expect(modelText).not.toContain(olderOwnStatus.id);
+  });
+
   it('sends only visible public or home-eligible candidates to AI', async () => {
     let captured: Record<string, unknown> | undefined;
     const page = await createRecommendedTimelinePage(
@@ -496,7 +476,7 @@ describe('AI recommended timeline', () => {
     expect(ids).toContain(unlistedFollowed.id);
     expect(ids).toContain(sensitivePublic.id);
     expect(ids).toContain(boostedOriginal.id);
-    expect(ids).toContain(viewerPublic.id);
+    expect(ids).not.toContain(viewerPublic.id);
     expect(ids).not.toContain(privateStranger.id);
     expect(ids).not.toContain(directFollowed.id);
     expect(ids).not.toContain(mutedPublic.id);
@@ -690,14 +670,14 @@ describe('AI recommended timeline', () => {
     await env.DB.prepare(
       'UPDATE statuses SET deleted_at = ?1 WHERE id = ?2',
     ).bind(new Date().toISOString(), cachedStatusId).run();
-    const revalidated = await continueRecommendedTimelinePage(
+    const cachedSnapshot = await continueRecommendedTimelinePage(
       viewer.accountId,
       first.nextCursor!,
       1,
       MODEL,
       runner,
     );
-    expect(revalidated?.rows.map((row) => row.id)).not.toContain(cachedStatusId);
+    expect(cachedSnapshot?.rows.map((row) => row.id)).toContain(cachedStatusId);
   });
 
   it('excludes shown IDs before rebuilding the next 350-item AI window', async () => {

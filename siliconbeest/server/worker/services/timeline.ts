@@ -33,7 +33,6 @@ const ACCOUNT_COLUMNS = `
   a.memorial AS a_memorial, a.moved_to_account_id AS a_moved_to_account_id,
   a.emoji_tags AS a_emoji_tags`;
 
-const RECOMMENDATION_ID_QUERY_BATCH_SIZE = 60;
 export const RECOMMENDATION_PUBLIC_SOURCE_LIMIT = 250;
 export const RECOMMENDATION_HOME_SOURCE_LIMIT = 100;
 export const RECOMMENDATION_CANDIDATE_WINDOW_LIMIT =
@@ -157,39 +156,6 @@ function buildHomeTimelineMembershipPredicate(
           FROM mentions home_mention
           WHERE home_mention.status_id = s.id
             AND home_mention.account_id = ?
-        )
-      )
-    )`,
-    bindings: [accountId, accountId, accountId],
-  };
-}
-
-function buildRecommendationOriginalVisibilityScopePredicate(
-  accountId: string,
-): PermissionSqlPredicate {
-  return {
-    // Account suspension and bilateral author blocks are already enforced by
-    // the adjacent relationship predicate. Keep only the non-direct audience
-    // rules here so boosted originals do not repeat those indexed lookups.
-    sql: `(
-      rs.visibility IN ('public', 'unlisted')
-      OR rs.account_id = ?
-      OR (
-        rs.visibility = 'private'
-        AND EXISTS (
-          SELECT 1
-          FROM follows recommendation_original_follow
-          WHERE recommendation_original_follow.account_id = ?
-            AND recommendation_original_follow.target_account_id = rs.account_id
-        )
-      )
-      OR (
-        rs.visibility = 'private'
-        AND EXISTS (
-          SELECT 1
-          FROM mentions recommendation_original_mention
-          WHERE recommendation_original_mention.status_id = rs.id
-            AND recommendation_original_mention.account_id = ?
         )
       )
     )`,
@@ -424,6 +390,16 @@ export async function getRecommendationCandidateWindow({
     WITH excluded_ids(id) AS MATERIALIZED (
       SELECT CAST(value AS TEXT)
       FROM json_each(?)
+    ), latest_own_status(id) AS MATERIALIZED (
+      SELECT own.id
+      FROM statuses own INDEXED BY idx_statuses_account_timeline
+      WHERE own.account_id = ?
+        AND own.created_at <= ?
+        AND own.reblog_of_id IS NULL
+        AND own.deleted_at IS NULL
+        AND own.visibility IN ('public', 'unlisted', 'private')
+      ORDER BY own.created_at DESC, own.id DESC
+      LIMIT 1
     )
     SELECT s.id AS surface_id,
            s.id AS candidate_id,
@@ -434,6 +410,10 @@ export async function getRecommendationCandidateWindow({
       AND s.reblog_of_id IS NULL
       AND s.deleted_at IS NULL
       AND s.visibility = 'public'
+      AND (
+        s.account_id != ?
+        OR EXISTS (SELECT 1 FROM latest_own_status own WHERE own.id = s.id)
+      )
       AND NOT EXISTS (
         SELECT 1 FROM excluded_ids excluded WHERE excluded.id = s.id
       )
@@ -445,16 +425,33 @@ export async function getRecommendationCandidateWindow({
     WITH excluded_ids(id) AS MATERIALIZED (
       SELECT CAST(value AS TEXT)
       FROM json_each(?)
+    ), latest_own_status(id) AS MATERIALIZED (
+      SELECT own.id
+      FROM statuses own INDEXED BY idx_statuses_account_timeline
+      WHERE own.account_id = ?
+        AND own.created_at <= ?
+        AND own.reblog_of_id IS NULL
+        AND own.deleted_at IS NULL
+        AND own.visibility IN ('public', 'unlisted', 'private')
+      ORDER BY own.created_at DESC, own.id DESC
+      LIMIT 1
     )
     SELECT s.id AS surface_id,
            COALESCE(s.reblog_of_id, s.id) AS candidate_id,
            s.created_at AS surface_created_at,
            CASE WHEN s.reblog_of_id IS NULL THEN 'direct' ELSE 'boost' END AS source_kind
     FROM statuses s INDEXED BY idx_statuses_timeline_cursor
+    JOIN statuses candidate ON candidate.id = COALESCE(s.reblog_of_id, s.id)
     WHERE s.created_at <= ?
       AND s.deleted_at IS NULL
       AND s.visibility != 'direct'
       AND ${homeMembership.sql}
+      AND (
+        candidate.account_id != ?
+        OR EXISTS (
+          SELECT 1 FROM latest_own_status own WHERE own.id = candidate.id
+        )
+      )
       AND NOT EXISTS (
         SELECT 1
         FROM excluded_ids excluded
@@ -467,13 +464,19 @@ export async function getRecommendationCandidateWindow({
   const [publicSourceResult, homeSourceResult] = await env.DB.batch<RecommendationSurfaceRow>([
     env.DB.prepare(publicSourceSql).bind(
       excludedJson,
+      viewerAccountId,
       upperBound,
+      upperBound,
+      viewerAccountId,
       publicSourceLimit,
     ),
     env.DB.prepare(homeSourceSql).bind(
       excludedJson,
+      viewerAccountId,
+      upperBound,
       upperBound,
       ...homeMembership.bindings,
+      viewerAccountId,
       homeSourceLimit,
     ),
   ]);
@@ -680,137 +683,6 @@ export async function getRecommendationCandidateWindow({
     ))
     .slice(0, candidateLimit)
     .map(([, candidate]) => candidate.row);
-}
-
-/**
- * Re-fetch an ordered recommendation ID set through the public-or-home
- * membership, visibility, relationship, and account-state filters. Callers
- * restore their own ranking order after this query; this function returns only
- * rows that remain safe to show to the viewer now and never returns DMs.
- */
-export async function getVisibleRecommendationStatusesByIds(
-  statusIds: readonly string[],
-  viewerAccountId: string,
-): Promise<TimelineStatusRow[]> {
-  const uniqueIds = [...new Set(statusIds)].slice(0, 200);
-  if (uniqueIds.length === 0) return [];
-
-  const now = new Date().toISOString();
-  const homeMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const directRelationship = buildStatusRelationshipSqlPredicate(
-    'status',
-    viewerAccountId,
-    now,
-  );
-  const directConditions: string[] = [
-    `(s.visibility = 'public' OR ${homeMembership.sql})`,
-    `s.visibility != 'direct'`,
-    `s.visibility IN ('public', 'unlisted', 'private')`,
-    's.deleted_at IS NULL',
-    's.reblog_of_id IS NULL',
-    directRelationship.sql,
-  ];
-  const directBinds: (string | number)[] = [
-    ...homeMembership.bindings,
-    ...directRelationship.bindings,
-  ];
-
-  // A followed account's boost is a home-timeline surface even when the
-  // original author is not followed. Normalize that eligible wrapper to the
-  // original row without weakening either side's visibility/relationship
-  // checks. The outer `rs` row is validated exactly once below; applying the
-  // generic reblog-original surface predicate to wrapper `s` would reopen the
-  // same original and repeat every permission subquery.
-  const originalVisibility = buildRecommendationOriginalVisibilityScopePredicate(
-    viewerAccountId,
-  );
-  const originalRelationship = buildStatusRelationshipSqlPredicate(
-    'reblogged_status',
-    viewerAccountId,
-    now,
-  );
-  const originalConditions: string[] = [
-    'rs.deleted_at IS NULL',
-    'rs.reblog_of_id IS NULL',
-    `rs.visibility != 'direct'`,
-    originalVisibility.sql,
-    originalRelationship.sql,
-  ];
-  const originalBinds: (string | number)[] = [
-    ...originalVisibility.bindings,
-    ...originalRelationship.bindings,
-  ];
-  const boostMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
-  const boostRelationship = buildStatusRelationshipSqlPredicate(
-    'status',
-    viewerAccountId,
-    now,
-  );
-  const boostConditions: string[] = [
-    boostMembership.sql,
-    's.deleted_at IS NULL',
-    `s.visibility != 'direct'`,
-    `s.visibility IN ('public', 'unlisted', 'private')`,
-    's.reblog_of_id IS NOT NULL',
-    boostRelationship.sql,
-  ];
-  const boostBinds: (string | number)[] = [
-    ...boostMembership.bindings,
-    ...boostRelationship.bindings,
-  ];
-
-  // Keep candidate IDs as direct PK predicates. A json_each/UNION CTE caused
-  // SQLite to materialize the boost branch before narrowing to candidate IDs,
-  // reading millions of rows for a 60-ID recommendation reservoir. D1 batch
-  // keeps the two indexed statements in one binding round trip without giving
-  // the planner an opportunity to reorder them into a global scan.
-  const visibleById = new Map<string, TimelineStatusRow>();
-  for (
-    let offset = 0;
-    offset < uniqueIds.length;
-    offset += RECOMMENDATION_ID_QUERY_BATCH_SIZE
-  ) {
-    const batchIds = uniqueIds.slice(
-      offset,
-      offset + RECOMMENDATION_ID_QUERY_BATCH_SIZE,
-    );
-    const placeholders = batchIds.map(() => '?').join(', ');
-    const directSql = `
-      SELECT /* recommendation-direct-revalidation */ s.*, ${ACCOUNT_COLUMNS}
-      FROM statuses s
-      JOIN accounts a ON a.id = s.account_id
-      WHERE s.id IN (${placeholders})
-        AND ${directConditions.join(' AND ')}
-    `;
-    const boostSql = `
-      SELECT /* recommendation-boost-revalidation */ rs.*, ${ACCOUNT_COLUMNS}
-      FROM statuses rs
-      JOIN accounts a ON a.id = rs.account_id
-      WHERE rs.id IN (${placeholders})
-        AND ${originalConditions.join(' AND ')}
-        AND EXISTS (
-          SELECT 1
-          FROM statuses s
-          WHERE s.reblog_of_id = rs.id
-            AND ${boostConditions.join(' AND ')}
-        )
-    `;
-    const [directResult, boostResult] = await env.DB.batch<TimelineStatusRow>([
-      env.DB.prepare(directSql).bind(...batchIds, ...directBinds),
-      env.DB.prepare(boostSql).bind(
-        ...batchIds,
-        ...originalBinds,
-        ...boostBinds,
-      ),
-    ]);
-    for (const row of [
-      ...(directResult.results ?? []),
-      ...(boostResult.results ?? []),
-    ]) {
-      visibleById.set(row.id, row);
-    }
-  }
-  return [...visibleById.values()];
 }
 
 // ----------------------------------------------------------------
