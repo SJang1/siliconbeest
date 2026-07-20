@@ -1417,9 +1417,10 @@ watch(() => compose.publishedTick, () => {
 
         <!-- Poll toggle -->
         <button
+          v-if="objectType !== 'Article'"
           type="button"
           @click="togglePoll"
-          :disabled="compose.mediaAttachments.length > 0 || objectType === 'Article'"
+          :disabled="compose.mediaAttachments.length > 0"
           class="sb-btn sb-btn-ghost rounded-xl p-2"
           :class="compose.showPoll
             ? 'bg-brand-600 text-white shadow-soft hover:bg-brand-600 hover:text-white dark:bg-brand-500 dark:hover:bg-brand-500'

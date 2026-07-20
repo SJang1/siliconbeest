@@ -34,7 +34,10 @@ const ACCOUNT_COLUMNS = `
   a.emoji_tags AS a_emoji_tags`;
 
 const RECOMMENDATION_ID_QUERY_BATCH_SIZE = 60;
-const RECOMMENDATION_SOURCE_BACKUP_ROWS = 20;
+export const RECOMMENDATION_PUBLIC_SOURCE_LIMIT = 250;
+export const RECOMMENDATION_HOME_SOURCE_LIMIT = 100;
+export const RECOMMENDATION_CANDIDATE_WINDOW_LIMIT =
+  RECOMMENDATION_PUBLIC_SOURCE_LIMIT + RECOMMENDATION_HOME_SOURCE_LIMIT;
 
 export interface TimelinePaginationOpts {
   maxId?: string;
@@ -405,75 +408,84 @@ export async function getRecommendationCandidateWindow({
   excludedIds,
   limit,
 }: RecommendationCandidateWindowOptions): Promise<TimelineStatusRow[]> {
-  const candidateLimit = Math.min(200, Math.max(1, Math.trunc(limit)));
-  // The caller already requests page size × 4 candidates. Keep only a fixed
-  // invalidation/pagination reserve instead of multiplying that pool again.
-  const sourceScanLimit = candidateLimit + RECOMMENDATION_SOURCE_BACKUP_ROWS;
-  const combinedSourceScanLimit = sourceScanLimit * 2;
-  const sourceSql = `
+  const candidateLimit = Math.min(
+    RECOMMENDATION_CANDIDATE_WINDOW_LIMIT,
+    Math.max(1, Math.trunc(limit)),
+  );
+  const publicSourceLimit = Math.min(RECOMMENDATION_PUBLIC_SOURCE_LIMIT, candidateLimit);
+  const homeSourceLimit = Math.min(RECOMMENDATION_HOME_SOURCE_LIMIT, candidateLimit);
+  const combinedSourceScanLimit = Math.min(
+    RECOMMENDATION_CANDIDATE_WINDOW_LIMIT,
+    publicSourceLimit + homeSourceLimit,
+  );
+  const homeMembership = buildHomeTimelineMembershipPredicate(viewerAccountId);
+  const publicSourceSql = `
+    /* recommendation-public-source */
     WITH excluded_ids(id) AS MATERIALIZED (
       SELECT CAST(value AS TEXT)
       FROM json_each(?)
-    ), recent_direct_surfaces(
-      surface_id,
-      candidate_id,
-      surface_created_at,
-      source_kind
-    ) AS MATERIALIZED (
-      SELECT s.id, s.id, s.created_at, 'direct'
-      FROM statuses s INDEXED BY idx_statuses_recommendation_original_cursor
-      WHERE s.created_at <= ?
-        AND s.reblog_of_id IS NULL
-        AND s.deleted_at IS NULL
-        AND s.visibility != 'direct'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM excluded_ids excluded
-          WHERE excluded.id = s.id
-        )
-      ORDER BY s.created_at DESC, s.id DESC
-      LIMIT ?
-    ), recent_boost_surfaces(
-      surface_id,
-      candidate_id,
-      surface_created_at,
-      source_kind
-    ) AS MATERIALIZED (
-      SELECT s.id, rs.id, s.created_at, 'boost'
-      FROM statuses s INDEXED BY idx_statuses_recommendation_boost_cursor
-      JOIN statuses rs ON rs.id = s.reblog_of_id
-      WHERE s.created_at <= ?
-        AND s.reblog_of_id IS NOT NULL
-        AND s.deleted_at IS NULL
-        AND s.visibility != 'direct'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM excluded_ids excluded
-          WHERE excluded.id = rs.id
-        )
-      ORDER BY s.created_at DESC, s.id DESC
-      LIMIT ?
-    ), recent_surfaces AS MATERIALIZED (
-      SELECT * FROM recent_direct_surfaces
-      UNION ALL
-      SELECT * FROM recent_boost_surfaces
-      ORDER BY surface_created_at DESC, surface_id DESC
-      LIMIT ?
     )
-    SELECT surface_id, candidate_id, surface_created_at, source_kind
-    FROM recent_surfaces
-    ORDER BY surface_created_at DESC, surface_id DESC
+    SELECT s.id AS surface_id,
+           s.id AS candidate_id,
+           s.created_at AS surface_created_at,
+           'direct' AS source_kind
+    FROM statuses s INDEXED BY idx_statuses_recommendation_original_cursor
+    WHERE s.created_at <= ?
+      AND s.reblog_of_id IS NULL
+      AND s.deleted_at IS NULL
+      AND s.visibility = 'public'
+      AND NOT EXISTS (
+        SELECT 1 FROM excluded_ids excluded WHERE excluded.id = s.id
+      )
+    ORDER BY s.created_at DESC, s.id DESC
+    LIMIT ?
+  `;
+  const homeSourceSql = `
+    /* recommendation-home-source */
+    WITH excluded_ids(id) AS MATERIALIZED (
+      SELECT CAST(value AS TEXT)
+      FROM json_each(?)
+    )
+    SELECT s.id AS surface_id,
+           COALESCE(s.reblog_of_id, s.id) AS candidate_id,
+           s.created_at AS surface_created_at,
+           CASE WHEN s.reblog_of_id IS NULL THEN 'direct' ELSE 'boost' END AS source_kind
+    FROM statuses s INDEXED BY idx_statuses_timeline_cursor
+    WHERE s.created_at <= ?
+      AND s.deleted_at IS NULL
+      AND s.visibility != 'direct'
+      AND ${homeMembership.sql}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM excluded_ids excluded
+        WHERE excluded.id = COALESCE(s.reblog_of_id, s.id)
+      )
+    ORDER BY s.created_at DESC, s.id DESC
+    LIMIT ?
   `;
   const excludedJson = JSON.stringify([...new Set(excludedIds)]);
-  const { results: sourceResults } = await env.DB.prepare(sourceSql).bind(
-    excludedJson,
-    upperBound,
-    sourceScanLimit,
-    upperBound,
-    sourceScanLimit,
-    combinedSourceScanLimit,
-  ).all<RecommendationSurfaceRow>();
-  const surfaces = sourceResults ?? [];
+  const [publicSourceResult, homeSourceResult] = await env.DB.batch<RecommendationSurfaceRow>([
+    env.DB.prepare(publicSourceSql).bind(
+      excludedJson,
+      upperBound,
+      publicSourceLimit,
+    ),
+    env.DB.prepare(homeSourceSql).bind(
+      excludedJson,
+      upperBound,
+      ...homeMembership.bindings,
+      homeSourceLimit,
+    ),
+  ]);
+  const surfaces = [
+    ...(publicSourceResult.results ?? []),
+    ...(homeSourceResult.results ?? []),
+  ]
+    .sort((left, right) => (
+      right.surface_created_at.localeCompare(left.surface_created_at)
+      || right.surface_id.localeCompare(left.surface_id)
+    ))
+    .slice(0, combinedSourceScanLimit);
   if (surfaces.length === 0) return [];
 
   const requestedStatusIds = [...new Set(surfaces.flatMap((surface) => [

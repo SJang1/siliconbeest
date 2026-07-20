@@ -2,11 +2,10 @@ import { env, SELF } from 'cloudflare:test';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   buildRecommendationInterestQuery,
-  candidateLimitForPage,
   continueRecommendedTimelinePage,
   createRecommendedTimelinePage,
   rankRecommendationCandidates,
-  RECOMMENDATION_CANDIDATE_MULTIPLIER,
+  RECOMMENDATION_CANDIDATE_LIMIT,
   RECOMMENDATION_DEFAULT_PAGE_LIMIT,
   RECOMMENDATION_INTEREST_MAX_CHARS,
   RecommendationGenerationError,
@@ -15,6 +14,8 @@ import {
 import {
   getRecommendationCandidateWindow,
   getVisibleRecommendationStatusesByIds,
+  RECOMMENDATION_HOME_SOURCE_LIMIT,
+  RECOMMENDATION_PUBLIC_SOURCE_LIMIT,
 } from '../../server/worker/services/timeline';
 import { cacheWorkersAiFeatureFlags } from '../../server/worker/services/workersAiFeatures';
 import { generateUlid } from '../../server/worker/utils/ulid';
@@ -246,33 +247,33 @@ describe('AI recommended timeline', () => {
     );
   });
 
-  it('uses a 30-item default page and samples from four pages of candidates', () => {
+  it('ranks the merged 250-public and 100-home candidate window', () => {
     expect(RECOMMENDATION_DEFAULT_PAGE_LIMIT).toBe(30);
-    expect(RECOMMENDATION_CANDIDATE_MULTIPLIER).toBe(4);
-    expect(candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT)).toBe(120);
-    expect(candidateLimitForPage(40)).toBe(160);
+    expect(RECOMMENDATION_PUBLIC_SOURCE_LIMIT).toBe(250);
+    expect(RECOMMENDATION_HOME_SOURCE_LIMIT).toBe(100);
+    expect(RECOMMENDATION_CANDIDATE_LIMIT).toBe(350);
 
-    const candidates = Array.from({ length: 180 }, (_, index) => ({
+    const candidates = Array.from({ length: 400 }, (_, index) => ({
       id: `candidate-${index}`,
     }));
     const first = sampleRecommendationCandidates(
       candidates,
       'candidate-pool-one',
-      candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
+      RECOMMENDATION_CANDIDATE_LIMIT,
     );
     const repeated = sampleRecommendationCandidates(
       candidates,
       'candidate-pool-one',
-      candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
+      RECOMMENDATION_CANDIDATE_LIMIT,
     );
     const refreshed = sampleRecommendationCandidates(
       candidates,
       'candidate-pool-two',
-      candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
+      RECOMMENDATION_CANDIDATE_LIMIT,
     );
 
-    expect(first).toHaveLength(120);
-    expect(new Set(first.map((row) => row.id))).toHaveLength(120);
+    expect(first).toHaveLength(350);
+    expect(new Set(first.map((row) => row.id))).toHaveLength(350);
     expect(repeated).toEqual(first);
     expect(refreshed).not.toEqual(first);
   });
@@ -429,32 +430,31 @@ describe('AI recommended timeline', () => {
     );
   });
 
-  it('bounds candidate permission checks behind materialized cursor windows', async () => {
+  it('merges bounded public and home sources before bulk permission checks', async () => {
     const prepare = vi.spyOn(env.DB, 'prepare');
     try {
       await getRecommendationCandidateWindow({
         viewerAccountId: viewer.accountId,
         upperBound: new Date(Date.now() + 60_000).toISOString(),
         excludedIds: [],
-        limit: candidateLimitForPage(RECOMMENDATION_DEFAULT_PAGE_LIMIT),
+        limit: RECOMMENDATION_CANDIDATE_LIMIT,
       });
 
-      const candidateQuery = prepare.mock.calls
+      const publicSourceQuery = prepare.mock.calls
         .map(([sql]) => sql)
-        .find((sql) => sql.includes('recent_direct_surfaces('));
-      expect(candidateQuery).toContain('recent_direct_surfaces(');
-      expect(candidateQuery).toContain('recent_boost_surfaces(');
-      expect(candidateQuery).toContain('recent_surfaces AS MATERIALIZED');
-      expect(candidateQuery).toContain(
-        'SELECT surface_id, candidate_id, surface_created_at, source_kind',
-      );
-      expect(candidateQuery).toContain('INDEXED BY idx_statuses_recommendation_original_cursor');
-      expect(candidateQuery).toContain('INDEXED BY idx_statuses_recommendation_boost_cursor');
-      expect(candidateQuery).toContain('WHERE excluded.id = s.id');
-      expect(candidateQuery).toContain('WHERE excluded.id = rs.id');
-      expect(candidateQuery).not.toContain('relationship_author');
-      expect(candidateQuery).not.toContain('permission_author');
-      expect(candidateQuery).not.toContain('permission_author_block');
+        .find((sql) => sql.includes('recommendation-public-source'));
+      const homeSourceQuery = prepare.mock.calls
+        .map(([sql]) => sql)
+        .find((sql) => sql.includes('recommendation-home-source'));
+      expect(publicSourceQuery).toContain('INDEXED BY idx_statuses_recommendation_original_cursor');
+      expect(publicSourceQuery).toContain("s.visibility = 'public'");
+      expect(publicSourceQuery).toContain('excluded.id = s.id');
+      expect(homeSourceQuery).toContain('INDEXED BY idx_statuses_timeline_cursor');
+      expect(homeSourceQuery).toContain('COALESCE(s.reblog_of_id, s.id) AS candidate_id');
+      expect(homeSourceQuery).toContain('home_follow');
+      expect(homeSourceQuery).toContain('excluded.id = COALESCE(s.reblog_of_id, s.id)');
+      expect(publicSourceQuery).not.toContain('relationship_author');
+      expect(homeSourceQuery).not.toContain('relationship_author');
     } finally {
       prepare.mockRestore();
     }
@@ -700,7 +700,7 @@ describe('AI recommended timeline', () => {
     expect(revalidated?.rows.map((row) => row.id)).not.toContain(cachedStatusId);
   });
 
-  it('excludes shown IDs before the next AI call and replenishes a five-item window', async () => {
+  it('excludes shown IDs before rebuilding the next 350-item AI window', async () => {
     for (let index = 0; index < 7; index += 1) {
       await createStatus(
         publicAuthor,
@@ -737,13 +737,14 @@ describe('AI recommended timeline', () => {
       runner,
     );
 
-    expect(capturedContexts[0]).toHaveLength(candidateLimitForPage(1));
-    expect(capturedContexts[1]).toHaveLength(candidateLimitForPage(1));
+    expect(capturedContexts[0]?.length).toBeGreaterThan(0);
+    expect(capturedContexts[0]?.length).toBeLessThanOrEqual(RECOMMENDATION_CANDIDATE_LIMIT);
+    expect(capturedContexts[1]?.length).toBeGreaterThan(0);
+    expect(capturedContexts[1]?.length).toBeLessThanOrEqual(RECOMMENDATION_CANDIDATE_LIMIT);
     const firstText = initial.rows[0]?.text ?? '';
     expect(capturedContexts[1]?.every((text) => !text.includes(firstText))).toBe(true);
     const firstWindow = new Set(capturedContexts[0]);
     expect(capturedContexts[1]?.some((text) => firstWindow.has(text))).toBe(true);
-    expect(capturedContexts[1]?.some((text) => !firstWindow.has(text))).toBe(true);
 
     const seen = new Set(initial.rows.map((row) => row.id));
     for (const row of second?.rows ?? []) {
@@ -752,7 +753,7 @@ describe('AI recommended timeline', () => {
     }
     let cursor = second?.nextCursor;
     let attempts = 0;
-    while (cursor && seen.size <= candidateLimitForPage(1) && attempts < 10) {
+    while (cursor && attempts < 10) {
       const page = await continueRecommendedTimelinePage(
         viewer.accountId,
         cursor,
@@ -768,7 +769,7 @@ describe('AI recommended timeline', () => {
       cursor = page?.nextCursor;
       attempts += 1;
     }
-    expect(seen.size).toBeGreaterThan(candidateLimitForPage(1));
+    expect(seen.size).toBeGreaterThan(2);
   });
 
   it('replenishes the D1 window and continues after more than 200 displayed posts', async () => {

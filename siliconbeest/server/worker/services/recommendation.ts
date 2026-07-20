@@ -5,6 +5,7 @@ import type { TimelineStatusRow } from '../types/db';
 import {
   getRecommendationCandidateWindow,
   getVisibleRecommendationStatusesByIds,
+  RECOMMENDATION_CANDIDATE_WINDOW_LIMIT,
 } from './timeline';
 import {
   readRecommendationActivities,
@@ -13,8 +14,7 @@ import {
 } from './recommendationActivity';
 
 export const RECOMMENDATION_DEFAULT_PAGE_LIMIT = 30;
-export const RECOMMENDATION_CANDIDATE_MULTIPLIER = 4;
-export const RECOMMENDATION_CANDIDATE_LIMIT = 200;
+export const RECOMMENDATION_CANDIDATE_LIMIT = RECOMMENDATION_CANDIDATE_WINDOW_LIMIT;
 export const RECOMMENDATION_CONTEXT_MAX_CHARS = 400;
 export const RECOMMENDATION_INTEREST_MAX_CHARS = 7_000;
 
@@ -70,13 +70,6 @@ type RankedContext = {
 function clampPageLimit(limit: number): number {
   if (!Number.isFinite(limit)) return RECOMMENDATION_DEFAULT_PAGE_LIMIT;
   return Math.min(40, Math.max(1, Math.trunc(limit)));
-}
-
-export function candidateLimitForPage(limit: number): number {
-  return Math.min(
-    RECOMMENDATION_CANDIDATE_LIMIT,
-    clampPageLimit(limit) * RECOMMENDATION_CANDIDATE_MULTIPLIER,
-  );
 }
 
 function normalizeSignal(value: unknown, maxChars: number): string {
@@ -605,7 +598,7 @@ async function generateRecommendationPage(
   runModel: RecommendationModelRunner,
 ): Promise<RecommendedTimelinePage> {
   const pageLimit = clampPageLimit(limit);
-  const candidateLimit = candidateLimitForPage(pageLimit);
+  const candidateLimit = RECOMMENDATION_CANDIDATE_LIMIT;
   const excludedIds = [...state.shownIds, ...state.rejectedIds];
   const recentRows = await getRecommendationCandidateWindow({
     viewerAccountId: accountId,

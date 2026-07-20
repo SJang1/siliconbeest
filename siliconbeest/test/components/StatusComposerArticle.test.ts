@@ -43,10 +43,16 @@ describe('StatusComposer Article selector', () => {
 
     expect(noteButton.attributes('aria-checked')).toBe('true');
     expect(articleButton.text()).toContain('Long-form Article');
+    expect(wrapper.find('[aria-label="Toggle content warning"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Add poll"]').exists()).toBe(true);
 
     await articleButton.trigger('click');
 
     expect(articleButton.attributes('aria-checked')).toBe('true');
+    expect(wrapper.find('[aria-label="Add media"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Emoji"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Toggle content warning"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Add poll"]').exists()).toBe(false);
     expect(wrapper.get('input[placeholder="Article title"]').exists()).toBe(true);
     expect(wrapper.get('textarea[placeholder="Article summary (optional)"]').exists()).toBe(true);
     expect(wrapper.get('textarea[placeholder="Write the long-form body in Markdown..."]').exists()).toBe(true);
