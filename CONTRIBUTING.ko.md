@@ -18,7 +18,7 @@ For the English contributing guide, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 필수 도구는 다음과 같습니다.
 
-- Node.js `22.13+`, `24.11+` 또는 `26+`
+- Node.js `25+`
 - pnpm `10.9.0`
 - 로컬 Worker나 Cloudflare 리소스를 다룰 때 Wrangler `4.x`와 Cloudflare 계정
 

@@ -184,7 +184,7 @@ A `packages/shared/` directory contains code shared between workers:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 22.13+, 24.11+, or 26+
+- [Node.js](https://nodejs.org/) 25+
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) >= 4.x (`pnpm add -g wrangler`)
 - A **Workers Enabled** Cloudflare account
 - A domain managed by Cloudflare (for custom domain deployment)

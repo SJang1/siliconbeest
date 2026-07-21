@@ -32,6 +32,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - ".node-version"
       - "siliconbeest/**"
       - "packages/**"
       - "scripts/config.sh"
@@ -61,7 +62,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version-file: ".node-version"
           cache: "pnpm"
 
       - name: Install dependencies

@@ -15,5 +15,8 @@
 	},
 	"dependencies": {
 		"worker-mailer": "^1.2.1"
+	},
+	"engines": {
+		"node": ">=25.0.0"
 	}
 }
