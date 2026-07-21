@@ -141,9 +141,20 @@ export function getInstanceThumbnailUrl(
 	settings: Record<string, string>,
 	domain: string = env.INSTANCE_DOMAIN,
 ): string {
-	return settings.site_logo_url
-		|| settings.thumbnail_url
-		|| `https://${domain}/thumbnail.png`;
+	const baseUrl = `https://${domain}/`;
+	const fallbackUrl = new URL('thumbnail.png', baseUrl).href;
+	const hasSiteLogoSetting = Object.prototype.hasOwnProperty.call(settings, 'site_logo_url');
+	const configuredUrl = (hasSiteLogoSetting
+		? settings.site_logo_url
+		: settings.thumbnail_url)?.trim();
+
+	if (!configuredUrl) return fallbackUrl;
+	if (!URL.canParse(configuredUrl, baseUrl)) return fallbackUrl;
+
+	const resolvedUrl = new URL(configuredUrl, baseUrl);
+	return resolvedUrl.protocol === 'http:' || resolvedUrl.protocol === 'https:'
+		? resolvedUrl.href
+		: fallbackUrl;
 }
 
 // ----------------------------------------------------------------
