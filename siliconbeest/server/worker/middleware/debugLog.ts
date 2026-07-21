@@ -6,6 +6,7 @@ import {
   headersToObject,
   isDebugEnabled,
   parseBodyForDebugLog,
+  readLimitedBody,
 } from '../../../../packages/shared/utils/debugLog';
 import { ensureFedifyDebugLogging } from '../utils/debugLogtape';
 
@@ -27,7 +28,8 @@ async function readBodyForDebug(
 ): Promise<unknown> {
   if (!isLoggableBodyType(contentType)) return undefined;
   try {
-    const text = await source.clone().text();
+    // Capped stream read — never buffers an oversized payload in memory.
+    const text = await readLimitedBody(source.clone().body);
     if (text.length === 0) return undefined;
     return parseBodyForDebugLog(text, contentType);
   } catch (err) {

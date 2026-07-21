@@ -5,6 +5,7 @@ import {
   debugLog,
   isDebugEnabled,
   parseBodyForDebugLog,
+  readLimitedBody,
   redactUltraSensitive,
   truncateForDebugLog,
 } from '../../../packages/shared/utils/debugLog';
@@ -128,6 +129,16 @@ describe('redactUltraSensitive', () => {
     expect(redacted.self).toBe('[Circular]');
   });
 
+  it('preserves Map and Set contents instead of logging {}', () => {
+    const redacted = redactUltraSensitive({
+      map: new Map<string, string>([['password', 'x'], ['actor', 'https://a.example']]),
+      set: new Set(['one', 'two']),
+    }) as { map: Record<string, string>; set: string[] };
+    expect(redacted.map.password).toBe('[REDACTED]');
+    expect(redacted.map.actor).toBe('https://a.example');
+    expect(redacted.set).toEqual(['one', 'two']);
+  });
+
   it('flattens Headers instances and redacts sensitive entries', () => {
     const redacted = redactUltraSensitive(
       new Headers({ Authorization: 'Bearer secret', 'X-Request-Id': 'rid' }),
@@ -153,10 +164,36 @@ describe('body helpers', () => {
     });
   });
 
-  it('truncates oversized text bodies', () => {
+  it('truncates oversized text bodies to the hard cap, marker included', () => {
     const text = 'a'.repeat(DEBUG_LOG_MAX_BODY_LENGTH + 10000);
     const truncated = truncateForDebugLog(text);
-    expect(truncated.length).toBeLessThan(text.length);
-    expect(truncated).toContain('[truncated 10000 chars]');
+    expect(truncated.length).toBe(DEBUG_LOG_MAX_BODY_LENGTH);
+    expect(truncated).toContain(`[truncated; original ${text.length} chars]`);
+  });
+
+  it('reads body streams chunk-by-chunk and cancels at the cap', async () => {
+    let pulls = 0;
+    let cancelled = false;
+    const chunk = new TextEncoder().encode('b'.repeat(1024));
+    // An endless stream — reading it in full would never terminate.
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const text = await readLimitedBody(endless);
+    expect(text.length).toBeLessThanOrEqual(DEBUG_LOG_MAX_BODY_LENGTH);
+    expect(text).toContain('[truncated; original ');
+    expect(cancelled).toBe(true);
+    // Stopped shortly after the cap instead of draining the stream.
+    expect(pulls).toBeLessThan(DEBUG_LOG_MAX_BODY_LENGTH / 1024 + 8);
+  });
+
+  it('returns an empty string for a null body', async () => {
+    await expect(readLimitedBody(null)).resolves.toBe('');
   });
 });

@@ -87,6 +87,12 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
 	if (typeof Headers !== 'undefined' && value instanceof Headers) {
 		return redactValue(Object.fromEntries(value), depth + 1, seen);
 	}
+	if (value instanceof Map) {
+		return redactValue(Object.fromEntries(value), depth + 1, seen);
+	}
+	if (value instanceof Set) {
+		return redactValue([...value], depth + 1, seen);
+	}
 
 	if (Array.isArray(value)) {
 		return value.map((item) => redactValue(item, depth + 1, seen));
@@ -162,10 +168,48 @@ export function headersToObject(headers: Headers): Record<string, string> {
 	return Object.fromEntries(headers);
 }
 
-/** Truncate long body text so a single log line stays ingestible. */
+/**
+ * Truncate long body text so a single log line stays ingestible.
+ * The returned string never exceeds DEBUG_LOG_MAX_BODY_LENGTH, marker included.
+ */
 export function truncateForDebugLog(text: string): string {
 	if (text.length <= DEBUG_LOG_MAX_BODY_LENGTH) return text;
-	return `${text.slice(0, DEBUG_LOG_MAX_BODY_LENGTH)}…[truncated ${text.length - DEBUG_LOG_MAX_BODY_LENGTH} chars]`;
+	const marker = `…[truncated; original ${text.length} chars]`;
+	return `${text.slice(0, DEBUG_LOG_MAX_BODY_LENGTH - marker.length)}${marker}`;
+}
+
+/**
+ * Read at most DEBUG_LOG_MAX_BODY_LENGTH characters of text from a body
+ * stream, then cancel it. Unlike `Response.text()`, this never buffers an
+ * oversized or unbounded payload in memory. Pass a *cloned* body so the
+ * original stream stays consumable.
+ */
+export async function readLimitedBody(
+	body: ReadableStream<Uint8Array> | null,
+): Promise<string> {
+	if (!body) return '';
+	const reader = body.getReader();
+	const decoder = new TextDecoder();
+	let result = '';
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) {
+				result += decoder.decode();
+				break;
+			}
+			result += decoder.decode(value, { stream: true });
+			if (result.length > DEBUG_LOG_MAX_BODY_LENGTH) {
+				await reader.cancel();
+				break;
+			}
+		}
+	} catch {
+		// Keep whatever was read before the stream failed.
+	} finally {
+		reader.releaseLock();
+	}
+	return truncateForDebugLog(result);
 }
 
 /**

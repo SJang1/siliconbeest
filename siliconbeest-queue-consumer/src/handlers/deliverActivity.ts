@@ -40,7 +40,7 @@ import {
   debugLog,
   headersToObject,
   isDebugEnabled,
-  truncateForDebugLog,
+  readLimitedBody,
 } from '../../../packages/shared/utils/debugLog';
 
 // ============================================================
@@ -58,7 +58,9 @@ async function debugLogDeliveryExchange(
   if (!isDebugEnabled()) return;
   let responseBody: string;
   try {
-    responseBody = truncateForDebugLog(await response.clone().text());
+    // Capped stream read — a hostile remote can't OOM the consumer with a
+    // huge or unbounded response body.
+    responseBody = await readLimitedBody(response.clone().body);
   } catch (err) {
     responseBody = `<failed to read body: ${err instanceof Error ? err.message : String(err)}>`;
   }
