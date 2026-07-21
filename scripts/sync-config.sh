@@ -489,6 +489,9 @@ cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"compatibility_date": "2026-06-16",
 	// Nuxt emits the production Cloudflare Worker entrypoint during \`pnpm run build\`.
 	"main": ".output/server/index.mjs",
+	// Emit source maps in the deploy bundle (Cloudflare-native readable traces;
+	// CI also uploads them to Sentry when SENTRY_AUTH_TOKEN is configured).
+	"upload_source_maps": true,
 	"assets": {
 		"directory": "./.output/public",
 		"not_found_handling": "none",
@@ -514,7 +517,8 @@ ${WRANGLER_COMPATIBILITY_FLAGS_INDENT}"compatibility_flags": ["nodejs_compat"],
 		"mode": "smart"
 	},
 
-	// Environment Variables (set SETUP_SECRET via \`wrangler secret put SETUP_SECRET\` before first-run setup)
+	// Environment Variables (set SETUP_SECRET via \`wrangler secret put SETUP_SECRET\` before first-run setup;
+	// optional \`wrangler secret put SENTRY_DSN\` enables Sentry error reporting in the worker)
 	"vars": {
 		"INSTANCE_DOMAIN": "${CURRENT_DOMAIN}",
 		"INSTANCE_TITLE": "${CURRENT_TITLE}",

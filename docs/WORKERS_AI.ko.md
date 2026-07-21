@@ -95,7 +95,7 @@ pnpm preview
 
 간단한 end-to-end 확인은 별도 AI 추천 피드 navigation으로 이동해 새로고침하고, 대상이 되는 public 또는 unlisted 게시물에서 번역을 요청하고, ALT를 비운 지원 이미지 하나를 업로드하면 됩니다. 업로드 UI에는 ALT 생성 중 상태가 보인 뒤 일반 미디어 상태 polling이 끝나면 생성된 설명이 표시되어야 합니다.
 
-`cf-typegen`은 tracked 파일인 `scripts/typegen.env`를 자동으로 읽습니다. 이 파일에는 `OTP_ENCRYPTION_KEY`와 `SETUP_SECRET` 바인딩의 타입 생성용 placeholder만 있으며 런타임 secret이 아닙니다. 이 값을 배포하거나 로컬 credential로 사용하거나, 파일에 실제 secret을 넣으면 안 됩니다. `worker-configuration.d.ts`는 현재 Wrangler 모드로 Wrangler가 생성하므로 직접 수정하지 않습니다.
+`cf-typegen`은 tracked 파일인 `scripts/typegen.env`를 자동으로 읽습니다. 이 파일에는 `OTP_ENCRYPTION_KEY`, `SETUP_SECRET`, `SENTRY_DSN` 바인딩의 타입 생성용 placeholder만 있으며 런타임 secret이 아닙니다. 이 값을 배포하거나 로컬 credential로 사용하거나, 파일에 실제 secret을 넣으면 안 됩니다. `worker-configuration.d.ts`는 현재 Wrangler 모드로 Wrangler가 생성하므로 직접 수정하지 않습니다.
 
 AI를 켜거나 끈 뒤에는 같은 타입 생성, 전체 Worker `tsc`, 애플리케이션 타입 검사를 실행하세요.
 

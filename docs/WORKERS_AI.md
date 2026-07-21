@@ -95,7 +95,7 @@ Sign in with an administrator account, open `/admin/settings`, enable only the A
 
 For a quick end-to-end check, open the separate AI recommendation-feed navigation entry and refresh it, request translation on an eligible public or unlisted status, and upload a supported image with an empty ALT field. The upload UI should show ALT generation in progress and then the generated description after the normal media-status poll completes.
 
-`cf-typegen` automatically reads the tracked `scripts/typegen.env`. That file contains only type-generation placeholders for the `OTP_ENCRYPTION_KEY` and `SETUP_SECRET` bindings; they are not runtime secrets and must never be deployed, used as local credentials, or replaced with real secrets. Do not edit `worker-configuration.d.ts` by hand; Wrangler generates it from the current Wrangler mode.
+`cf-typegen` automatically reads the tracked `scripts/typegen.env`. That file contains only type-generation placeholders for the `OTP_ENCRYPTION_KEY`, `SETUP_SECRET`, and `SENTRY_DSN` bindings; they are not runtime secrets and must never be deployed, used as local credentials, or replaced with real secrets. Do not edit `worker-configuration.d.ts` by hand; Wrangler generates it from the current Wrangler mode.
 
 Run the same type generation, full Worker `tsc`, and application type check after switching AI on or off.
 

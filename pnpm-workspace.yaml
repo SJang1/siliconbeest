@@ -6,6 +6,7 @@ packages:
 
 allowBuilds:
   '@parcel/watcher': false
+  '@sentry/cli': true
   esbuild: true
   sharp: true
   workerd: true

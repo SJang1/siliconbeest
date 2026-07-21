@@ -28,6 +28,7 @@ __screenshots__/
 
 # Wrangler / Cloudflare
 .wrangler/
+dist-worker/
 .dev.vars*
 !.dev.vars.example
 .env*

@@ -1692,6 +1692,7 @@ SiliconBeest는 비용을 낮추기 위해 Cloudflare Containers를 사용하지
 | `VAPID_PRIVATE_KEY` | API, 큐 소비자 | ECDSA P-256 개인 키 (base64url) | `setup.sh` |
 | `VAPID_PUBLIC_KEY` | API, 큐 소비자 | ECDSA P-256 공개 키 (base64url) | `setup.sh` |
 | `OTP_ENCRYPTION_KEY` | API | TOTP 비밀용 AES-GCM 키 | `setup.sh` |
+| `SENTRY_DSN` | API | 워커 오류 보고용 Sentry DSN (선택사항) | 수동 (`wrangler secret put`) |
 | `SMTP_HOST` | API | SMTP 서버 호스트명 (선택사항) | 관리자 설정 |
 | `SMTP_PORT` | API | SMTP 서버 포트 (선택사항) | 관리자 설정 |
 | `SMTP_USER` | API | SMTP 사용자명 (선택사항) | 관리자 설정 |

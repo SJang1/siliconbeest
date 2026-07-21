@@ -275,7 +275,7 @@ function expectStableWorkerStructure(
   email: JsonObject,
 ): void {
   expect(main).toMatchObject({
-    preview_urls: true,
+    preview_urls: false,
     main: '.output/server/index.mjs',
     assets: {
       directory: './.output/public',

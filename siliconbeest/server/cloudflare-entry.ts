@@ -1,4 +1,5 @@
 import '#nitro-internal-pollyfills';
+import * as Sentry from '@sentry/cloudflare';
 import wsAdapter from 'crossws/adapters/cloudflare';
 import { useNitroApp } from 'nitropack/runtime';
 import { requestHasBody, runCronTasks } from 'nitropack/runtime/internal';
@@ -49,7 +50,7 @@ async function fetchHandler(
   });
 }
 
-export default {
+const handler = {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const ctxExt = {};
     const url = new URL(request.url);
@@ -139,3 +140,13 @@ export default {
     );
   },
 } satisfies ExportedHandler<Env>;
+
+export default Sentry.withSentry(
+  (env: Env) => ({
+    // SENTRY_DSN is an optional Cloudflare secret; Sentry is disabled when it is unset.
+    dsn: env.SENTRY_DSN || undefined,
+    tracesSampleRate: 1.0,
+    enableLogs: true,
+  }),
+  handler,
+);

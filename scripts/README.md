@@ -324,6 +324,13 @@ wrangler secret put OTP_ENCRYPTION_KEY --name siliconbeest
 wrangler secret put SETUP_SECRET --name siliconbeest
 ```
 
+Optional secrets:
+
+```bash
+# Sentry DSN for worker error reporting (Sentry is disabled when unset)
+wrangler secret put SENTRY_DSN --name siliconbeest
+```
+
 VAPID keys are stored in the D1 `settings` table (not env secrets).
 
 ---

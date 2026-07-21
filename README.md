@@ -345,6 +345,7 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 |--------|---------|--------|
 | `OTP_ENCRYPTION_KEY` | worker | `setup.sh` |
 | `SETUP_SECRET` | worker | `setup.sh` / `install.sh` |
+| `SENTRY_DSN` (optional) | worker | manual: `wrangler secret put SENTRY_DSN` |
 
 > **VAPID keys** are stored in the D1 `settings` table (keys: `vapid_public_key`, `vapid_private_key`) and managed via the Admin settings page or `setup.sh`. They are **not** set as environment secrets.
 

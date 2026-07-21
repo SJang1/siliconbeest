@@ -2370,6 +2370,7 @@ SiliconBeest avoids Cloudflare Containers to keep costs low. This means:
 | `VAPID_PRIVATE_KEY` | API, Queue Consumer | ECDSA P-256 private key (base64url) | `setup.sh` |
 | `VAPID_PUBLIC_KEY` | API, Queue Consumer | ECDSA P-256 public key (base64url) | `setup.sh` |
 | `OTP_ENCRYPTION_KEY` | API | AES-GCM key for TOTP secrets | `setup.sh` |
+| `SENTRY_DSN` | API | Sentry DSN for worker error reporting (optional) | Manual (`wrangler secret put`) |
 | `SMTP_HOST` | API | SMTP server hostname (optional) | Admin settings |
 | `SMTP_PORT` | API | SMTP server port (optional) | Admin settings |
 | `SMTP_USER` | API | SMTP username (optional) | Admin settings |
