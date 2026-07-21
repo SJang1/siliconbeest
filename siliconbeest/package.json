@@ -35,7 +35,7 @@
 		"@js-temporal/polyfill": "^0.5.1",
 		"@logtape/logtape": "^2.2.3",
 		"@sentry/cloudflare": "^10.66.0",
-		"@sentry/vue": "^10.63.0",
+		"@sentry/vue": "^10.66.0",
 		"@vueuse/core": "^14.3.0",
 		"bcryptjs": "^3.0.3",
 		"entities": "^7.0.1",
