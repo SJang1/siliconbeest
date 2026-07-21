@@ -254,11 +254,17 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       const rsaPrivateKey = await importRsaPrivateKey(actorKey.private_key);
       keyPairs.push({ publicKey: rsaPublicKey, privateKey: rsaPrivateKey });
 
-      // Ed25519 key pair — generate on the fly if missing
+      // Ed25519 key pair — generate on the fly if missing.
+      // Early install/seed scripts stored these columns as PEM, which the
+      // base64url importers below cannot read (atob throws). A PEM-seeded
+      // key can never have been served or used — every import crashed — so
+      // treat those rows as missing and regenerate.
       let ed25519Pub = actorKey.ed25519_public_key;
       let ed25519Priv = actorKey.ed25519_private_key;
+      const isPemSeeded = (value: string | null): boolean =>
+        value !== null && value.includes('-----BEGIN');
 
-      if (!ed25519Pub || !ed25519Priv) {
+      if (!ed25519Pub || !ed25519Priv || isPemSeeded(ed25519Pub) || isPemSeeded(ed25519Priv)) {
         const generated = await generateEd25519KeyPair();
         ed25519Pub = generated.publicKey;
         ed25519Priv = generated.privateKey;

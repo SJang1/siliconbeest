@@ -358,14 +358,16 @@ async function main() {
     publicKeyEncoding:  { type: 'spki',  format: 'pem' },
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
   });
-  const ed = crypto.generateKeyPairSync('ed25519', {
-    publicKeyEncoding:  { type: 'spki',  format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-  });
+  // Ed25519 keypair — stored base64url (raw public / PKCS8 private) to match
+  // the worker's importEd25519PublicKey/PrivateKey format. PEM here breaks
+  // atob() in the keypair dispatcher.
+  const ed = crypto.generateKeyPairSync('ed25519');
+  const ed25519PublicKey = ed.publicKey.export({ format: 'jwk' }).x;
+  const ed25519PrivateKey = ed.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url');
   process.stdout.write(JSON.stringify({
     accountId, userId, keyId, now, actorUri, actorUrl, passwordHash,
     publicKey, privateKey,
-    ed25519PublicKey: ed.publicKey, ed25519PrivateKey: ed.privateKey,
+    ed25519PublicKey, ed25519PrivateKey,
     keyIdUri: actorUri + '#main-key'
   }));
 }
