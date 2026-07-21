@@ -11,6 +11,10 @@
 #
 # Optional GitHub Secrets:
 #   SENTRY_AUTH_TOKEN — Sentry auth token for CI source map upload (unset = upload skipped)
+#   SYNC_PUSH_TOKEN   — Fine-grained PAT with Contents + Workflows read/write on this
+#                       repo. Required to auto-sync upstream releases that change
+#                       .github/workflows/* — the default GITHUB_TOKEN cannot push
+#                       workflow file changes and the sync push will be rejected.
 #
 # Required GitHub Repository Variables:
 #   PROJECT_PREFIX     — Resource name prefix (e.g. "siliconbeest")
@@ -75,7 +79,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # SYNC_PUSH_TOKEN (PAT with workflows scope) lets the sync push commits
+          # that modify .github/workflows/*; GITHUB_TOKEN cannot.
+          token: ${{ secrets.SYNC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Add upstream remote
         run: |

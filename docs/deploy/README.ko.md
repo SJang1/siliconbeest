@@ -44,6 +44,7 @@ SiliconBeest는 **GitHub 템플릿 레포지토리**입니다. Cloudflare Worker
 |--------|------|
 | `CLOUDFLARE_API_TOKEN` | Workers, D1, R2, KV, Queues 권한이 있는 Cloudflare API 토큰 |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 계정 ID |
+| `SYNC_PUSH_TOKEN` | 이 저장소에 **Contents**·**Workflows** 읽기/쓰기 권한이 있는 fine-grained PAT. 없으면 upstream 릴리스에 `.github/workflows/*` 변경이 포함될 때 sync 워크플로우의 push가 기본 `GITHUB_TOKEN`으로는 거부됩니다 (`refusing to allow a GitHub App to create or update workflow ... without 'workflows' permission`). **Settings > Developer settings > Fine-grained personal access tokens**에서 이 저장소만 대상으로 생성하세요. |
 
 ### Repository Variables
 

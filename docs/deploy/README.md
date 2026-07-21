@@ -44,6 +44,7 @@ In your repository's **Settings > Secrets and variables > Actions**:
 |--------|-------------|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers, D1, R2, KV, and Queues permissions |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| `SYNC_PUSH_TOKEN` | Fine-grained PAT with **Contents** and **Workflows** read/write access on this repository. Without it, upstream releases that change `.github/workflows/*` cannot be pushed by the sync workflow (the default `GITHUB_TOKEN` is rejected with `refusing to allow a GitHub App to create or update workflow ... without 'workflows' permission`). Create one at **Settings > Developer settings > Fine-grained personal access tokens**, scoped to this repository only. |
 
 ### Repository Variables
 
