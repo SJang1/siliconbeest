@@ -26,6 +26,11 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
+# Load instance overrides BEFORE deriving names: the ${PROJECT_PREFIX}-*
+# defaults below (and in config.sh) freeze at evaluation time, so a prefix
+# sourced afterwards would never reach the queue/worker/database names.
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
+
 # Source config — set defaults if config.sh not found
 if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
   source "$SCRIPT_DIR/config.sh"
@@ -56,8 +61,6 @@ else
   error()   { echo -e "${RED}[ERROR]${NC} $*"; }
   header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
 fi
-
-[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 APPLY=false
 if [[ "${1:-}" == "--apply" ]]; then

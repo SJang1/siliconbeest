@@ -10,6 +10,14 @@
 # =============================================================================
 
 # ---------------------------------------------------------------------------
+# Instance overrides (config.env) — must load BEFORE the derived names below:
+# CI writes PROJECT_PREFIX there from GitHub Variables, and every
+# ${PROJECT_PREFIX}-* default is frozen at the moment it is evaluated.
+# ---------------------------------------------------------------------------
+_CONFIG_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config.env"
+[[ -f "$_CONFIG_ENV_FILE" ]] && source "$_CONFIG_ENV_FILE"
+
+# ---------------------------------------------------------------------------
 # Project prefix — used as default for all resource names below
 # Change this to rename everything at once (e.g. "myinstance")
 # ---------------------------------------------------------------------------
