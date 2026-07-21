@@ -358,7 +358,7 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 | `REGISTRATION_MODE` | `open` / `approval` / `closed` | `open` |
 | `SKIP_SIGNATURE_VERIFICATION` | Explicit `true` / `false` override for inbound HTTP signature verification; GitHub Actions reads this from GitHub Environment Variables during deploy | `false` |
 
-> **Observability drains** (optional): to forward the main worker's logs/traces to an OTLP backend such as Sentry, first create Logs/Traces destinations under **Workers & Pages → Observability** in the Cloudflare dashboard, then set `OBSERVABILITY_LOGS_DESTINATIONS` / `OBSERVABILITY_TRACES_DESTINATIONS` (comma-separated destination names) as GitHub Environment Variables — or in `scripts/config.env` for manual deploys. `sync-config.sh` writes them into the `observability.logs` / `observability.traces` blocks of the main worker's `wrangler.jsonc`.
+> **Observability drains** (optional): to forward the main worker's logs/traces to an OTLP backend such as Sentry, first create Logs/Traces destinations under **Workers & Pages → Observability** in the Cloudflare dashboard — each destination holds the OTLP endpoint URL *and* any auth headers (for Sentry: header `x-sentry-auth` with value `sentry sentry_key=<public key>`; copy both from Sentry's **Client Keys (DSN) → OpenTelemetry (OTLP)** page). Then set `OBSERVABILITY_LOGS_DESTINATIONS` / `OBSERVABILITY_TRACES_DESTINATIONS` (comma-separated destination names) as GitHub Environment Variables — or in `scripts/config.env` for manual deploys. `sync-config.sh` writes them into the `observability.logs` / `observability.traces` blocks of the main worker's `wrangler.jsonc`.
 
 ### Frontend Environment (siliconbeest/.env)
 
