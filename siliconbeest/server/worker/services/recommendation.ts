@@ -63,7 +63,7 @@ function readFailureField(error: unknown, names: readonly string[]): unknown {
     return undefined;
   }
   for (const name of names) {
-    const value = Reflect.get(error, name);
+    const value = Reflect.get(error, name) as unknown;
     if (value !== undefined && value !== null) return value;
   }
   return undefined;
