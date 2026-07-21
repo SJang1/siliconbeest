@@ -4,6 +4,7 @@ import {
   buildRecommendationInterestQuery,
   continueRecommendedTimelinePage,
   createRecommendedTimelinePage,
+  describeRecommendationGenerationFailure,
   rankRecommendationCandidates,
   RECOMMENDATION_CANDIDATE_LIMIT,
   RECOMMENDATION_DEFAULT_PAGE_LIMIT,
@@ -540,6 +541,7 @@ describe('AI recommended timeline', () => {
       'throwing-model',
     )).rejects.toMatchObject<Partial<RecommendationGenerationError>>({
       code: 'AI_RECOMMENDATION_FAILED',
+      reason: 'model unavailable',
     });
 
     await expect(createRecommendedTimelinePage(
@@ -551,6 +553,17 @@ describe('AI recommended timeline', () => {
     )).rejects.toMatchObject<Partial<RecommendationGenerationError>>({
       code: 'AI_RECOMMENDATION_FAILED',
     });
+  });
+
+  it('keeps the provider HTTP status, code, and reason without exposing a stack', () => {
+    const failure = Object.assign(
+      new Error('Capacity temporarily exceeded, please try again.'),
+      { status: 429, code: 3040 },
+    );
+
+    expect(describeRecommendationGenerationFailure(failure)).toBe(
+      'HTTP 429\ncode: 3040\nCapacity temporarily exceeded, please try again.',
+    );
   });
 
   it('fails instead of truncating a non-exhausted feed when cursor storage fails', async () => {

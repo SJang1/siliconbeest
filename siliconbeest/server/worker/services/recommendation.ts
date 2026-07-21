@@ -32,11 +32,69 @@ export type RecommendationSource = 'ai' | 'cached';
 
 export class RecommendationGenerationError extends Error {
   readonly code = 'AI_RECOMMENDATION_FAILED';
+  readonly reason: string | undefined;
 
-  constructor(message = 'AI recommendation could not be generated') {
+  constructor(
+    message = 'AI recommendation could not be generated',
+    reason?: string,
+  ) {
     super(message);
     this.name = 'RecommendationGenerationError';
+    this.reason = reason;
   }
+}
+
+const RECOMMENDATION_FAILURE_REASON_MAX_CHARS = 500;
+
+function normalizeFailureDetail(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const detail = String(value)
+    .replace(/\r\n?/gu, '\n')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim();
+  return detail.length > 0
+    ? detail.slice(0, RECOMMENDATION_FAILURE_REASON_MAX_CHARS)
+    : null;
+}
+
+function readFailureField(error: unknown, names: readonly string[]): unknown {
+  if ((typeof error !== 'object' && typeof error !== 'function') || error === null) {
+    return undefined;
+  }
+  for (const name of names) {
+    const value = Reflect.get(error, name);
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+}
+
+/**
+ * Preserve the useful, non-stack portion of a Workers AI rejection so the
+ * recommendation endpoint can explain a temporary provider failure. Error
+ * objects differ between local bindings and the remote service, so read the
+ * common HTTP status/code fields in addition to the message.
+ */
+export function describeRecommendationGenerationFailure(error: unknown): string | undefined {
+  const message = normalizeFailureDetail(
+    error instanceof Error ? error.message : readFailureField(error, ['message', 'error']),
+  ) ?? normalizeFailureDetail(typeof error === 'string' ? error : null);
+  const status = normalizeFailureDetail(readFailureField(
+    error,
+    ['status', 'statusCode', 'httpStatus'],
+  ));
+  const code = normalizeFailureDetail(readFailureField(error, ['code', 'errorCode']));
+  const details = [
+    status && !message?.toLocaleLowerCase().includes(`http ${status.toLocaleLowerCase()}`)
+      ? `HTTP ${status}`
+      : null,
+    code && !message?.toLocaleLowerCase().includes(`code: ${code.toLocaleLowerCase()}`)
+      ? `code: ${code}`
+      : null,
+    message,
+  ].filter((detail): detail is string => detail !== null);
+  if (details.length === 0) return undefined;
+  return details.join('\n').slice(0, RECOMMENDATION_FAILURE_REASON_MAX_CHARS);
 }
 
 export type RecommendationModelRunner = (
@@ -618,9 +676,12 @@ async function generateRecommendationPage(
       contexts,
       truncate_inputs: true,
     });
-  } catch {
+  } catch (error) {
     // eslint-disable-next-line functional/no-throw-statements -- Endpoint maps model failures to a structured 503.
-    throw new RecommendationGenerationError();
+    throw new RecommendationGenerationError(
+      undefined,
+      describeRecommendationGenerationFailure(error),
+    );
   }
   const ordered = rankRecommendationCandidates(candidates, output, pageSeed);
   if (ordered === null) {

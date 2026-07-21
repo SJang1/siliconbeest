@@ -89,7 +89,8 @@ describe.each(recommendedVariants)('$name dedicated recommended timeline', ({ co
     timelines.getTimeline('home').statusIds = ['home-state-must-stay-separate']
     const refresh = vi.spyOn(timelines, 'refreshRecommendedTimeline')
       .mockImplementation(async () => {
-        timelines.getTimeline('recommended').error = 'generation unavailable'
+        timelines.getTimeline('recommended').error
+          = 'HTTP 429\ncode: 3040\nCapacity temporarily exceeded, please try again.'
       })
     const fetchTimeline = vi.spyOn(timelines, 'fetchTimeline').mockResolvedValue()
 
@@ -102,6 +103,9 @@ describe.each(recommendedVariants)('$name dedicated recommended timeline', ({ co
     expect(wrapper.text()).toContain('AI recommendations')
     expect(wrapper.text()).toContain('AI-generated recommended feed')
     expect(wrapper.text()).toContain('AI recommendations could not be generated.')
+    expect(wrapper.text()).toContain(
+      'Reason: HTTP 429\ncode: 3040\nCapacity temporarily exceeded, please try again.',
+    )
     expect(wrapper.find('[role="alert"]').text()).toContain('Refresh recommendations')
   })
 

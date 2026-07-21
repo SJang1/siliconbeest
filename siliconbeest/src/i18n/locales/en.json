@@ -262,7 +262,8 @@
     "ai_recommended": "AI-generated recommended feed",
     "refresh_recommended": "Refresh recommendations",
     "refreshing_recommended": "Refreshing...",
-    "recommended_failed": "AI recommendations could not be generated."
+    "recommended_failed": "AI recommendations could not be generated.",
+    "recommended_failure_reason": "Reason: {reason}"
   },
   "status": {
     "reply": "Reply",

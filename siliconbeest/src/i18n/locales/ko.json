@@ -262,7 +262,8 @@
     "ai_recommended": "AI가 생성한 추천 피드",
     "refresh_recommended": "추천 새로고침",
     "refreshing_recommended": "새로고침 중...",
-    "recommended_failed": "AI 추천을 생성하지 못했습니다."
+    "recommended_failed": "AI 추천을 생성하지 못했습니다.",
+    "recommended_failure_reason": "이유: {reason}"
   },
   "status": {
     "reply": "답글",

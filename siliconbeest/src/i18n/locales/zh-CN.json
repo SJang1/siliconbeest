@@ -262,7 +262,8 @@
     "ai_recommended": "AI 生成的推荐流",
     "refresh_recommended": "刷新推荐",
     "refreshing_recommended": "正在刷新...",
-    "recommended_failed": "无法生成 AI 推荐。"
+    "recommended_failed": "无法生成 AI 推荐。",
+    "recommended_failure_reason": "原因：{reason}"
   },
   "status": {
     "reply": "回复",

@@ -95,6 +95,9 @@ watch(
         role="alert"
       >
         <p class="dk-text font-semibold">{{ t('timeline.recommended_failed') }}</p>
+        <p class="mt-1 whitespace-pre-line break-words">
+          {{ t('timeline.recommended_failure_reason', { reason: timeline.error }) }}
+        </p>
         <button
           type="button"
           class="dk-pill-btn mt-2 text-[10.5px]"

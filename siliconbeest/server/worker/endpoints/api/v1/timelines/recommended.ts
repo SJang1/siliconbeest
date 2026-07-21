@@ -115,6 +115,7 @@ app.on(['GET', 'POST'], '/', authRequired, requireScope('read:statuses'), async 
       return c.json({
         error: error.message,
         error_code: error.code,
+        ...(error.reason ? { error_description: error.reason } : {}),
       }, 503, {
         'Cache-Control': 'private, no-store',
         Vary: 'Authorization',

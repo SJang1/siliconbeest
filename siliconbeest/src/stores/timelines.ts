@@ -79,6 +79,19 @@ function createEmptyTimeline(): TimelineState {
   };
 }
 
+function getTimelineErrorReason(error: unknown): string {
+  if (typeof error === 'object' && error !== null) {
+    const description = Reflect.get(error, 'description');
+    if (typeof description === 'string' && description.trim().length > 0) {
+      return description.trim();
+    }
+  }
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+  return String(error);
+}
+
 export const useTimelinesStore = defineStore('timelines', () => {
   const timelines = ref<Map<string, TimelineState>>(new Map());
   // Initial loads supersede any older cursor request for the same feed. This
@@ -527,7 +540,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       }
     } catch (e) {
       if (isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
-        timeline.error = (e as Error).message;
+        timeline.error = getTimelineErrorReason(e);
       }
     } finally {
       if (isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
@@ -588,7 +601,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
       startPagePrefetch(type, stableOpts);
     } catch (e) {
       if (isCurrentRequest(key, requestGeneration, requestLifecycleGeneration)) {
-        timeline.error = (e as Error).message;
+        timeline.error = getTimelineErrorReason(e);
         // Recommendation pagination uses an opaque, server-owned snapshot.
         // Once that cursor is rejected it cannot be repaired client-side, so
         // stop automatic/infinite-scroll retries until a manual refresh starts

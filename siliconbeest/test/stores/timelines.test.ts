@@ -127,6 +127,22 @@ describe('Timelines Store', () => {
       expect(timelineApi.getRecommendedTimelinePage).toHaveBeenCalledOnce();
     });
 
+    it('uses an API error description as the recommendation failure reason', async () => {
+      const timelineApi = await import('@/api/mastodon/timelines');
+      vi.mocked(timelineApi.getRecommendedTimeline).mockRejectedValue(
+        Object.assign(new Error('AI recommendation could not be generated'), {
+          description: 'HTTP 429\ncode: 3040\nCapacity temporarily exceeded, please try again.',
+        }),
+      );
+
+      const store = useTimelinesStore();
+      await store.fetchTimeline('recommended', { token: 'token' });
+
+      expect(store.getTimeline('recommended').error).toBe(
+        'HTTP 429\ncode: 3040\nCapacity temporarily exceeded, please try again.',
+      );
+    });
+
     it('clears the old snapshot and requests a newly generated one', async () => {
       const timelineApi = await import('@/api/mastodon/timelines');
       vi.mocked(timelineApi.getRecommendedTimeline).mockResolvedValue({

@@ -87,6 +87,9 @@ watch(
 
       <div v-if="timeline.error" class="p-4 text-center text-red-500" role="alert">
         <p class="font-semibold">{{ t('timeline.recommended_failed') }}</p>
+        <p class="mt-1 whitespace-pre-line break-words">
+          {{ t('timeline.recommended_failure_reason', { reason: timeline.error }) }}
+        </p>
         <button
           type="button"
           class="mt-2 rounded-full border border-red-300 px-3 py-1 text-xs font-semibold hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/30"

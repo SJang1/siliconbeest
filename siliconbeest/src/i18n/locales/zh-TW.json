@@ -262,7 +262,8 @@
     "ai_recommended": "AI 產生的推薦動態",
     "refresh_recommended": "重新整理推薦",
     "refreshing_recommended": "正在重新整理...",
-    "recommended_failed": "無法產生 AI 推薦。"
+    "recommended_failed": "無法產生 AI 推薦。",
+    "recommended_failure_reason": "原因：{reason}"
   },
   "status": {
     "reply": "回覆",

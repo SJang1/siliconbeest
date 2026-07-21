@@ -262,7 +262,8 @@
     "ai_recommended": "AIが生成したおすすめフィード",
     "refresh_recommended": "おすすめを更新",
     "refreshing_recommended": "更新中...",
-    "recommended_failed": "AIのおすすめを生成できませんでした。"
+    "recommended_failed": "AIのおすすめを生成できませんでした。",
+    "recommended_failure_reason": "理由: {reason}"
   },
   "status": {
     "reply": "返信",
