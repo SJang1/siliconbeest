@@ -485,7 +485,7 @@ cat > "$MAIN_DIR/wrangler.jsonc" << WRANGLER_EOF
 {
 	"\$schema": "node_modules/wrangler/config-schema.json",
 	"name": "${MAIN_WORKER_NAME}",
-	"preview_urls": true,
+	"preview_urls": false,
 	"compatibility_date": "2026-06-16",
 	// Nuxt emits the production Cloudflare Worker entrypoint during \`pnpm run build\`.
 	"main": ".output/server/index.mjs",
