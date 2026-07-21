@@ -410,13 +410,9 @@ Estimated cost with a Workers Enabled account:
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-change`
-3. Make your changes and add tests
-4. Run tests: `cd siliconbeest && pnpm exec vitest run --config vitest.worker.config.ts && pnpm exec vitest run`
-5. Submit a pull request
-
-All new API endpoints should include Zod validation schemas and integration tests.
+See the contributing guide for development setup, coding guidelines, test
+commands, database migration rules, and the pull request checklist:
+[English](CONTRIBUTING.md) | [한국어](CONTRIBUTING.ko.md).
 
 ---
 
