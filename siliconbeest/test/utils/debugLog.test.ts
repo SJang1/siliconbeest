@@ -9,6 +9,7 @@ import {
   redactUltraSensitive,
   setDebugLogSink,
   truncateForDebugLog,
+  withDebugLog,
 } from '../../../packages/shared/utils/debugLog';
 
 // The vitest config aliases `cloudflare:workers` to a mutable mock object.
@@ -122,6 +123,67 @@ describe('debug log sink', () => {
     });
     expect(() => debugLog('http', 'still logs', { a: 1 })).not.toThrow();
     expect(spy).toHaveBeenCalledOnce();
+  });
+});
+
+describe('withDebugLog', () => {
+  it('passes through without logging when DEBUG is off', async () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fn = withDebugLog('account', 'getAccountById', async (id: string) => ({ id }));
+    await expect(fn('01ABC')).resolves.toEqual({ id: '01ABC' });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('logs the function name, arguments, and result of an async function', async () => {
+    mockEnv.DEBUG = true;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fn = withDebugLog('account', 'getAccountByUsername', async (username: string, domain?: string) => ({
+      id: '01ABC',
+      username,
+      domain: domain ?? null,
+    }));
+    await expect(fn('alice')).resolves.toEqual({ id: '01ABC', username: 'alice', domain: null });
+    expect(spy).toHaveBeenCalledOnce();
+    const line = spy.mock.calls[0][0] as string;
+    expect(line).toContain('[debug][account] getAccountByUsername returned');
+    expect(line).toContain('alice');
+    expect(line).toContain('01ABC');
+    expect(line).toContain('durationMs');
+  });
+
+  it('logs the result of a sync function', () => {
+    mockEnv.DEBUG = true;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fn = withDebugLog('math', 'double', (n: number) => n * 2);
+    expect(fn(21)).toBe(42);
+    const line = spy.mock.calls[0][0] as string;
+    expect(line).toContain('[debug][math] double returned');
+    expect(line).toContain('42');
+  });
+
+  it('redacts ultra-sensitive fields inside logged results', async () => {
+    mockEnv.DEBUG = true;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fn = withDebugLog('account', 'getUser', async () => ({
+      id: '01ABC',
+      password_hash: 'bcrypt-material',
+    }));
+    await fn();
+    const line = spy.mock.calls[0][0] as string;
+    expect(line).toContain('01ABC');
+    expect(line).not.toContain('bcrypt-material');
+  });
+
+  it('logs and re-throws async errors', async () => {
+    mockEnv.DEBUG = true;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fn = withDebugLog('account', 'explode', async () => {
+      throw new Error('boom');
+    });
+    await expect(fn()).rejects.toThrow('boom');
+    const line = spy.mock.calls[0][0] as string;
+    expect(line).toContain('[debug][account] explode threw');
+    expect(line).toContain('boom');
   });
 });
 

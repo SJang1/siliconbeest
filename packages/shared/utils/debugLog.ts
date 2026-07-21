@@ -61,7 +61,13 @@ function normalizeFieldName(name: string): string {
 	return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function shouldRedactField(name: string): boolean {
+/**
+ * Whether a field/identifier name looks like it holds ultra-sensitive
+ * material. Shared with the binding instrumentation (`debugBindings.ts`),
+ * which uses it to redact KV key suffixes and D1 bind parameters whose
+ * statements reference sensitive columns.
+ */
+export function shouldRedactField(name: string): boolean {
 	const normalized = normalizeFieldName(name);
 	return ULTRA_SENSITIVE_FIELD_NAMES.has(normalized)
 		|| normalized.includes('privatekey')
@@ -220,6 +226,49 @@ export function debugLog(scope: string, message: string, details?: unknown): voi
 			// A failing sink must never break request/queue handling.
 		}
 	}
+}
+
+/**
+ * Wrap a function so that, when `DEBUG` is enabled, every call logs the
+ * function name, its arguments, its result (or thrown error), and the call
+ * duration through `debugLog`. When `DEBUG` is off the wrapper is a pure
+ * passthrough. Works for both sync and async functions; rejections and
+ * thrown errors are logged and re-thrown unchanged.
+ *
+ * @param scope - Dot-separated area tag, e.g. `account`, `federation.send`.
+ * @param name - The function name to log (wrapping erases `fn.name`).
+ * @param fn - The function to instrument.
+ */
+export function withDebugLog<Args extends unknown[], Result>(
+	scope: string,
+	name: string,
+	fn: (...args: Args) => Result,
+): (...args: Args) => Result {
+	return (...args: Args): Result => {
+		if (!isDebugEnabled()) return fn(...args);
+		const started = performance.now();
+		const durationMs = () => Math.round(performance.now() - started);
+		try {
+			const result = fn(...args);
+			if (result instanceof Promise) {
+				return result.then(
+					(value: unknown) => {
+						debugLog(scope, `${name} returned`, { args, durationMs: durationMs(), result: value });
+						return value;
+					},
+					(err: unknown) => {
+						debugLog(scope, `${name} threw`, { args, durationMs: durationMs(), error: err });
+						throw err;
+					},
+				) as Result;
+			}
+			debugLog(scope, `${name} returned`, { args, durationMs: durationMs(), result });
+			return result;
+		} catch (err) {
+			debugLog(scope, `${name} threw`, { args, durationMs: durationMs(), error: err });
+			throw err;
+		}
+	};
 }
 
 /** Convert a Headers instance into a plain object for structured logging. */

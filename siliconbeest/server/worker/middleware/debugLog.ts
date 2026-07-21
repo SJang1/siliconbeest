@@ -10,6 +10,7 @@ import {
 } from '../../../../packages/shared/utils/debugLog';
 import { ensureFedifyDebugLogging } from '../utils/debugLogtape';
 import { ensureDebugSentryLogging } from '../utils/debugSentry';
+import { ensureDebugBindingLogging } from '../utils/debugBindings';
 
 type MiddlewareEnv = { Variables: AppVariables };
 
@@ -53,6 +54,7 @@ export const debugLogMiddleware = createMiddleware<MiddlewareEnv>(
 
     await ensureFedifyDebugLogging();
     ensureDebugSentryLogging();
+    ensureDebugBindingLogging();
 
     const started = performance.now();
     const requestId = c.get('requestId');

@@ -27,6 +27,7 @@ import { measureAsync, logPerformance } from './observability/performance';
 import { debugLog } from '../../packages/shared/utils/debugLog';
 import { ensureFedifyDebugLogging } from './utils/debugLogtape';
 import { ensureDebugSentryLogging } from './utils/debugSentry';
+import { ensureDebugBindingLogging } from './utils/debugBindings';
 
 // Consumer-local inbox listeners and collection dispatchers.
 // These files use Fedify vocab types from the consumer's own node_modules,
@@ -382,6 +383,7 @@ const handler = {
   async queue(batch: MessageBatch, _env: Env): Promise<void> {
     await ensureFedifyDebugLogging();
     ensureDebugSentryLogging();
+    ensureDebugBindingLogging();
 
     if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX)) {
       await consumeDlqBatch(batch);

@@ -4,6 +4,7 @@ import type { AppVariables } from '../../../../types';
 import { AppError } from '../../../../middleware/errorHandler';
 import { getAccountByUsername } from '../../../../services/account';
 import { assertAccountViewable } from '../../../../services/permissions';
+import { debugLog } from '../../../../../../../packages/shared/utils/debugLog';
 import { parseCustomEmojiTagsJson } from '../../../../../../../packages/shared/utils/customEmoji';
 import { sanitizeHtml } from '../../../../utils/sanitize';
 
@@ -39,6 +40,14 @@ app.get('/lookup', async (c) => {
   const row = !acctDomain || acctDomain === instanceDomain.toLowerCase()
     ? await getAccountByUsername(username)
     : await getAccountByUsername(username, acctDomain);
+
+  debugLog('account.lookup', `acct lookup ${cleaned}`, {
+    acct,
+    username,
+    domain: acctDomain,
+    found: !!row,
+    accountId: row ? (row.id as string) : null,
+  });
 
   // Lookup is an exact read of locally known accounts. Network discovery is
   // deliberately confined to the authenticated search `resolve` path, where

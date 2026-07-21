@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
+import { withDebugLog } from '../../../../packages/shared/utils/debugLog';
 import { AppError } from '../middleware/errorHandler';
 import type { AccountRow, FollowRequestRow } from '../types/db';
 import type { Relationship } from '../types/mastodon';
@@ -17,32 +18,40 @@ import {
 // Get account by ID
 // ----------------------------------------------------------------
 
-export async function getAccountById(id: string): Promise<AccountRow | null> {
-	return (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first()) as AccountRow | null;
-}
+export const getAccountById = withDebugLog(
+	'account',
+	'getAccountById',
+	async (id: string): Promise<AccountRow | null> => {
+		return (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first()) as AccountRow | null;
+	},
+);
 
 // ----------------------------------------------------------------
 // Get account by username and optional domain
 // ----------------------------------------------------------------
 
-export async function getAccountByUsername(
-	username: string,
-	domain?: string | null,
-): Promise<AccountRow | null> {
-	if (domain) {
+export const getAccountByUsername = withDebugLog(
+	'account',
+	'getAccountByUsername',
+	async (
+		username: string,
+		domain?: string | null,
+	): Promise<AccountRow | null> => {
+		if (domain) {
+			return (await env.DB
+				.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ? LIMIT 1')
+				.bind(username, domain.toLowerCase())
+				.first()) as AccountRow | null;
+		}
+		// Local account lookups are case-sensitive (exact match), consistent with
+		// ActivityPub identity. Case-insensitive matching is reserved for auth flows
+		// (login / password reset); see services/auth.ts.
 		return (await env.DB
-			.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ? LIMIT 1')
-			.bind(username, domain.toLowerCase())
+			.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
+			.bind(username)
 			.first()) as AccountRow | null;
-	}
-	// Local account lookups are case-sensitive (exact match), consistent with
-	// ActivityPub identity. Case-insensitive matching is reserved for auth flows
-	// (login / password reset); see services/auth.ts.
-	return (await env.DB
-		.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
-		.bind(username)
-		.first()) as AccountRow | null;
-}
+	},
+);
 
 // ----------------------------------------------------------------
 // Update profile
