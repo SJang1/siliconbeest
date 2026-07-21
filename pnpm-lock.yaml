@@ -222,6 +222,9 @@ importers:
       '@logtape/logtape':
         specifier: ^2.2.3
         version: 2.2.3
+      '@sentry/cloudflare':
+        specifier: ^10.66.0
+        version: 10.66.0(@cloudflare/workers-types@4.20260702.1)(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       glob:
         specifier: ^13.0.6
         version: 13.0.6

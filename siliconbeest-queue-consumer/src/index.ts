@@ -18,6 +18,7 @@
  */
 
 import { env } from 'cloudflare:workers';
+import * as Sentry from '@sentry/cloudflare';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
@@ -25,6 +26,7 @@ import { WorkersMessageQueue } from '@fedify/cfworkers';
 import { measureAsync, logPerformance } from './observability/performance';
 import { debugLog } from '../../packages/shared/utils/debugLog';
 import { ensureFedifyDebugLogging } from './utils/debugLogtape';
+import { ensureDebugSentryLogging } from './utils/debugSentry';
 
 // Consumer-local inbox listeners and collection dispatchers.
 // These files use Fedify vocab types from the consumer's own node_modules,
@@ -376,9 +378,10 @@ async function consumeDlqBatch(batch: MessageBatch): Promise<void> {
   }
 }
 
-export default {
+const handler = {
   async queue(batch: MessageBatch, _env: Env): Promise<void> {
     await ensureFedifyDebugLogging();
+    ensureDebugSentryLogging();
 
     if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX)) {
       await consumeDlqBatch(batch);
@@ -444,4 +447,14 @@ export default {
       messageCount: batch.messages.length
     });
   },
-};
+} satisfies ExportedHandler<Env>;
+
+export default Sentry.withSentry(
+  (workerEnv: Env) => ({
+    // SENTRY_DSN is an optional Cloudflare secret; Sentry is disabled when it is unset.
+    dsn: workerEnv.SENTRY_DSN || undefined,
+    tracesSampleRate: 1.0,
+    enableLogs: true,
+  }),
+  handler,
+);

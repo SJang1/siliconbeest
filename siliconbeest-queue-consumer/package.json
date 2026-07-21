@@ -6,7 +6,7 @@
 		"deploy": "pnpm wrangler deploy",
 		"dev": "pnpm wrangler dev",
 		"start": "pnpm wrangler dev",
-		"cf-typegen": "pnpm wrangler types -c wrangler.jsonc -c ../siliconbeest/wrangler.rpc-typegen.jsonc",
+		"cf-typegen": "pnpm wrangler types -c wrangler.jsonc -c ../siliconbeest/wrangler.rpc-typegen.jsonc --env-file ../scripts/typegen-consumer.env",
 		"test": "vitest run"
 	},
 	"devDependencies": {
@@ -22,6 +22,7 @@
 		"@fedify/fedify": "^2.3.3",
 		"@fedify/vocab": "^2.3.3",
 		"@logtape/logtape": "^2.2.3",
+		"@sentry/cloudflare": "^10.66.0",
 		"glob": "^13.0.6"
 	},
 	"engines": {

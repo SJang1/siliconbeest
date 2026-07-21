@@ -9,6 +9,7 @@ import {
   readLimitedBody,
 } from '../../../../packages/shared/utils/debugLog';
 import { ensureFedifyDebugLogging } from '../utils/debugLogtape';
+import { ensureDebugSentryLogging } from '../utils/debugSentry';
 
 type MiddlewareEnv = { Variables: AppVariables };
 
@@ -51,6 +52,7 @@ export const debugLogMiddleware = createMiddleware<MiddlewareEnv>(
     }
 
     await ensureFedifyDebugLogging();
+    ensureDebugSentryLogging();
 
     const started = performance.now();
     const requestId = c.get('requestId');

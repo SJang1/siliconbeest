@@ -7,19 +7,24 @@
 
 import { configure, type LogRecord } from '@logtape/logtape';
 import {
+  debugLog,
   isDebugEnabled,
   redactUltraSensitive,
   safeStringify,
 } from '../../../packages/shared/utils/debugLog';
 
-function formatRecord(record: LogRecord): string {
+// Routed through debugLog so records reach every debug sink (console and,
+// when configured, Sentry). Message parts are pre-redacted here because
+// they are interpolated into the line rather than passed as details.
+function emitRecord(record: LogRecord): void {
   const message = record.message
     .map((part) => (typeof part === 'string' ? part : safeStringify(redactUltraSensitive(part))))
     .join('');
-  const properties = Object.keys(record.properties).length > 0
-    ? ` ${safeStringify(redactUltraSensitive(record.properties))}`
-    : '';
-  return `[debug][${record.category.join('.')}] ${record.level}: ${message}${properties}`;
+  debugLog(
+    record.category.join('.'),
+    `${record.level}: ${message}`,
+    Object.keys(record.properties).length > 0 ? record.properties : undefined,
+  );
 }
 
 let configured: Promise<void> | null = null;
@@ -31,9 +36,7 @@ export function ensureFedifyDebugLogging(): Promise<void> {
   if (!isDebugEnabled()) return Promise.resolve();
   configured ??= configure({
     sinks: {
-      debugConsole: (record: LogRecord) => {
-        console.log(formatRecord(record));
-      },
+      debugConsole: emitRecord,
     },
     loggers: [
       { category: 'fedify', sinks: ['debugConsole'], lowestLevel: 'debug' },

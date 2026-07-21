@@ -7,6 +7,7 @@ import {
   parseBodyForDebugLog,
   readLimitedBody,
   redactUltraSensitive,
+  setDebugLogSink,
   truncateForDebugLog,
 } from '../../../packages/shared/utils/debugLog';
 
@@ -85,6 +86,42 @@ describe('debugLog', () => {
     expect(line).toContain('BEGIN PUBLIC KEY');
     expect(line).toContain('hello fediverse');
     expect(line).toContain('sig-value');
+  });
+});
+
+describe('debug log sink', () => {
+  afterEach(() => {
+    setDebugLogSink(null);
+  });
+
+  it('mirrors redacted output to a registered sink only when DEBUG is on', () => {
+    const events: Array<{ scope: string; message: string; details?: unknown }> = [];
+    setDebugLogSink((scope, message, details) => {
+      events.push({ scope, message, details });
+    });
+
+    debugLog('http', 'while off', { password: 'x' });
+    expect(events).toHaveLength(0);
+
+    mockEnv.DEBUG = true;
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    debugLog('http', 'while on', { password: 'x', user: 'alice' });
+    expect(events).toHaveLength(1);
+    expect(events[0].scope).toBe('http');
+    expect(events[0].message).toBe('while on');
+    const details = events[0].details as Record<string, unknown>;
+    expect(details.password).toBe('[REDACTED]');
+    expect(details.user).toBe('alice');
+  });
+
+  it('keeps logging to the console when the sink throws', () => {
+    mockEnv.DEBUG = true;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    setDebugLogSink(() => {
+      throw new Error('sink down');
+    });
+    expect(() => debugLog('http', 'still logs', { a: 1 })).not.toThrow();
+    expect(spy).toHaveBeenCalledOnce();
   });
 });
 

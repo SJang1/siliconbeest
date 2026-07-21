@@ -179,6 +179,24 @@ export function isDebugEnabled(): boolean {
 }
 
 /**
+ * Extra destination for debug lines (e.g. Sentry). Receives the ALREADY
+ * redacted details, so a sink can never leak more than the console does.
+ */
+export type DebugLogSink = (scope: string, message: string, redactedDetails?: unknown) => void;
+
+let extraSink: DebugLogSink | null = null;
+
+/**
+ * Register an additional sink that receives every debug line alongside the
+ * console. Workers with Sentry configured use this to mirror debug logs
+ * there. Pass `null` to remove. This package stays SDK-free — the sink is
+ * injected by the worker that owns the SDK dependency.
+ */
+export function setDebugLogSink(sink: DebugLogSink | null): void {
+	extraSink = sink;
+}
+
+/**
  * Log a verbose debug line. No-op unless `DEBUG` is enabled.
  *
  * @param scope - Dot-separated area tag, e.g. `http`, `federation.inbox`,
@@ -189,13 +207,19 @@ export function isDebugEnabled(): boolean {
  */
 export function debugLog(scope: string, message: string, details?: unknown): void {
 	if (!isDebugEnabled()) return;
-	if (details === undefined) {
+	const redacted = details === undefined ? undefined : redactUltraSensitive(details);
+	if (redacted === undefined) {
 		console.log(`[debug][${scope}] ${message}`);
-		return;
+	} else {
+		console.log(`[debug][${scope}] ${message} ${safeStringify(redacted)}`);
 	}
-	console.log(
-		`[debug][${scope}] ${message} ${safeStringify(redactUltraSensitive(details))}`,
-	);
+	if (extraSink) {
+		try {
+			extraSink(scope, message, redacted);
+		} catch {
+			// A failing sink must never break request/queue handling.
+		}
+	}
 }
 
 /** Convert a Headers instance into a plain object for structured logging. */
