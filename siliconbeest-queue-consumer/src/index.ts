@@ -21,6 +21,7 @@ import { env } from 'cloudflare:workers';
 import * as Sentry from '@sentry/cloudflare';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
+import { createFed as createWorkerModuleFed } from '../../siliconbeest/server/worker/federation/fedify';
 import { setupActorDispatcher } from './dispatchers';
 import { WorkersMessageQueue } from '@fedify/cfworkers';
 import { measureAsync, logPerformance } from './observability/performance';
@@ -83,6 +84,13 @@ function ensureFedInitialized() {
     setupActorDispatcher(fed);
     setupConsumerInboxListeners(fed);
     setupCollectionDispatchers(fed);
+    // Worker-source code bundled into this consumer (inbox processors →
+    // resolveRemoteAccount) calls the worker module's own createFed(),
+    // which is a separate singleton from ours. Give it a key pairs
+    // dispatcher too, or its getDocumentLoader() throws
+    // "No actor key pairs dispatcher registered." and inbound activities
+    // from unknown actors are dropped.
+    setupActorDispatcher(createWorkerModuleFed());
     fedInitialized = true;
   }
   return fed;

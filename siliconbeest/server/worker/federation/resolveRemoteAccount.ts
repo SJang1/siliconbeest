@@ -114,9 +114,22 @@ export async function resolveRemoteAccount(
 			console.warn(`[resolveRemoteAccount] No local signer available for ${actorUri}, skipping`);
 			return null;
 		}
-		const docLoader = documentLoader
-			?? await ctx.getDocumentLoader({ identifier: signerUsername });
-		const actorObj = await ctx.lookupObject(actorUri, { documentLoader: docLoader });
+		let docLoader = documentLoader;
+		if (!docLoader) {
+			try {
+				docLoader = await ctx.getDocumentLoader({ identifier: signerUsername });
+			} catch (err) {
+				// In the queue consumer the worker-module Federation singleton has
+				// no key pairs dispatcher registered, so a signed loader is
+				// unavailable there. An unauthenticated fetch still resolves actors
+				// on almost every implementation and beats dropping the activity.
+				console.warn(`[resolveRemoteAccount] Signed document loader unavailable for ${actorUri}, falling back to unauthenticated fetch: ${err}`);
+			}
+		}
+		const actorObj = await ctx.lookupObject(
+			actorUri,
+			docLoader ? { documentLoader: docLoader } : {},
+		);
 		if (actorObj && isActor(actorObj) && actorObj.id && canStoreFetchedRemoteActor({
 			requestedActorUri: lookupUri,
 			actorUri: actorObj.id.href,

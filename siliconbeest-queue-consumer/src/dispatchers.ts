@@ -90,8 +90,13 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       const rsaPrivateKey = await importRsaPrivateKey(actorKey.private_key);
       keyPairs.push({ publicKey: rsaPublicKey, privateKey: rsaPrivateKey });
 
-      // Ed25519 key pair (optional)
-      if (actorKey.ed25519_public_key && actorKey.ed25519_private_key) {
+      // Ed25519 key pair (optional). Early seed scripts stored these
+      // columns as PEM, which the base64url importers cannot read (atob
+      // throws) — skip such rows; the main worker's dispatcher self-heals
+      // them on its next key access.
+      if (actorKey.ed25519_public_key && actorKey.ed25519_private_key
+        && !actorKey.ed25519_public_key.includes('-----BEGIN')
+        && !actorKey.ed25519_private_key.includes('-----BEGIN')) {
         const ed25519PublicKey = await importEd25519PublicKey(actorKey.ed25519_public_key, true);
         const ed25519PrivateKey = await importEd25519PrivateKey(actorKey.ed25519_private_key, true);
         keyPairs.push({ publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey });
