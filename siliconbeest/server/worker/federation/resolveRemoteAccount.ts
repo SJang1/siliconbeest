@@ -138,7 +138,9 @@ export async function resolveRemoteAccount(
 		})) {
 			resolved = true;
 			canonicalUri = actorObj.id.href;
-			username = (actorObj.preferredUsername ?? '') as string;
+			// preferredUsername can be a Fedify LanguageString (typeof 'object',
+			// e.g. Akkoma actors) — D1 rejects object binds, so coerce.
+			username = actorObj.preferredUsername?.toString() ?? '';
 			displayName = (actorObj.name?.toString() ?? '') as string;
 			summary = sanitizeHtml(actorObj.summary?.toString() ?? '');
 			actorUrl = String(actorObj.url ?? actorUri);

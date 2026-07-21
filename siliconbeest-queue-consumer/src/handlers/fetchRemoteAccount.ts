@@ -36,6 +36,23 @@ interface ExistingRemoteAccountState {
   suspended_at: string | null;
 }
 
+/**
+ * Coerce a JSON-LD value to a primitive string. Actor documents can carry
+ * string fields as arrays, language-tagged {"@value": ...} objects (e.g.
+ * Akkoma), or {href: ...} Link objects — binding those into D1 throws
+ * D1_TYPE_ERROR, so extract the primitive or drop the value.
+ */
+function jsonLdString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return jsonLdString(value[0]);
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj['@value'] === 'string') return obj['@value'];
+    if (typeof obj.href === 'string') return obj.href;
+  }
+  return undefined;
+}
+
 async function getExistingRemoteAccountState(
   actorUri: string,
 ): Promise<ExistingRemoteAccountState | null> {
@@ -255,9 +272,9 @@ export async function handleFetchRemoteAccount(
   }
 
   // Validate minimal required fields
-  const actorType = actorDoc.type as string | undefined;
-  const preferredUsername = actorDoc.preferredUsername as string | undefined;
-  const inbox = actorDoc.inbox as string | undefined;
+  const actorType = jsonLdString(actorDoc.type);
+  const preferredUsername = jsonLdString(actorDoc.preferredUsername);
+  const inbox = jsonLdString(actorDoc.inbox);
 
   if (!actorType || !inbox) {
     console.warn(`Actor ${actorUri} missing required fields (type or inbox), dropping`);
@@ -267,19 +284,19 @@ export async function handleFetchRemoteAccount(
   // Extract fields from the verified actor document
   const id = resolvedActorUri;
 
-  const name = (actorDoc.name as string) || preferredUsername || '';
+  const name = jsonLdString(actorDoc.name) || preferredUsername || '';
   const username = preferredUsername || '';
-  const summary = (actorDoc.summary as string) || '';
-  const url = (actorDoc.url as string) || id;
+  const summary = jsonLdString(actorDoc.summary) || '';
+  const url = jsonLdString(actorDoc.url) || id;
   const sharedInbox =
-    (actorDoc.endpoints as Record<string, unknown>)?.sharedInbox as string | undefined;
-  const outbox = actorDoc.outbox as string | undefined;
+    jsonLdString((actorDoc.endpoints as Record<string, unknown>)?.sharedInbox);
+  const outbox = jsonLdString(actorDoc.outbox);
 
   // Extract avatar and header
   const iconObj = actorDoc.icon as Record<string, unknown> | undefined;
-  const avatarUrl = iconObj?.url as string | undefined;
+  const avatarUrl = jsonLdString(iconObj?.url);
   const imageObj = actorDoc.image as Record<string, unknown> | undefined;
-  const headerUrl = imageObj?.url as string | undefined;
+  const headerUrl = jsonLdString(imageObj?.url);
 
   // Extract public key
   const publicKeyObj = actorDoc.publicKey as Record<string, unknown> | undefined;
