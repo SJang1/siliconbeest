@@ -6,6 +6,7 @@ import { getStatus, getStatusContext } from '@/api/mastodon/statuses'
 import { useAuthStore } from '@/stores/auth'
 import { useStatusesStore } from '@/stores/statuses'
 import ThreadConversation from '@/components/timeline/ThreadConversation.vue'
+import { getThreadSubtreeIds } from '@/components/timeline/threadTree'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
@@ -62,7 +63,8 @@ async function loadThread() {
 }
 
 function handleDeleted(deletedId: string) {
-  descendantIds.value = descendantIds.value.filter((id) => id !== deletedId)
+  const deletedSubtreeIds = getThreadSubtreeIds(descendants.value, deletedId)
+  descendantIds.value = descendantIds.value.filter((id) => !deletedSubtreeIds.has(id))
   if (currentStatusId.value === deletedId) {
     emit('back')
   }

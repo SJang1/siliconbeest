@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Status } from '@/types/mastodon'
 import StatusCard from '@/components/status/StatusCard.vue'
 import DeckStatusCard from '@/deck/components/DeckStatusCard.vue'
@@ -19,9 +19,17 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   navigate: [status: Status]
   deleted: [statusId: string]
+  overlay: [open: boolean]
 }>()
 
 const cardComponent = computed(() => props.variant === 'deck' ? DeckStatusCard : StatusCard)
+const overlayNodeId = ref<string | null>(null)
+
+function handleOverlay(nodeId: string, open: boolean) {
+  if (open) overlayNodeId.value = nodeId
+  else if (overlayNodeId.value === nodeId) overlayNodeId.value = null
+  emit('overlay', open)
+}
 </script>
 
 <template>
@@ -33,7 +41,12 @@ const cardComponent = computed(() => props.variant === 'deck' ? DeckStatusCard :
     ]"
     role="list"
   >
-    <li v-for="node in nodes" :key="node.status.id" class="thread-node">
+    <li
+      v-for="node in nodes"
+      :key="node.status.id"
+      class="thread-node"
+      :class="{ 'thread-node--overlay': overlayNodeId === node.status.id }"
+    >
       <span class="thread-elbow" aria-hidden="true">
         <span class="thread-dot" />
       </span>
@@ -44,6 +57,7 @@ const cardComponent = computed(() => props.variant === 'deck' ? DeckStatusCard :
           :status="node.status"
           @navigate="emit('navigate', $event)"
           @deleted="emit('deleted', $event)"
+          @overlay="handleOverlay(node.status.id, $event)"
         />
       </div>
 
@@ -54,6 +68,7 @@ const cardComponent = computed(() => props.variant === 'deck' ? DeckStatusCard :
         :depth="depth + 1"
         @navigate="emit('navigate', $event)"
         @deleted="emit('deleted', $event)"
+        @overlay="handleOverlay(node.status.id, $event)"
       />
     </li>
   </ul>
@@ -77,6 +92,10 @@ const cardComponent = computed(() => props.variant === 'deck' ? DeckStatusCard :
 .thread-node {
   position: relative;
   isolation: isolate;
+}
+
+.thread-node--overlay {
+  z-index: 3;
 }
 
 .thread-node + .thread-node {

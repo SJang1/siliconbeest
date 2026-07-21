@@ -39,11 +39,13 @@ describe('StatusActions', () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     // Open the boost/quote menu
     await wrapper.get('[data-test="reblog-action"]').trigger('click');
+    expect(wrapper.emitted('overlay')![0]).toEqual([true]);
     const menuItems = wrapper.findAll('[role="menu"] button');
     expect(menuItems.length).toBe(2);
     await menuItems[0].trigger('click');
     expect(wrapper.emitted('reblog')).toBeTruthy();
     expect(wrapper.emitted('reblog')![0]).toEqual(['123']);
+    expect(wrapper.emitted('overlay')!.at(-1)).toEqual([false]);
   });
 
   it('emits quote event via the boost menu', async () => {

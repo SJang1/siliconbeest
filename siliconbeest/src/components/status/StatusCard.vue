@@ -285,6 +285,7 @@ const emit = defineEmits<{
   reply: [status: Status]
   deleted: [statusId: string]
   navigate: [status: Status]
+  overlay: [open: boolean]
 }>()
 
 function handlePollUpdate(updatedPoll: Status['poll']) {
@@ -526,6 +527,7 @@ async function handleDelete() {
           @report="handleReport"
           @block="handleBlock"
           @mute="handleMute"
+          @overlay="emit('overlay', $event)"
         />
       </div>
     </div>

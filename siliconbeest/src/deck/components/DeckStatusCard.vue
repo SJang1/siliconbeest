@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Logic mirrored from src/components/status/StatusCard.vue (Aurora) — keep
 // behavior in sync; only the template/styling is Deck-specific.
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
 import { useStatusesStore } from '@/stores/statuses'
@@ -49,6 +49,7 @@ const emit = defineEmits<{
   reply: [status: Status]
   deleted: [statusId: string]
   navigate: [status: Status]
+  overlay: [open: boolean]
 }>()
 
 // Resolve status from the store cache so optimistic updates are reactive
@@ -311,6 +312,8 @@ const reactionsRef = ref<InstanceType<typeof DeckStatusReactions> | null>(null)
 const actionsOverlayOpen = ref(false)
 const reactionsOverlayOpen = ref(false)
 const overlayOpen = computed(() => actionsOverlayOpen.value || reactionsOverlayOpen.value)
+
+watch(overlayOpen, (open) => emit('overlay', open))
 
 function handleReact(_id: string, anchor?: HTMLElement) {
   if (!statusActionPermissions.value.react) return

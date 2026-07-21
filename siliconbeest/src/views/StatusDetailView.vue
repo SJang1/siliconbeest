@@ -9,6 +9,7 @@ import { useStatusesStore } from '@/stores/statuses'
 import { useInstanceStore } from '@/stores/instance'
 import AppShell from '@/components/layout/AppShell.vue'
 import ThreadConversation from '@/components/timeline/ThreadConversation.vue'
+import { getThreadSubtreeIds } from '@/components/timeline/threadTree'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
@@ -64,7 +65,8 @@ async function loadThread() {
 }
 
 function handleDeleted(deletedId: string) {
-  descendantIds.value = descendantIds.value.filter((id) => id !== deletedId)
+  const deletedSubtreeIds = getThreadSubtreeIds(descendants.value, deletedId)
+  descendantIds.value = descendantIds.value.filter((id) => !deletedSubtreeIds.has(id))
   if (statusId.value === deletedId) {
     router.back()
   }

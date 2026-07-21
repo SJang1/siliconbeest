@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getStatusActionPermissions } from '@/utils/permissions'
 import { shouldOpenMenuDown } from '@/utils/menuPlacement'
@@ -63,6 +63,7 @@ const emit = defineEmits<{
   report: [payload: { accountId: string; accountAcct: string; statusId: string }]
   block: [accountId: string]
   mute: [accountId: string]
+  overlay: [open: boolean]
 }>()
 
 const showMenu = ref(false)
@@ -78,6 +79,9 @@ const favMenuRef = ref<HTMLElement | null>(null)
 const moreMenuRef = ref<HTMLElement | null>(null)
 const menuOpensDown = ref(false)
 const menuCoordinator = useActionMenuCoordinator(() => closeAllMenus())
+const anyMenuOpen = computed(() => showMenu.value || showBoostMenu.value || showFavMenu.value)
+
+watch(anyMenuOpen, (open) => emit('overlay', open))
 
 function closeAllMenus() {
   showMenu.value = false
