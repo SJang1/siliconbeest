@@ -10,7 +10,7 @@
 		"build-only": "nuxt build",
 		"type-check": "nuxt typecheck",
 		"deploy": "pnpm run build && pnpm wrangler deploy --config wrangler.jsonc",
-		"cf-typegen": "node ../scripts/generate-main-worker-types.mjs",
+		"cf-typegen": "pnpm wrangler types --env-file ../scripts/typegen.env",
 		"test": "vitest run --config vitest.config.ts && vitest run --config vitest.worker.config.ts",
 		"test:vue": "vitest run --config vitest.config.ts",
 		"test:worker": "vitest run --config vitest.worker.config.ts",
