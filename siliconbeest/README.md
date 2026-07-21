@@ -294,7 +294,7 @@ After adding secrets, run `npx wrangler types` to update TypeScript type definit
 
 ### Prerequisites
 
-- Node.js 22.13+, 24.11+, or 26+
+- Node.js 25+
 
 ### Setup
 

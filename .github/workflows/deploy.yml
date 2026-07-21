@@ -34,6 +34,7 @@ on:
   push:
     branches: [main]
     paths:
+      - ".node-version"
       - "siliconbeest/**"
       - "siliconbeest-queue-consumer/**"
       - "siliconbeest-email-sender/**"
@@ -52,7 +53,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version-file: ".node-version"
           cache: "pnpm"
 
       - name: Install dependencies

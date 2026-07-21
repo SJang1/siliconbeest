@@ -18,7 +18,7 @@ SiliconBeest is a monorepo containing an ActivityPub server, a Mastodon-compatib
 
 You will need:
 
-- Node.js `22.13+`, `24.11+`, or `26+`
+- Node.js `25+`
 - pnpm `10.9.0`
 - Wrangler `4.x` and a Cloudflare account when working with local Workers or Cloudflare resources
 
