@@ -150,6 +150,14 @@ const router = createRouter({
     },
 
     // Authenticated routes
+    // Mastodon-compatible share intent — opens the composer prefilled
+    {
+      path: '/share',
+      name: 'share',
+      component: () => import('@/views/ShareView.vue'),
+      beforeEnter: requireAuth,
+      meta: { titleKey: 'Share' },
+    },
     {
       path: '/announcements',
       name: 'announcements',

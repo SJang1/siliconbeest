@@ -24,6 +24,7 @@ const AUTH_ONLY_PREFIXES = [
   '/settings',
   '/invitations',
   '/admin',
+  '/share',
 ];
 
 const GUEST_ONLY_PATHS = new Set(['/', '/login', '/register', '/auth/registration']);

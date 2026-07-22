@@ -95,6 +95,7 @@ function handleModalClose() {
     <component
       :is="isOldDesign ? LegacyStatusComposer : StatusComposer"
       :reply-to="composeReplyContext"
+      :initial-text="ui.composePrefillText || undefined"
       @submit="handleGlobalCompose"
     />
   </component>

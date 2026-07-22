@@ -119,6 +119,6 @@ onMounted(async () => {
 
   <!-- Global compose modal -->
   <Modal :open="ui.composeModalOpen" :title="composeStore.editingId ? $t('status.editing') : $t('compose.title')" @close="handleModalClose">
-    <StatusComposer v-if="ui.composeModalOpen" ref="composerRef" :reply-to="composeReplyContext" @submit="handleGlobalCompose" />
+    <StatusComposer v-if="ui.composeModalOpen" ref="composerRef" :reply-to="composeReplyContext" :initial-text="ui.composePrefillText || undefined" @submit="handleGlobalCompose" />
   </Modal>
 </template>

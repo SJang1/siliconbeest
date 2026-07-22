@@ -89,6 +89,9 @@ export const useUiStore = defineStore('ui', () => {
     typeof window !== 'undefined' ? window.matchMedia(MOBILE_MEDIA_QUERY).matches : false,
   );
   const composeModalOpen = ref(false);
+  // Text to seed the composer with when the modal opens (e.g. /share intent).
+  // Cleared on close so a later plain compose starts empty.
+  const composePrefillText = ref('');
   const mediaViewerOpen = ref(false);
   const mediaViewerIndex = ref(0);
   const mediaViewerItems = ref<string[]>([]);
@@ -138,12 +141,14 @@ export const useUiStore = defineStore('ui', () => {
     deckMenuOpen.value = false;
   }
 
-  function openComposeModal() {
+  function openComposeModal(options?: { prefillText?: string }) {
+    composePrefillText.value = options?.prefillText ?? '';
     composeModalOpen.value = true;
   }
 
   function closeComposeModal() {
     composeModalOpen.value = false;
+    composePrefillText.value = '';
   }
 
   function openMediaViewer(urls: string[], index = 0) {
@@ -294,6 +299,7 @@ export const useUiStore = defineStore('ui', () => {
     isMobile,
     isDark,
     composeModalOpen,
+    composePrefillText,
     mediaViewerOpen,
     mediaViewerIndex,
     mediaViewerItems,

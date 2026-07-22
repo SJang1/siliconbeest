@@ -356,6 +356,28 @@ describe('UI Store', () => {
       store.closeComposeModal();
       expect(store.composeModalOpen).toBe(false);
     });
+
+    it('openComposeModal stores prefill text for the composer', () => {
+      const store = useUiStore();
+      store.openComposeModal({ prefillText: 'shared text\n\n#tag' });
+      expect(store.composeModalOpen).toBe(true);
+      expect(store.composePrefillText).toBe('shared text\n\n#tag');
+    });
+
+    it('opening without options clears any previous prefill', () => {
+      const store = useUiStore();
+      store.openComposeModal({ prefillText: 'shared text' });
+      store.closeComposeModal();
+      store.openComposeModal();
+      expect(store.composePrefillText).toBe('');
+    });
+
+    it('closeComposeModal clears the prefill text', () => {
+      const store = useUiStore();
+      store.openComposeModal({ prefillText: 'shared text' });
+      store.closeComposeModal();
+      expect(store.composePrefillText).toBe('');
+    });
   });
 
   describe('Media Viewer', () => {

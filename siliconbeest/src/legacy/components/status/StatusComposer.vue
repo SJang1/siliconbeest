@@ -19,6 +19,7 @@ const { fetchCustomEmojis, searchEmojis } = useEmojis()
 const props = defineProps<{
   replyTo?: { id: string; account: { acct: string }; mentions?: Array<{ acct: string }>; visibility?: string }
   maxChars?: number
+  initialText?: string
 }>()
 
 const emit = defineEmits<{
@@ -38,7 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const isEditing = computed(() => compose.editingId !== null)
-const content = ref(isEditing.value ? compose.text : '')
+const content = ref(isEditing.value ? compose.text : (props.initialText ?? ''))
 const objectType = ref<'Note' | 'Article'>(isEditing.value ? compose.objectType : 'Note')
 const articleTitle = ref(isEditing.value ? compose.title : '')
 const articleSummary = ref(isEditing.value ? compose.articleSummary : '')
@@ -517,7 +518,8 @@ watch(() => compose.editingId, (editingId) => {
     generatedArticleMediaMarkdown.clear()
     loadEditingDraft()
   } else {
-    content.value = ''
+    // Runs immediately on mount, so keep any share-intent prefill
+    content.value = props.initialText ?? ''
     objectType.value = 'Note'
     articleTitle.value = ''
     articleSummary.value = ''
