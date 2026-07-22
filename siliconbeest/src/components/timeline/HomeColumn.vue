@@ -9,6 +9,7 @@ import type { Status } from '@/types/mastodon'
 import TimelineFeed from './TimelineFeed.vue'
 import ThreadView from './ThreadView.vue'
 import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
+import { useTimelineStreamViewport } from '@/composables/useTimelineStreamViewport'
 
 const { t } = useI18n()
 const timelinesStore = useTimelinesStore()
@@ -45,22 +46,24 @@ const statuses = computed(() => {
     .filter((s): s is Status => !!s)
 })
 
-const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+const newStatusCount = computed(() => timelinesStore.getNewStatusCount('home'))
+const hasNewPosts = computed(() => newStatusCount.value > 0)
 
 const isAtTop = ref(true)
+useTimelineStreamViewport('home-column', () => 'home', isAtTop)
 
 function handleScroll(event: Event) {
   isAtTop.value = (event.currentTarget as HTMLElement).scrollTop < 100
 }
 
-watch(() => timeline.value.newStatusIds.length, (len) => {
+watch(newStatusCount, (len) => {
   if (len > 0 && isAtTop.value) {
     timelinesStore.showNewStatuses('home')
   }
 })
 
 watch(isAtTop, (atTop) => {
-  if (atTop && timeline.value.newStatusIds.length > 0) {
+  if (atTop && newStatusCount.value > 0) {
     timelinesStore.showNewStatuses('home')
   }
 })
@@ -118,7 +121,7 @@ watch(
         :loading="timeline.loading || timeline.loadingMore"
         :done="!timeline.hasMore"
         :has-new-posts="hasNewPosts && !isAtTop"
-        :new-posts-count="timeline.newStatusIds.length"
+        :new-posts-count="newStatusCount"
         @load-more="loadMore"
         @load-new="showNew"
         @navigate="openThread"

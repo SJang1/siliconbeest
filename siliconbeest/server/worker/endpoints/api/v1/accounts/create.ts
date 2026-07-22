@@ -26,6 +26,7 @@ import {
 	setRegistrationSessionCookie,
 } from '../../../../utils/registrationCookie';
 import { clearAuthTokenCookie } from '../../../../utils/authCookie';
+import { acceptAsyncRegistration } from '../../../../services/asyncRegistration';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -123,6 +124,31 @@ app.post('/', async (c) => {
 	// invitation-use ledger. registerUser repeats this check at insertion time.
 	await validateRegistrationCredentials(email, body.password, username);
 
+	if (String(env.ASYNC_REGISTRATION_WRITES) === 'true') {
+		const state: RegistrationState = registrationMode === 'approval' && !inviteToken
+			? 'pending_approval'
+			: 'awaiting_confirmation';
+		const operation = await acceptAsyncRegistration({
+			email,
+			username,
+			password: body.password,
+			locale: sanitizeLocale(body.locale),
+			reason,
+			registrationState: state,
+			registrationMode,
+			redirectUri: body.redirect_uri?.trim() || null,
+			design: body.design ?? 'default',
+			invitationToken: inviteToken,
+			idempotencyKey: c.req.header('Idempotency-Key')?.slice(0, 256) || null,
+		});
+		c.header('Retry-After', '1');
+		return c.json({
+			operation_id: operation.operationId,
+			registration_state: operation.state === 'committed' ? 'completed' : 'processing',
+			retry_after_ms: 1000,
+		}, 202);
+	}
+
 	let invitation: RegistrationInvitePreview | null = null;
 	let createdUserId: string | null = null;
 	let registrationInitialized = false;
@@ -148,14 +174,14 @@ app.post('/', async (c) => {
 			username,
 		);
 		const locale = sanitizeLocale(body.locale);
-		await env.DB.batch([
-			env.DB.prepare(
+		await env.DB_META_C000.batch([
+			env.DB_META_C000.prepare(
 				`UPDATE accounts
 				 SET avatar_url = ?1, avatar_static_url = ?1,
 				     header_url = ?2, header_static_url = ?2
 				 WHERE id = ?3`,
 			).bind(avatarUrl, headerUrl, account.id),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				'UPDATE users SET locale = ?1, reason = ?2 WHERE id = ?3',
 			).bind(locale, reason, user.id),
 		]);

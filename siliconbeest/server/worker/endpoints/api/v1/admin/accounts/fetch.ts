@@ -14,7 +14,7 @@ app.get('/:id', async (c) => {
 	const id = c.req.param('id');
 	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT
 			a.*,
 			u.id AS user_id,

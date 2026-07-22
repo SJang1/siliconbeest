@@ -14,7 +14,7 @@ export type Tag = {
 };
 
 export const findByName = async (name: string): Promise<Tag | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM tags WHERE name = ?')
 		.bind(name.toLowerCase())
 		.first<Tag>();
@@ -40,7 +40,7 @@ export const findOrCreate = async (name: string): Promise<Tag> => {
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO tags (id, name, display_name, usable, trendable, listable, last_status_at, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -56,7 +56,7 @@ export const findOrCreate = async (name: string): Promise<Tag> => {
 };
 
 export const findByStatusId = async (statusId: string): Promise<Tag[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT t.* FROM tags t
 			 JOIN status_tags st ON st.tag_id = t.id
@@ -72,10 +72,10 @@ export const addToStatus = async (statusId: string, tagIds: string[]): Promise<v
 	if (tagIds.length === 0) return;
 
 	const stmts = tagIds.map((tagId) =>
-		env.DB
+		env.DB_META_C000
 			.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?, ?)')
 			.bind(statusId, tagId)
 	);
 
-	await env.DB.batch(stmts);
+	await env.DB_META_C000.batch(stmts);
 };

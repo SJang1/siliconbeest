@@ -24,12 +24,12 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   const currentUser = c.get('currentUser')!;
   const currentAccount = c.get('currentAccount')!;
   const domain = env.INSTANCE_DOMAIN;
-  const currentAccountFull = await env.DB.prepare(
+  const currentAccountFull = await env.DB_META_C000.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
   ).bind(currentUser.account_id).first<Record<string, unknown>>();
   if (!currentAccountFull) throw new AppError(404, 'Account not found');
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');

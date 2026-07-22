@@ -19,7 +19,7 @@ function ulidAt(msAgo: number, suffix = '0000000000000001'): string {
 
 async function insertRemoteAccount(id: string, domain: string): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts (id, username, domain, uri, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   )
@@ -34,7 +34,7 @@ async function insertStatus(opts: {
   createdAt: string;
   reblogOfId?: string | null;
 }): Promise<void> {
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses (id, uri, account_id, local, reblog_of_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
@@ -57,7 +57,7 @@ async function insertMedia(opts: {
   remoteUrl?: string | null;
 }): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO media_attachments (id, account_id, file_key, file_content_type, file_size, remote_url, created_at, updated_at)
      VALUES (?, ?, ?, 'image/png', ?, ?, ?, ?)`,
   )
@@ -72,7 +72,7 @@ async function insertInstance(opts: {
   failureCount?: number;
 }): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO instances (id, domain, last_successful_at, last_failed_at, failure_count, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
@@ -165,7 +165,7 @@ describe('GET /api/airport', () => {
 
     // The media-proxy ledger knows this attachment's real size because the
     // proxy measured it while fetching from origin.
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO media_proxy_cache (id, remote_url, r2_key, content_type, size, created_at)
        VALUES (?, 'https://friendly.example/media/1.png', '', 'image/png', 3500, ?)`,
     )
@@ -186,7 +186,7 @@ describe('GET /api/airport', () => {
 
     // Suspend blocked.example — it must not appear anywhere in the response.
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO domain_blocks (id, domain, severity, created_at, updated_at)
        VALUES (?, 'blocked.example', 'suspend', ?, ?)`,
     )
@@ -196,7 +196,7 @@ describe('GET /api/airport', () => {
     // DLQ backlog: two parked deliveries plus one already replayed —
     // only status='parked' rows may be counted.
     for (const status of ['parked', 'parked', 'replayed']) {
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO federation_dlq_parked (id, queue, body, error, attempts, status, parked_at, updated_at)
          VALUES (?, 'siliconbeest-federation-dlq', '{}', 'connection refused', 6, ?, ?, ?)`,
       )

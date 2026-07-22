@@ -33,7 +33,7 @@ app.get('/', authRequired, requireScope('read:follows'), async (c) => {
     binds.push(sinceId);
   }
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT tf.id AS follow_id, t.name
      FROM tag_follows tf
      JOIN tags t ON t.id = tf.tag_id

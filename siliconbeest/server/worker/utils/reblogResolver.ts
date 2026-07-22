@@ -23,7 +23,7 @@ export async function resolveReblogs(
   const unique = [...new Set(reblogOfIds)];
   const placeholders = unique.map(() => '?').join(',');
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT s.*,
       a.username AS account_username, a.domain AS account_domain,
       a.display_name AS account_display_name, a.note AS account_note,

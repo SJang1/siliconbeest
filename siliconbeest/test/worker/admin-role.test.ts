@@ -74,7 +74,7 @@ describe('Admin role change', () => {
 				},
 			);
 			expect(res.status).toBe(403);
-			const target = await env.DB.prepare(
+			const target = await env.DB_META_C000.prepare(
 				'SELECT role FROM users WHERE account_id = ?1',
 			).bind(targetUser.accountId).first<{ role: string }>();
 			expect(target?.role).toBe('user');
@@ -112,7 +112,7 @@ describe('Admin role change', () => {
 		});
 
 		it('allows a moderator to undo an action on a normal user', async () => {
-			await env.DB.prepare("UPDATE users SET email = '', disabled = 1 WHERE account_id = ?1")
+			await env.DB_META_C000.prepare("UPDATE users SET email = '', disabled = 1 WHERE account_id = ?1")
 				.bind(targetUser.accountId)
 				.run();
 			const res = await SELF.fetch(
@@ -120,7 +120,7 @@ describe('Admin role change', () => {
 				{ method: 'POST', headers: authHeaders(moderator.token) },
 			);
 			expect(res.status).toBe(200);
-			const target = await env.DB.prepare(
+			const target = await env.DB_META_C000.prepare(
 				'SELECT disabled FROM users WHERE account_id = ?1',
 			).bind(targetUser.accountId).first<{ disabled: number }>();
 			expect(target?.disabled).toBe(0);

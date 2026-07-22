@@ -59,7 +59,7 @@ function setupFollowingDispatcher(
     .setFollowingDispatcher(
       '/users/{identifier}/following',
       async (ctx, identifier, cursor) => {
-        const db = env.DB;
+        const db = env.DB_META_C000;
 
         const account = await db
           .prepare(
@@ -113,7 +113,7 @@ function setupFollowingDispatcher(
       },
     )
     .setCounter(async (ctx, identifier) => {
-      const db = env.DB;
+      const db = env.DB_META_C000;
       const account = await db
         .prepare(
           `SELECT following_count FROM accounts
@@ -144,7 +144,7 @@ function setupOutboxDispatcher(
     .setOutboxDispatcher(
       '/users/{identifier}/outbox',
       async (ctx, identifier, cursor) => {
-        const db = env.DB;
+        const db = env.DB_META_C000;
         const domain = env.INSTANCE_DOMAIN;
 
         const account = await db
@@ -328,7 +328,7 @@ function setupOutboxDispatcher(
       },
     )
     .setCounter(async (ctx, identifier) => {
-      const db = env.DB;
+      const db = env.DB_META_C000;
       const account = await db
         .prepare(
           `SELECT id FROM accounts
@@ -368,7 +368,7 @@ function setupFeaturedDispatcher(
   federation.setFeaturedDispatcher(
     '/users/{identifier}/collections/featured',
     async (ctx, identifier, _cursor) => {
-      const db = env.DB;
+      const db = env.DB_META_C000;
       const domain = env.INSTANCE_DOMAIN;
 
       const account = await db
@@ -503,7 +503,7 @@ function setupFeaturedTagsDispatcher(
   federation.setFeaturedTagsDispatcher(
     '/users/{identifier}/collections/tags',
     async (ctx, identifier, _cursor) => {
-      const db = env.DB;
+      const db = env.DB_META_C000;
 
       const account = await db
         .prepare(

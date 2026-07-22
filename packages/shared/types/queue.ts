@@ -9,6 +9,8 @@
  */
 
 import type { APActivity, APContext, APContextValue } from './activitypub';
+import type { D1WriteMessage } from './write';
+import type { RegistrationQueueMessage } from './registration';
 
 export type { APActivity, APContext, APContextValue };
 
@@ -94,6 +96,8 @@ export interface TimelineFanoutMessage {
   statusId: string;
   /** Account ID of the status author */
   accountId: string;
+  /** Keyset cursor for bounded follower fanout. */
+  cursor?: string;
 }
 
 export interface CreateNotificationMessage {
@@ -196,4 +200,8 @@ export type QueueMessage =
   | FetchPreviewCardMessage
   | ForwardActivityMessage
   | ImportItemMessage
-  | SendEmailMessage;
+  | SendEmailMessage
+  | D1WriteMessage
+  | RegistrationQueueMessage;
+
+export type { D1WriteMessage } from './write';

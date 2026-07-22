@@ -20,7 +20,7 @@ app.get('/verify_credentials', authRequired, requireAnyScope('profile', 'read:ac
   const user = c.get('currentUser')!;
   const domain = env.INSTANCE_DOMAIN;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT a.*, u.locale, u.role, u.default_privacy, u.default_quote_policy, u.otp_enabled
      FROM accounts a
      JOIN users u ON u.account_id = a.id

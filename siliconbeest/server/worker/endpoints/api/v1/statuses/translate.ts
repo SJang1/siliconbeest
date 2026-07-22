@@ -77,7 +77,7 @@ async function getTranslatableStatus(
   viewerAccountId: string,
 ): Promise<TranslatableStatusRow | null> {
   const visibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
-  return env.DB.prepare(
+  return env.DB_META_C000.prepare(
     `SELECT s.id, s.account_id, s.visibility, s.deleted_at, s.reblog_of_id,
             s.text, s.content, s.content_warning, s.language, s.updated_at
      FROM statuses s
@@ -94,7 +94,7 @@ async function getStatusForTranslationPolicy(
   viewerAccountId: string,
 ): Promise<TranslatableStatusRow | null> {
   const visibility = buildStatusVisibilitySqlPredicate('status', viewerAccountId);
-  return env.DB.prepare(
+  return env.DB_META_C000.prepare(
     `SELECT s.id, s.account_id, s.visibility, s.deleted_at, s.reblog_of_id,
             s.text, s.content, s.content_warning, s.language, s.updated_at
      FROM statuses s
@@ -138,7 +138,7 @@ app.on(
     }
     const user = queryLanguage
       ? null
-      : await env.DB.prepare('SELECT locale FROM users WHERE id = ?1')
+      : await env.DB_META_C000.prepare('SELECT locale FROM users WHERE id = ?1')
         .bind(currentUser.id)
         .first<{ locale: string | null }>();
     const requestedLanguage = queryLanguage || user?.locale?.trim() || 'en';

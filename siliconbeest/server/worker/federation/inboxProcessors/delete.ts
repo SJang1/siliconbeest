@@ -11,6 +11,7 @@ import { BaseProcessor } from './BaseProcessor';
 import { env } from 'cloudflare:workers';
 import { canProcessIncomingOwnedDelete } from '../../services/permissions';
 import { areActivityPubUrisEquivalent } from '../../../../../packages/shared/permissions';
+import { recordRemoteObjectEvent } from '../../services/remoteObjectJournal';
 
 class DeleteProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<void> {
@@ -35,7 +36,7 @@ class DeleteProcessor extends BaseProcessor {
 			return;
 		}
 
-		const revokedAuthorization = await env.DB.prepare(
+		const revokedAuthorization = await env.DB_META_C000.prepare(
 			`SELECT qa.id, qa.attributed_to_account_id, a.uri AS attributed_to_uri
 			 FROM quote_authorizations qa
 			 JOIN accounts a ON a.id = qa.attributed_to_account_id
@@ -58,11 +59,11 @@ class DeleteProcessor extends BaseProcessor {
 				return;
 			}
 
-			await env.DB.batch([
-				env.DB.prepare(
+			await env.DB_META_C000.batch([
+				env.DB_META_C000.prepare(
 					'UPDATE quote_authorizations SET revoked_at = ?1, updated_at = ?1 WHERE id = ?2',
 				).bind(now, revokedAuthorization.id),
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					`UPDATE statuses
 					 SET quote_id = NULL,
 					     quote_authorization_uri = NULL,
@@ -74,7 +75,7 @@ class DeleteProcessor extends BaseProcessor {
 			return;
 		}
 
-		const revokedRemoteAuthorization = await env.DB.prepare(
+		const revokedRemoteAuthorization = await env.DB_META_C000.prepare(
 			`SELECT s.id, qs.account_id AS authorization_owner_account_id
 			 FROM statuses s
 			 JOIN statuses qs ON qs.id = s.quote_id
@@ -92,7 +93,7 @@ class DeleteProcessor extends BaseProcessor {
 				console.warn('[delete] Actor does not own the remote quote authorization being deleted');
 				return;
 			}
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`UPDATE statuses
 				 SET quote_id = NULL,
 				     quote_authorization_uri = NULL,
@@ -120,7 +121,14 @@ class DeleteProcessor extends BaseProcessor {
 		}
 
 		// Otherwise, delete a specific status
-		const status = await env.DB.prepare(
+		const objectDecision = await recordRemoteObjectEvent({
+			objectUri,
+			kind: 'Delete',
+			activityId: activity.id ?? null,
+			actorUri: activity.actor,
+			sourceTimestamp: (activity as Record<string, unknown>).published,
+		});
+		const status = await env.DB_META_C000.prepare(
 			`SELECT id, account_id, in_reply_to_id, reblog_of_id FROM statuses
 			 WHERE uri = ?1 AND deleted_at IS NULL LIMIT 1`,
 		)
@@ -141,7 +149,14 @@ class DeleteProcessor extends BaseProcessor {
 		}
 
 		// Soft-delete the status
-		await this.statusRepo.delete(status.id);
+		await env.DB_META_C000.prepare(
+			`UPDATE statuses SET deleted_at = ?1, tombstoned_at = ?1,
+			 source_version = ?2, updated_at = ?1 WHERE id = ?3`,
+		).bind(now, objectDecision.sourceVersion, status.id).run();
+		await env.DB_META_C000.prepare(
+			`UPDATE search_feed_entries SET tombstoned_at = ?1, source_version = ?2, updated_at = ?1
+			 WHERE entity_id = ?3 AND source_version <= ?2`,
+		).bind(now, objectDecision.sourceVersion, status.id).run();
 
 		// Decrement parent's replies_count if this was a reply
 		if (status.in_reply_to_id) {

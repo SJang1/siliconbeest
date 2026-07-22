@@ -17,7 +17,7 @@ app.get('/:id', authOptional, requireScope('read:statuses'), async (c) => {
   const currentAccount = c.get('currentAccount');
   const pollId = c.req.param('id');
 
-  const row = await env.DB.prepare('SELECT * FROM polls WHERE id = ?1')
+  const row = await env.DB_META_C000.prepare('SELECT * FROM polls WHERE id = ?1')
     .bind(pollId)
     .first<PollRow>();
 
@@ -30,7 +30,7 @@ app.get('/:id', authOptional, requireScope('read:statuses'), async (c) => {
   let ownVotes: number[] = [];
 
   if (currentAccount) {
-    const { results: votes } = await env.DB.prepare(
+    const { results: votes } = await env.DB_META_C000.prepare(
       'SELECT choice FROM poll_votes WHERE poll_id = ?1 AND account_id = ?2',
     )
       .bind(pollId, currentAccount.id)

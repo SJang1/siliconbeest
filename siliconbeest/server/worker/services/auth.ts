@@ -79,7 +79,7 @@ export async function validateRegistrationCredentials(
 		throw new AppError(422, 'Validation failed', issue?.message ?? 'Invalid input');
 	}
 
-	const existingUser = await env.DB
+	const existingUser = await env.DB_META_C000
 		.prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
 		.bind(email.toLowerCase())
 		.first<{ id: string }>();
@@ -87,7 +87,7 @@ export async function validateRegistrationCredentials(
 		throw new AppError(422, 'Validation failed', 'Email is already in use');
 	}
 
-	const existingAccount = await env.DB
+	const existingAccount = await env.DB_META_C000
 		.prepare('SELECT id FROM accounts WHERE username = ? COLLATE NOCASE AND domain IS NULL LIMIT 1')
 		.bind(username)
 		.first<{ id: string }>();
@@ -124,22 +124,46 @@ export async function registerUser(
 	}
 
 	await validateRegistrationCredentials(email, password, username);
-	const lowerEmail = email.toLowerCase();
-
-	const now = new Date().toISOString();
-	const accountId = generateUlid();
-	const userId = generateUlid();
-	const actorKeyId = generateUlid();
-
 	const encryptedPassword = await hashPassword(password);
+	return registerPreparedUser({
+		db: env.DB_META_C000,
+		domain,
+		email,
+		username,
+		encryptedPassword,
+		accountId: generateUlid(),
+		userId: generateUlid(),
+		actorKeyId: generateUlid(),
+		initialRegistrationState,
+	});
+}
+
+export interface PreparedRegistrationUser {
+	readonly db: D1Database;
+	readonly domain: string;
+	readonly email: string;
+	readonly username: string;
+	readonly encryptedPassword: string;
+	readonly accountId: string;
+	readonly userId: string;
+	readonly actorKeyId: string;
+	readonly initialRegistrationState: RegistrationState;
+}
+
+/** Apply a registration command that already contains a password hash. */
+export async function registerPreparedUser(
+	input: PreparedRegistrationUser,
+): Promise<{ account: AccountRow; user: UserRow }> {
+	const lowerEmail = input.email.toLowerCase();
+	const now = new Date().toISOString();
 	const { publicKeyPem, privateKeyPem } = await generateActorKeyPair();
 	const ed25519Keys = await generateEd25519KeyPair();
 
-	const uri = `https://${domain}/users/${username}`;
-	const url = `https://${domain}/@${username}`;
+	const uri = `https://${input.domain}/users/${input.username}`;
+	const url = `https://${input.domain}/@${input.username}`;
 	const keyIdUri = `${uri}#main-key`;
 
-	const accountStmt = env.DB.prepare(
+	const accountStmt = input.db.prepare(
 		`INSERT INTO accounts (id, username, domain, display_name, note, uri, url,
 			avatar_url, avatar_static_url, header_url, header_static_url,
 			locked, bot, discoverable, manually_approves_followers,
@@ -148,7 +172,7 @@ export async function registerUser(
 		VALUES (?, ?, NULL, ?, '', ?, ?, '', '', '', '', 0, 0, 0, 0, 0, 0, 0, NULL, ?, ?, NULL, NULL, 0, NULL)`,
 	);
 
-	const userStmt = env.DB.prepare(
+	const userStmt = input.db.prepare(
 		`INSERT INTO users (id, account_id, email, encrypted_password, locale,
 			confirmed_at, confirmation_token, reset_password_token, reset_password_sent_at,
 			otp_secret, otp_enabled, otp_backup_codes, role, approved, disabled,
@@ -159,29 +183,29 @@ export async function registerUser(
 			NULL, NULL, NULL, NULL, NULL, ?, ?, ?)`,
 	);
 
-	const actorKeyStmt = env.DB.prepare(
+	const actorKeyStmt = input.db.prepare(
 		`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, ed25519_public_key, ed25519_private_key, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 
-	await env.DB.batch([
-		accountStmt.bind(accountId, username, username, uri, url, now, now),
+	await input.db.batch([
+		accountStmt.bind(input.accountId, input.username, input.username, uri, url, now, now),
 		userStmt.bind(
-			userId,
-			accountId,
+			input.userId,
+			input.accountId,
 			lowerEmail,
-			encryptedPassword,
+			input.encryptedPassword,
 			null,
 			0,
-			initialRegistrationState,
+			input.initialRegistrationState,
 			now,
 			now,
 		),
-		actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
+		actorKeyStmt.bind(input.actorKeyId, input.accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
 	]);
 
-	const account = (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(accountId).first()) as AccountRow;
-	const user = (await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first()) as UserRow;
+	const account = (await input.db.prepare('SELECT * FROM accounts WHERE id = ?').bind(input.accountId).first()) as AccountRow;
+	const user = (await input.db.prepare('SELECT * FROM users WHERE id = ?').bind(input.userId).first()) as UserRow;
 
 	return { account, user };
 }
@@ -194,7 +218,7 @@ export async function verifyPassword(
 	email: string,
 	password: string,
 ): Promise<{ user: UserRow; account: AccountRow } | null> {
-	const user = (await env.DB
+	const user = (await env.DB_META_C000
 		.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
 		.bind(email.toLowerCase())
 		.first()) as UserRow | null;
@@ -204,7 +228,7 @@ export async function verifyPassword(
 	const valid = await verifyPasswordHash(password, user.encrypted_password);
 	if (!valid) return null;
 
-	const account = (await env.DB
+	const account = (await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE id = ?')
 		.bind(user.account_id)
 		.first()) as AccountRow | null;
@@ -245,12 +269,12 @@ export async function verifyPasswordForRegistration(
 ): Promise<{ user: UserRow; account: AccountRow } | null> {
 	// If it looks like an email, use email lookup directly
 	if (identifier.includes('@')) {
-		const user = await env.DB
+		const user = await env.DB_META_C000
 			.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
 			.bind(identifier.toLowerCase())
 			.first<UserRow>();
 		if (!user || !await verifyPasswordHash(password, user.encrypted_password)) return null;
-		const account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?1')
+		const account = await env.DB_META_C000.prepare('SELECT * FROM accounts WHERE id = ?1')
 			.bind(user.account_id)
 			.first<AccountRow>();
 		return account ? { user, account } : null;
@@ -262,7 +286,7 @@ export async function verifyPasswordForRegistration(
 	// raw identifier — NOT a lowercased copy — is required: lowercasing the
 	// input while the column comparison is case-sensitive would never match a
 	// username containing uppercase letters, locking those users out.
-	const user = (await env.DB
+	const user = (await env.DB_META_C000
 		.prepare(
 			`SELECT u.* FROM users u
 			 JOIN accounts a ON a.id = u.account_id
@@ -274,12 +298,12 @@ export async function verifyPasswordForRegistration(
 
 	if (!user) {
 		// Fall back to email lookup (in case someone's username looks non-email-like)
-		const emailUser = await env.DB
+		const emailUser = await env.DB_META_C000
 			.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
 			.bind(identifier.toLowerCase())
 			.first<UserRow>();
 		if (!emailUser || !await verifyPasswordHash(password, emailUser.encrypted_password)) return null;
-		const emailAccount = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?1')
+		const emailAccount = await env.DB_META_C000.prepare('SELECT * FROM accounts WHERE id = ?1')
 			.bind(emailUser.account_id)
 			.first<AccountRow>();
 		return emailAccount ? { user: emailUser, account: emailAccount } : null;
@@ -287,7 +311,7 @@ export async function verifyPasswordForRegistration(
 
 	const valid = await verifyPasswordHash(password, user.encrypted_password);
 	if (!valid) return null;
-	const account = (await env.DB
+	const account = (await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE id = ?')
 		.bind(user.account_id)
 		.first()) as AccountRow | null;
@@ -303,7 +327,7 @@ export async function verifyPasswordForRegistration(
 export async function findUsernameByEmail(
 	email: string,
 ): Promise<{ username: string; locale: string } | null> {
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare(
 			`SELECT a.username, u.locale FROM users u
 			 JOIN accounts a ON a.id = u.account_id
@@ -331,7 +355,7 @@ export async function resolveToken(
 	if (cached) {
 		const payload = cached as ResolvedToken;
 		// Verify the account is not suspended/disabled (prevents stale-cache abuse)
-		const check = await env.DB
+		const check = await env.DB_META_C000
 			.prepare(
 				`SELECT u.disabled, u.approved, u.locale, a.suspended_at, a.memorial
 				 FROM users u JOIN accounts a ON a.id = u.account_id
@@ -380,7 +404,7 @@ export async function resolveToken(
 		   AND (t.token_hash = ?1 OR t.token = ?2)
 		 LIMIT 1`;
 
-	const row = await env.DB.prepare(tokenQuery).bind(tokenHash, rawToken ?? tokenHash).first();
+	const row = await env.DB_META_C000.prepare(tokenQuery).bind(tokenHash, rawToken ?? tokenHash).first();
 
 	if (!row) return null;
 	if (!canUseAccount(
@@ -415,7 +439,7 @@ export async function resolveToken(
 
 /** Revalidates every user/account state before issuing delegated credentials. */
 export async function canUserAccessAccount(userId: string): Promise<boolean> {
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT u.disabled, u.approved, a.suspended_at, a.memorial
 		 FROM users u
 		 JOIN accounts a ON a.id = u.account_id
@@ -499,7 +523,7 @@ export async function changePassword(
 		email?: string;
 	},
 ): Promise<void> {
-	const user = await env.DB.prepare('SELECT encrypted_password FROM users WHERE id = ?1')
+	const user = await env.DB_META_C000.prepare('SELECT encrypted_password FROM users WHERE id = ?1')
 		.bind(userId)
 		.first();
 
@@ -511,7 +535,7 @@ export async function changePassword(
 	}
 
 	const hashed = await hashPassword(newPassword);
-	await env.DB.prepare('UPDATE users SET encrypted_password = ?1, updated_at = ?2 WHERE id = ?3')
+	await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1, updated_at = ?2 WHERE id = ?3')
 		.bind(hashed, new Date().toISOString(), userId)
 		.run();
 
@@ -524,7 +548,7 @@ export async function changePassword(
 	// Send password changed notification email
 	if (opts?.email) {
 		try {
-			const userRow = await env.DB.prepare('SELECT locale FROM users WHERE id = ?').bind(userId).first<{ locale: string }>();
+			const userRow = await env.DB_META_C000.prepare('SELECT locale FROM users WHERE id = ?').bind(userId).first<{ locale: string }>();
 			const { sendPasswordChanged } = await import('./email');
 			await sendPasswordChanged(opts.email, userRow?.locale ?? 'en');
 		} catch { /* best-effort */ }
@@ -542,7 +566,7 @@ export async function createPasswordResetToken(
 	// Both username and email must match a local account. Username is matched
 	// case-insensitively (COLLATE NOCASE) to stay consistent with login and the
 	// registration uniqueness check; email is already normalised to lowercase.
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		`SELECT u.id, u.locale FROM users u
 		 JOIN accounts a ON a.id = u.account_id
 		 WHERE a.username = ? COLLATE NOCASE AND u.email = ? AND a.domain IS NULL
@@ -554,7 +578,7 @@ export async function createPasswordResetToken(
 	const token = generateToken(64);
 	const now = new Date().toISOString();
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE users SET reset_password_token = ?1, reset_password_sent_at = ?2 WHERE id = ?3',
 	).bind(token, now, user.id).run();
 
@@ -569,7 +593,7 @@ export async function resetPasswordWithToken(
 	token: string,
 	newPassword: string,
 ): Promise<void> {
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		'SELECT id, reset_password_sent_at FROM users WHERE reset_password_token = ?1',
 	).bind(token).first();
 
@@ -589,7 +613,7 @@ export async function resetPasswordWithToken(
 	}
 
 	const hashed = await hashPassword(newPassword);
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE users SET encrypted_password = ?1, reset_password_token = NULL, reset_password_sent_at = NULL, updated_at = ?2 WHERE id = ?3',
 	).bind(hashed, new Date().toISOString(), user.id).run();
 }
@@ -611,7 +635,7 @@ export async function getUserForConfirmation(
 } | null> {
 	// Emails are stored lowercase (see registerUser); normalize here too so
 	// every caller compares case-insensitively.
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		'SELECT id, confirmed_at, registration_state FROM users WHERE email = ?1 LIMIT 1',
 	).bind(email.toLowerCase()).first<{
 		id: string;
@@ -630,7 +654,7 @@ export async function getUserForConfirmation(
 export async function getWebAuthnCredentials(
 	userId: string,
 ): Promise<Array<{ credential_id: string; transports: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?1',
 	).bind(userId).all<{ credential_id: string; transports: string | null }>();
 
@@ -654,7 +678,7 @@ export async function storeWebAuthnCredential(
 	},
 ): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, counter, device_type, backed_up, transports, name, created_at)
 		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
 	).bind(
@@ -670,7 +694,7 @@ export async function storeWebAuthnCredential(
 export async function getWebAuthnCredentialByCredentialId(
 	credentialId: string,
 ): Promise<{ id: string; user_id: string; credential_id: string; public_key: string; counter: number } | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT wc.id, wc.user_id, wc.credential_id, wc.public_key, wc.counter
 		 FROM webauthn_credentials wc
 		 WHERE wc.credential_id = ?1
@@ -692,7 +716,7 @@ export async function updateWebAuthnCredentialCounter(
 	newCounter: number,
 ): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE webauthn_credentials SET counter = ?1, last_used_at = ?2 WHERE id = ?3',
 	).bind(newCounter, now, credId).run();
 }
@@ -714,7 +738,7 @@ export async function getUserForWebAuthn(
 	username: string;
 	display_name: string;
 } | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT u.id, u.account_id, u.email, u.locale, u.role, u.approved, u.disabled, u.confirmed_at,
 		        a.username, a.display_name
 		 FROM users u
@@ -728,7 +752,7 @@ export async function getUserForWebAuthn(
  */
 export async function getOrCreateInternalApp(): Promise<{ id: string; client_id: string }> {
 	const INTERNAL_APP_NAME = '__siliconbeest_web__';
-	let appRecord = await env.DB.prepare(
+	let appRecord = await env.DB_META_C000.prepare(
 		"SELECT id, client_id FROM oauth_applications WHERE name = ?1 LIMIT 1",
 	).bind(INTERNAL_APP_NAME).first<{ id: string; client_id: string }>();
 
@@ -737,7 +761,7 @@ export async function getOrCreateInternalApp(): Promise<{ id: string; client_id:
 		const clientId = crypto.randomUUID().replace(/-/g, '');
 		const clientSecret = crypto.randomUUID().replace(/-/g, '');
 		const now = new Date().toISOString();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO oauth_applications (id, name, redirect_uri, client_id, client_secret, scopes, created_at, updated_at)
 			 VALUES (?1, ?2, 'urn:ietf:wg:oauth:2.0:oob', ?3, ?4, ?5, ?6, ?6)`,
 		).bind(
@@ -781,7 +805,7 @@ export async function createAccessToken(
 	const now = new Date().toISOString();
 	const scopes = opts?.scopes ?? 'read write follow push';
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO oauth_access_tokens (id, token_hash, application_id, user_id, scopes, created_at, ip, user_agent)
 		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
 	).bind(tokenId, tokenHash, applicationId, userId, scopes, now, opts?.ip ?? null, opts?.userAgent ?? null).run();
@@ -805,7 +829,7 @@ export async function updateSignInTracking(
 	ip: string,
 ): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE users SET sign_in_count = sign_in_count + 1,
 		 last_sign_in_at = current_sign_in_at, last_sign_in_ip = current_sign_in_ip,
 		 current_sign_in_at = ?1, current_sign_in_ip = ?2
@@ -828,7 +852,7 @@ export async function listWebAuthnCredentials(
 	created_at: string;
 	last_used_at: string | null;
 }>> {
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		`SELECT id, credential_id, device_type, backed_up, transports, name, created_at, last_used_at
 		 FROM webauthn_credentials
 		 WHERE user_id = ?1
@@ -854,7 +878,7 @@ export async function deleteWebAuthnCredential(
 	credId: string,
 	userId: string,
 ): Promise<number> {
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		'DELETE FROM webauthn_credentials WHERE id = ?1 AND user_id = ?2',
 	).bind(credId, userId).run();
 
@@ -867,13 +891,13 @@ export async function deleteWebAuthnCredential(
 export async function getWebAuthnCredentialsByEmail(
 	email: string,
 ): Promise<Array<{ credential_id: string; transports: string | null }>> {
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		'SELECT id FROM users WHERE email = ?1 LIMIT 1',
 	).bind(email.toLowerCase().trim()).first<{ id: string }>();
 
 	if (!user) return [];
 
-	const creds = await env.DB.prepare(
+	const creds = await env.DB_META_C000.prepare(
 		'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?1',
 	).bind(user.id).all<{ credential_id: string; transports: string | null }>();
 

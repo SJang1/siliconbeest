@@ -24,7 +24,12 @@ async function fetchHandler(
 ): Promise<Response> {
   let body: BodyInit | undefined;
   if (requestHasBody(request)) {
-    body = await request.arrayBuffer();
+    const maxBytes = requestBodyLimit(url.pathname);
+    const declaredBytes = Number(request.headers.get('Content-Length') ?? 0);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+      return Response.json({ error: 'Request body is too large' }, { status: 413 });
+    }
+    if (request.body) body = request.body.pipeThrough(byteLimitStream(maxBytes));
   }
 
   setCloudflareEnv(env);
@@ -47,6 +52,33 @@ async function fetchHandler(
     method: request.method,
     headers: request.headers,
     body,
+  });
+}
+
+function requestBodyLimit(pathname: string): number {
+  // Queue messages are capped at 128 KiB. Leave room for Fedify's wrapper,
+  // signature metadata, and serialization overhead so an accepted inbox body
+  // cannot fail merely because it is too large to enqueue.
+  if (pathname === '/inbox' || /^\/users\/[^/]+\/inbox$/.test(pathname)) return 96 * 1024;
+  if (pathname.startsWith('/api/v2/media') || pathname.startsWith('/media/')) return 32 * 1024 * 1024;
+  if (pathname.startsWith('/api/v1/import')) return 8 * 1024 * 1024;
+  // ActivityPub and JSON APIs are intentionally much smaller than the 128 MB
+  // isolate wall. Deeply nested JSON is still parsed by the domain layer, so
+  // streaming alone is insufficient without a hard envelope.
+  return 2 * 1024 * 1024;
+}
+
+function byteLimitStream(maxBytes: number): TransformStream<Uint8Array, Uint8Array> {
+  let received = 0;
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      received += chunk.byteLength;
+      if (received > maxBytes) {
+        controller.error(new Error(`Request body exceeded ${maxBytes} bytes`));
+        return;
+      }
+      controller.enqueue(chunk);
+    },
   });
 }
 

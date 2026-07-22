@@ -47,7 +47,7 @@ export async function listConversationEntries(
 	`;
 	binds.push(opts.limitValue);
 
-	const { results } = await env.DB.prepare(sql).bind(...binds).all();
+	const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all();
 	return (results ?? []) as Record<string, unknown>[];
 }
 
@@ -58,7 +58,7 @@ export async function getConversationParticipants(
 	conversationId: string,
 	excludeAccountId: string,
 ): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT a.*
 		 FROM conversation_accounts ca2
 		 JOIN accounts a ON a.id = ca2.account_id
@@ -74,7 +74,7 @@ export async function getConversationParticipants(
 export async function getConversationLastStatus(
 	statusId: string,
 ): Promise<Record<string, unknown> | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
 		        a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
 		        a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -103,13 +103,13 @@ export async function markConversationRead(
 	conversationId: string,
 	accountId: string,
 ): Promise<boolean> {
-	const entry = await env.DB.prepare(
+	const entry = await env.DB_META_C000.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		`UPDATE conversation_accounts
 		 SET unread = 0
 		 WHERE conversation_id = ?1 AND account_id = ?2 AND unread != 0`,
@@ -130,13 +130,13 @@ export async function deleteConversation(
 	conversationId: string,
 	accountId: string,
 ): Promise<boolean> {
-	const entry = await env.DB.prepare(
+	const entry = await env.DB_META_C000.prepare(
 		'SELECT conversation_id FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).first();
 
 	if (!entry) throw new AppError(404, 'Record not found');
 
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		'DELETE FROM conversation_accounts WHERE conversation_id = ?1 AND account_id = ?2',
 	).bind(conversationId, accountId).run();
 

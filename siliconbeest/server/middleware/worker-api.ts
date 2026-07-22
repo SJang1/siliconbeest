@@ -112,7 +112,7 @@ function isWorkerPath(pathname: string, request: Request): boolean {
 export default defineEventHandler(async (event) => {
   const request = toWebRequest(event);
   const url = new URL(request.url);
-  const db = event.context.cloudflare?.env?.DB as D1Database | undefined;
+  const db = event.context.cloudflare?.env?.DB_META_C000 as D1Database | undefined;
 
   if (isWorkerPath(url.pathname, request)) {
     return app.fetch(request, event.context.cloudflare?.env, event.context.cloudflare?.context);

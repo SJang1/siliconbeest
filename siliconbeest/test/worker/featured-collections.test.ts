@@ -66,7 +66,7 @@ describe('Featured Collections (ActivityPub)', () => {
       const directStatus = await directRes.json<{ id: string }>();
 
       // Direct pins are invalid now, but legacy rows must also fail closed.
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         'UPDATE statuses SET pinned = 1 WHERE id IN (?1, ?2)',
       ).bind(status.id, directStatus.id).run();
 

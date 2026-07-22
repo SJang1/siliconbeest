@@ -56,7 +56,7 @@ describe('quote and reply target permissions', () => {
     });
     expect(replyAttempt.response.status).toBe(404);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM statuses
        WHERE account_id = ?1
          AND text IN (?2, ?3)`,
@@ -75,7 +75,7 @@ describe('quote and reply target permissions', () => {
     });
     expect(wrapper.response.status).toBe(200);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_id = ?1, quote_approval_status = 'accepted'
        WHERE id = ?2`,
@@ -107,7 +107,7 @@ describe('quote and reply target permissions', () => {
     expect(wrapper.status.visibility).toBe('private');
     expect(wrapper.status.quote?.id).toBe(privateStatus.id);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       `SELECT visibility, quote_id, quote_approval_status
        FROM statuses
        WHERE id = ?1`,
@@ -148,7 +148,7 @@ describe('quote and reply target permissions', () => {
     });
 
     const setApproval = async (approval: string): Promise<void> => {
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE statuses
          SET quote_id = ?1, quote_approval_status = ?2
          WHERE id = ?3`,
@@ -214,7 +214,7 @@ describe('quote and reply target permissions', () => {
     expect(deniedBeforeFollow.response.status).toBe(422);
 
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO follows
        (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,
@@ -250,7 +250,7 @@ describe('quote and reply target permissions', () => {
     });
     expect(selfQuote.status.quote?.id).toBe(nobodyTarget.status.id);
 
-    const identities = await env.DB.prepare(
+    const identities = await env.DB_META_C000.prepare(
       `SELECT author.uri AS author_uri, requester.uri AS requester_uri
        FROM accounts author, accounts requester
        WHERE author.id = ?1 AND requester.id = ?2`,
@@ -266,7 +266,7 @@ describe('quote and reply target permissions', () => {
       visibility: 'public',
       quote_policy: 'nobody',
     });
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_policy_automatic_approvals = ?1,
            quote_policy_manual_approvals = ?2
@@ -288,8 +288,8 @@ describe('quote and reply target permissions', () => {
       visibility: 'public',
       quote_policy: 'nobody',
     });
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `UPDATE statuses
          SET quote_policy_automatic_approvals = ?1,
              quote_policy_manual_approvals = ?2
@@ -299,7 +299,7 @@ describe('quote and reply target permissions', () => {
         JSON.stringify([]),
         followingTarget.status.id,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT OR IGNORE INTO follows
          (id, account_id, target_account_id, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4)`,
@@ -329,7 +329,7 @@ describe('quote and reply target permissions', () => {
     });
     expect(publicTarget.response.status).toBe(200);
     expect(wrapper.response.status).toBe(200);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_id = ?1, quote_approval_status = 'accepted'
        WHERE id = ?2`,

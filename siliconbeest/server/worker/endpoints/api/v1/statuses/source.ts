@@ -28,7 +28,7 @@ app.get('/:id/source', authRequired, requireScope('read:statuses'), async (c) =>
   const statusId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
 
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id,
             text, content_warning, content, object_type, title
      FROM statuses

@@ -1,0 +1,50 @@
+{
+  "META": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.4,
+    "activateRatio": 0.5,
+    "hardStopRatio": 0.85
+  },
+  "POSTS": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "GRAPH": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "INBOX": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "REMOTE_ACTORS": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "REMOTE_POSTS": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "SEARCH_FEED": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  },
+  "OPS": {
+    "maxBytes": 10000000000,
+    "precreateRatio": 0.8,
+    "activateRatio": 0.9,
+    "hardStopRatio": 0.97
+  }
+}

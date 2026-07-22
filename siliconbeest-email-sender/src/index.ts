@@ -34,7 +34,7 @@ interface EmailConfig {
 async function getEmailConfig(): Promise<EmailConfig | null> {
 	// Priority 1: D1 settings table
 	try {
-		const settings = await env.DB
+		const settings = await env.DB_META_C000
 			.prepare("SELECT key, value FROM settings WHERE key LIKE 'smtp_%'")
 			.all();
 		if (settings.results && settings.results.length > 0) {
@@ -82,7 +82,7 @@ export default {
 					continue;
 				}
 
-				const serverName = await env.DB.prepare("SELECT value FROM settings WHERE key = 'server_name'").first<string>();
+				const serverName = await env.DB_META_C000.prepare("SELECT value FROM settings WHERE key = 'server_name'").first<string>();
 
 				const authType: ('plain' | 'login' | 'cram-md5') | ('plain' | 'login' | 'cram-md5')[] =
 					config.authType === 'auto' || !config.authType

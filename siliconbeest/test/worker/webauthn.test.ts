@@ -29,7 +29,7 @@ const TABLE_DELETE_ORDER = [
 async function resetDB() {
 	for (const table of TABLE_DELETE_ORDER) {
 		try {
-			await env.DB.prepare(`DELETE FROM "${table}"`).run();
+			await env.DB_META_C000.prepare(`DELETE FROM "${table}"`).run();
 		} catch {
 			// Table may not exist yet on first run
 		}
@@ -63,14 +63,14 @@ function loginClientHeaders(context: LoginClientContext): Record<string, string>
 }
 
 async function enableTurnstile() {
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '1', datetime('now'))",
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_site_key', ?1, datetime('now'))",
 		).bind(TURNSTILE_SITE_KEY),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_secret_key', ?1, datetime('now'))",
 		).bind(TURNSTILE_PASS_SECRET),
 	]);
@@ -281,7 +281,7 @@ describe('WebAuthn API endpoints', () => {
 		} else {
 			await resetDB();
 			// Re-insert default settings that applyMigration inserts
-			await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))").run();
+			await env.DB_META_C000.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))").run();
 		}
 		await env.CACHE.delete('settings:turnstile');
 	});

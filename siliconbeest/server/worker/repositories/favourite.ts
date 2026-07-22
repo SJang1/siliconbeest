@@ -19,7 +19,7 @@ export const findByAccountAndStatus = async (
 	accountId: string,
 	statusId: string,
 ): Promise<Favourite | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM favourites WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.first<Favourite>();
@@ -38,7 +38,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM favourites
 			 WHERE ${where}
@@ -61,7 +61,7 @@ export const findByStatus = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM favourites
 			 WHERE ${where}
@@ -85,7 +85,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			'INSERT INTO favourites (id, account_id, status_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -98,7 +98,7 @@ export const create = async (
 export const deleteById = async (
 	id: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM favourites WHERE id = ?')
 		.bind(id)
 		.run();
@@ -111,7 +111,7 @@ export const deleteById = async (
 export const findByUri = async (
 	uri: string,
 ): Promise<Favourite | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM favourites WHERE uri = ?')
 		.bind(uri)
 		.first<Favourite>();
@@ -126,7 +126,7 @@ export const deleteByAccountAndStatus = async (
 	accountId: string,
 	statusId: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM favourites WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.run();
@@ -135,7 +135,7 @@ export const deleteByAccountAndStatus = async (
 export const countByStatus = async (
 	statusId: string,
 ): Promise<number> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT COUNT(*) as count FROM favourites WHERE status_id = ?')
 		.bind(statusId)
 		.first<{ count: number }>();

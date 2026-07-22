@@ -60,7 +60,7 @@ describe('Instance Info', () => {
 
     it('uses the server-configured logo URL as thumbnail', async () => {
       const thumbnailUrl = 'https://cdn.example.com/instance-logo-v2.png';
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO settings (key, value, updated_at) VALUES ('site_logo_url', ?1, datetime('now'))
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
       ).bind(thumbnailUrl).run();

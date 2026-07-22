@@ -10,18 +10,18 @@ describe('remote resolution permissions', () => {
     await applyMigration();
     viewerAccountId = (await createTestUser('remote-resolution-viewer')).accountId;
     const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO domain_blocks
          (id, domain, severity, created_at, updated_at)
          VALUES ('remote-resolution-parent', 'blocked.example', 'suspend', ?1, ?1)`,
       ).bind(now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO domain_blocks
          (id, domain, severity, created_at, updated_at)
          VALUES ('remote-resolution-child', 'allowed.blocked.example', 'noop', ?1, ?1)`,
       ).bind(now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO user_domain_blocks
          (id, account_id, domain, created_at)
          VALUES ('remote-resolution-user-block', ?1, 'personal.example', ?2)`,

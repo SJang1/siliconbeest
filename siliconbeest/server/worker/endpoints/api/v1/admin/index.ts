@@ -17,6 +17,7 @@ import email from './email';
 import customEmojis from './customEmojis';
 import federation from './federation';
 import ads from './ads';
+import operations from './operations';
 import invitations, {
 	invitationAuditLogsAdminApi,
 	invitationCreditsAdminApi,
@@ -41,6 +42,7 @@ admin.route('/email', email);
 admin.route('/custom_emojis', customEmojis);
 admin.route('/federation', federation);
 admin.route('/ads', ads);
+admin.route('/operations', operations);
 admin.route('/invitations', invitations);
 admin.route('/invitation-credits', invitationCreditsAdminApi);
 admin.route('/invitation-audit-logs', invitationAuditLogsAdminApi);

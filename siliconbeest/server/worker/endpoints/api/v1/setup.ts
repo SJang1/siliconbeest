@@ -40,7 +40,7 @@ async function readSetupCreateBody(c: SetupContext): Promise<SetupCreateBody> {
 }
 
 async function getUserCount(): Promise<number> {
-  const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>();
+  const row = await env.DB_META_C000.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>();
   return Number(row?.count ?? 0);
 }
 
@@ -89,7 +89,7 @@ app.post('/', async (c) => {
   }
 
   const now = new Date().toISOString();
-  const lock = await env.DB.prepare(
+  const lock = await env.DB_META_C000.prepare(
     'INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)',
   ).bind(SETUP_LOCK_KEY, 'in_progress', now).run();
 
@@ -122,11 +122,11 @@ app.post('/', async (c) => {
       account.username,
     ).catch(() => ({ avatarUrl: '', headerUrl: '' }));
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET avatar_url = ?1, avatar_static_url = ?1, header_url = ?2, header_static_url = ?2 WHERE id = ?3',
       ).bind(avatarUrl, headerUrl, account.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `UPDATE users
          SET role = 'admin',
              approved = 1,
@@ -137,10 +137,10 @@ app.post('/', async (c) => {
              updated_at = ?1
          WHERE id = ?3`,
       ).bind(now, locale, user.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET discoverable = 1, updated_at = ?1 WHERE id = ?2',
       ).bind(now, account.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE settings SET value = ?1, updated_at = ?2 WHERE key = ?3',
       ).bind(user.id, now, SETUP_LOCK_KEY),
     ]);
@@ -167,7 +167,7 @@ app.post('/', async (c) => {
       created_at: Math.floor(new Date(createdAt).getTime() / 1000),
     });
   } catch (error) {
-    await env.DB.prepare('DELETE FROM settings WHERE key = ?1 AND value = ?2')
+    await env.DB_META_C000.prepare('DELETE FROM settings WHERE key = ?1 AND value = ?2')
       .bind(SETUP_LOCK_KEY, 'in_progress')
       .run()
       .catch(() => {});

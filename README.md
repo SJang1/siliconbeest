@@ -33,6 +33,7 @@ SiliconBeest is a **GitHub Template Repository**. Deploy your own Fediverse inst
 - Deployment: [English](docs/deploy/README.md) | [한국어](docs/deploy/README.ko.md)
 - Architecture: [English](docs/ARCHITECTURE_EN.md) | [한국어](docs/ARCHITECTURE_KO.md)
 - Optional Workers AI: [English](docs/WORKERS_AI.md) | [한국어](docs/WORKERS_AI.ko.md)
+- Cloudflare 실제 한도와 `/inbox` 폭주 대응: [전체 한도](docs/CLOUDFLARE_REAL_WORLD_LIMITS_KO.md) | [Inbox·타임라인 backpressure](docs/INBOX_CAPACITY_AND_TIMELINE_BACKPRESSURE_KO.md)
 
 ---
 
@@ -334,6 +335,11 @@ All scripts read resource names from [`scripts/config.sh`](scripts/config.sh). C
 | `./scripts/sync-config.sh` | Sync Cloudflare resource IDs → wrangler.jsonc (new machine/recovery) |
 
 See the full [scripts documentation](scripts/README.md) for all options and flags.
+
+### Scaling runbooks
+
+- [D1 sharding operations (한국어)](docs/D1_SHARDING_RUNBOOK_KO.md)
+- [Cloudflare real-world limits and **이 최대치가 넘어가려 하면 대처법** (한국어)](docs/CLOUDFLARE_REAL_WORLD_LIMITS_KO.md)
 
 ---
 

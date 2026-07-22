@@ -132,7 +132,7 @@ export async function createLocalQuoteAuthorization(input: {
   const now = new Date().toISOString();
   const id = generateUlid();
   const uri = `https://${env.INSTANCE_DOMAIN}/users/${input.attributedToUsername}/stamps/${id}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO quote_authorizations
       (id, uri, attributed_to_account_id, interacting_object_uri, interaction_target_uri,
        quote_status_id, quoted_status_id, request_uri, created_at, updated_at)
@@ -159,7 +159,7 @@ export async function verifyQuoteAuthorization(input: {
 }): Promise<boolean> {
   if (!input.authorizationUri) return false;
 
-  const local = await env.DB.prepare(
+  const local = await env.DB_META_C000.prepare(
     `SELECT qa.uri, qa.interacting_object_uri, qa.interaction_target_uri, a.uri AS attributed_to_uri
      FROM quote_authorizations qa
      JOIN accounts a ON a.id = qa.attributed_to_account_id
@@ -197,7 +197,7 @@ export async function verifyQuoteAuthorization(input: {
 }
 
 export async function getStatusAuthorUriByStatusUri(uri: string): Promise<string | null> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT a.uri
      FROM statuses s
      JOIN accounts a ON a.id = s.account_id

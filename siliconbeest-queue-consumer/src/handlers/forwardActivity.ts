@@ -22,8 +22,8 @@ export async function handleForwardActivity(
 	const { rawBody, originalHeaders, targetInboxUrl } = msg;
 	const targetUrl = new URL(targetInboxUrl);
 	const targetDomain = targetUrl.hostname.toLowerCase();
-	const deliveryDomains = await getDeliveryTargetDomains(env.DB, targetInboxUrl);
-	const suspendedDomains = await getSuspendedDomains(env.DB, deliveryDomains);
+	const deliveryDomains = await getDeliveryTargetDomains(env.DB_META_C000, targetInboxUrl);
+	const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, deliveryDomains);
 	if (suspendedDomains.size > 0) {
 		console.log(`[forward] Dropping delivery to suspended domain ${[...suspendedDomains].join(', ')}`);
 		return;
@@ -47,16 +47,16 @@ export async function handleForwardActivity(
 	});
 
 	// Ensure instance record exists
-	await ensureInstanceRecord(env.DB, targetDomain);
+	await ensureInstanceRecord(env.DB_META_C000, targetDomain);
 
 	if (response.ok || response.status === 202) {
-		await recordDeliverySuccess(env.DB, targetDomain);
+		await recordDeliverySuccess(env.DB_META_C000, targetDomain);
 		console.log(`Forwarded activity to ${targetInboxUrl} (${response.status})`);
 		return;
 	}
 
 	if (response.status >= 500) {
-		await recordDeliveryFailure(env.DB, targetDomain);
+		await recordDeliveryFailure(env.DB_META_C000, targetDomain);
 		const text = await response.text().catch(() => '');
 		throw new Error(
 			`Forward to ${targetInboxUrl} failed with ${response.status}: ${text.slice(0, 200)}`,
@@ -64,7 +64,7 @@ export async function handleForwardActivity(
 	}
 
 	// 4xx — client error, don't retry
-	await recordDeliveryFailure(env.DB, targetDomain);
+	await recordDeliveryFailure(env.DB_META_C000, targetDomain);
 	const text = await response.text().catch(() => '');
 	console.warn(
 		`Forward to ${targetInboxUrl} rejected with ${response.status}: ${text.slice(0, 200)}`,

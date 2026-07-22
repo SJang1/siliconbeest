@@ -169,36 +169,36 @@ describe('Accounts API', () => {
     it('returns batched relationship state for multiple IDs', async () => {
       const now = new Date().toISOString();
       const future = new Date(Date.now() + 60_000).toISOString();
-      await env.DB.batch([
-        env.DB.prepare(
+      await env.DB_META_C000.batch([
+        env.DB_META_C000.prepare(
           `INSERT INTO follows
            (id, account_id, target_account_id, show_reblogs, notify, languages, created_at, updated_at)
            VALUES ('relationship-batch-follow', ?1, ?2, 0, 1, '["en","ko"]', ?3, ?3)`,
         ).bind(alice.accountId, bob.accountId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO follows
            (id, account_id, target_account_id, show_reblogs, notify, created_at, updated_at)
            VALUES ('relationship-batch-followed-by', ?1, ?2, 1, 0, ?3, ?3)`,
         ).bind(carol.accountId, alice.accountId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO follow_requests
            (id, account_id, target_account_id, created_at, updated_at)
            VALUES ('relationship-batch-request', ?1, ?2, ?3, ?3)`,
         ).bind(alice.accountId, carol.accountId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO blocks (id, account_id, target_account_id, created_at)
            VALUES ('relationship-batch-block', ?1, ?2, ?3)`,
         ).bind(alice.accountId, carol.accountId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO mutes
            (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
            VALUES ('relationship-batch-mute', ?1, ?2, 1, ?3, ?4, ?4)`,
         ).bind(alice.accountId, carol.accountId, future, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO account_pins (id, account_id, target_account_id, created_at)
            VALUES ('relationship-batch-pin', ?1, ?2, ?3)`,
         ).bind(alice.accountId, bob.accountId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO account_notes
            (id, account_id, target_account_id, comment, created_at, updated_at)
            VALUES ('relationship-batch-note', ?1, ?2, 'Batch note', ?3, ?3)`,

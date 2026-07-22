@@ -27,28 +27,28 @@ describe('profile pinned status permissions', () => {
     other = await createTestUser('profilepinother');
     const now = new Date().toISOString();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, visibility, local, pinned, created_at, updated_at)
          VALUES (?1, ?2, ?3, 'public', 1, 1, ?4, ?4)`,
       ).bind(ids.public, `${BASE}/statuses/${ids.public}`, owner.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, visibility, local, pinned, created_at, updated_at)
          VALUES (?1, ?2, ?3, 'private', 1, 1, ?4, ?4)`,
       ).bind(ids.private, `${BASE}/statuses/${ids.private}`, owner.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, visibility, local, pinned, created_at, updated_at)
          VALUES (?1, ?2, ?3, 'direct', 1, 1, ?4, ?4)`,
       ).bind(ids.direct, `${BASE}/statuses/${ids.direct}`, owner.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?3, 'public', 1, ?4, ?4)`,
       ).bind(ids.original, `${BASE}/statuses/${ids.original}`, other.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, reblog_of_id, visibility, local, pinned, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'public', 1, 1, ?5, ?5)`,

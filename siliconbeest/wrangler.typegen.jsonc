@@ -32,7 +32,6 @@
 	"placement": {
 		"mode": "smart"
 	},
-
 	// Environment Variables (set SETUP_SECRET via `wrangler secret put SETUP_SECRET` before first-run setup;
 	// optional `wrangler secret put SENTRY_DSN` enables Sentry error reporting in the worker)
 	"vars": {
@@ -52,13 +51,24 @@
 		"WORKERS_AI_RATE_LIMITS": true,
 		"WORKERS_AI_RECOMMENDATION_RATE_LIMIT_PERIOD_SECONDS": 60,
 		"WORKERS_AI_TRANSLATION_RATE_LIMIT_PERIOD_SECONDS": 60,
-		"WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS": 60
+		"WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS": 60,
+		"ASYNC_STATUS_WRITES": "false",
+		"ASYNC_REGISTRATION_WRITES": "false",
+		"SEARCH_FEED_READS": "false",
+		"D1_WRITE_BATCH_MAX_OPERATIONS": "32",
+		"D1_WRITE_BATCH_MAX_WAIT_MS": "50",
+		"STREAM_PUBLIC_BRANCH_FACTOR": "5",
+		"STREAM_PUBLIC_TREE_DEPTH": "3",
+		"STREAM_PUBLIC_LEAF_MAX_SOCKETS": "400",
+		"STREAM_USER_MAX_SOCKETS": "32",
+		"STREAM_SOCKET_MAX_BUFFERED_BYTES": "262144",
+		"STREAM_EVENT_MAX_BYTES": "98304"
 	},
 
 	// D1 Database
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "siliconbeest-db",
 			"database_id": "YOUR_D1_DATABASE_ID"
 		}
@@ -91,6 +101,14 @@
 	// Queues (producer bindings — worker enqueues jobs)
 	"queues": {
 		"producers": [
+			{ "binding": "QUEUE_INBOX_0", "queue": "siliconbeest-inbox-0" },
+			{ "binding": "QUEUE_INBOX_1", "queue": "siliconbeest-inbox-1" },
+			{ "binding": "QUEUE_INBOX_2", "queue": "siliconbeest-inbox-2" },
+			{ "binding": "QUEUE_INBOX_3", "queue": "siliconbeest-inbox-3" },
+			{ "binding": "QUEUE_INBOX_4", "queue": "siliconbeest-inbox-4" },
+			{ "binding": "QUEUE_INBOX_5", "queue": "siliconbeest-inbox-5" },
+			{ "binding": "QUEUE_INBOX_6", "queue": "siliconbeest-inbox-6" },
+			{ "binding": "QUEUE_INBOX_7", "queue": "siliconbeest-inbox-7" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "siliconbeest-federation"
@@ -102,6 +120,18 @@
 			{
 				"binding": "QUEUE_EMAIL",
 				"queue": "siliconbeest-email"
+			},
+			{
+				"binding": "QUEUE_DB_INSERT",
+				"queue": "siliconbeest-db-insert"
+			},
+			{
+				"binding": "QUEUE_DB_UPDATE",
+				"queue": "siliconbeest-db-update"
+			},
+			{
+				"binding": "QUEUE_REGISTRATION",
+				"queue": "siliconbeest-registration"
 			}
 		]
 	},
@@ -112,6 +142,34 @@
 			{
 				"name": "STREAMING_DO",
 				"class_name": "StreamingDO"
+			},
+			{
+				"name": "STREAM_FANOUT_DO",
+				"class_name": "StreamFanoutDO"
+			},
+			{
+				"name": "REALTIME_FEED_DO",
+				"class_name": "RealtimeFeedIndexDO"
+			},
+			{
+				"name": "WRITE_JOURNAL_DO",
+				"class_name": "WriteJournalDO"
+			},
+			{
+				"name": "IDENTITY_RESERVATION_DO",
+				"class_name": "IdentityReservationDO"
+			},
+			{
+				"name": "INVITATION_LEDGER_DO",
+				"class_name": "InvitationLedgerDO"
+			},
+			{
+				"name": "REGISTRATION_JOURNAL_DO",
+				"class_name": "RegistrationJournalDO"
+			},
+			{
+				"name": "REMOTE_OBJECT_JOURNAL_DO",
+				"class_name": "RemoteObjectJournalDO"
 			}
 		]
 	},
@@ -122,6 +180,26 @@
 			// namespaces (API error 10099). Already-deployed workers keep their
 			// existing backend — applied migration tags are never re-run.
 			"new_sqlite_classes": ["StreamingDO"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["WriteJournalDO"]
+		},
+		{
+			"tag": "v3-registration-pipeline",
+			"new_sqlite_classes": ["IdentityReservationDO", "InvitationLedgerDO", "RegistrationJournalDO"]
+		},
+		{
+			"tag": "v4-remote-object-journal",
+			"new_sqlite_classes": ["RemoteObjectJournalDO"]
+		},
+		{
+			"tag": "v5-stream-fanout-tree",
+			"new_sqlite_classes": ["StreamFanoutDO"]
+		},
+		{
+			"tag": "v6-realtime-feed-index",
+			"new_sqlite_classes": ["RealtimeFeedIndexDO"]
 		}
 	],
 

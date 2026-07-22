@@ -95,7 +95,7 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			});
 
 			// Verify otp_enabled is still 0 in DB
-			const row = await env.DB.prepare(
+			const row = await env.DB_META_C000.prepare(
 				'SELECT otp_enabled, otp_secret FROM users WHERE id = ?',
 			).bind(userId).first<{ otp_enabled: number; otp_secret: string | null }>();
 
@@ -185,7 +185,7 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			expect(body.success).toBe(true);
 
 			// Verify otp_enabled is now 1 in DB
-			const row = await env.DB.prepare(
+			const row = await env.DB_META_C000.prepare(
 				'SELECT otp_enabled FROM users WHERE id = ?',
 			).bind(userId).first<{ otp_enabled: number }>();
 			expect(row!.otp_enabled).toBe(1);
@@ -281,11 +281,11 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			expect(regRes.status).toBe(200);
 
 			// Confirm email and get a token
-			const user = await env.DB.prepare(
+			const user = await env.DB_META_C000.prepare(
 				'SELECT id FROM users WHERE email = ?',
 			).bind(email).first<{ id: string }>();
 
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`UPDATE users
 				 SET approved = 1,
 				     confirmed_at = datetime('now'),
@@ -321,7 +321,7 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			expect(confirmRes.status).toBe(200);
 
 			// Verify 2FA is enabled
-			const before = await env.DB.prepare(
+			const before = await env.DB_META_C000.prepare(
 				'SELECT otp_enabled FROM users WHERE id = ?',
 			).bind(user!.id).first<{ otp_enabled: number }>();
 			expect(before!.otp_enabled).toBe(1);
@@ -338,7 +338,7 @@ describe('MFA (TOTP Two-Factor Authentication)', () => {
 			expect(body.success).toBe(true);
 
 			// Verify OTP data is cleared
-			const after = await env.DB.prepare(
+			const after = await env.DB_META_C000.prepare(
 				'SELECT otp_enabled, otp_secret, otp_backup_codes FROM users WHERE id = ?',
 			).bind(user!.id).first<{ otp_enabled: number; otp_secret: string | null; otp_backup_codes: string | null }>();
 			expect(after!.otp_enabled).toBe(0);

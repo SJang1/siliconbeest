@@ -6,7 +6,7 @@ const BASE = 'https://test.siliconbeest.local';
 
 async function insertDlqMessage(id: string, status = 'parked', rawBody?: string) {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO federation_dlq_parked
       (id, queue, body, message_type, attempts, status, parked_at, updated_at)
      VALUES (?1, 'siliconbeest-federation-dlq', ?2, 'forward_activity', 6, ?3, ?4, ?4)`,
@@ -19,7 +19,7 @@ async function insertDlqMessage(id: string, status = 'parked', rawBody?: string)
 }
 
 async function getStatus(id: string): Promise<string | null> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT status FROM federation_dlq_parked WHERE id = ?1',
   ).bind(id).first<{ status: string }>();
   return row?.status ?? null;
@@ -82,7 +82,7 @@ describe('Admin federation DLQ API', () => {
       nested: [{ access_token: '[REDACTED]', passwordHash: '[REDACTED]' }],
     });
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT body FROM federation_dlq_parked WHERE id = ?1',
     ).bind('dlq-redacted-body').first<{ body: string }>();
     expect(stored?.body).toBe(rawBody);
@@ -119,7 +119,7 @@ describe('Admin federation DLQ API', () => {
   });
 
   it('replays every parked message and leaves completed messages unchanged', async () => {
-    await env.DB.prepare("UPDATE federation_dlq_parked SET status = 'discarded' WHERE status = 'parked'").run();
+    await env.DB_META_C000.prepare("UPDATE federation_dlq_parked SET status = 'discarded' WHERE status = 'parked'").run();
     await insertDlqMessage('dlq-replay-all-1');
     await insertDlqMessage('dlq-replay-all-2');
     await insertDlqMessage('dlq-already-replayed', 'replayed');

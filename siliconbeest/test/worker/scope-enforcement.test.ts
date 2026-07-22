@@ -25,12 +25,12 @@ async function createScopedUser(username: string, scopes: string) {
   const pubPem = `-----BEGIN PUBLIC KEY-----\n${toBase64(pubBuf)}\n-----END PUBLIC KEY-----`;
   const privPem = `-----BEGIN PRIVATE KEY-----\n${toBase64(privBuf)}\n-----END PRIVATE KEY-----`;
 
-  await env.DB.batch([
-    env.DB.prepare("INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?)").bind(id, username, username, uri, `https://test.siliconbeest.local/@${username}`, now, now),
-    env.DB.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)").bind(id, id, `${username}@test.local`, 'dummy_hash', now, now, now),
-    env.DB.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, pubPem, privPem, uri + '#main-key', now),
-    env.DB.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Scoped App', 'urn:ietf:wg:oauth:2.0:oob', crypto.randomUUID().replace(/-/g, ''), crypto.randomUUID().replace(/-/g, ''), scopes, now, now),
-    env.DB.prepare("INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, appId, id, scopes, now),
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare("INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?)").bind(id, username, username, uri, `https://test.siliconbeest.local/@${username}`, now, now),
+    env.DB_META_C000.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)").bind(id, id, `${username}@test.local`, 'dummy_hash', now, now, now),
+    env.DB_META_C000.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, pubPem, privPem, uri + '#main-key', now),
+    env.DB_META_C000.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Scoped App', 'urn:ietf:wg:oauth:2.0:oob', crypto.randomUUID().replace(/-/g, ''), crypto.randomUUID().replace(/-/g, ''), scopes, now, now),
+    env.DB_META_C000.prepare("INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, appId, id, scopes, now),
   ]);
 
   return { accountId: id, userId: id, token };

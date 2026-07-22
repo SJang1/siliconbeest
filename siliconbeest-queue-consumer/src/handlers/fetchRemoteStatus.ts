@@ -18,6 +18,7 @@ import {
   canStoreFetchedRemoteStatus,
 } from '../../../packages/shared/permissions';
 import { serializeNaturalLanguageMap } from '../../../packages/shared/utils/naturalLanguage';
+import { normalizeFederatedTime } from '../../../packages/shared/utils/federatedTime';
 
 export async function handleFetchRemoteStatus(
   msg: FetchRemoteStatusMessage,
@@ -42,14 +43,14 @@ export async function handleFetchRemoteStatus(
     return;
   }
 
-  const suspendedDomains = await getSuspendedDomains(env.DB, [statusDomain]);
+  const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [statusDomain]);
   if (suspendedDomains.has(statusDomain)) {
     console.log(`[remote-status] Skipping lookup for suspended domain ${statusDomain}`);
     return;
   }
 
   // Check if we already have this status
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     `SELECT id FROM statuses WHERE uri = ?`,
   )
     .bind(statusUri)
@@ -66,7 +67,7 @@ export async function handleFetchRemoteStatus(
   // remote servers respond instead of returning 401).
   let objectDoc: Record<string, unknown>;
   try {
-    const signerUsername = await pickSignerUsername(env.DB, signerAccountId ?? null);
+    const signerUsername = await pickSignerUsername(env.DB_META_C000, signerAccountId ?? null);
     if (!signerUsername) {
       console.warn(`No local signer available to fetch ${statusUri}, dropping`);
       return;
@@ -122,7 +123,7 @@ export async function handleFetchRemoteStatus(
     return;
   }
 
-  const suspendedAuthorDomains = await getSuspendedDomains(env.DB, [authorDomain]);
+  const suspendedAuthorDomains = await getSuspendedDomains(env.DB_META_C000, [authorDomain]);
   if (suspendedAuthorDomains.has(authorDomain)) {
     console.log(
       `[remote-status] Skipping status ${statusUri} attributed to suspended domain ${authorDomain}`,
@@ -132,7 +133,7 @@ export async function handleFetchRemoteStatus(
 
   // Resolve author account — check if we know them
   let authorAccountId: string | null = null;
-  const authorRow = await env.DB.prepare(
+  const authorRow = await env.DB_META_C000.prepare(
     `SELECT id, domain, suspended_at
      FROM accounts
      WHERE uri = ? AND domain IS NOT NULL`,
@@ -156,7 +157,7 @@ export async function handleFetchRemoteStatus(
     // A same-host attributedTo value is not proof that the resource is an
     // Actor. Verify the unknown author before granting it ownership through a
     // placeholder account.
-    const authorSigner = await pickSignerUsername(env.DB, signerAccountId ?? null);
+    const authorSigner = await pickSignerUsername(env.DB_META_C000, signerAccountId ?? null);
     if (!authorSigner) {
       console.warn(`No local signer available to verify author ${authorUri}, dropping`);
       return;
@@ -198,7 +199,7 @@ export async function handleFetchRemoteStatus(
     });
     // We still need an account_id — create a placeholder
     const placeholderAccountId = crypto.randomUUID();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts (
          id, username, domain, uri, hide_collections, created_at, updated_at
        ) VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`,
@@ -211,7 +212,7 @@ export async function handleFetchRemoteStatus(
       )
       .run();
 
-    const placeholder = await env.DB.prepare(
+    const placeholder = await env.DB_META_C000.prepare(
       `SELECT id, domain, suspended_at
        FROM accounts
        WHERE uri = ? AND domain IS NOT NULL`,
@@ -239,7 +240,10 @@ export async function handleFetchRemoteStatus(
   const contentWarning = firstString(objectDoc.summary) || firstString(objectDoc.summaryMap) || null;
   const sourceText = firstString((objectDoc.source as Record<string, unknown> | undefined)?.content);
   const url = firstUrl(objectDoc.url) || uri;
-  const published = (objectDoc.published as string) || new Date().toISOString();
+  const federatedTime = normalizeFederatedTime(objectDoc.published, Date.now());
+  const published = federatedTime.publishedAtMs === null
+    ? new Date(federatedTime.receivedAtMs).toISOString()
+    : new Date(federatedTime.publishedAtMs).toISOString();
   const inReplyTo = (objectDoc.inReplyTo as string) || null;
   const sensitive = (objectDoc.sensitive as boolean) || false;
   const language = extractLanguage(objectDoc);
@@ -264,13 +268,14 @@ export async function handleFetchRemoteStatus(
     : [];
 
   // Insert into statuses table
-  const insertResult = await env.DB.prepare(
+  const insertResult = await env.DB_META_C000.prepare(
     `INSERT OR IGNORE INTO statuses (
        id, account_id, uri, url, object_type, title, title_map, text, content, content_map,
        content_warning, content_warning_map,
        visibility, language, in_reply_to_id, sensitive,
-       local, quote_policy, emoji_tags, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, datetime('now'))`,
+       local, quote_policy, emoji_tags, created_at, updated_at,
+       published_at_raw, published_at_ms, received_at_ms, sort_at_ms
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, datetime('now'), ?, ?, ?, ?)`,
   )
     .bind(
       statusId,
@@ -292,6 +297,10 @@ export async function handleFetchRemoteStatus(
       quotePolicy,
       JSON.stringify(emojiTags), // Store emoji tag array for lazy-load
       published,
+      federatedTime.publishedAtRaw,
+      federatedTime.publishedAtMs,
+      federatedTime.receivedAtMs,
+      federatedTime.sortAtMs,
     )
     .run();
   if (insertResult.meta.changes !== 1) {
@@ -310,7 +319,7 @@ export async function handleFetchRemoteStatus(
       if (!mediaUrl) continue;
 
       stmts.push(
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT OR IGNORE INTO media_attachments (
              id, status_id, account_id, remote_url, content_type, description,
              created_at, updated_at
@@ -326,7 +335,7 @@ export async function handleFetchRemoteStatus(
       );
     }
     if (stmts.length > 0) {
-      await env.DB.batch(stmts);
+      await env.DB_META_C000.batch(stmts);
     }
   }
 
@@ -340,7 +349,7 @@ export async function handleFetchRemoteStatus(
         const tagName = ((tagObj.name as string) || '').replace(/^#/, '').toLowerCase();
         if (!tagName) continue;
         stmts.push(
-          env.DB.prepare(
+          env.DB_META_C000.prepare(
             `INSERT OR IGNORE INTO status_tags (status_id, tag_name) VALUES (?, ?)`,
           ).bind(statusId, tagName),
         );
@@ -351,7 +360,7 @@ export async function handleFetchRemoteStatus(
       }
     }
     if (stmts.length > 0) {
-      await env.DB.batch(stmts);
+      await env.DB_META_C000.batch(stmts);
     }
   }
 

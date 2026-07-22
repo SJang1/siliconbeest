@@ -244,7 +244,7 @@ export async function sendLoginNotification(
 // ---------------------------------------------------------------------------
 
 async function getAdminEmails(): Promise<{ email: string; locale: string }[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		"SELECT u.email, u.locale FROM users u WHERE u.role IN ('admin', 'owner') AND u.disabled = 0 AND u.email IS NOT NULL",
 	).all<{ email: string; locale: string }>();
 	return (results ?? []).filter((r) => r.email);

@@ -23,6 +23,7 @@ export type StreamEventType =
   | 'filters_changed'
   | 'emoji_update'
   | 'notifications_read'
+  | 'new_items'
   | 'reaction';
 
 export interface StreamEvent {
@@ -39,6 +40,8 @@ export interface StreamCallbacks {
   onFiltersChanged?: () => void;
   onEmojiUpdate?: (emojis: EmojiInfo[]) => void;
   onNotificationsRead?: (count: number) => void;
+  /** Coalesced body-free update hint received while content delivery is paused. */
+  onNewItems?: (count: number, streams: Record<string, number>) => void;
   /** A status's emoji reactions changed — payload carries the status id. */
   onReaction?: (statusId: string) => void;
   onConnect?: () => void;
@@ -149,6 +152,20 @@ export class StreamingClient {
       this.ws?.readyState === WebSocket.CONNECTING;
   }
 
+  pauseContent(): void {
+    this.sendControl({ type: 'pause_content', stream: this.stream });
+  }
+
+  resumeContent(): void {
+    this.sendControl({ type: 'resume_content', stream: this.stream });
+  }
+
+  private sendControl(message: { type: string; stream: string }): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    }
+  }
+
   private cleanup(): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -240,6 +257,24 @@ export class StreamingClient {
           try {
             const { count } = JSON.parse(data.payload) as { count: number };
             this.callbacks.onNotificationsRead(count);
+          } catch { /* ignore */ }
+        }
+        break;
+      }
+      case 'new_items': {
+        if (this.callbacks.onNewItems) {
+          try {
+            const value = JSON.parse(data.payload) as {
+              count?: unknown;
+              streams?: unknown;
+            };
+            const count = typeof value.count === 'number' && value.count > 0
+              ? Math.floor(value.count)
+              : 0;
+            const streams = value.streams && typeof value.streams === 'object'
+              ? value.streams as Record<string, number>
+              : {};
+            if (count > 0) this.callbacks.onNewItems(count, streams);
           } catch { /* ignore */ }
         }
         break;

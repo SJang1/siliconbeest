@@ -55,7 +55,7 @@ describe('remote account resolver permissions', () => {
     const queueSend = vi.spyOn(env.QUEUE_FEDERATION, 'send');
 
     expect(await resolveRemoteAccount(requested)).toBeNull();
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id FROM accounts WHERE uri IN (?1, ?2)',
     ).bind(requested, actorDocument.id).first<{ id: string }>();
     expect(stored).toBeNull();
@@ -71,7 +71,7 @@ describe('remote account resolver permissions', () => {
     const suspendedId = `resolver_suspended_${crypto.randomUUID()}`;
     const suspendedUri = `https://resolver-suspended.example/users/${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO accounts
          (id, username, domain, display_name, note, uri, url, suspended_at, created_at, updated_at)
        VALUES (?1, ?2, 'resolver-suspended.example', '', '', ?3, ?3, ?4, ?4, ?4)`,
@@ -92,7 +92,7 @@ describe('remote account resolver permissions', () => {
 
     const accountId = await resolveRemoteAccount(actorUri);
     expect(accountId).not.toBeNull();
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT uri, domain, suspended_at FROM accounts WHERE id = ?1',
     ).bind(accountId).first<{
       uri: string;

@@ -16,7 +16,7 @@ export async function handleDeliverActivityFanout(
 
   // Load all remote followers' inbox URLs
   // Remote accounts have domain IS NOT NULL
-  const rows = await env.DB.prepare(
+  const rows = await env.DB_META_C000.prepare(
     `SELECT DISTINCT
        a.inbox_url,
        a.shared_inbox_url,
@@ -81,7 +81,7 @@ export async function handleDeliverActivityFanout(
     (Array.isArray(activity.cc) && activity.cc.includes('https://www.w3.org/ns/activitystreams#Public'));
 
   if (isPublic) {
-    const { results: relayRows } = await env.DB.prepare(
+    const { results: relayRows } = await env.DB_META_C000.prepare(
       "SELECT inbox_url FROM relays WHERE state = 'accepted'",
     ).all<{ inbox_url: string }>();
 

@@ -222,7 +222,7 @@ app.get('/', async (c) => {
 	const accept = c.req.header('Accept') ?? '';
 	if (accept.includes('application/json')) {
 		// Validate app
-		const oauthApp = await env.DB.prepare(
+		const oauthApp = await env.DB_META_C000.prepare(
 			'SELECT id, name, website, scopes, redirect_uri FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 		).bind(clientId).first();
 
@@ -269,7 +269,7 @@ app.get('/', async (c) => {
 	}
 
 	// User is authenticated — validate the app and auto-approve
-	const oauthApp = await env.DB.prepare(
+	const oauthApp = await env.DB_META_C000.prepare(
 		'SELECT id, redirect_uri, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
 	).bind(clientId).first();
 
@@ -324,7 +324,7 @@ app.post('/', async (c) => {
 	}
 
 	// Validate the OAuth application exists
-	const oauthApp = await env.DB.prepare(
+	const oauthApp = await env.DB_META_C000.prepare(
 		`SELECT id, redirect_uri, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
 	)
 		.bind(clientId)
@@ -429,7 +429,7 @@ app.post('/', async (c) => {
 		const cacheKey = `token:${tokenHash}`;
 		let tokenPayload = await env.CACHE.get(cacheKey, 'json') as { user: { id: string; account_id: string } } | null;
 		if (!tokenPayload) {
-			const tokenRow = await env.DB.prepare(
+			const tokenRow = await env.DB_META_C000.prepare(
 				`SELECT t.user_id, u.account_id FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?1 AND t.revoked_at IS NULL LIMIT 1`,
 			).bind(tokenHash).first<{ user_id: string; account_id: string }>();
 			if (tokenRow) tokenPayload = { user: { id: tokenRow.user_id, account_id: tokenRow.account_id } };
@@ -473,7 +473,7 @@ app.post('/', async (c) => {
 		}
 
 		// Verify TOTP code
-		const user2fa = await env.DB.prepare(
+		const user2fa = await env.DB_META_C000.prepare(
 			`SELECT otp_secret FROM users WHERE id = ?1 AND otp_enabled = 1 LIMIT 1`,
 		)
 			.bind(sessionData.userId)
@@ -561,7 +561,7 @@ app.post('/', async (c) => {
 	}
 
 	// Look up user
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		`SELECT id, encrypted_password, otp_enabled, confirmed_at FROM users WHERE email = ?1 LIMIT 1`,
 	)
 		.bind(email.toLowerCase())

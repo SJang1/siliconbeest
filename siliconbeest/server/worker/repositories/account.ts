@@ -40,7 +40,7 @@ export type UpdateAccountInput = Partial<
 >;
 
 export const findById = async (id: string): Promise<Account | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE id = ?')
 		.bind(id)
 		.first<Account>();
@@ -48,7 +48,7 @@ export const findById = async (id: string): Promise<Account | null> => {
 };
 
 export const findByUri = async (uri: string): Promise<Account | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE uri = ?')
 		.bind(uri)
 		.first<Account>();
@@ -60,13 +60,13 @@ export const findByUsername = async (username: string, domain?: string | null): 
 		// Local account lookups are case-sensitive (exact), consistent with
 		// ActivityPub identity. Case-insensitive matching is limited to auth
 		// flows (login / password reset) in services/auth.ts.
-		const result = await env.DB
+		const result = await env.DB_META_C000
 			.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL')
 			.bind(username)
 			.first<Account>();
 		return result ?? null;
 	}
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ?')
 		.bind(username, domain)
 		.first<Account>();
@@ -76,7 +76,7 @@ export const findByUsername = async (username: string, domain?: string | null): 
 export const findByIds = async (ids: string[]): Promise<Account[]> => {
 	if (ids.length === 0) return [];
 	const placeholders = ids.map(() => '?').join(', ');
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(`SELECT * FROM accounts WHERE id IN (${placeholders})`)
 		.bind(...ids)
 		.all<Account>();
@@ -117,7 +117,7 @@ export const create = async (input: CreateAccountInput): Promise<Account> => {
 		moved_to_account_id: input.moved_to_account_id ?? null,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO accounts (
 				id, username, domain, display_name, note, uri, url,
@@ -153,7 +153,7 @@ export const update = async (id: string, input: UpdateAccountInput): Promise<Acc
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -172,7 +172,7 @@ export const updateCounts = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), new Date().toISOString(), id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -180,7 +180,7 @@ export const updateCounts = async (
 
 export const search = async (query: string, limit: number = 20, offset: number = 0): Promise<Account[]> => {
 	const likeQuery = `%${query}%`;
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM accounts
 			 WHERE (username LIKE ? OR display_name LIKE ?)
@@ -199,7 +199,7 @@ export const search = async (query: string, limit: number = 20, offset: number =
  * Used by federation processors to verify the target is a local user.
  */
 export const findLocalByUri = async (uri: string): Promise<Account | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM accounts WHERE uri = ? AND domain IS NULL')
 		.bind(uri)
 		.first<Account>();
@@ -210,7 +210,7 @@ export const findLocalByUri = async (uri: string): Promise<Account | null> => {
  * Check if an account ID belongs to a local user.
  */
 export const isLocal = async (id: string): Promise<boolean> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT id FROM accounts WHERE id = ? AND domain IS NULL')
 		.bind(id)
 		.first();
@@ -221,7 +221,7 @@ export const isLocal = async (id: string): Promise<boolean> => {
  * Increment a count field atomically. Used by federation inbox processors.
  */
 export const incrementCount = async (id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE accounts SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -231,14 +231,14 @@ export const incrementCount = async (id: string, field: 'followers_count' | 'fol
  * Decrement a count field atomically, flooring at 0.
  */
 export const decrementCount = async (id: string, field: 'followers_count' | 'following_count' | 'statuses_count'): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE accounts SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
 };
 
 export const findLocalAccounts = async (limit: number = 20, offset: number = 0): Promise<Account[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			'SELECT * FROM accounts WHERE domain IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?'
 		)

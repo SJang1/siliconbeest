@@ -11,6 +11,8 @@ import {
   buildStatusVisibilitySqlPredicate,
 } from '../../../../services/permissions';
 import type { AccountRow, StatusRow } from '../../../../types/db';
+import { buildFeedLinkHeader, decodeFeedCursor } from '../../../../utils/feedCursor';
+import { readRealtimeFeed } from '../../../../services/realtimeFeed';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -29,7 +31,18 @@ app.get('/', authOptional, async (c) => {
   const currentAccount = c.get('currentAccount');
   const preferredLanguages = c.get('preferredLanguages');
 
-  const allRows = await getPublicTimeline({
+  const publicFeedKey = `public:${local ? 'local' : remote ? 'remote' : 'all'}:${onlyMedia ? 'media' : 'all'}`;
+  const signedCursor = pag.maxId ? await decodeFeedCursor(pag.maxId, publicFeedKey) : null;
+  const realtimeCandidateIds = String(env.SEARCH_FEED_READS) === 'true'
+    && !onlyMedia && !pag.sinceId && !pag.minId && (!pag.maxId || signedCursor)
+    ? await readRealtimeFeed(publicFeedKey, signedCursor?.before ?? null, Math.min(pag.limit * 4, 80))
+        .then((page) => page.entries.map((entry) => entry.entityId))
+        .catch((error) => {
+          console.warn('[public timeline] real-time candidate lookup failed; using D1 fallback', error);
+          return [];
+        })
+    : [];
+  let allRows = await getPublicTimeline({
     maxId: pag.maxId,
     sinceId: pag.sinceId,
     minId: pag.minId,
@@ -38,7 +51,20 @@ app.get('/', authOptional, async (c) => {
     remote,
     onlyMedia,
     viewerAccountId: currentAccount?.id,
+    ...(realtimeCandidateIds.length > 0 ? { candidateIds: realtimeCandidateIds } : {}),
   });
+  if (realtimeCandidateIds.length > 0 && allRows.length < pag.limit) {
+    allRows = await getPublicTimeline({
+      maxId: pag.maxId,
+      sinceId: pag.sinceId,
+      minId: pag.minId,
+      limit: pag.limit,
+      local,
+      remote,
+      onlyMedia,
+      viewerAccountId: currentAccount?.id,
+    });
+  }
 
   const statusIds = allRows.map((r) => r.id as string);
   const currentAccountId = currentAccount?.id ?? null;
@@ -63,7 +89,7 @@ app.get('/', authOptional, async (c) => {
       currentAccountId,
       new Date().toISOString(),
     );
-    const { results: reblogResults } = await env.DB.prepare(
+    const { results: reblogResults } = await env.DB_META_C000.prepare(
       `SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
               a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
               a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,
@@ -154,7 +180,10 @@ app.get('/', authOptional, async (c) => {
   if (pag.minId) statuses.reverse();
 
   const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/timelines/public`;
-  const link = buildLinkHeader(baseUrl, statuses, pag.limit);
+  const linkRows = pag.minId ? [...allRows].reverse() : allRows;
+  const link = String(env.SEARCH_FEED_READS) === 'true'
+    ? await buildFeedLinkHeader(baseUrl, linkRows, pag.limit, publicFeedKey)
+    : buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 

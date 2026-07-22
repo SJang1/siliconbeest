@@ -71,7 +71,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       // URI everywhere, so remote servers always reference the exact case.
       // (Registration enforces case-insensitive uniqueness, so at most one
       // local account can match a given handle regardless of casing.)
-      const account = await env.DB.prepare(
+      const account = await env.DB_META_C000.prepare(
         `SELECT * FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1`,
       )
         .bind(identifier)
@@ -112,7 +112,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       // --- Resolve movedTo ---
       let successor: URL | undefined;
       if (account.moved_to_account_id) {
-        const target = await env.DB.prepare(
+        const target = await env.DB_META_C000.prepare(
           `SELECT uri FROM accounts WHERE id = ?1 LIMIT 1`,
         )
           .bind(account.moved_to_account_id)
@@ -145,7 +145,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
 
       if (shortcodes.length > 0) {
         const placeholders = shortcodes.map((_: string, i: number) => `?${i + 1}`).join(', ');
-        const { results: customEmojis } = await env.DB.prepare(
+        const { results: customEmojis } = await env.DB_META_C000.prepare(
           `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = '${domain}')`,
         )
           .bind(...shortcodes)
@@ -223,7 +223,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       if (identifier === '__instance__') {
         accountId = '__instance__';
       } else {
-        const account = await env.DB.prepare(
+        const account = await env.DB_META_C000.prepare(
           `SELECT id FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1`,
         )
           .bind(identifier)
@@ -236,7 +236,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
         accountId = account.id;
       }
 
-      const actorKey = await env.DB.prepare(
+      const actorKey = await env.DB_META_C000.prepare(
         `SELECT * FROM actor_keys WHERE account_id = ?1 ORDER BY created_at DESC LIMIT 1`,
       )
         .bind(accountId)
@@ -270,7 +270,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
         ed25519Priv = generated.privateKey;
 
         // Persist the newly generated keys back to the database
-        await env.DB.prepare(
+        await env.DB_META_C000.prepare(
           `UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE id = ?3`,
         )
           .bind(ed25519Pub, ed25519Priv, actorKey.id)
@@ -299,7 +299,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
     // Instance actor case
     if (!username || username.toLowerCase() === domain.toLowerCase()) return [];
 
-    const account = await env.DB.prepare(
+    const account = await env.DB_META_C000.prepare(
       `SELECT id FROM accounts
        WHERE username = ?1 AND domain IS NULL
        LIMIT 1`,

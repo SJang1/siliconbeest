@@ -40,7 +40,7 @@ export const findByAccount = async (accountId: string, opts: NotificationQueryOp
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM notifications
 			 WHERE ${where}
@@ -52,7 +52,7 @@ export const findByAccount = async (accountId: string, opts: NotificationQueryOp
 };
 
 export const findById = async (id: string): Promise<Notification | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM notifications WHERE id = ?')
 		.bind(id)
 		.first<Notification>();
@@ -72,7 +72,7 @@ export const create = async (input: CreateNotificationInput): Promise<Notificati
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO notifications (id, account_id, from_account_id, type, status_id, read, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -88,21 +88,21 @@ export const create = async (input: CreateNotificationInput): Promise<Notificati
 };
 
 export const dismiss = async (id: string, accountId: string): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM notifications WHERE id = ? AND account_id = ?')
 		.bind(id, accountId)
 		.run();
 };
 
 export const clearAll = async (accountId: string): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM notifications WHERE account_id = ?')
 		.bind(accountId)
 		.run();
 };
 
 export const countUnread = async (accountId: string): Promise<number> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT COUNT(*) as count FROM notifications WHERE account_id = ? AND read = 0')
 		.bind(accountId)
 		.first<{ count: number }>();

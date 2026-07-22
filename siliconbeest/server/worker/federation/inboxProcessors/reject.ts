@@ -49,7 +49,7 @@ class RejectProcessor extends BaseProcessor {
 		const objectId = typeof object === 'string' ? object : followObject?.id ?? null;
 		let followRequest: FollowRequestResponseTarget | null = null;
 		if (objectId) {
-			followRequest = await env.DB.prepare(
+			followRequest = await env.DB_META_C000.prepare(
 				`SELECT fr.id, fr.account_id, fr.target_account_id,
 				        local_initiator.uri AS local_initiator_uri,
 				        response_owner.uri AS response_owner_uri
@@ -63,7 +63,7 @@ class RejectProcessor extends BaseProcessor {
 			).bind(objectId, remoteAccount.id).first<FollowRequestResponseTarget>();
 		}
 		if (!followRequest && followObject && !followObject.id) {
-			followRequest = await env.DB.prepare(
+			followRequest = await env.DB_META_C000.prepare(
 				`SELECT fr.id, fr.account_id, fr.target_account_id,
 				        local_initiator.uri AS local_initiator_uri,
 				        response_owner.uri AS response_owner_uri
@@ -94,7 +94,7 @@ class RejectProcessor extends BaseProcessor {
 			return;
 		}
 
-		const deleted = await env.DB.prepare(
+		const deleted = await env.DB_META_C000.prepare(
 			`DELETE FROM follow_requests
 			 WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3`,
 		).bind(
@@ -121,7 +121,7 @@ class RejectProcessor extends BaseProcessor {
 			return;
 		}
 
-		const status = await env.DB.prepare(
+		const status = await env.DB_META_C000.prepare(
 			`SELECT s.id, s.account_id AS local_quote_author_account_id,
 			        s.quote_approval_status,
 			        qs.account_id AS quote_target_author_account_id
@@ -148,7 +148,7 @@ class RejectProcessor extends BaseProcessor {
 			return;
 		}
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`UPDATE statuses
 			 SET quote_id = NULL,
 			     quote_authorization_uri = NULL,

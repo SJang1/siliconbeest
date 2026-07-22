@@ -46,9 +46,16 @@ else
   KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
   KV_FEDIFY_TITLE="${KV_FEDIFY_TITLE:-${PROJECT_PREFIX}-FEDIFY_KV}"
   QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
+  INBOX_QUEUE_LANES=8
   QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
   QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
   QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
+  QUEUE_DB_INSERT="${QUEUE_DB_INSERT:-${PROJECT_PREFIX}-db-insert}"
+  QUEUE_DB_UPDATE="${QUEUE_DB_UPDATE:-${PROJECT_PREFIX}-db-update}"
+  QUEUE_DB_INSERT_DLQ="${QUEUE_DB_INSERT_DLQ:-${PROJECT_PREFIX}-db-insert-dlq}"
+  QUEUE_DB_UPDATE_DLQ="${QUEUE_DB_UPDATE_DLQ:-${PROJECT_PREFIX}-db-update-dlq}"
+  QUEUE_REGISTRATION="${QUEUE_REGISTRATION:-${PROJECT_PREFIX}-registration}"
+  QUEUE_REGISTRATION_DLQ="${QUEUE_REGISTRATION_DLQ:-${PROJECT_PREFIX}-registration-dlq}"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
   MAIN_DIR="$PROJECT_ROOT/siliconbeest"
   CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
@@ -595,7 +602,6 @@ ${WRANGLER_COMPATIBILITY_FLAGS_INDENT}"compatibility_flags": ["nodejs_compat"],
 	"placement": {
 		"mode": "smart"
 	},
-
 	// Environment Variables (set SETUP_SECRET via \`wrangler secret put SETUP_SECRET\` before first-run setup;
 	// optional \`wrangler secret put SENTRY_DSN\` enables Sentry error reporting in the worker)
 	"vars": {
@@ -615,13 +621,24 @@ ${WRANGLER_COMPATIBILITY_FLAGS_INDENT}"compatibility_flags": ["nodejs_compat"],
 		"WORKERS_AI_RATE_LIMITS": ${CURRENT_WORKERS_AI_RATE_LIMITS},
 		"WORKERS_AI_RECOMMENDATION_RATE_LIMIT_PERIOD_SECONDS": ${CURRENT_WORKERS_AI_RECOMMENDATION_RATE_LIMIT_PERIOD_SECONDS},
 		"WORKERS_AI_TRANSLATION_RATE_LIMIT_PERIOD_SECONDS": ${CURRENT_WORKERS_AI_TRANSLATION_RATE_LIMIT_PERIOD_SECONDS},
-		"WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS": ${CURRENT_WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS}
+		"WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS": ${CURRENT_WORKERS_AI_IMAGE_DESCRIPTION_RATE_LIMIT_PERIOD_SECONDS},
+		"ASYNC_STATUS_WRITES": "false",
+		"ASYNC_REGISTRATION_WRITES": "false",
+		"SEARCH_FEED_READS": "false",
+		"D1_WRITE_BATCH_MAX_OPERATIONS": "32",
+		"D1_WRITE_BATCH_MAX_WAIT_MS": "50",
+		"STREAM_PUBLIC_BRANCH_FACTOR": "5",
+		"STREAM_PUBLIC_TREE_DEPTH": "3",
+		"STREAM_PUBLIC_LEAF_MAX_SOCKETS": "400",
+		"STREAM_USER_MAX_SOCKETS": "32",
+		"STREAM_SOCKET_MAX_BUFFERED_BYTES": "262144",
+		"STREAM_EVENT_MAX_BYTES": "98304"
 	},
 ${WORKERS_AI_BINDING_BLOCK}
 	// D1 Database
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "${D1_DATABASE_NAME}",
 			"database_id": "${D1_ID}"
 		}
@@ -654,6 +671,14 @@ ${WORKERS_AI_BINDING_BLOCK}
 	// Queues (producer bindings — worker enqueues jobs)
 	"queues": {
 		"producers": [
+			{ "binding": "QUEUE_INBOX_0", "queue": "${PROJECT_PREFIX}-inbox-0" },
+			{ "binding": "QUEUE_INBOX_1", "queue": "${PROJECT_PREFIX}-inbox-1" },
+			{ "binding": "QUEUE_INBOX_2", "queue": "${PROJECT_PREFIX}-inbox-2" },
+			{ "binding": "QUEUE_INBOX_3", "queue": "${PROJECT_PREFIX}-inbox-3" },
+			{ "binding": "QUEUE_INBOX_4", "queue": "${PROJECT_PREFIX}-inbox-4" },
+			{ "binding": "QUEUE_INBOX_5", "queue": "${PROJECT_PREFIX}-inbox-5" },
+			{ "binding": "QUEUE_INBOX_6", "queue": "${PROJECT_PREFIX}-inbox-6" },
+			{ "binding": "QUEUE_INBOX_7", "queue": "${PROJECT_PREFIX}-inbox-7" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "${QUEUE_FEDERATION}"
@@ -665,6 +690,18 @@ ${WORKERS_AI_BINDING_BLOCK}
 			{
 				"binding": "QUEUE_EMAIL",
 				"queue": "${QUEUE_EMAIL}"
+			},
+			{
+				"binding": "QUEUE_DB_INSERT",
+				"queue": "${QUEUE_DB_INSERT}"
+			},
+			{
+				"binding": "QUEUE_DB_UPDATE",
+				"queue": "${QUEUE_DB_UPDATE}"
+			},
+			{
+				"binding": "QUEUE_REGISTRATION",
+				"queue": "${QUEUE_REGISTRATION}"
 			}
 		]
 	},
@@ -675,6 +712,34 @@ ${WORKERS_AI_BINDING_BLOCK}
 			{
 				"name": "STREAMING_DO",
 				"class_name": "StreamingDO"
+			},
+			{
+				"name": "STREAM_FANOUT_DO",
+				"class_name": "StreamFanoutDO"
+			},
+			{
+				"name": "REALTIME_FEED_DO",
+				"class_name": "RealtimeFeedIndexDO"
+			},
+			{
+				"name": "WRITE_JOURNAL_DO",
+				"class_name": "WriteJournalDO"
+			},
+			{
+				"name": "IDENTITY_RESERVATION_DO",
+				"class_name": "IdentityReservationDO"
+			},
+			{
+				"name": "INVITATION_LEDGER_DO",
+				"class_name": "InvitationLedgerDO"
+			},
+			{
+				"name": "REGISTRATION_JOURNAL_DO",
+				"class_name": "RegistrationJournalDO"
+			},
+			{
+				"name": "REMOTE_OBJECT_JOURNAL_DO",
+				"class_name": "RemoteObjectJournalDO"
 			}
 		]
 	},
@@ -685,6 +750,26 @@ ${WORKERS_AI_BINDING_BLOCK}
 			// namespaces (API error 10099). Already-deployed workers keep their
 			// existing backend — applied migration tags are never re-run.
 			"new_sqlite_classes": ["StreamingDO"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["WriteJournalDO"]
+		},
+		{
+			"tag": "v3-registration-pipeline",
+			"new_sqlite_classes": ["IdentityReservationDO", "InvitationLedgerDO", "RegistrationJournalDO"]
+		},
+		{
+			"tag": "v4-remote-object-journal",
+			"new_sqlite_classes": ["RemoteObjectJournalDO"]
+		},
+		{
+			"tag": "v5-stream-fanout-tree",
+			"new_sqlite_classes": ["StreamFanoutDO"]
+		},
+		{
+			"tag": "v6-realtime-feed-index",
+			"new_sqlite_classes": ["RealtimeFeedIndexDO"]
 		}
 	],
 
@@ -735,19 +820,27 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	"placement": {
 		"mode": "smart"
 	},
+	"limits": {
+		"cpu_ms": 60000
+	},
 	"vars": {
 		"INSTANCE_DOMAIN": "${CURRENT_DOMAIN}",
+		"INSTANCE_TITLE": "${CURRENT_TITLE}",
 		"REPOSITORY_URL": "${CURRENT_REPOSITORY_URL}",
+		"REGISTRATION_MODE": "${CURRENT_REG}",
 		"SKIP_SIGNATURE_VERIFICATION": ${CURRENT_SKIP_SIGNATURE_VERIFICATION},
 		// Verbose debug logging (full federation request/response payloads).
 		// Ultra-sensitive values (private keys, passwords, tokens) are always
 		// redacted. Off unless exactly true.
-		"DEBUG": ${CURRENT_DEBUG}
+		"DEBUG": ${CURRENT_DEBUG},
+		"D1_WRITE_BATCH_MAX_OPERATIONS": "32",
+		"D1_WRITE_BATCH_MAX_WAIT_MS": "50",
+		"QUEUE_CONSUMER_WALL_BUDGET_MS": "55000"
 	},
 	// D1 Database
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "${D1_DATABASE_NAME}",
 			"database_id": "${D1_ID}"
 		}
@@ -776,6 +869,22 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	// Queues (consume federation + internal + federation-dlq, produce for re-enqueue/fanout)
 	"queues": {
 		"consumers": [
+			{ "queue": "${PROJECT_PREFIX}-inbox-0", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-0-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-1", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-1-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-2", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-2-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-3", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-3-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-4", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-4-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-5", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-5-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-6", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-6-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-7", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-7-dlq" },
+			{ "queue": "${PROJECT_PREFIX}-inbox-0-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-1-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-2-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-3-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-4-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-5-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-6-dlq", "max_retries": 2 },
+			{ "queue": "${PROJECT_PREFIX}-inbox-7-dlq", "max_retries": 2 },
 			{
 				"queue": "${QUEUE_FEDERATION}",
 				"max_retries": 5,
@@ -790,9 +899,50 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 				// park persistent failures into the federation_dlq_parked table.
 				"queue": "${QUEUE_DLQ}",
 				"max_retries": 2
+			},
+			{
+				"queue": "${QUEUE_DB_INSERT}",
+				"max_batch_size": 32,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "${QUEUE_DB_INSERT_DLQ}"
+			},
+			{
+				"queue": "${QUEUE_DB_UPDATE}",
+				"max_batch_size": 32,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "${QUEUE_DB_UPDATE_DLQ}"
+			},
+			{
+				"queue": "${QUEUE_DB_INSERT_DLQ}",
+				"max_retries": 3
+			},
+			{
+				"queue": "${QUEUE_DB_UPDATE_DLQ}",
+				"max_retries": 3
+			},
+			{
+				"queue": "${QUEUE_REGISTRATION}",
+				"max_batch_size": 32,
+				"max_batch_timeout": 2,
+				"max_retries": 5,
+				"dead_letter_queue": "${QUEUE_REGISTRATION_DLQ}"
+			},
+			{
+				"queue": "${QUEUE_REGISTRATION_DLQ}",
+				"max_retries": 3
 			}
 		],
 		"producers": [
+			{ "binding": "QUEUE_INBOX_0", "queue": "${PROJECT_PREFIX}-inbox-0" },
+			{ "binding": "QUEUE_INBOX_1", "queue": "${PROJECT_PREFIX}-inbox-1" },
+			{ "binding": "QUEUE_INBOX_2", "queue": "${PROJECT_PREFIX}-inbox-2" },
+			{ "binding": "QUEUE_INBOX_3", "queue": "${PROJECT_PREFIX}-inbox-3" },
+			{ "binding": "QUEUE_INBOX_4", "queue": "${PROJECT_PREFIX}-inbox-4" },
+			{ "binding": "QUEUE_INBOX_5", "queue": "${PROJECT_PREFIX}-inbox-5" },
+			{ "binding": "QUEUE_INBOX_6", "queue": "${PROJECT_PREFIX}-inbox-6" },
+			{ "binding": "QUEUE_INBOX_7", "queue": "${PROJECT_PREFIX}-inbox-7" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "${QUEUE_FEDERATION}"
@@ -800,6 +950,10 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 			{
 				"binding": "QUEUE_INTERNAL",
 				"queue": "${QUEUE_INTERNAL}"
+			},
+			{
+				"binding": "QUEUE_EMAIL",
+				"queue": "${QUEUE_EMAIL}"
 			}
 		]
 	},
@@ -810,6 +964,20 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 			"binding": "INTERNAL_CONNECTION_MAIN",
 			"service": "${MAIN_WORKER_NAME}",
 			"entrypoint": "Internal"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "SHARD_WRITER_DO",
+				"class_name": "ShardWriterDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1-shard-writer",
+			"new_sqlite_classes": ["ShardWriterDO"]
 		}
 	]
 }
@@ -843,7 +1011,7 @@ cat > "$EMAIL_DIR/wrangler.jsonc" << WRANGLER_EOF
 	// D1 for reading SMTP settings from settings table
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "${D1_DATABASE_NAME}",
 			"database_id": "${D1_ID}"
 		}

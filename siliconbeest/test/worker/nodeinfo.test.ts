@@ -78,7 +78,7 @@ describe('NodeInfo', () => {
       const now = new Date().toISOString();
 
       await env.CACHE.delete('nodeinfo:stats:fedify');
-      await env.DB.prepare('UPDATE users SET current_sign_in_at = ?1 WHERE account_id = ?2')
+      await env.DB_META_C000.prepare('UPDATE users SET current_sign_in_at = ?1 WHERE account_id = ?2')
         .bind(now, nodeInfoAccountId)
         .run();
 

@@ -5,7 +5,7 @@ import { applyMigration } from './helpers';
 const BASE = 'https://test.siliconbeest.local';
 
 async function setSetting(key: string, value: string) {
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
   ).bind(key, value).run();

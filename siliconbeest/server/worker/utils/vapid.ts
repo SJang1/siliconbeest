@@ -16,7 +16,7 @@ type VapidKeys = {
  */
 export async function getVapidKeys(
 ): Promise<VapidKeys | null> {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare("SELECT key, value FROM settings WHERE key IN ('vapid_public_key', 'vapid_private_key')")
 		.all<{ key: string; value: string }>();
 
@@ -39,7 +39,7 @@ export async function getVapidKeys(
  */
 export async function getVapidPublicKey(
 ): Promise<string> {
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare("SELECT value FROM settings WHERE key = 'vapid_public_key'")
 		.first<{ value: string }>();
 

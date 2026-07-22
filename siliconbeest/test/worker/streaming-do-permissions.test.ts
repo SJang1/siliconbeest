@@ -49,4 +49,35 @@ describe('StreamingDO subscription permissions', () => {
     });
     socket.close(1000, 'test complete');
   }, 15_000);
+
+  it('coalesces paused update bodies into a count-only event', async () => {
+    const stub = env.STREAMING_DO.getByName('count-only');
+    const response = await stub.fetch(`${STREAMING_REQUEST_URL}?stream=public`, {
+      headers: {
+        Upgrade: 'websocket',
+        [ALLOWED_STREAMS_HEADER]: JSON.stringify(['public']),
+      },
+    });
+    const socket = response.webSocket;
+    if (!socket) throw new Error('Expected a WebSocket response');
+    socket.accept();
+    socket.send(JSON.stringify({ type: 'pause_content', stream: 'public' }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const received = new Promise<MessageEvent>((resolve) => {
+      socket.addEventListener('message', resolve, { once: true });
+    });
+    await stub.sendEvent({
+      event: 'update',
+      payload: JSON.stringify({ id: 'must-not-be-delivered' }),
+      stream: ['public'],
+    });
+
+    const message = await received;
+    const envelope = JSON.parse(String(message.data)) as { event: string; payload: string };
+    expect(envelope.event).toBe('new_items');
+    expect(JSON.parse(envelope.payload)).toEqual({ count: 1, streams: { public: 1 } });
+    expect(String(message.data)).not.toContain('must-not-be-delivered');
+    socket.close(1000, 'test complete');
+  }, 15_000);
 });

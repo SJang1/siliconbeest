@@ -30,9 +30,9 @@ async function getStats(): Promise<NodeInfoStats> {
 	if (cached) return cached as NodeInfoStats;
 
 	const [usersResult, statusesResult, domainsResult] = await Promise.all([
-		env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
-		env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
-		env.DB.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
+		env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
+		env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
+		env.DB_META_C000.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
 	]);
 
 	const stats: NodeInfoStats = {

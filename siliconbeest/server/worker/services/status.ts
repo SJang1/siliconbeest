@@ -37,7 +37,7 @@ import {
 // ----------------------------------------------------------------
 
 export async function getStatusById(id: string): Promise<StatusRow | null> {
-  return (await env.DB
+  return (await env.DB_META_C000
     .prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL LIMIT 1')
     .bind(id)
     .first()) as StatusRow | null;
@@ -59,7 +59,7 @@ export async function deleteStatus(
   assertStatusMutationAllowedForRecord(status, accountId, 'delete');
 
   const now = new Date().toISOString();
-  const deleted = await env.DB.prepare(
+  const deleted = await env.DB_META_C000.prepare(
     `UPDATE statuses
      SET deleted_at = ?1
      WHERE id = ?2
@@ -72,21 +72,21 @@ export async function deleteStatus(
   }
 
   const stmts: D1PreparedStatement[] = [
-    env.DB.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
+    env.DB_META_C000.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
   ];
   if (status.in_reply_to_id) {
     stmts.push(
-      env.DB.prepare('UPDATE statuses SET replies_count = MAX(0, replies_count - 1) WHERE id = ?1').bind(status.in_reply_to_id),
+      env.DB_META_C000.prepare('UPDATE statuses SET replies_count = MAX(0, replies_count - 1) WHERE id = ?1').bind(status.in_reply_to_id),
     );
   }
   if (status.reblog_of_id) {
     stmts.push(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1',
       ).bind(status.reblog_of_id),
     );
   }
-  await env.DB.batch(stmts);
+  await env.DB_META_C000.batch(stmts);
 
   return { status };
 }
@@ -120,7 +120,7 @@ export async function getContext(
   viewerAccountId: string | null = null,
 ): Promise<ContextResult> {
   // Verify status exists
-  const status = await env.DB
+  const status = await env.DB_META_C000
     .prepare('SELECT id, account_id, visibility, deleted_at, in_reply_to_id FROM statuses WHERE id = ?1')
     .bind(statusId)
     .first<StatusPermissionRecord & { in_reply_to_id: string | null }>();
@@ -139,7 +139,7 @@ export async function getContext(
     && visitedAncestorIds.size < 40
   ) {
     visitedAncestorIds.add(currentId);
-    const ancestor = await env.DB
+    const ancestor = await env.DB_META_C000
       .prepare(`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`)
       .bind(currentId)
       .first();
@@ -162,7 +162,7 @@ export async function getContext(
   while (queue.length > 0 && depth < 10 && descendantRows.length < 60) {
     const batch = queue.splice(0, queue.length);
     const ph = batch.map(() => '?').join(',');
-    const { results: replyRows } = await env.DB
+    const { results: replyRows } = await env.DB_META_C000
       .prepare(
         `${STATUS_JOIN_SQL}
          WHERE s.in_reply_to_id IN (${ph})
@@ -200,7 +200,7 @@ export async function favouriteStatus(
   accountId: string,
   statusId: string,
 ): Promise<FavouriteResult> {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .first();
@@ -209,14 +209,14 @@ export async function favouriteStatus(
 
   const now = new Date().toISOString();
   const id = generateUlid();
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)').bind(
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare('INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)').bind(
       id,
       accountId,
       statusId,
       now,
     ),
-    env.DB.prepare('UPDATE statuses SET favourites_count = favourites_count + 1 WHERE id = ?1').bind(statusId),
+    env.DB_META_C000.prepare('UPDATE statuses SET favourites_count = favourites_count + 1 WHERE id = ?1').bind(statusId),
   ]);
 
   return { created: true };
@@ -230,15 +230,15 @@ export async function unfavouriteStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .first();
 
   if (existing) {
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM favourites WHERE id = ?1').bind(existing.id as string),
-      env.DB.prepare('UPDATE statuses SET favourites_count = MAX(0, favourites_count - 1) WHERE id = ?1').bind(statusId),
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare('DELETE FROM favourites WHERE id = ?1').bind(existing.id as string),
+      env.DB_META_C000.prepare('UPDATE statuses SET favourites_count = MAX(0, favourites_count - 1) WHERE id = ?1').bind(statusId),
     ]);
     return true;
   }
@@ -264,7 +264,7 @@ export async function reblogStatus(
   await assertStatusRebloggable(statusId, accountId);
 
   // Check if already reblogged
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM statuses WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL')
     .bind(statusId, accountId)
     .first();
@@ -281,7 +281,7 @@ export async function reblogStatus(
   const reblogId = generateUlid();
   const reblogUri = `https://${domain}/users/${username}/statuses/${reblogId}/activity`;
 
-  const inserted = await env.DB.prepare(
+  const inserted = await env.DB_META_C000.prepare(
     `INSERT INTO statuses
        (id, uri, url, account_id, reblog_of_id, visibility, local, created_at, updated_at)
      SELECT ?1, ?2, NULL, ?3, s.id, s.visibility, 1, ?4, ?4
@@ -299,7 +299,7 @@ export async function reblogStatus(
        )`,
   ).bind(reblogId, reblogUri, accountId, now, statusId).run();
   if ((inserted.meta?.changes ?? 0) !== 1) {
-    const concurrent = await env.DB.prepare(
+    const concurrent = await env.DB_META_C000.prepare(
       `SELECT id FROM statuses
        WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL
        LIMIT 1`,
@@ -314,9 +314,9 @@ export async function reblogStatus(
     throw new AppError(404, 'Record not found');
   }
 
-  await env.DB.batch([
-    env.DB.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1 WHERE id = ?1').bind(statusId),
-    env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(accountId),
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare('UPDATE statuses SET reblogs_count = reblogs_count + 1 WHERE id = ?1').bind(statusId),
+    env.DB_META_C000.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(accountId),
   ]);
 
   return { reblogId, reblogUri, created: true };
@@ -334,7 +334,7 @@ export async function unreblogStatus(
   accountId: string,
   statusId: string,
 ): Promise<UnreblogResult> {
-  const reblog = await env.DB
+  const reblog = await env.DB_META_C000
     .prepare(
       `SELECT id FROM statuses
        WHERE reblog_of_id = ?1
@@ -348,7 +348,7 @@ export async function unreblogStatus(
 
   if (reblog) {
     const now = new Date().toISOString();
-    const deleted = await env.DB.prepare(
+    const deleted = await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET deleted_at = ?1
        WHERE id = ?2
@@ -361,9 +361,9 @@ export async function unreblogStatus(
       return { reblogId: null };
     }
 
-    await env.DB.batch([
-      env.DB.prepare('UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1').bind(statusId),
-      env.DB.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare('UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1').bind(statusId),
+      env.DB_META_C000.prepare('UPDATE accounts SET statuses_count = MAX(0, statuses_count - 1) WHERE id = ?1').bind(accountId),
     ]);
     return { reblogId: reblog.id };
   }
@@ -379,7 +379,7 @@ export async function bookmarkStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .first();
@@ -387,7 +387,7 @@ export async function bookmarkStatus(
   if (!existing) {
     const now = new Date().toISOString();
     const id = generateUlid();
-    await env.DB
+    await env.DB_META_C000
       .prepare('INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
       .bind(id, accountId, statusId, now)
       .run();
@@ -404,7 +404,7 @@ export async function unbookmarkStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const result = await env.DB
+  const result = await env.DB_META_C000
     .prepare('DELETE FROM bookmarks WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .run();
@@ -511,7 +511,7 @@ export async function createStatus(
   const mediaIds = data.mediaIds || [];
   let quotePolicy = normalizeQuotePolicy(data.quotePolicy);
   if (!data.quotePolicy) {
-    const pref = await env.DB.prepare(
+    const pref = await env.DB_META_C000.prepare(
       'SELECT default_quote_policy FROM users WHERE account_id = ?1 LIMIT 1',
     ).bind(accountId).first<{ default_quote_policy: string | null }>();
     quotePolicy = normalizeQuotePolicy(pref?.default_quote_policy);
@@ -531,7 +531,7 @@ export async function createStatus(
   let isReply = 0;
 
   if (data.inReplyToId) {
-    const parent = await env.DB
+    const parent = await env.DB_META_C000
       .prepare('SELECT id, account_id, visibility, deleted_at, conversation_id FROM statuses WHERE id = ?1')
       .bind(data.inReplyToId)
       .first<StatusPermissionRecord & { conversation_id: string | null }>();
@@ -551,7 +551,7 @@ export async function createStatus(
   let quoteApprovalStatus = 'none';
   let quoteRequestUri: string | null = null;
   if (data.quoteId) {
-    const quoted = await env.DB
+    const quoted = await env.DB_META_C000
       .prepare(`SELECT id, account_id, visibility, deleted_at, quote_policy,
                        quote_policy_automatic_approvals, quote_policy_manual_approvals,
                        uri, url
@@ -581,12 +581,12 @@ export async function createStatus(
     conversationId = generateUlid();
     const year = now.substring(0, 4);
     conversationApUri = `tag:${domain},${year}:objectId=${conversationId}:objectType=Conversation`;
-    await env.DB
+    await env.DB_META_C000
       .prepare('INSERT INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)')
       .bind(conversationId, conversationApUri, now)
       .run();
   } else {
-    const convRow = await env.DB
+    const convRow = await env.DB_META_C000
       .prepare('SELECT ap_uri FROM conversations WHERE id = ?1')
       .bind(conversationId)
       .first<{ ap_uri: string | null }>();
@@ -605,7 +605,7 @@ export async function createStatus(
   ];
   if (emojiMatches.length > 0) {
     const placeholders = emojiMatches.map(() => '?').join(',');
-    const emojiRows = await env.DB
+    const emojiRows = await env.DB_META_C000
       .prepare(
         `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
       )
@@ -625,7 +625,7 @@ export async function createStatus(
 
   const claimedMediaIds: string[] = [];
   for (const mediaId of mediaIds) {
-    const claimed = await env.DB.prepare(
+    const claimed = await env.DB_META_C000.prepare(
       `UPDATE media_attachments
        SET status_id = ?1
        WHERE id = ?2
@@ -635,7 +635,7 @@ export async function createStatus(
     if ((claimed.meta?.changes ?? 0) !== 1) {
       if (claimedMediaIds.length > 0) {
         const placeholders = claimedMediaIds.map(() => '?').join(', ');
-        await env.DB.prepare(
+        await env.DB_META_C000.prepare(
           `UPDATE media_attachments
            SET status_id = NULL
            WHERE status_id = ?
@@ -650,7 +650,7 @@ export async function createStatus(
 
   // -- Main batch: status INSERT + account count + reply count --
   const stmts: D1PreparedStatement[] = [
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `INSERT INTO statuses (id, uri, url, object_type, title, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, quote_approval_status, quote_request_uri, quote_policy, local, emoji_tags, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, 1, ?21, ?22, ?22)`,
     ).bind(
@@ -677,22 +677,22 @@ export async function createStatus(
       emojiTagsJson,
       now,
     ),
-    env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2').bind(
+    env.DB_META_C000.prepare('UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2').bind(
       now,
       accountId,
     ),
   ];
 
   if (inReplyToId) {
-    stmts.push(env.DB.prepare('UPDATE statuses SET replies_count = replies_count + 1 WHERE id = ?1').bind(inReplyToId));
+    stmts.push(env.DB_META_C000.prepare('UPDATE statuses SET replies_count = replies_count + 1 WHERE id = ?1').bind(inReplyToId));
   }
 
   try {
-    await env.DB.batch(stmts);
+    await env.DB_META_C000.batch(stmts);
   } catch (error) {
     if (claimedMediaIds.length > 0) {
       const placeholders = claimedMediaIds.map(() => '?').join(', ');
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE media_attachments
          SET status_id = NULL
          WHERE status_id = ?
@@ -713,12 +713,12 @@ export async function createStatus(
       data.pollOptions.filter((o: string) => o.trim()).map((title: string) => ({ title, votes_count: 0 })),
     );
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6)`,
       ).bind(pollId, statusId, expiresAt, multiple, optionsJson, now),
-      env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId),
+      env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId),
     ]);
 
     pollData = serializePoll(
@@ -739,7 +739,7 @@ export async function createStatus(
   // -- Hashtag batch upsert (optimized: batch SELECT + batch INSERT + batch UPDATE) --
   const hashtags = parsed.tags;
   if (hashtags.length > 0) {
-    const existingTags = await env.DB
+    const existingTags = await env.DB_META_C000
       .prepare(`SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`)
       .bind(...hashtags)
       .all<{ id: string; name: string }>();
@@ -763,7 +763,7 @@ export async function createStatus(
 
     if (existingTagIdsToUpdate.length > 0) {
       const placeholders = existingTagIdsToUpdate.map(() => '?').join(',');
-      await env.DB
+      await env.DB_META_C000
         .prepare(`UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${placeholders})`)
         .bind(now, ...existingTagIdsToUpdate)
         .run();
@@ -777,7 +777,7 @@ export async function createStatus(
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
         values.push(tag.id, tag.name, tag.name, now);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
 
     if (allTagIds.length > 0) {
@@ -788,7 +788,7 @@ export async function createStatus(
         query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
         values.push(statusId, tagId);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
   }
 
@@ -803,7 +803,7 @@ export async function createStatus(
     // 'Alice'. Registration uniqueness is NOCASE (migration 0030), so at most
     // one account matches. The mention/notification then uses the row's
     // canonical id/uri/url, keeping ActivityPub identity exact-case.
-    const localAccounts = await env.DB
+    const localAccounts = await env.DB_META_C000
       .prepare(
         `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE username COLLATE NOCASE IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`,
       )
@@ -847,7 +847,7 @@ export async function createStatus(
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
         values.push(...mention);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
   }
 
@@ -910,7 +910,7 @@ export async function editStatus(
   data: EditStatusData,
 ): Promise<EditStatusResult> {
   // Fetch existing status
-  const row = await env.DB
+  const row = await env.DB_META_C000
     .prepare('SELECT * FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
     .bind(statusId)
     .first<StatusRow>();
@@ -952,7 +952,7 @@ export async function editStatus(
   const content = parsed.html;
 
   // Save current state as an edit history snapshot before applying changes
-  const { results: currentMedia } = await env.DB
+  const { results: currentMedia } = await env.DB_META_C000
     .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
     .bind(statusId)
     .all<MediaAttachmentRow>();
@@ -978,7 +978,7 @@ export async function editStatus(
   ];
   if (emojiMatches.length > 0) {
     const placeholders = emojiMatches.map(() => '?').join(',');
-    const emojiRows = await env.DB
+    const emojiRows = await env.DB_META_C000
       .prepare(
         `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
       )
@@ -995,7 +995,7 @@ export async function editStatus(
     }
   }
 
-  const updated = await env.DB.prepare(
+  const updated = await env.DB_META_C000.prepare(
     `UPDATE statuses
      SET text = ?1, title = ?2, content = ?3, content_warning = ?4, sensitive = ?5,
          language = ?6, emoji_tags = ?7, edited_at = ?8, updated_at = ?8
@@ -1020,7 +1020,7 @@ export async function editStatus(
     throw new AppError(404, 'Record not found');
   }
 
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO status_edits
        (id, status_id, object_type, title, content, spoiler_text, sensitive, media_attachments_json, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
@@ -1037,7 +1037,7 @@ export async function editStatus(
   ).run();
 
   for (const mediaId of mediaIds) {
-    const attached = await env.DB.prepare(
+    const attached = await env.DB_META_C000.prepare(
       `UPDATE media_attachments
        SET status_id = ?1
        WHERE id = ?2
@@ -1051,10 +1051,10 @@ export async function editStatus(
 
   // -- Hashtag batch upsert (same pattern as createStatus) --
   const hashtags = parsed.tags;
-  await env.DB.prepare('DELETE FROM status_tags WHERE status_id = ?1').bind(statusId).run();
+  await env.DB_META_C000.prepare('DELETE FROM status_tags WHERE status_id = ?1').bind(statusId).run();
 
   if (hashtags.length > 0) {
-    const existingTags = await env.DB
+    const existingTags = await env.DB_META_C000
       .prepare(`SELECT id, name FROM tags WHERE name IN (${hashtags.map(() => '?').join(',')})`)
       .bind(...hashtags)
       .all<{ id: string; name: string }>();
@@ -1078,7 +1078,7 @@ export async function editStatus(
 
     if (existingTagIdsToUpdate.length > 0) {
       const ph = existingTagIdsToUpdate.map(() => '?').join(',');
-      await env.DB
+      await env.DB_META_C000
         .prepare(`UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${ph})`)
         .bind(now, ...existingTagIdsToUpdate)
         .run();
@@ -1092,7 +1092,7 @@ export async function editStatus(
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4}, ?${idx * 4 + 4})`;
         values.push(tag.id, tag.name, tag.name, now);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
 
     if (allTagIds.length > 0) {
@@ -1103,12 +1103,12 @@ export async function editStatus(
         query += `(?${idx * 2 + 1}, ?${idx * 2 + 2})`;
         values.push(statusId, tagId);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
   }
 
   // -- Mention re-processing (batch pattern from createStatus) --
-  await env.DB.prepare('DELETE FROM mentions WHERE status_id = ?1').bind(statusId).run();
+  await env.DB_META_C000.prepare('DELETE FROM mentions WHERE status_id = ?1').bind(statusId).run();
 
   const localMentions: LocalMention[] = [];
   const localParsedMentions = parsed.mentions.filter((m) => !m.domain);
@@ -1120,7 +1120,7 @@ export async function editStatus(
     // 'Alice'. Registration uniqueness is NOCASE (migration 0030), so at most
     // one account matches. The mention/notification then uses the row's
     // canonical id/uri/url, keeping ActivityPub identity exact-case.
-    const localAccounts = await env.DB
+    const localAccounts = await env.DB_META_C000
       .prepare(
         `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE username COLLATE NOCASE IN (${localUsernames.map(() => '?').join(',')}) AND domain IS NULL`,
       )
@@ -1164,17 +1164,17 @@ export async function editStatus(
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
         values.push(...mention);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
   }
 
   // Fetch updated status and media for response
-  const updatedStatus = (await env.DB
+  const updatedStatus = (await env.DB_META_C000
     .prepare('SELECT * FROM statuses WHERE id = ?1')
     .bind(statusId)
     .first()) as StatusRow;
 
-  const { results: mediaResults } = await env.DB
+  const { results: mediaResults } = await env.DB_META_C000
     .prepare('SELECT * FROM media_attachments WHERE status_id = ?1')
     .bind(statusId)
     .all();
@@ -1210,14 +1210,14 @@ export async function pinStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id, pinned
      FROM statuses WHERE id = ?1 LIMIT 1`,
   ).bind(statusId).first<StatusMutationPermissionRecord & { pinned: number | null }>();
   assertStatusMutationAllowedForRecord(status, accountId, 'pin');
   if (status?.pinned === 1) return false;
 
-  const pinned = await env.DB.prepare(
+  const pinned = await env.DB_META_C000.prepare(
     `UPDATE statuses SET pinned = 1
      WHERE id = ?1
        AND account_id = ?2
@@ -1240,14 +1240,14 @@ export async function unpinStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id, pinned
      FROM statuses WHERE id = ?1 LIMIT 1`,
   ).bind(statusId).first<StatusMutationPermissionRecord & { pinned: number | null }>();
   assertStatusMutationAllowedForRecord(status, accountId, 'unpin');
   if (status?.pinned !== 1) return false;
 
-  const unpinned = await env.DB.prepare(
+  const unpinned = await env.DB_META_C000.prepare(
     `UPDATE statuses SET pinned = 0
      WHERE id = ?1
        AND account_id = ?2
@@ -1270,7 +1270,7 @@ export async function muteStatus(
 ): Promise<boolean> {
   const now = new Date().toISOString();
   const id = generateUlid();
-  const inserted = await env.DB
+  const inserted = await env.DB_META_C000
     .prepare('INSERT OR IGNORE INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)')
     .bind(id, accountId, statusId, now)
     .run();
@@ -1285,7 +1285,7 @@ export async function unmuteStatus(
   accountId: string,
   statusId: string,
 ): Promise<boolean> {
-  const removed = await env.DB
+  const removed = await env.DB_META_C000
     .prepare('DELETE FROM status_mutes WHERE account_id = ?1 AND status_id = ?2')
     .bind(accountId, statusId)
     .run();
@@ -1314,7 +1314,7 @@ export async function addReaction(
 
   if (isCustom && domain) {
     const shortcode = emoji.slice(1, -1);
-    const row = await env.DB
+    const row = await env.DB_META_C000
       .prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
       .bind(shortcode, domain)
       .first<CustomEmojiRow>();
@@ -1328,7 +1328,7 @@ export async function addReaction(
   const now = new Date().toISOString();
 
   try {
-    await env.DB
+    await env.DB_META_C000
       .prepare(
         `INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
@@ -1355,7 +1355,7 @@ export async function removeReaction(
   statusId: string,
   emoji: string,
 ): Promise<RemoveReactionResult> {
-  const deleted = await env.DB
+  const deleted = await env.DB_META_C000
     .prepare('DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3')
     .bind(accountId, statusId, emoji)
     .run();
@@ -1376,7 +1376,7 @@ export async function votePoll(
   pollId: string,
   choices: number[],
 ): Promise<VotePollResult> {
-  const row = await env.DB
+  const row = await env.DB_META_C000
     .prepare('SELECT * FROM polls WHERE id = ?1')
     .bind(pollId)
     .first<PollRow>();
@@ -1385,7 +1385,7 @@ export async function votePoll(
     throw new AppError(404, 'Record not found');
   }
 
-  const parent = await env.DB.prepare(
+  const parent = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at
      FROM statuses WHERE id = ?1 LIMIT 1`,
   ).bind(row.status_id).first<StatusPermissionRecord>();
@@ -1418,7 +1418,7 @@ export async function votePoll(
   }
 
   // Check not already voted
-  const existingVote = await env.DB
+  const existingVote = await env.DB_META_C000
     .prepare('SELECT id FROM poll_votes WHERE poll_id = ?1 AND account_id = ?2 LIMIT 1')
     .bind(pollId, accountId)
     .first();
@@ -1434,7 +1434,7 @@ export async function votePoll(
   for (const choice of choices) {
     const voteId = generateUlid();
     stmts.push(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO poll_votes (id, poll_id, account_id, choice, created_at) VALUES (?1, ?2, ?3, ?4, ?5)',
       ).bind(voteId, pollId, accountId, choice, now),
     );
@@ -1450,15 +1450,15 @@ export async function votePoll(
   });
 
   stmts.push(
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       'UPDATE polls SET options = ?1, votes_count = votes_count + ?2, voters_count = voters_count + 1 WHERE id = ?3',
     ).bind(JSON.stringify(updatedOptions), choices.length, pollId),
   );
 
-  await env.DB.batch(stmts);
+  await env.DB_META_C000.batch(stmts);
 
   // Fetch updated poll
-  const updated = await env.DB
+  const updated = await env.DB_META_C000
     .prepare('SELECT * FROM polls WHERE id = ?1')
     .bind(pollId)
     .first<PollRow>();

@@ -44,7 +44,7 @@ const mocks = vi.hoisted(() => ({
   bindings: [] as (string | number | null)[][],
   insertRuns: 0,
   env: {
-    DB: { prepare: vi.fn() },
+    DB_META_C000: { prepare: vi.fn() },
     QUEUE_INTERNAL: { send: vi.fn() },
     INTERNAL_CONNECTION_MAIN: { sendStreamEvent: vi.fn() },
     INSTANCE_DOMAIN: 'local.example',
@@ -111,7 +111,7 @@ function statusPermissionRow(
 }
 
 function configureDatabase(): void {
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: (...params: (string | number | null)[]) => ({
       first: async () => {
         mocks.queries.push(sql);
@@ -149,7 +149,7 @@ beforeEach(() => {
   mocks.queries.length = 0;
   mocks.bindings.length = 0;
   mocks.insertRuns = 0;
-  mocks.env.DB.prepare.mockReset();
+  mocks.env.DB_META_C000.prepare.mockReset();
   mocks.env.QUEUE_INTERNAL.send.mockReset();
   mocks.env.QUEUE_INTERNAL.send.mockResolvedValue(undefined);
   mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent.mockReset();

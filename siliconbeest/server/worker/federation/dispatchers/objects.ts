@@ -45,7 +45,7 @@ export function setupObjectDispatchers(
     async (_ctx, values) => {
       const { identifier, id } = values;
 
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT qa.*, a.id AS account_id, a.username,
                 a.domain AS account_domain, a.uri AS account_uri
          FROM quote_authorizations qa
@@ -81,7 +81,7 @@ export function setupObjectDispatchers(
       const { identifier, id } = values;
       const domain = env.INSTANCE_DOMAIN;
 
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT s.*, a.username, a.domain AS account_domain
          FROM statuses s
          JOIN accounts a ON a.id = s.account_id
@@ -101,7 +101,7 @@ export function setupObjectDispatchers(
       // Reblogs are Announce activities, not Note objects
       if (row.reblog_of_id) return null;
 
-      const account = await env.DB.prepare(
+      const account = await env.DB_META_C000.prepare(
         'SELECT * FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
       )
         .bind(identifier)
@@ -113,7 +113,7 @@ export function setupObjectDispatchers(
 
       // Load mention and hashtag tags (shared by Note and Question)
       const tags: (Mention | Hashtag)[] = [];
-      const { results: mentionRows } = await env.DB.prepare(
+      const { results: mentionRows } = await env.DB_META_C000.prepare(
         `SELECT a.uri AS account_uri, a.username, a.domain
          FROM mentions m JOIN accounts a ON a.id = m.account_id
          WHERE m.status_id = ?1`,
@@ -125,7 +125,7 @@ export function setupObjectDispatchers(
           name: mentionDomain ? `@${mr.username}@${mentionDomain}` : `@${mr.username}@${domain}`,
         }));
       }
-      const { results: tagRows } = await env.DB.prepare(
+      const { results: tagRows } = await env.DB_META_C000.prepare(
         'SELECT t.name FROM status_tags st JOIN tags t ON t.id = st.tag_id WHERE st.status_id = ?1',
       ).bind(id).all();
       for (const tr of (tagRows ?? []) as Record<string, unknown>[]) {
@@ -137,7 +137,7 @@ export function setupObjectDispatchers(
 
       // If status has a poll, build a Question instead of a Note
       if (row.poll_id) {
-        const poll = await env.DB.prepare(
+        const poll = await env.DB_META_C000.prepare(
           'SELECT * FROM polls WHERE id = ?1 LIMIT 1',
         ).bind(row.poll_id).first<PollRow>();
         if (poll) {
@@ -178,7 +178,7 @@ export async function handleActivityRequest(
 ): Promise<Response> {
   const domain = env.INSTANCE_DOMAIN;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT s.*, a.username, a.domain AS account_domain
      FROM statuses s
      JOIN accounts a ON a.id = s.account_id
@@ -208,7 +208,7 @@ export async function handleActivityRequest(
 
   if (row.reblog_of_id) {
     // Reblog → Announce
-    const reblogRow = await env.DB.prepare(
+    const reblogRow = await env.DB_META_C000.prepare(
       'SELECT uri FROM statuses WHERE id = ?1 LIMIT 1',
     ).bind(row.reblog_of_id).first<{ uri: string }>();
     const originalUri = reblogRow?.uri ?? row.reblog_of_id;
@@ -223,7 +223,7 @@ export async function handleActivityRequest(
     });
   } else {
     // Regular post → Create(Note) or Create(Question) for polls
-    const account = await env.DB.prepare(
+    const account = await env.DB_META_C000.prepare(
       'SELECT * FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
     ).bind(identifier).first<AccountRow>();
 
@@ -242,7 +242,7 @@ export async function handleActivityRequest(
     let ccs: URL[];
 
     if (row.poll_id) {
-      const poll = await env.DB.prepare(
+      const poll = await env.DB_META_C000.prepare(
         'SELECT * FROM polls WHERE id = ?1 LIMIT 1',
       ).bind(row.poll_id).first<PollRow>();
       if (poll) {
@@ -307,7 +307,7 @@ async function getStatusCollectionItems(
   collection: StatusCollectionName,
 ): Promise<string[]> {
   if (collection === 'replies') {
-    const { results } = await env.DB.prepare(
+    const { results } = await env.DB_META_C000.prepare(
       `SELECT uri
        FROM statuses
        WHERE in_reply_to_id = ?1
@@ -320,7 +320,7 @@ async function getStatusCollectionItems(
   }
 
   if (collection === 'shares') {
-    const { results } = await env.DB.prepare(
+    const { results } = await env.DB_META_C000.prepare(
       `SELECT uri
        FROM statuses
        WHERE (reblog_of_id = ?1 OR quote_id = ?1)
@@ -332,7 +332,7 @@ async function getStatusCollectionItems(
     return (results ?? []).map((row) => row.uri);
   }
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT uri
      FROM favourites
      WHERE status_id = ?1
@@ -356,7 +356,7 @@ export async function handleStatusCollectionRequest(
   }
 
   const domain = env.INSTANCE_DOMAIN;
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT s.id, s.uri, s.account_id, s.visibility, s.deleted_at,
             s.replies_count, s.reblogs_count, s.favourites_count
      FROM statuses s
@@ -439,14 +439,14 @@ async function loadStatusContext(
 ) {
   const convMap = new Map<string, string | null>();
   if (row.conversation_id) {
-    const convRow = await env.DB.prepare(
+    const convRow = await env.DB_META_C000.prepare(
       'SELECT ap_uri FROM conversations WHERE id = ?1',
     ).bind(row.conversation_id).first<{ ap_uri: string | null }>();
     convMap.set(row.conversation_id, convRow?.ap_uri ?? null);
   }
 
   const mediaMap = new Map<string, { url: string; mediaType: string; description: string; width: number | null; height: number | null; blurhash: string | null; type: string }[]>();
-  const { results: mediaResults } = await env.DB.prepare(
+  const { results: mediaResults } = await env.DB_META_C000.prepare(
     'SELECT * FROM media_attachments WHERE status_id = ?1',
   ).bind(id).all();
   for (const m of (mediaResults ?? []) as Record<string, unknown>[]) {
@@ -465,7 +465,7 @@ async function loadStatusContext(
 
   const replyUriMap = new Map<string, string>();
   if (row.in_reply_to_id && !row.in_reply_to_id.startsWith('http')) {
-    const rr = await env.DB.prepare(
+    const rr = await env.DB_META_C000.prepare(
       'SELECT uri FROM statuses WHERE id = ?1 LIMIT 1',
     ).bind(row.in_reply_to_id).first<{ uri: string }>();
     if (rr) replyUriMap.set(row.in_reply_to_id, rr.uri);
@@ -473,7 +473,7 @@ async function loadStatusContext(
 
   const quoteUriMap = new Map<string, string>();
   if (row.quote_id) {
-    const quotedRow = await env.DB.prepare(
+    const quotedRow = await env.DB_META_C000.prepare(
       'SELECT uri FROM statuses WHERE id = ?1 AND deleted_at IS NULL LIMIT 1',
     ).bind(row.quote_id).first<{ uri: string }>();
     if (quotedRow) quoteUriMap.set(row.quote_id, quotedRow.uri);

@@ -99,7 +99,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
       account.id,
       new Date().toISOString(),
     );
-    const sr = await env.DB.prepare(
+    const sr = await env.DB_META_C000.prepare(
       `SELECT s.id, s.uri, s.url, s.object_type, s.title, s.poll_id,
               s.content, s.visibility, s.sensitive,
               s.content_warning, s.language, s.created_at, s.in_reply_to_id,
@@ -193,7 +193,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
   if (notifRow.type === 'emoji_reaction' && notifRow.emoji?.startsWith(':') && notifRow.emoji?.endsWith(':')) {
     const sc = notifRow.emoji.slice(1, -1);
     let er = row.status_id
-      ? await env.DB.prepare(
+      ? await env.DB_META_C000.prepare(
         `SELECT ce.domain, ce.image_key
          FROM emoji_reactions er
          JOIN custom_emojis ce ON ce.id = er.custom_emoji_id
@@ -201,7 +201,7 @@ app.get('/:id', authRequired, requireScope('read:notifications'), async (c) => {
          LIMIT 1`,
       ).bind(row.status_id, row.from_account_id, notifRow.emoji).first<{ domain: string | null; image_key: string }>()
       : null;
-    er ??= await env.DB.prepare(
+    er ??= await env.DB_META_C000.prepare(
         'SELECT domain, image_key FROM custom_emojis WHERE shortcode = ?1 LIMIT 1',
       ).bind(sc).first<{ domain: string | null; image_key: string }>();
     if (er) {

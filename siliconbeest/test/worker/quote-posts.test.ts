@@ -74,7 +74,7 @@ describe('Quote Posts (FEP-e232)', () => {
     });
 
     expect(res.status).toBe(404);
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM statuses
        WHERE account_id = ?1 AND text = ?2`,
     ).bind(user.accountId, 'Trying to quote nonexistent').first<{ count: number }>();
@@ -219,7 +219,7 @@ describe('Quote Posts (FEP-e232)', () => {
     const remoteAccountId = 'remote_quote_policy_actor';
     const remoteStatusId = 'remote_quote_policy_status';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts
         (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
          header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -227,7 +227,7 @@ describe('Quote Posts (FEP-e232)', () => {
        VALUES (?1, 'remotequote', 'remote.example', '', '', 'https://remote.example/users/remotequote',
          'https://remote.example/@remotequote', '', '', '', '', 0, 0, 1, 0, 1, 0, 0, ?2, ?2)`,
     ).bind(remoteAccountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR REPLACE INTO statuses
         (id, uri, url, account_id, text, content, content_warning, visibility, sensitive,
          language, conversation_id, reply, local, quote_policy, created_at, updated_at)
@@ -250,7 +250,7 @@ describe('Quote Posts (FEP-e232)', () => {
     const remoteActorUri = 'https://kurry-policy.example/users/chicomi';
     const remoteStatusUri = 'https://kurry-policy.example/users/chicomi/statuses/author-only';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts
         (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
          header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -277,7 +277,7 @@ describe('Quote Posts (FEP-e232)', () => {
       },
     }, user.accountId, { fanout: false, notify: false });
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id, quote_policy FROM statuses WHERE uri = ?1 LIMIT 1',
     ).bind(remoteStatusUri).first<{ id: string; quote_policy: string }>();
     expect(stored?.quote_policy).toBe('nobody');
@@ -298,7 +298,7 @@ describe('Quote Posts (FEP-e232)', () => {
     const remoteFollowersUri = `${remoteActorUri}/followers`;
     const remoteStatusUri = 'https://followers-policy.example/users/chicomi/statuses/followers-only';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts
         (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
          header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -325,7 +325,7 @@ describe('Quote Posts (FEP-e232)', () => {
       },
     }, user.accountId, { fanout: false, notify: false });
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id, quote_policy FROM statuses WHERE uri = ?1 LIMIT 1',
     ).bind(remoteStatusUri).first<{ id: string; quote_policy: string }>();
     expect(stored?.quote_policy).toBe('followers');
@@ -339,7 +339,7 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(beforeFollow.quote_policy_allows).toBe(false);
     expect(beforeFollow.quote_policy_reason).toBe('followers_only');
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'INSERT OR IGNORE INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
     ).bind('remote_followers_quote_follow', user.accountId, remoteAccountId, now).run();
 
@@ -359,7 +359,7 @@ describe('Quote Posts (FEP-e232)', () => {
     const remoteFollowingUri = `${remoteActorUri}/following`;
     const remoteStatusUri = 'https://following-policy.example/users/chicomi/statuses/following-only';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts
         (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
          header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -386,7 +386,7 @@ describe('Quote Posts (FEP-e232)', () => {
       },
     }, user.accountId, { fanout: false, notify: false });
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id FROM statuses WHERE uri = ?1 LIMIT 1',
     ).bind(remoteStatusUri).first<{ id: string }>();
 
@@ -398,7 +398,7 @@ describe('Quote Posts (FEP-e232)', () => {
     expect(beforeFollow.quote_policy_allows).toBe(false);
     expect(beforeFollow.quote_policy_reason).toBe('following_only');
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'INSERT OR IGNORE INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
     ).bind('remote_following_quote_follow', remoteAccountId, user.accountId, now).run();
 
@@ -415,7 +415,7 @@ describe('Quote Posts (FEP-e232)', () => {
     const remoteAccountId = 'remote_dd4b_quote_actor';
     const remoteActorUri = 'https://dd4b.example/users/quoteactor';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO accounts
         (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
          header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -424,7 +424,7 @@ describe('Quote Posts (FEP-e232)', () => {
          'https://dd4b.example/@quoteactor', '', '', '', '', 0, 0, 1, 0, 1, 0, 0, ?3, ?3)`,
     ).bind(remoteAccountId, remoteActorUri, now).run();
 
-    const original = await env.DB.prepare(
+    const original = await env.DB_META_C000.prepare(
       'SELECT uri FROM statuses WHERE id = ?1',
     ).bind(quotableStatusId).first<{ uri: string }>();
     expect(original?.uri).toBeTruthy();
@@ -438,7 +438,7 @@ describe('Quote Posts (FEP-e232)', () => {
       to: ['https://www.w3.org/ns/activitystreams#Public'],
     }, user.accountId);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       `SELECT quote_id, reblog_of_id, content
        FROM statuses
        WHERE uri = 'https://dd4b.example/activities/quote-1'

@@ -3,7 +3,7 @@ import {
   canSurfaceStatus,
   canViewStatus,
 } from '../../../../packages/shared/permissions';
-import { parsePaginationParams, buildPaginationQuery } from '../utils/pagination';
+import { parsePaginationParams } from '../utils/pagination';
 import type { PaginationParams } from '../utils/pagination';
 import { AppError } from '../middleware/errorHandler';
 import type { TimelineStatusRow } from '../types/db';
@@ -16,6 +16,7 @@ import type {
   PermissionSqlPredicate,
   StatusPermissionSqlSource,
 } from './permissions';
+import { decodeFeedCursor } from '../utils/feedCursor';
 
 /**
  * Shared account columns selected alongside statuses in timeline queries.
@@ -43,6 +44,7 @@ export interface TimelinePaginationOpts {
   sinceId?: string;
   minId?: string;
   limit?: number;
+  candidateIds?: readonly string[];
 }
 
 export interface PublicTimelineOpts extends TimelinePaginationOpts {
@@ -61,7 +63,7 @@ export interface TagTimelineOpts extends TimelinePaginationOpts {
 
 type StatusTimelineCursor = {
   id: string;
-  created_at: string;
+  sort_at_ms: number;
 };
 
 type RecommendationSurfaceRow = {
@@ -167,6 +169,7 @@ async function addChronologicalCursorFilters(
   pag: PaginationParams,
   conditions: string[],
   binds: (string | number)[],
+  feedKey: string,
 ): Promise<boolean> {
   const requestedIds = [...new Set([
     pag.maxId,
@@ -175,8 +178,12 @@ async function addChronologicalCursorFilters(
   ].filter((id): id is string => id !== undefined))];
 
   const cursorEntries = await Promise.all(requestedIds.map(async (id) => {
-    const cursor = await env.DB.prepare(
-      'SELECT id, created_at FROM statuses WHERE id = ?1 LIMIT 1',
+    const signed = await decodeFeedCursor(id, feedKey);
+    if (signed) return [id, { id: signed.before.entityId, sort_at_ms: signed.before.sortAtMs }] as const;
+    if (id.startsWith('fc1.')) return [id, null] as const;
+    const cursor = await env.DB_META_C000.prepare(
+      `SELECT id, COALESCE(sort_at_ms, CAST(unixepoch(created_at) AS INTEGER) * 1000) AS sort_at_ms
+       FROM statuses WHERE id = ?1 LIMIT 1`,
     ).bind(id).first<StatusTimelineCursor>();
     return [id, cursor] as const;
   }));
@@ -188,9 +195,11 @@ async function addChronologicalCursorFilters(
     if (!cursor) return false;
     const comparison = direction === 'before' ? '<' : '>';
     conditions.push(
-      `(s.created_at ${comparison} ? OR (s.created_at = ? AND s.id ${comparison} ?))`,
+      `(COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${comparison} ?
+        OR (COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) = ?
+            AND s.id ${comparison} ?))`,
     );
-    binds.push(cursor.created_at, cursor.created_at, cursor.id);
+    binds.push(cursor.sort_at_ms, cursor.sort_at_ms, cursor.id);
     return true;
   }
 
@@ -226,7 +235,11 @@ export async function getHomeTimeline(
   const binds: (string | number)[] = [...membership.bindings];
   const orderDirection = pag.minId ? 'ASC' : 'DESC';
 
-  if (!await addChronologicalCursorFilters(pag, conditions, binds)) return [];
+  if (!await addChronologicalCursorFilters(pag, conditions, binds, `home:${accountId}`)) return [];
+  if (opts.candidateIds?.length) {
+    conditions.push('s.id IN (SELECT CAST(value AS TEXT) FROM json_each(?))');
+    binds.push(JSON.stringify([...new Set(opts.candidateIds)]));
+  }
 
   conditions.push('s.deleted_at IS NULL');
   const visibility = buildStatusVisibilitySqlPredicate('status', accountId);
@@ -239,12 +252,12 @@ export async function getHomeTimeline(
     FROM statuses s
     JOIN accounts a ON a.id = s.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY s.created_at ${orderDirection}, s.id ${orderDirection}
+    ORDER BY COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${orderDirection}, s.id ${orderDirection}
     LIMIT ?
   `;
   binds.push(pag.limit);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<TimelineStatusRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<TimelineStatusRow>();
   return results ?? [];
 }
 
@@ -279,7 +292,7 @@ export async function getSocialTimeline(
   ];
   const binds: (string | number)[] = [...membership.bindings];
 
-  if (!await addChronologicalCursorFilters(pag, conditions, binds)) return [];
+  if (!await addChronologicalCursorFilters(pag, conditions, binds, `social:${accountId}`)) return [];
   const visibility = buildStatusVisibilitySqlPredicate('status', accountId);
   conditions.push(visibility.sql);
   binds.push(...visibility.bindings);
@@ -290,12 +303,12 @@ export async function getSocialTimeline(
     FROM statuses s
     JOIN accounts a ON a.id = s.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY s.created_at ${orderDirection}, s.id ${orderDirection}
+    ORDER BY COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${orderDirection}, s.id ${orderDirection}
     LIMIT ?
   `;
   binds.push(pag.limit);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<TimelineStatusRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<TimelineStatusRow>();
   return results ?? [];
 }
 
@@ -313,15 +326,16 @@ export async function getPublicTimeline(
     limit: opts.limit != null ? String(opts.limit) : undefined,
   });
 
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const orderDirection = pag.minId ? 'ASC' : 'DESC';
 
   const conditions: string[] = [`s.visibility = 'public'`, 's.deleted_at IS NULL'];
   const binds: (string | number)[] = [];
 
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
+  const publicFeedKey = `public:${opts.local ? 'local' : opts.remote ? 'remote' : 'all'}:${opts.onlyMedia ? 'media' : 'all'}`;
+  if (!await addChronologicalCursorFilters(pag, conditions, binds, publicFeedKey)) return [];
+  if (opts.candidateIds?.length) {
+    conditions.push('s.id IN (SELECT CAST(value AS TEXT) FROM json_each(?))');
+    binds.push(JSON.stringify([...new Set(opts.candidateIds)]));
   }
 
   if (opts.local) {
@@ -343,12 +357,12 @@ export async function getPublicTimeline(
     FROM statuses s
     JOIN accounts a ON a.id = s.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
+    ORDER BY COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${orderDirection}, s.id ${orderDirection}
     LIMIT ?
   `;
-  binds.push(limitValue);
+  binds.push(pag.limit);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<TimelineStatusRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<TimelineStatusRow>();
   return results ?? [];
 }
 
@@ -461,8 +475,8 @@ export async function getRecommendationCandidateWindow({
     LIMIT ?
   `;
   const excludedJson = JSON.stringify([...new Set(excludedIds)]);
-  const [publicSourceResult, homeSourceResult] = await env.DB.batch<RecommendationSurfaceRow>([
-    env.DB.prepare(publicSourceSql).bind(
+  const [publicSourceResult, homeSourceResult] = await env.DB_META_C000.batch<RecommendationSurfaceRow>([
+    env.DB_META_C000.prepare(publicSourceSql).bind(
       excludedJson,
       viewerAccountId,
       upperBound,
@@ -470,7 +484,7 @@ export async function getRecommendationCandidateWindow({
       viewerAccountId,
       publicSourceLimit,
     ),
-    env.DB.prepare(homeSourceSql).bind(
+    env.DB_META_C000.prepare(homeSourceSql).bind(
       excludedJson,
       viewerAccountId,
       upperBound,
@@ -515,26 +529,26 @@ export async function getRecommendationCandidateWindow({
   // D1 executes these simple indexed lookups in one binding round trip. The
   // shared permission functions below replace hundreds of correlated
   // subqueries while retaining the exact visibility and relationship policy.
-  const permissionResults = await env.DB.batch<RecommendationPermissionBatchRow>([
-    env.DB.prepare(
+  const permissionResults = await env.DB_META_C000.batch<RecommendationPermissionBatchRow>([
+    env.DB_META_C000.prepare(
       `${requestedStatusesCte}
        SELECT s.*, ${ACCOUNT_COLUMNS}
        FROM requested_ids requested
        JOIN statuses s ON s.id = requested.id
        JOIN accounts a ON a.id = s.account_id`,
     ).bind(candidateJson),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${requestedStatusesCte}
        SELECT s.id, s.account_id, s.visibility, s.deleted_at, s.reblog_of_id
        FROM requested_ids requested
        JOIN statuses s ON s.id = requested.id`,
     ).bind(requestedJson),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT id, domain, suspended_at, silenced_at
        FROM candidate_authors`,
     ).bind(requestedJson),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT f.target_account_id, f.show_reblogs
        FROM candidate_authors author
@@ -542,7 +556,7 @@ export async function getRecommendationCandidateWindow({
          ON f.account_id = ?
         AND f.target_account_id = author.id`,
     ).bind(requestedJson, viewerAccountId),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT m.target_account_id AS account_id
        FROM candidate_authors author
@@ -551,7 +565,7 @@ export async function getRecommendationCandidateWindow({
         AND m.target_account_id = author.id
        WHERE m.expires_at IS NULL OR m.expires_at > ?`,
     ).bind(requestedJson, viewerAccountId, now),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT b.target_account_id AS account_id
        FROM candidate_authors author
@@ -559,7 +573,7 @@ export async function getRecommendationCandidateWindow({
          ON b.account_id = ?
         AND b.target_account_id = author.id`,
     ).bind(requestedJson, viewerAccountId),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT b.account_id
        FROM candidate_authors author
@@ -567,7 +581,7 @@ export async function getRecommendationCandidateWindow({
          ON b.account_id = author.id
         AND b.target_account_id = ?`,
     ).bind(requestedJson, viewerAccountId),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${candidateAuthorsCte}
        SELECT author.id AS account_id
        FROM candidate_authors author
@@ -576,7 +590,7 @@ export async function getRecommendationCandidateWindow({
         AND author.domain IS NOT NULL
         AND lower(domain_block.domain) = lower(author.domain)`,
     ).bind(requestedJson, viewerAccountId),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `${requestedStatusesCte}
        SELECT mention.status_id
        FROM requested_ids requested
@@ -702,16 +716,12 @@ export async function getTagTimeline(
     limit: opts.limit != null ? String(opts.limit) : undefined,
   });
 
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const orderDirection = pag.minId ? 'ASC' : 'DESC';
 
   const conditions: string[] = ['t.name = ?', `s.visibility = 'public'`, 's.deleted_at IS NULL'];
   const binds: (string | number)[] = [tagName];
 
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
+  if (!await addChronologicalCursorFilters(pag, conditions, binds, `tag:${tagName}`)) return [];
 
   if (opts.local) {
     conditions.push('s.local = 1');
@@ -728,12 +738,12 @@ export async function getTagTimeline(
     JOIN statuses s ON s.id = st.status_id
     JOIN accounts a ON a.id = s.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
+    ORDER BY COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${orderDirection}, s.id ${orderDirection}
     LIMIT ?
   `;
-  binds.push(limitValue);
+  binds.push(pag.limit);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<TimelineStatusRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<TimelineStatusRow>();
   return results ?? [];
 }
 
@@ -747,7 +757,7 @@ export async function getListTimeline(
   opts: TimelinePaginationOpts,
 ): Promise<TimelineStatusRow[]> {
   // Verify list ownership
-  const list = await env.DB
+  const list = await env.DB_META_C000
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -763,16 +773,12 @@ export async function getListTimeline(
     limit: opts.limit != null ? String(opts.limit) : undefined,
   });
 
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
-  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
+  const orderDirection = pag.minId ? 'ASC' : 'DESC';
 
   const conditions: string[] = ['la.list_id = ?', 's.deleted_at IS NULL'];
   const binds: (string | number)[] = [listId];
 
-  if (whereClause) {
-    conditions.push(whereClause);
-    binds.push(...params);
-  }
+  if (!await addChronologicalCursorFilters(pag, conditions, binds, `list:${listId}`)) return [];
   const visibility = buildStatusVisibilitySqlPredicate('status', accountId);
   conditions.push(visibility.sql);
   binds.push(...visibility.bindings);
@@ -784,11 +790,11 @@ export async function getListTimeline(
     JOIN accounts a ON a.id = s.account_id
     JOIN list_accounts la ON la.account_id = s.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause}
+    ORDER BY COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) ${orderDirection}, s.id ${orderDirection}
     LIMIT ?
   `;
-  binds.push(limitValue);
+  binds.push(pag.limit);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<TimelineStatusRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<TimelineStatusRow>();
   return results ?? [];
 }

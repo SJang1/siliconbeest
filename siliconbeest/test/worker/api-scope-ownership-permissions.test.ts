@@ -9,7 +9,7 @@ type AccountEntity = { id: string };
 type ListEntity = { id: string };
 
 async function setTokenScopes(user: TestUser, scopes: string): Promise<void> {
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     'UPDATE oauth_access_tokens SET scopes = ?1 WHERE user_id = ?2',
   ).bind(scopes, user.userId).run();
 }
@@ -77,17 +77,17 @@ describe('API scope and owned-resource permissions', () => {
     const suspended = await createTestUser('followreqsuspended');
     const blocked = await createTestUser('followreqblocked');
     const active = await createTestUser('followreqactive');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET locked = 1, manually_approves_followers = 1 WHERE id = ?1',
     ).bind(target.accountId).run();
 
     for (const requester of [suspended, blocked, active]) {
       expect((await follow(requester, target)).status).toBe(200);
     }
-    await env.DB.batch([
-      env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
         .bind(new Date().toISOString(), suspended.accountId),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO blocks (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
       ).bind(crypto.randomUUID(), target.accountId, blocked.accountId, new Date().toISOString()),
     ]);
@@ -105,7 +105,7 @@ describe('API scope and owned-resource permissions', () => {
         { method: 'POST', headers: authHeaders(target.token) },
       );
       expect(response.status).toBe(403);
-      const relation = await env.DB.prepare(
+      const relation = await env.DB_META_C000.prepare(
         'SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
       ).bind(requester.accountId, target.accountId).first();
       expect(relation).toBeNull();
@@ -116,7 +116,7 @@ describe('API scope and owned-resource permissions', () => {
       { method: 'POST', headers: authHeaders(target.token) },
     );
     expect(approve.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
     ).bind(active.accountId, target.accountId).first()).not.toBeNull();
 
@@ -149,12 +149,12 @@ describe('API scope and owned-resource permissions', () => {
 
     expect((await follow(owner, candidate)).status).toBe(200);
     expect((await add(owner)).status).toBe(200);
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT follow_id FROM list_accounts WHERE list_id = ?1 AND account_id = ?2',
     ).bind(list.id, candidate.accountId).first<{ follow_id: string | null }>();
     expect(stored?.follow_id).not.toBeNull();
 
-    await env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
+    await env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
       .bind(new Date().toISOString(), candidate.accountId).run();
     const membersResponse = await SELF.fetch(`${BASE}/api/v1/lists/${list.id}/accounts`, {
       headers: authHeaders(owner.token),
@@ -188,13 +188,13 @@ describe('API scope and owned-resource permissions', () => {
       })).status).toBe(200);
     }
 
-    const relationships = await env.DB.prepare(
+    const relationships = await env.DB_META_C000.prepare(
       `SELECT id FROM follows
        WHERE (account_id = ?1 AND target_account_id = ?2)
           OR (account_id = ?2 AND target_account_id = ?1)`,
     ).bind(blocker.accountId, blocked.accountId).all();
     expect(relationships.results).toHaveLength(0);
-    const counts = await env.DB.prepare(
+    const counts = await env.DB_META_C000.prepare(
       'SELECT id, followers_count, following_count FROM accounts WHERE id IN (?1, ?2)',
     ).bind(blocker.accountId, blocked.accountId).all<{
       id: string;
@@ -206,10 +206,10 @@ describe('API scope and owned-resource permissions', () => {
       expect(account.followers_count).toBe(0);
       expect(account.following_count).toBe(0);
     }
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT 1 FROM list_accounts WHERE list_id = ?1 AND account_id = ?2',
     ).bind(list.id, blocked.accountId).first()).toBeNull();
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       `SELECT 1 FROM follow_requests
        WHERE (account_id = ?1 AND target_account_id = ?2)
           OR (account_id = ?2 AND target_account_id = ?1)`,

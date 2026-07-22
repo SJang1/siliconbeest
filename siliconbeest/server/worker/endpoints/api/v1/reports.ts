@@ -40,7 +40,7 @@ app.post('/', authRequired, requireScope('write:reports'), async (c) => {
   }
 
   // Verify the target account exists
-  const targetAccount = await env.DB.prepare(
+  const targetAccount = await env.DB_META_C000.prepare(
     'SELECT id, username, domain, uri, inbox_url, shared_inbox_url FROM accounts WHERE id = ?1',
   )
     .bind(body.account_id)
@@ -65,7 +65,7 @@ app.post('/', authRequired, requireScope('write:reports'), async (c) => {
   );
   const forwarded = body.forward ? 1 : 0;
 
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO reports
        (id, account_id, target_account_id, status_ids, comment, category,
         action_taken, action_taken_at, action_taken_by_account_id, forwarded,
@@ -92,7 +92,7 @@ app.post('/', authRequired, requireScope('write:reports'), async (c) => {
       let statusUrisList: string[] = [];
       if (statusIds.length > 0) {
         const placeholders = statusIds.map(() => '?').join(',');
-        const { results } = await env.DB.prepare(
+        const { results } = await env.DB_META_C000.prepare(
           `SELECT uri FROM statuses WHERE id IN (${placeholders})`,
         ).bind(...statusIds).all();
         statusUrisList = (results || []).map((r) => r.uri as string);

@@ -33,6 +33,7 @@ import {
 	getSafeLoginReturnTo,
 	isLoginPreflightSatisfied,
 } from '../../../../services/loginPreflight';
+import { findPendingRegistration } from '../../../../services/asyncRegistration';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -80,6 +81,14 @@ app.post('/', async (c) => {
 
 	const result = await verifyPasswordForRegistration(identifier, password);
 	if (!result) {
+		const pending = await findPendingRegistration(identifier, password);
+		if (pending) {
+			return c.json({
+				error: 'registration_pending',
+				operation_id: pending.operationId,
+				retry_after_ms: 1000,
+			}, 409);
+		}
 		return c.json({ error: 'Invalid username or password' }, 401);
 	}
 

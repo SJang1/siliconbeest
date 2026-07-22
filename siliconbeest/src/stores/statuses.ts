@@ -16,6 +16,9 @@ import { useAuthStore } from './auth';
 import { useTimelinesStore } from './timelines';
 
 export const useStatusesStore = defineStore('statuses', () => {
+  // Covers six full 300-item timelines plus boost targets while remaining
+  // finite under a high-rate public stream.
+  const MAX_CACHED_STATUSES = 5_000;
   const cache = ref<Map<string, Status>>(new Map());
 
   // Bumped when a `reaction` stream event arrives for a status — components
@@ -29,9 +32,17 @@ export const useStatusesStore = defineStore('statuses', () => {
   }
 
   function cacheStatus(status: Status) {
+    cache.value.delete(status.id);
     cache.value.set(status.id, status);
     if (status.reblog) {
+      cache.value.delete(status.reblog.id);
       cache.value.set(status.reblog.id, status.reblog);
+    }
+    while (cache.value.size > MAX_CACHED_STATUSES) {
+      const oldestId = cache.value.keys().next().value as string | undefined;
+      if (!oldestId) break;
+      cache.value.delete(oldestId);
+      reactionPings.value.delete(oldestId);
     }
   }
 

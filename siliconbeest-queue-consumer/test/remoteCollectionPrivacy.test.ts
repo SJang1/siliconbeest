@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     constructor(readonly firstId: URL | null) {}
   },
   env: {
-    DB: { prepare: vi.fn<(sql: string) => object>() },
+    DB_META_C000: { prepare: vi.fn<(sql: string) => object>() },
     CACHE: {
       get: vi.fn<(key: string) => Promise<string | null>>(),
       put: vi.fn<(
@@ -44,7 +44,7 @@ vi.mock('../../packages/shared/services/signer', () => ({
 import { handleFetchRemoteAccount } from '../src/handlers/fetchRemoteAccount';
 
 beforeEach(() => {
-  mocks.env.DB.prepare.mockReset();
+  mocks.env.DB_META_C000.prepare.mockReset();
   mocks.env.CACHE.get.mockReset();
   mocks.env.CACHE.put.mockReset();
   mocks.createFed.mockReset();
@@ -68,7 +68,7 @@ describe('remote Actor collection privacy ingestion', () => {
     expectedHidden,
   ) => {
     let upsertBindings: readonly SqlBinding[] = [];
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: (...bindings: readonly SqlBinding[]) => ({
         first: async () => {
           if (sql.includes('SELECT id, fetched_at, suspended_at')) return null;

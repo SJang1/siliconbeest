@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "maxLegacySplitsPerRun": 1,
+  "legacySplitOrder": [
+    "POSTS",
+    "REMOTE_POSTS",
+    "SEARCH_FEED",
+    "GRAPH",
+    "INBOX",
+    "REMOTE_ACTORS",
+    "OPS"
+  ],
+  "readyFamilies": []
+}

@@ -30,7 +30,7 @@ app.post('/:id/role', adminOnlyRequired, async (c) => {
 	await setAccountRole(id, role);
 
 	// Invalidate token cache for this user — find all active tokens and delete from KV
-	const user = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1').bind(id).first();
+	const user = await env.DB_META_C000.prepare('SELECT id FROM users WHERE account_id = ?1').bind(id).first();
 	if (user) {
 		const tokenIdentities = await getActiveTokenCacheIdentitiesForUser(user.id as string);
 		for (const identity of tokenIdentities) {

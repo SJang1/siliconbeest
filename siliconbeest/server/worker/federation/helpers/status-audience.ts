@@ -123,7 +123,7 @@ async function addRemoteFollowers(
 	accountId: string,
 	reason: 'actor_follower' | 'status_follower',
 ): Promise<void> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT DISTINCT a.uri, a.inbox_url, a.shared_inbox_url, a.domain
 		 FROM follows f
 		 JOIN accounts a ON a.id = f.account_id
@@ -141,7 +141,7 @@ async function addRemoteMentions(
 	recipientsByInbox: Map<string, StatusFederationRecipient>,
 	statusId: string,
 ): Promise<void> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT DISTINCT a.uri, a.inbox_url, a.shared_inbox_url, a.domain
 		 FROM mentions m
 		 JOIN accounts a ON a.id = m.account_id
@@ -161,7 +161,7 @@ async function addRemoteReplyAuthor(
 ): Promise<void> {
 	if (!accountId) return;
 
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT uri, inbox_url, shared_inbox_url, domain
 		 FROM accounts
 		 WHERE id = ?1
@@ -176,7 +176,7 @@ async function addRemoteReplyAuthor(
 async function addAcceptedRelays(
 	recipientsByInbox: Map<string, StatusFederationRecipient>,
 ): Promise<void> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		"SELECT inbox_url, actor_uri FROM relays WHERE state = 'accepted'",
 	).all<RelayRecipientRow>();
 

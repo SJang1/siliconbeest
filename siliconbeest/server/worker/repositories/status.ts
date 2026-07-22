@@ -29,6 +29,7 @@ export type Status = {
 	federated_at: string | null;
 	edited_at: string | null;
 	deleted_at: string | null;
+	source_version: number;
 	poll_id: string | null;
 	quote_id: string | null;
 	quote_authorization_uri: string | null;
@@ -88,7 +89,7 @@ export type AccountStatusOptions = {
 };
 
 export const findById = async (id: string): Promise<Status | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM statuses WHERE id = ? AND deleted_at IS NULL')
 		.bind(id)
 		.first<Status>();
@@ -96,7 +97,7 @@ export const findById = async (id: string): Promise<Status | null> => {
 };
 
 export const findByUri = async (uri: string): Promise<Status | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM statuses WHERE uri = ? AND deleted_at IS NULL')
 		.bind(uri)
 		.first<Status>();
@@ -118,7 +119,7 @@ export const findByAccountId = async (accountId: string, opts: AccountStatusOpti
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -160,6 +161,7 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 		federated_at: null,
 		edited_at: null,
 		deleted_at: null,
+		source_version: 1,
 			poll_id: input.poll_id ?? null,
 			quote_id: input.quote_id ?? null,
 			quote_authorization_uri: input.quote_authorization_uri ?? null,
@@ -172,7 +174,7 @@ export const create = async (input: CreateStatusInput): Promise<Status> => {
 			updated_at: now,
 		};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO statuses (
 				id, uri, url, object_type, title, title_map, account_id,
@@ -212,7 +214,7 @@ export const update = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE statuses SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -222,7 +224,7 @@ export const update = async (
 
 export const deleteStatus = async (id: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE id = ?')
 		.bind(now, now, id)
 		.run();
@@ -239,7 +241,7 @@ export const updateCounts = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), new Date().toISOString(), id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE statuses SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -250,7 +252,7 @@ export const updateCounts = async (
  * (like, announce, create) to update counts without race conditions.
  */
 export const incrementCount = async (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE statuses SET ${field} = ${field} + 1, updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -260,7 +262,7 @@ export const incrementCount = async (id: string, field: 'replies_count' | 'reblo
  * Decrement a count field atomically, flooring at 0.
  */
 export const decrementCount = async (id: string, field: 'replies_count' | 'reblogs_count' | 'favourites_count'): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE statuses SET ${field} = MAX(0, ${field} - 1), updated_at = ? WHERE id = ?`)
 		.bind(new Date().toISOString(), id)
 		.run();
@@ -271,7 +273,7 @@ export const decrementCount = async (id: string, field: 'replies_count' | 'reblo
  */
 export const softDeleteByAccount = async (accountId: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE statuses SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL')
 		.bind(now, now, accountId)
 		.run();
@@ -281,7 +283,7 @@ export const softDeleteByAccount = async (accountId: string): Promise<void> => {
  * Find a status by URI including deleted statuses (for processing Delete activities).
  */
 export const findByUriIncludeDeleted = async (uri: string): Promise<Status | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM statuses WHERE uri = ?')
 		.bind(uri)
 		.first<Status>();
@@ -292,7 +294,7 @@ export const findByUriIncludeDeleted = async (uri: string): Promise<Status | nul
  * Find a status with its parent info (for reply threading).
  */
 export const findWithParent = async (id: string): Promise<(Status & { parent_account_id?: string }) | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare(
 			`SELECT s.*, ps.account_id as parent_account_id
 			 FROM statuses s
@@ -312,7 +314,7 @@ export const findContext = async (statusId: string): Promise<{ ancestors: Status
 
 	// oxlint-disable-next-line fp/no-loop-statements
 	while (currentId) {
-		const parent: Status | null = await env.DB
+		const parent: Status | null = await env.DB_META_C000
 			.prepare(
 				'SELECT * FROM statuses WHERE id = (SELECT in_reply_to_id FROM statuses WHERE id = ? AND deleted_at IS NULL) AND deleted_at IS NULL'
 			)
@@ -325,7 +327,7 @@ export const findContext = async (statusId: string): Promise<{ ancestors: Status
 	}
 
 	// Find descendants recursively (direct replies and their replies)
-	const { results: descendants } = await env.DB
+	const { results: descendants } = await env.DB_META_C000
 		.prepare(
 			`WITH RECURSIVE thread AS (
 				SELECT * FROM statuses WHERE in_reply_to_id = ? AND deleted_at IS NULL
@@ -355,7 +357,7 @@ export const findPublicTimeline = async (opts: TimelineOptions = {}): Promise<St
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -380,7 +382,7 @@ export const findLocalTimeline = async (opts: TimelineOptions = {}): Promise<Sta
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM statuses
 			 WHERE ${where}
@@ -402,7 +404,7 @@ export const findByTag = async (tag: string, opts: TimelineOptions = {}): Promis
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [tag.toLowerCase(), ...clauses.flatMap(c => c.params), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT s.* FROM statuses s
 			 JOIN status_tags st ON st.status_id = s.id

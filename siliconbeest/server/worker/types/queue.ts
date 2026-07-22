@@ -23,5 +23,6 @@ export type {
   ForwardActivityMessage,
   ImportItemMessage,
   SendEmailMessage,
+  D1WriteMessage,
   QueueMessage,
 } from '../../../../packages/shared/types/queue';

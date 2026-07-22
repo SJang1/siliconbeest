@@ -16,7 +16,7 @@ async function insertNotification(opts: {
 }): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
   )
@@ -32,7 +32,7 @@ async function insertStatus(accountId: string, text: string): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const uri = `https://test.siliconbeest.local/users/test/statuses/${id}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses (id, uri, url, account_id, text, content, visibility, local, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'public', 1, ?7, ?7)`,
   )
@@ -428,7 +428,7 @@ describe('Notifications API', () => {
       // before sending to QUEUE_INTERNAL. Since Alice is the author,
       // no notification should be enqueued. Verify no notification exists
       // in the DB for this action by checking directly.
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT id FROM notifications
          WHERE account_id = ?1 AND from_account_id = ?1 AND type = 'favourite' AND status_id = ?2`,
       )

@@ -43,7 +43,7 @@ app.post('/', async (c) => {
 
 	const startAt = body.start_at;
 	const endAt = body.end_at;
-	const db = env.DB;
+	const db = env.DB_META_C000;
 
 	const measures = await Promise.all(
 		body.keys.map(async (key) => {

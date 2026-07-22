@@ -13,7 +13,7 @@ describe('Auth middleware — suspension & disabled checks', () => {
     const { accountId, token } = await createTestUser('suspended_user');
 
     // Suspend the account
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE accounts SET suspended_at = datetime('now') WHERE id = ?1",
     )
       .bind(accountId)
@@ -30,7 +30,7 @@ describe('Auth middleware — suspension & disabled checks', () => {
     const { userId, token } = await createTestUser('disabled_user');
 
     // Disable the user
-    await env.DB.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
       .bind(userId)
       .run();
 
@@ -48,7 +48,7 @@ describe('Auth middleware — suspension & disabled checks', () => {
     });
     expect(activeResponse.status).toBe(200);
 
-    await env.DB.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
       .bind(accountId)
       .run();
 
@@ -61,7 +61,7 @@ describe('Auth middleware — suspension & disabled checks', () => {
 
   it('returns 401 for a pending, unapproved user even with an existing token', async () => {
     const { userId, token } = await createTestUser('pending_token_user');
-    await env.DB.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
       .bind(userId)
       .run();
 

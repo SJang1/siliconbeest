@@ -58,7 +58,7 @@ export async function paginateQuery<T>(
 	`;
 	binds.push(options.pageSize + 1);
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(sql)
 		.bind(...binds)
 		.all<T>();

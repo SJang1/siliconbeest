@@ -53,7 +53,7 @@ class MoveProcessor extends BaseProcessor {
 		// Fetch and verify the target document before trusting its alias claim.
 		const fed = createFed();
 		const ctx = getFedifyContext(fed);
-		const localAcct = await env.DB.prepare(
+		const localAcct = await env.DB_META_C000.prepare(
 			`SELECT a.username
 			 FROM accounts a
 			 JOIN users u ON u.account_id = a.id
@@ -111,7 +111,7 @@ class MoveProcessor extends BaseProcessor {
 		let newlyRecorded = oldAccount.moved_to_account_id === null;
 		if (newlyRecorded) {
 			const now = new Date().toISOString();
-			const recorded = await env.DB.prepare(
+			const recorded = await env.DB_META_C000.prepare(
 				`UPDATE accounts
 				 SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?2
 				 WHERE id = ?3 AND moved_to_account_id IS NULL`,
@@ -146,7 +146,7 @@ class MoveProcessor extends BaseProcessor {
 
 			if (newActorAccount.domain === null) {
 				const now = new Date().toISOString();
-				const inserted = await env.DB.prepare(
+				const inserted = await env.DB_META_C000.prepare(
 					`INSERT OR IGNORE INTO follows
 					   (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -158,11 +158,11 @@ class MoveProcessor extends BaseProcessor {
 					now,
 				).run();
 				if ((inserted.meta?.changes ?? 0) === 0) continue;
-				await env.DB.batch([
-					env.DB.prepare(
+				await env.DB_META_C000.batch([
+					env.DB_META_C000.prepare(
 						'UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1',
 					).bind(follower.accountId),
-					env.DB.prepare(
+					env.DB_META_C000.prepare(
 						'UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1',
 					).bind(newAccountId),
 				]);
@@ -178,7 +178,7 @@ class MoveProcessor extends BaseProcessor {
 			if (!followActivity.id) continue;
 			const requestId = generateUlid();
 			const now = new Date().toISOString();
-			const inserted = await env.DB.prepare(
+			const inserted = await env.DB_META_C000.prepare(
 				`INSERT OR IGNORE INTO follow_requests
 				   (id, account_id, target_account_id, uri, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -200,7 +200,7 @@ class MoveProcessor extends BaseProcessor {
 				});
 				refollowed += 1;
 			} catch (error) {
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					'DELETE FROM follow_requests WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3',
 				).bind(requestId, follower.accountId, newAccountId).run();
 				console.error('[move] Failed to enqueue re-follow:', error);

@@ -15,7 +15,7 @@ app.get('/', async (c) => {
   const offset = Math.max(offsetRaw, 0);
   const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await env.DB.prepare(`
+  const { results } = await env.DB_META_C000.prepare(`
     SELECT t.*, COUNT(st.tag_id) as uses
     FROM tags t
     JOIN status_tags st ON st.tag_id = t.id

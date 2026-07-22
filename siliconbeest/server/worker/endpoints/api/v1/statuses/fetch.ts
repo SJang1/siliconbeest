@@ -13,6 +13,7 @@ import {
   getSurfaceableReblogOriginalId,
 } from '../../../../services/permissions';
 import { localizeStatusFields } from '../../../../../../../packages/shared/utils/naturalLanguage';
+import { getPendingEntity } from '../../../../services/writeJournal';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -168,11 +169,17 @@ app.get('/:id', authOptional, requireScope('read:statuses'), async (c) => {
   const domain = env.INSTANCE_DOMAIN;
   const preferredLanguages = c.get('preferredLanguages');
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(statusId).first();
 
-  if (!row) throw new AppError(404, 'Record not found');
+  if (!row) {
+    if (currentAccountId) {
+      const pending = await getPendingEntity(currentAccountId, statusId);
+      if (pending) return c.json(pending, 202);
+    }
+    throw new AppError(404, 'Record not found');
+  }
   await assertStatusViewable(statusId, currentAccountId);
 
   const status = await serializeStatusEnriched(
@@ -193,7 +200,7 @@ app.get('/:id', authOptional, requireScope('read:statuses'), async (c) => {
   );
   if (!originalId) throw new AppError(404, 'Record not found');
 
-  const originalRow = await env.DB.prepare(
+  const originalRow = await env.DB_META_C000.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(originalId).first();
   if (

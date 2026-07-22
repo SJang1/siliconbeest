@@ -26,7 +26,7 @@ app.get('/', authOptional, async (c) => {
     new Date().toISOString(),
   );
 
-  const { results } = await env.DB.prepare(`
+  const { results } = await env.DB_META_C000.prepare(`
     SELECT s.*, a.id AS a_id, a.username AS a_username, a.domain AS a_domain,
            a.display_name AS a_display_name, a.note AS a_note, a.uri AS a_uri,
            a.url AS a_url, a.avatar_url AS a_avatar_url, a.avatar_static_url AS a_avatar_static_url,

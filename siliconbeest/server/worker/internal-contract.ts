@@ -9,4 +9,8 @@ export type StreamEventPayload = {
 
 export type InternalRpc = {
   sendStreamEvent(userId: string, event: StreamEventPayload): Promise<void>;
+  updateWriteOperation(progress: import('../../../packages/shared/types/write').WriteProgress): Promise<void>;
+  claimWriteOperation(claim: import('../../../packages/shared/types/write').WriteClaim): Promise<import('../../../packages/shared/types/write').WriteClaimResult>;
+  applyRegistration(command: import('../../../packages/shared/types/registration').RegistrationCommand): Promise<void>;
+  projectRealtimeFeed(entry: import('../../../packages/shared/types/realtimeFeed').RealtimeFeedEntry): Promise<void>;
 };

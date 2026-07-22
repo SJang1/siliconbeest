@@ -13,6 +13,13 @@ import {
   type ActivityPubAlternate,
 } from './activitypub-alternate';
 import { StreamingDO as StreamingDOBase } from './worker/durableObjects/streaming';
+import { StreamFanoutDO as StreamFanoutDOBase } from './worker/durableObjects/streamFanout';
+import { RealtimeFeedIndexDO as RealtimeFeedIndexDOBase } from './worker/durableObjects/realtimeFeedIndex';
+import { WriteJournalDO as WriteJournalDOBase } from './worker/durableObjects/writeJournal';
+import { IdentityReservationDO as IdentityReservationDOBase } from './worker/durableObjects/identityReservation';
+import { InvitationLedgerDO as InvitationLedgerDOBase } from './worker/durableObjects/invitationLedger';
+import { RegistrationJournalDO as RegistrationJournalDOBase } from './worker/durableObjects/registrationJournal';
+import { RemoteObjectJournalDO as RemoteObjectJournalDOBase } from './worker/durableObjects/remoteObjectJournal';
 
 // Internal exports for internal worker-to-worker communication. Not part of the public API.
 // DO NOT expose any endpoints in Internal to the public internet.
@@ -20,6 +27,13 @@ export { Internal } from './worker/internal';
 
 // Export a top-level Durable Object class so workerd can register the actor.
 export class StreamingDO extends StreamingDOBase {}
+export class StreamFanoutDO extends StreamFanoutDOBase {}
+export class RealtimeFeedIndexDO extends RealtimeFeedIndexDOBase {}
+export class WriteJournalDO extends WriteJournalDOBase {}
+export class IdentityReservationDO extends IdentityReservationDOBase {}
+export class InvitationLedgerDO extends InvitationLedgerDOBase {}
+export class RegistrationJournalDO extends RegistrationJournalDOBase {}
+export class RemoteObjectJournalDO extends RemoteObjectJournalDOBase {}
 
 // Prefixes / paths handled by the Hono worker app
 const WORKER_PREFIXES = [
@@ -141,7 +155,7 @@ export default {
       return app.fetch(request, _env, ctx);
     }
 
-    const activityPubAlternate = await routeActivityPubAlternate(request, _env, _env.DB, ctx);
+    const activityPubAlternate = await routeActivityPubAlternate(request, _env, _env.DB_META_C000, ctx);
     if (activityPubAlternate) return activityPubAlternate;
 
     // 2. Crawler on SPA paths → OG handler
@@ -149,7 +163,7 @@ export default {
     if (isCrawler(ua)) {
       if (!pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|webp|avif|map|json)$/)) {
         const ogResponse = await handleOgRequest(url);
-        if (ogResponse) return attachActivityPubAlternate(url, _env.DB, ogResponse);
+        if (ogResponse) return attachActivityPubAlternate(url, _env.DB_META_C000, ogResponse);
       }
     }
 
@@ -175,11 +189,11 @@ export default {
     // 4. Try serving static assets
     const assetResponse = await env.ASSETS.fetch(request);
     if (assetResponse.status !== 404) {
-      return attachActivityPubAlternate(url, _env.DB, assetResponse);
+      return attachActivityPubAlternate(url, _env.DB_META_C000, assetResponse);
     }
 
     // 5. SPA fallback — serve index.html for client-side routing
     const spaResponse = await env.ASSETS.fetch(new Request(new URL('/', request.url), request));
-    return attachActivityPubAlternate(url, _env.DB, spaResponse);
+    return attachActivityPubAlternate(url, _env.DB_META_C000, spaResponse);
   },
 } satisfies ExportedHandler<Env>;

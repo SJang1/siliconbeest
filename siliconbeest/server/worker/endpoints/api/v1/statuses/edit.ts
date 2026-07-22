@@ -69,7 +69,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const { status: updatedRow, content, hashtags, mediaAttachments } = result;
 
   // Fetch full account data for response
-  const accountRow = await env.DB.prepare(
+  const accountRow = await env.DB_META_C000.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
   ).bind(currentAccountId).first<AccountRow>();
 
@@ -124,14 +124,14 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       // -- Resolve inReplyTo --
       let replyTarget: URL | undefined;
       if (updatedRow.in_reply_to_id) {
-        const parentUri = await env.DB.prepare('SELECT uri FROM statuses WHERE id = ?1').bind(updatedRow.in_reply_to_id).first<{ uri: string }>();
+        const parentUri = await env.DB_META_C000.prepare('SELECT uri FROM statuses WHERE id = ?1').bind(updatedRow.in_reply_to_id).first<{ uri: string }>();
         if (parentUri) replyTarget = new URL(parentUri.uri);
       }
 
       // -- Conversation context --
       let editConvApUri: string | null = null;
       if (updatedRow.conversation_id) {
-        const convRow = await env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
+        const convRow = await env.DB_META_C000.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
         editConvApUri = convRow?.ap_uri ?? null;
       }
 
@@ -144,7 +144,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       );
 
       // -- Mention tags (from DB) --
-      const { results: mentionRows } = await env.DB.prepare(
+      const { results: mentionRows } = await env.DB_META_C000.prepare(
         `SELECT m.account_id, a.uri AS actor_uri, a.username, a.domain
          FROM mentions m JOIN accounts a ON a.id = m.account_id
          WHERE m.status_id = ?1`,
@@ -158,7 +158,7 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
       });
 
       // -- Media attachments --
-      const { results: editMediaRows } = await env.DB.prepare(
+      const { results: editMediaRows } = await env.DB_META_C000.prepare(
         'SELECT * FROM media_attachments WHERE status_id = ?1',
       ).bind(statusId).all();
       const mediaAttachmentObjects = (editMediaRows ?? []).map((m: any) => {

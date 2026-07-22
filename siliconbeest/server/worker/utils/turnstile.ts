@@ -81,7 +81,7 @@ export async function getTurnstileSettings(
 
   if (cached) return cached as { enabled: boolean; siteKey: string; secretKey: string };
 
-  const { results } = await env.DB
+  const { results } = await env.DB_META_C000
     .prepare(
       "SELECT key, value FROM settings WHERE key IN ('turnstile_enabled', 'turnstile_site_key', 'turnstile_secret_key')",
     )

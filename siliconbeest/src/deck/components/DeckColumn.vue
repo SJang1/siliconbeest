@@ -12,6 +12,7 @@ import DeckStatusCard from './DeckStatusCard.vue'
 import AdvertisementCard from '@/components/advertisement/AdvertisementCard.vue'
 import { useAdvertisementsStore } from '@/stores/advertisements'
 import { mixAdvertisements } from '@/utils/advertisementFeed'
+import { useTimelineStreamViewport } from '@/composables/useTimelineStreamViewport'
 
 type DeckTimelineColumnType = 'home' | 'social' | 'local' | 'federated'
 
@@ -59,7 +60,8 @@ const feedItems = computed(() => mixAdvertisements(
   `deck:${meta.value.timelineType}`,
 ))
 
-const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+const newStatusCount = computed(() => timelinesStore.getNewStatusCount(meta.value.timelineType))
+const hasNewPosts = computed(() => newStatusCount.value > 0)
 const livePaused = computed(() => meta.value.streamKeys.some((k) => timelinesStore.isStreamPaused(k)))
 const live = computed(
   () => !livePaused.value && meta.value.streamKeys.every((k) => timelinesStore.streamingClients.has(k)),
@@ -69,20 +71,21 @@ async function toggleLive() {
   if (livePaused.value) {
     // Resume: refetch first so posts missed while paused aren't skipped,
     // then fetchTimeline's auto-connect reopens every stream this feed uses
-    meta.value.streamKeys.forEach((k) => timelinesStore.unpauseStream(k))
     await timelinesStore.fetchTimeline(meta.value.timelineType, { token: auth.token ?? undefined })
+    meta.value.streamKeys.forEach((k) => timelinesStore.unpauseStream(k))
   } else {
     meta.value.streamKeys.forEach((k) => timelinesStore.pauseStream(k))
   }
 }
 
 const isAtTop = ref(true)
+useTimelineStreamViewport('deck-column', () => meta.value.timelineType, isAtTop)
 
 function handleScroll(event: Event) {
   isAtTop.value = (event.currentTarget as HTMLElement).scrollTop < 100
 }
 
-watch(() => timeline.value.newStatusIds.length, (len) => {
+watch(newStatusCount, (len) => {
   if (len > 0 && isAtTop.value) {
     timelinesStore.showNewStatuses(meta.value.timelineType)
   }
@@ -167,7 +170,7 @@ function navigate(status: Status) {
         style="color: var(--dk-acc); border-color: var(--dk-acc)"
         @click="showNew"
       >
-        ↑ {{ t('timeline.new_posts', { count: timeline.newStatusIds.length }) }}
+        ↑ {{ t('timeline.new_posts', { count: newStatusCount }) }}
       </button>
 
       <div

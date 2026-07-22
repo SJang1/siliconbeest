@@ -17,7 +17,7 @@ export const findByAccountAndStatus = async (
 	accountId: string,
 	statusId: string,
 ): Promise<Bookmark | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM bookmarks WHERE account_id = ? AND status_id = ?')
 		.bind(accountId, statusId)
 		.first<Bookmark>();
@@ -36,7 +36,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM bookmarks
 			 WHERE ${where}
@@ -59,7 +59,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			'INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?, ?, ?, ?)'
 		)
@@ -72,7 +72,7 @@ export const create = async (
 export const deleteById = async (
 	id: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM bookmarks WHERE id = ?')
 		.bind(id)
 		.run();

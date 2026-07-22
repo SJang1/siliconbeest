@@ -42,11 +42,11 @@ describe('Domain & mention case-sensitivity', () => {
 			expect(body.domain).toBe('bad.example.com');
 
 			// Enforcement compares lowercase — must now match (cache bypassed).
-			const blocked = await isDomainBlocked(env.DB, null, 'bad.example.com');
+			const blocked = await isDomainBlocked(env.DB_META_C000, null, 'bad.example.com');
 			expect(blocked.blocked).toBe(true);
 
 			// Inbound mixed-case host normalizes to the same answer.
-			const blockedMixed = await isDomainBlocked(env.DB, null, 'BAD.EXAMPLE.COM');
+			const blockedMixed = await isDomainBlocked(env.DB_META_C000, null, 'BAD.EXAMPLE.COM');
 			expect(blockedMixed.blocked).toBe(true);
 		});
 
@@ -62,7 +62,7 @@ describe('Domain & mention case-sensitivity', () => {
 		it('the DB rejects a case-variant row directly (index backstop)', async () => {
 			const now = new Date().toISOString();
 			await expect(
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					'INSERT INTO domain_blocks (id, domain, severity, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
 				).bind(crypto.randomUUID(), 'Bad.EXAMPLE.com', 'suspend', now).run(),
 			).rejects.toThrow();
@@ -153,7 +153,7 @@ describe('Domain & mention case-sensitivity', () => {
 			expect(res.status).toBe(200);
 			const body = await res.json<Record<string, any>>();
 
-			const mention = await env.DB.prepare(
+			const mention = await env.DB_META_C000.prepare(
 				'SELECT account_id FROM mentions WHERE status_id = ?1 AND account_id = ?2',
 			).bind(body.id, target.accountId).first();
 			expect(mention).not.toBeNull();
@@ -168,7 +168,7 @@ describe('Domain & mention case-sensitivity', () => {
 			expect(res.status).toBe(200);
 			const body = await res.json<Record<string, any>>();
 
-			const rows = await env.DB.prepare(
+			const rows = await env.DB_META_C000.prepare(
 				'SELECT account_id FROM mentions WHERE status_id = ?1',
 			).bind(body.id).all();
 			const targetRows = (rows.results ?? []).filter((r) => r.account_id === target.accountId);
@@ -180,7 +180,7 @@ describe('Domain & mention case-sensitivity', () => {
 		beforeAll(async () => {
 			const u = await createTestUser('emailcaseuser', { email: 'emailcase@test.local' });
 			const hashed = await hashPassword('CorrectHorse123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
 				.bind(hashed, u.userId)
 				.run();
 		});

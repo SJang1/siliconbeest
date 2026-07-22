@@ -29,7 +29,7 @@ export type CreateOAuthCodeInput = {
 export const findByCode = async (
 	code: string,
 ): Promise<OAuthAuthorizationCode | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM oauth_authorization_codes WHERE code = ? AND used_at IS NULL')
 		.bind(code)
 		.first<OAuthAuthorizationCode>();
@@ -55,7 +55,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO oauth_authorization_codes (
 				id, code, application_id, user_id, redirect_uri, scopes,
@@ -77,7 +77,7 @@ export const markUsed = async (
 	id: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE oauth_authorization_codes SET used_at = ? WHERE id = ?')
 		.bind(now, id)
 		.run();

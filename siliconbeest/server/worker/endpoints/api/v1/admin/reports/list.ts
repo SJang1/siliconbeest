@@ -71,7 +71,7 @@ app.get('/', async (c) => {
 	`;
 	bindings.push(limit);
 
-	const { results } = await env.DB.prepare(sql).bind(...bindings).all();
+	const { results } = await env.DB_META_C000.prepare(sql).bind(...bindings).all();
 
 	const domain = env.INSTANCE_DOMAIN;
 	const reports = (results || []).map((row) => formatReport(row, domain));

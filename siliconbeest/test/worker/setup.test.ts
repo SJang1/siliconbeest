@@ -5,7 +5,7 @@ import { applyMigration } from './helpers';
 async function resetSetupTables() {
   for (const table of ['oauth_access_tokens', 'oauth_applications', 'actor_keys', 'users', 'accounts', 'settings']) {
     try {
-      await env.DB.prepare(`DELETE FROM ${table}`).run();
+      await env.DB_META_C000.prepare(`DELETE FROM ${table}`).run();
     } catch { /* table may not exist yet */ }
   }
 }
@@ -38,7 +38,7 @@ describe('initial setup bootstrap', () => {
     const res = await setupRequest({});
 
     expect(res.status).toBe(403);
-    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>())
+    expect(await env.DB_META_C000.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>())
       .toMatchObject({ count: 0 });
   });
 
@@ -46,7 +46,7 @@ describe('initial setup bootstrap', () => {
     const res = await setupRequest({ setup_secret: 'wrong-secret' });
 
     expect(res.status).toBe(403);
-    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>())
+    expect(await env.DB_META_C000.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>())
       .toMatchObject({ count: 0 });
   });
 
@@ -59,7 +59,7 @@ describe('initial setup bootstrap', () => {
     expect(body.access_token).toBeTruthy();
     expect(body.scope).toBe('read write follow push admin:read admin:write');
 
-    const user = await env.DB.prepare('SELECT role, approved, confirmed_at FROM users WHERE email = ?1')
+    const user = await env.DB_META_C000.prepare('SELECT role, approved, confirmed_at FROM users WHERE email = ?1')
       .bind('admin@example.test')
       .first<{ role: string; approved: number; confirmed_at: string | null }>();
     expect(user?.role).toBe('admin');

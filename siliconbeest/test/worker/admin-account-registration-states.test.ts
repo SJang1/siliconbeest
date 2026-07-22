@@ -20,7 +20,7 @@ describe('Admin account registration states', () => {
 
   async function createAccountInState(username: string, state: RegistrationState) {
     const account = await createTestUser(username);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE users SET approved = ?1, registration_state = ?2 WHERE id = ?3',
     ).bind(state === 'active' ? 1 : 0, state, account.userId).run();
     return account;
@@ -73,7 +73,7 @@ describe('Admin account registration states', () => {
         { method: 'POST', headers: authHeaders(admin.token) },
       );
       expect(rejectResponse.status).toBe(200);
-      expect(await env.DB.prepare(
+      expect(await env.DB_META_C000.prepare(
         'SELECT id FROM users WHERE id = ?1',
       ).bind(account.userId).first()).toBeNull();
     },

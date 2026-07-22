@@ -25,7 +25,7 @@ export type CreateOAuthAppInput = {
 export const findById = async (
 	id: string,
 ): Promise<OAuthApplication | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM oauth_applications WHERE id = ?')
 		.bind(id)
 		.first<OAuthApplication>();
@@ -35,7 +35,7 @@ export const findById = async (
 export const findByClientId = async (
 	clientId: string,
 ): Promise<OAuthApplication | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM oauth_applications WHERE client_id = ?')
 		.bind(clientId)
 		.first<OAuthApplication>();
@@ -59,7 +59,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO oauth_applications (
 				id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at

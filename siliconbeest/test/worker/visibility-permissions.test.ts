@@ -116,46 +116,46 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     // hank is a remote user (has domain set)
     const hankId = crypto.randomUUID();
     hank = { accountId: hankId };
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)",
     ).bind(hankId, 'hank', 'remote.example.com', 'hank', 'https://remote.example.com/users/hank', 'https://remote.example.com/@hank', now, now).run();
 
     // suspended_user: an account with suspended_at set
     const suspId = crypto.randomUUID();
     suspended_user = { accountId: suspId };
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at, suspended_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?, ?)",
     ).bind(suspId, 'suspended_user', 'suspended_user', `https://test.siliconbeest.local/users/suspended_user`, `https://test.siliconbeest.local/@suspended_user`, now, now, now).run();
 
     // bob follows alice
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES ('vf1', ?1, ?2, ?3, ?3)",
     ).bind(bob.accountId, alice.accountId, now).run();
 
     // alice blocks eve
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO blocks (id, account_id, target_account_id, created_at) VALUES ('vb1', ?1, ?2, ?3)",
     ).bind(alice.accountId, eve.accountId, now).run();
 
     // Mutual follow: alice follows grace AND grace follows alice
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES ('vf_ag', ?1, ?2, ?3, ?3)",
     ).bind(alice.accountId, grace.accountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES ('vf_ga', ?1, ?2, ?3, ?3)",
     ).bind(grace.accountId, alice.accountId, now).run();
 
     // Create conversations
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO conversations (id, created_at, updated_at) VALUES ('vc1', ?1, ?1)",
     ).bind(now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO conversations (id, created_at, updated_at) VALUES ('vc2', ?1, ?1)",
     ).bind(now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO conversations (id, created_at, updated_at) VALUES ('vc3', ?1, ?1)",
     ).bind(now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO conversations (id, created_at, updated_at) VALUES ('vc4', ?1, ?1)",
     ).bind(now).run();
 
@@ -163,47 +163,47 @@ describe('Comprehensive Visibility & Permission Controls', () => {
       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 'en', ?8, ?9, ?10, 1, ?11, ?11)`;
 
     // === PUBLIC ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_1, `https://t.local/s/${IDS.public_1}`, `https://t.local/@alice/${IDS.public_1}`,
       alice.accountId, 'Hello world', '<p>Hello world</p>', 'public', 'vc1', null, null, now,
     ).run();
 
     // === UNLISTED ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.unlisted_1, `https://t.local/s/${IDS.unlisted_1}`, `https://t.local/@alice/${IDS.unlisted_1}`,
       alice.accountId, 'Unlisted hello', '<p>Unlisted hello</p>', 'unlisted', 'vc1', null, null, now,
     ).run();
 
     // === PRIVATE (followers-only) by alice ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_1, `https://t.local/s/${IDS.private_1}`, `https://t.local/@alice/${IDS.private_1}`,
       alice.accountId, 'Followers only', '<p>Followers only</p>', 'private', 'vc1', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at) VALUES ('ve_private_1', ?1, ?2, '', 0, NULL, ?3)",
     ).bind(IDS.private_1, '<p>Older followers-only text</p>', now).run();
 
     // === DM from alice TO carol (carol is mentioned) ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_to_carol, `https://t.local/s/${IDS.dm_to_carol}`, `https://t.local/@alice/${IDS.dm_to_carol}`,
       alice.accountId, '@carol secret', '<p>@carol secret</p>', 'direct', 'vc1', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm1', ?1, ?2, ?3)",
     ).bind(IDS.dm_to_carol, carol.accountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at) VALUES ('ve_dm_1', ?1, ?2, '', 0, NULL, ?3)",
     ).bind(IDS.dm_to_carol, '<p>Older direct text</p>', now).run();
 
     // === DM from alice with NO mentions (self-note) ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_to_nobody, `https://t.local/s/${IDS.dm_to_nobody}`, `https://t.local/@alice/${IDS.dm_to_nobody}`,
       alice.accountId, 'Note to self', '<p>Note to self</p>', 'direct', 'vc1', null, null, now,
     ).run();
 
     // === DM reply from carol in same conversation, NOT mentioning alice ===
     // carol replies to dm_to_carol but doesn't @mention alice
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_reply_no_mention, `https://t.local/s/${IDS.dm_reply_no_mention}`, `https://t.local/@carol/${IDS.dm_reply_no_mention}`,
       carol.accountId, 'Reply without ping', '<p>Reply without ping</p>', 'direct', 'vc1',
       IDS.dm_to_carol, alice.accountId, now,
@@ -212,33 +212,33 @@ describe('Comprehensive Visibility & Permission Controls', () => {
 
     // === DM reply from frank in same conversation, NOT mentioning carol ===
     // frank somehow is in the conversation but doesn't mention carol
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_thread_reply_frank, `https://t.local/s/${IDS.dm_thread_reply_frank}`, `https://t.local/@frank/${IDS.dm_thread_reply_frank}`,
       frank.accountId, 'Frank reply no mention', '<p>Frank reply</p>', 'direct', 'vc1',
       IDS.dm_to_carol, alice.accountId, now,
     ).run();
     // frank mentions alice but NOT carol
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm2', ?1, ?2, ?3)",
     ).bind(IDS.dm_thread_reply_frank, alice.accountId, now).run();
 
     // === PRIVATE by bob (alice does NOT follow bob) ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_by_bob, `https://t.local/s/${IDS.private_by_bob}`, `https://t.local/@bob/${IDS.private_by_bob}`,
       bob.accountId, 'Bob private', '<p>Bob private</p>', 'private', 'vc2', null, null, now,
     ).run();
 
     // === DM from carol TO alice (alice is mentioned) ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_carol_to_alice, `https://t.local/s/${IDS.dm_carol_to_alice}`, `https://t.local/@carol/${IDS.dm_carol_to_alice}`,
       carol.accountId, '@alice hey', '<p>@alice hey</p>', 'direct', 'vc2', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm3', ?1, ?2, ?3)",
     ).bind(IDS.dm_carol_to_alice, alice.accountId, now).run();
 
     // === Public by eve (alice blocked eve) ===
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_by_eve, `https://t.local/s/${IDS.public_by_eve}`, `https://t.local/@eve/${IDS.public_by_eve}`,
       eve.accountId, 'Eve public post', '<p>Eve public post</p>', 'public', 'vc2', null, null, now,
     ).run();
@@ -248,118 +248,118 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     // =====================================================================
 
     // --- DM threading: A->B, B->A reply, A->B reply2 ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_thread_a_to_b, `https://t.local/s/${IDS.dm_thread_a_to_b}`, `https://t.local/@alice/${IDS.dm_thread_a_to_b}`,
       alice.accountId, '@bob hey', '<p>@bob hey</p>', 'direct', 'vc3', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_atob', ?1, ?2, ?3)",
     ).bind(IDS.dm_thread_a_to_b, bob.accountId, now).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_thread_b_to_a, `https://t.local/s/${IDS.dm_thread_b_to_a}`, `https://t.local/@bob/${IDS.dm_thread_b_to_a}`,
       bob.accountId, '@alice reply', '<p>@alice reply</p>', 'direct', 'vc3',
       IDS.dm_thread_a_to_b, alice.accountId, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_btoa', ?1, ?2, ?3)",
     ).bind(IDS.dm_thread_b_to_a, alice.accountId, now).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_thread_a_to_b_2, `https://t.local/s/${IDS.dm_thread_a_to_b_2}`, `https://t.local/@alice/${IDS.dm_thread_a_to_b_2}`,
       alice.accountId, '@bob reply2', '<p>@bob reply2</p>', 'direct', 'vc3',
       IDS.dm_thread_b_to_a, bob.accountId, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_atob2', ?1, ?2, ?3)",
     ).bind(IDS.dm_thread_a_to_b_2, bob.accountId, now).run();
 
     // --- DM from remote user (hank) mentioning carol ---
     // hank is remote so local=0
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses (id, uri, url, account_id, text, content, visibility, sensitive, language, conversation_id, in_reply_to_id, in_reply_to_account_id, local, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 'en', ?8, ?9, ?10, 0, ?11, ?11)`,
     ).bind(
       IDS.dm_remote_to_carol, `https://remote.example.com/s/${IDS.dm_remote_to_carol}`, `https://remote.example.com/@hank/${IDS.dm_remote_to_carol}`,
       hank.accountId, '@carol secret from remote', '<p>@carol secret from remote</p>', 'direct', 'vc4', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_remote_c', ?1, ?2, ?3)",
     ).bind(IDS.dm_remote_to_carol, carol.accountId, now).run();
 
     // --- Self-DM (alice writes DM mentioning herself) ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_self_to_self, `https://t.local/s/${IDS.dm_self_to_self}`, `https://t.local/@alice/${IDS.dm_self_to_self}`,
       alice.accountId, '@alice self-dm', '<p>@alice self-dm</p>', 'direct', 'vc4', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_self', ?1, ?2, ?3)",
     ).bind(IDS.dm_self_to_self, alice.accountId, now).run();
 
     // --- Private by grace (alice follows grace via mutual follow) ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_by_grace, `https://t.local/s/${IDS.private_by_grace}`, `https://t.local/@grace/${IDS.private_by_grace}`,
       grace.accountId, 'Grace private', '<p>Grace private</p>', 'private', 'vc4', null, null, now,
     ).run();
 
     // --- Another private by alice (for unfollow test) ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_by_alice_2, `https://t.local/s/${IDS.private_by_alice_2}`, `https://t.local/@alice/${IDS.private_by_alice_2}`,
       alice.accountId, 'Another private', '<p>Another private</p>', 'private', 'vc4', null, null, now,
     ).run();
 
     // --- Extra statuses for public timeline filtering ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.unlisted_by_alice, `https://t.local/s/${IDS.unlisted_by_alice}`, `https://t.local/@alice/${IDS.unlisted_by_alice}`,
       alice.accountId, 'Unlisted for tl', '<p>Unlisted for tl</p>', 'unlisted', 'vc4', null, null, now,
     ).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_by_alice_for_tl, `https://t.local/s/${IDS.private_by_alice_for_tl}`, `https://t.local/@alice/${IDS.private_by_alice_for_tl}`,
       alice.accountId, 'Private for tl', '<p>Private for tl</p>', 'private', 'vc4', null, null, now,
     ).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_by_alice_for_tl, `https://t.local/s/${IDS.dm_by_alice_for_tl}`, `https://t.local/@alice/${IDS.dm_by_alice_for_tl}`,
       alice.accountId, 'DM for tl', '<p>DM for tl</p>', 'direct', 'vc4', null, null, now,
     ).run();
 
     // --- Deleted statuses (soft-deleted via deleted_at) ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_deleted, `https://t.local/s/${IDS.public_deleted}`, `https://t.local/@alice/${IDS.public_deleted}`,
       alice.accountId, 'Deleted public', '<p>Deleted public</p>', 'public', 'vc4', null, null, now,
     ).run();
-    await env.DB.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.public_deleted).run();
+    await env.DB_META_C000.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.public_deleted).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_deleted, `https://t.local/s/${IDS.dm_deleted}`, `https://t.local/@alice/${IDS.dm_deleted}`,
       alice.accountId, 'Deleted DM', '<p>Deleted DM</p>', 'direct', 'vc4', null, null, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_del_dm', ?1, ?2, ?3)",
     ).bind(IDS.dm_deleted, carol.accountId, now).run();
-    await env.DB.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.dm_deleted).run();
+    await env.DB_META_C000.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.dm_deleted).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_deleted, `https://t.local/s/${IDS.private_deleted}`, `https://t.local/@alice/${IDS.private_deleted}`,
       alice.accountId, 'Deleted private', '<p>Deleted private</p>', 'private', 'vc4', null, null, now,
     ).run();
-    await env.DB.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.private_deleted).run();
+    await env.DB_META_C000.prepare("UPDATE statuses SET deleted_at = ?1 WHERE id = ?2").bind(now, IDS.private_deleted).run();
 
     // --- Statuses by suspended user ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_by_suspended, `https://t.local/s/${IDS.public_by_suspended}`, `https://t.local/@suspended_user/${IDS.public_by_suspended}`,
       suspended_user.accountId, 'Suspended public', '<p>Suspended public</p>', 'public', 'vc4', null, null, now,
     ).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_by_suspended, `https://t.local/s/${IDS.private_by_suspended}`, `https://t.local/@suspended_user/${IDS.private_by_suspended}`,
       suspended_user.accountId, 'Suspended private', '<p>Suspended private</p>', 'private', 'vc4', null, null, now,
     ).run();
 
     // --- Reblog wrappers ---
     // bob reblogs alice's public_1
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses (id, uri, url, account_id, reblog_of_id, visibility, sensitive, local, created_at, updated_at)
        VALUES (?1, ?2, NULL, ?3, ?4, 'public', 0, 1, ?5, ?5)`,
     ).bind(
@@ -368,7 +368,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     ).run();
 
     // bob reblogs alice's unlisted_1
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses (id, uri, url, account_id, reblog_of_id, visibility, sensitive, local, created_at, updated_at)
        VALUES (?1, ?2, NULL, ?3, ?4, 'unlisted', 0, 1, ?5, ?5)`,
     ).bind(
@@ -377,13 +377,13 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     ).run();
 
     // --- Local public by bob (for local timeline test) ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_local_by_bob, `https://t.local/s/${IDS.public_local_by_bob}`, `https://t.local/@bob/${IDS.public_local_by_bob}`,
       bob.accountId, 'Bob local public', '<p>Bob local public</p>', 'public', 'vc4', null, null, now,
     ).run();
 
     // --- Remote public by hank (local=0, for local timeline test) ---
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses (id, uri, url, account_id, text, content, visibility, sensitive, language, conversation_id, in_reply_to_id, in_reply_to_account_id, local, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 'en', ?8, ?9, ?10, 0, ?11, ?11)`,
     ).bind(
@@ -392,23 +392,23 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     ).run();
 
     // --- Mixed-visibility replies under a public root ---
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.public_mixed_root, `https://t.local/s/${IDS.public_mixed_root}`, `https://t.local/@alice/${IDS.public_mixed_root}`,
       alice.accountId, 'Public mixed root', '<p>Public mixed root</p>', 'public', 'vc4', null, null, now,
     ).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.private_reply_to_public, `https://t.local/s/${IDS.private_reply_to_public}`, `https://t.local/@alice/${IDS.private_reply_to_public}`,
       alice.accountId, 'Private reply under public root', '<p>Private reply under public root</p>', 'private', 'vc4',
       IDS.public_mixed_root, alice.accountId, now,
     ).run();
 
-    await env.DB.prepare(ins).bind(
+    await env.DB_META_C000.prepare(ins).bind(
       IDS.dm_reply_to_public, `https://t.local/s/${IDS.dm_reply_to_public}`, `https://t.local/@alice/${IDS.dm_reply_to_public}`,
       alice.accountId, '@carol direct reply under public root', '<p>@carol direct reply under public root</p>', 'direct', 'vc4',
       IDS.public_mixed_root, alice.accountId, now,
     ).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO mentions (id, status_id, account_id, created_at) VALUES ('vm_mix_dm', ?1, ?2, ?3)",
     ).bind(IDS.dm_reply_to_public, carol.accountId, now).run();
   });
@@ -770,7 +770,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
 
       // Make frank follow alice
       const now = new Date().toISOString();
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         "INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES ('vf_frank_alice', ?1, ?2, ?3, ?3)",
       ).bind(frank.accountId, alice.accountId, now).run();
 
@@ -778,7 +778,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
       expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_by_alice_2}`, { headers: authHeaders(frank.token) })).status).toBe(200);
 
       // Unfollow
-      await env.DB.prepare("DELETE FROM follows WHERE id = 'vf_frank_alice'").run();
+      await env.DB_META_C000.prepare("DELETE FROM follows WHERE id = 'vf_frank_alice'").run();
 
       // Now frank can NOT see it
       expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_by_alice_2}`, { headers: authHeaders(frank.token) })).status).toBe(404);
@@ -834,7 +834,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
         headers: authHeaders(dave.token),
       });
       expect(r.status).toBe(404);
-      const favourite = await env.DB.prepare(
+      const favourite = await env.DB_META_C000.prepare(
         'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
       ).bind(dave.accountId, IDS.dm_to_carol).first<{ id: string }>();
       expect(favourite).toBeNull();
@@ -892,7 +892,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
         headers: authHeaders(dave.token),
       });
       expect(r.status).toBe(404);
-      const bookmark = await env.DB.prepare(
+      const bookmark = await env.DB_META_C000.prepare(
         'SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2',
       ).bind(dave.accountId, IDS.dm_to_carol).first<{ id: string }>();
       expect(bookmark).toBeNull();
@@ -1018,7 +1018,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
     it('blocking removes follow relationship so private access is revoked', async () => {
       // Create a temporary follow from eve to alice (simulating pre-block state)
       const now = new Date().toISOString();
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         "INSERT OR IGNORE INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES ('vf_eve_alice', ?1, ?2, ?3, ?3)",
       ).bind(eve.accountId, alice.accountId, now).run();
 
@@ -1026,7 +1026,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
       // still looks at follows table and finds it -- but in real Mastodon the block
       // would delete the follow. For our test, we verify that without the follow,
       // eve cannot see private posts.
-      await env.DB.prepare("DELETE FROM follows WHERE id = 'vf_eve_alice'").run();
+      await env.DB_META_C000.prepare("DELETE FROM follows WHERE id = 'vf_eve_alice'").run();
 
       expect((await SELF.fetch(`https://t.local/api/v1/statuses/${IDS.private_1}`, { headers: authHeaders(eve.token) })).status).toBe(404);
     });
@@ -1184,7 +1184,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
         headers: authHeaders(dave.token),
       });
       expect(r.status).toBe(404);
-      const favourite = await env.DB.prepare(
+      const favourite = await env.DB_META_C000.prepare(
         'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
       ).bind(dave.accountId, IDS.private_1).first<{ id: string }>();
       expect(favourite).toBeNull();
@@ -1196,7 +1196,7 @@ describe('Comprehensive Visibility & Permission Controls', () => {
         headers: authHeaders(dave.token),
       });
       expect(r.status).toBe(404);
-      const bookmark = await env.DB.prepare(
+      const bookmark = await env.DB_META_C000.prepare(
         'SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2',
       ).bind(dave.accountId, IDS.private_1).first<{ id: string }>();
       expect(bookmark).toBeNull();

@@ -13,7 +13,7 @@ app.get('/', authOptional, async (c) => {
   const offset = parseInt(c.req.query('offset') || '0', 10) || 0;
 
   // Fetch the most-shared preview cards from recent statuses
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT pc.url, pc.title, pc.description, pc.image_url, pc.type,
        pc.author_name, pc.author_url, pc.provider_name, pc.provider_url,
        pc.blurhash, pc.width, pc.height,

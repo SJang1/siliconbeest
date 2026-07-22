@@ -14,7 +14,7 @@ app.post('/:id/mute', authRequired, requireScope('write:mutes'), async (c) => {
   const targetId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
 
-  const target = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
+  const target = await env.DB_META_C000.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
   let body: { notifications?: boolean; duration?: number } = {};

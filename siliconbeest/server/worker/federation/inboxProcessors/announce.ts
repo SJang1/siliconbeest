@@ -67,7 +67,7 @@ function isPublicCollection(value: string): boolean {
 class AnnounceProcessor extends BaseProcessor {
 	async process(activity: APActivity): Promise<boolean> {
 		// Relay Announce handling
-		const relay = await env.DB.prepare(
+		const relay = await env.DB_META_C000.prepare(
 			"SELECT id FROM relays WHERE actor_uri = ?1 AND state = 'accepted'",
 		)
 			.bind(String(activity.actor))
@@ -125,7 +125,7 @@ class AnnounceProcessor extends BaseProcessor {
 		if (!canReblogStatus(originalStatus.visibility)) return false;
 
 		// Check for duplicate reblog
-		const existingReblog = await env.DB.prepare(
+		const existingReblog = await env.DB_META_C000.prepare(
 			`SELECT id FROM statuses
 			 WHERE reblog_of_id = ?1 AND account_id = ?2 AND deleted_at IS NULL
 			 LIMIT 1`,
@@ -163,7 +163,7 @@ class AnnounceProcessor extends BaseProcessor {
 		boosterAccountId: string,
 		visibility: StatusVisibility,
 	): Promise<boolean> {
-		const existingQuote = await env.DB.prepare(
+		const existingQuote = await env.DB_META_C000.prepare(
 			`SELECT id FROM statuses
 			 WHERE uri = ?1 AND account_id = ?2 AND deleted_at IS NULL
 			 LIMIT 1`,

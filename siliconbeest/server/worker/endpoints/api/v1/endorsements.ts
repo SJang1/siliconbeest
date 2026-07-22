@@ -15,7 +15,7 @@ app.get('/', authRequired, requireScope('read:accounts'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const limit = Math.min(parseInt(c.req.query('limit') || '40', 10) || 40, 80);
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT a.* FROM account_pins ap
      JOIN accounts a ON a.id = ap.target_account_id
      WHERE ap.account_id = ?1

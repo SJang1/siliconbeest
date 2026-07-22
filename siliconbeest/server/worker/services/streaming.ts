@@ -8,6 +8,10 @@
 
 import { env } from 'cloudflare:workers';
 import type { StreamEventPayload } from '../internal-contract';
+import {
+  resolveStreamingTopology,
+  streamingEventBytes,
+} from '../../../../packages/shared/utils/streamingTopology';
 
 export type { StreamEventPayload } from '../internal-contract';
 
@@ -18,6 +22,29 @@ export async function sendStreamEventToDurableObject(
   const streamingDo = env.STREAMING_DO;
   if (!streamingDo) {
     throw new Error('Streaming requires the STREAMING_DO binding');
+  }
+
+  const topology = resolveStreamingTopology(env);
+  if (streamingEventBytes(event) > topology.eventMaxBytes) {
+    console.warn(JSON.stringify({
+      message: 'stream event dropped: payload exceeds bounded real-time envelope',
+      event: event.event,
+      maxBytes: topology.eventMaxBytes,
+    }));
+    return;
+  }
+
+  if (userId === '__public__') {
+    const fanoutDo = env.STREAM_FANOUT_DO;
+    if (!fanoutDo) {
+      throw new Error('Public streaming requires the STREAM_FANOUT_DO binding');
+    }
+    await Promise.all(Array.from({ length: topology.branchFactor }, (_, nodeIndex) =>
+      fanoutDo
+        .getByName(`public:depth:${topology.depth - 1}:node:${nodeIndex}`)
+        .publish(event, nodeIndex, topology.depth - 1, topology.branchFactor),
+    ));
+    return;
   }
 
   const doId = streamingDo.idFromName(userId);
@@ -66,7 +93,7 @@ export async function sendStreamEvent(
  */
 export async function broadcastReactionEvent(statusId: string): Promise<void> {
   try {
-    const status = await env.DB.prepare(
+    const status = await env.DB_META_C000.prepare(
       `SELECT s.account_id, s.visibility, a.domain AS author_domain
        FROM statuses s JOIN accounts a ON a.id = s.account_id
        WHERE s.id = ?1`,
@@ -75,28 +102,27 @@ export async function broadcastReactionEvent(statusId: string): Promise<void> {
 
     const payload = JSON.stringify({ status_id: statusId });
 
-    const { results } = await env.DB.prepare(
+    const { results } = await env.DB_META_C000.prepare(
       `SELECT u.id FROM users u WHERE u.account_id = ?1
        UNION
        SELECT u.id FROM follows f JOIN users u ON u.account_id = f.account_id
        WHERE f.target_account_id = ?1`,
     ).bind(status.account_id).all<{ id: string }>();
 
-    const sends = (results ?? []).map((r) =>
-      sendStreamEvent(r.id, { event: 'reaction', payload, stream: ['user'] }).catch(() => {}),
-    );
-
-    if ((status.visibility ?? 'public') === 'public') {
-      sends.push(
-        sendStreamEvent('__public__', {
-          event: 'reaction',
-          payload,
-          stream: status.author_domain ? ['public'] : ['public', 'public:local'],
-        }).catch(() => {}),
-      );
+    const targets = (results ?? []).map((result) => result.id);
+    for (let offset = 0; offset < targets.length; offset += 5) {
+      await Promise.allSettled(targets.slice(offset, offset + 5).map((target) =>
+        sendStreamEvent(target, { event: 'reaction', payload, stream: ['user'] }),
+      ));
     }
 
-    await Promise.allSettled(sends);
+    if ((status.visibility ?? 'public') === 'public') {
+      await sendStreamEvent('__public__', {
+        event: 'reaction',
+        payload,
+        stream: status.author_domain ? ['public'] : ['public', 'public:local'],
+      }).catch(() => {});
+    }
   } catch {
     // Best-effort only
   }

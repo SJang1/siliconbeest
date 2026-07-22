@@ -169,7 +169,7 @@ export function setupInboxListeners<TData>(
 		ctx: InboxContextLike<TData>,
 	): Promise<string | null> {
 		if (!ctx.recipient) return ''; // Shared inbox
-		const row = await env.DB.prepare(
+		const row = await env.DB_META_C000.prepare(
 			'SELECT id FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1',
 		)
 			.bind(ctx.recipient)
@@ -191,7 +191,7 @@ export function setupInboxListeners<TData>(
 		if (!domain) return false;
 		// Suspension is an immediate control-plane action.  Read D1 directly so
 		// a stale or racing KV entry cannot briefly admit or reject activities.
-		const suspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+		const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [domain]);
 		if (suspendedDomains.has(domain)) {
 			console.log(
 				`[inbox] Dropping activity from suspended domain: ${domain}`,
@@ -364,7 +364,7 @@ export function setupInboxListeners<TData>(
 		if (referencedUris.size === 0) return;
 
 		const placeholders = [...referencedUris].map(() => '?').join(',');
-		const { results } = await env.DB.prepare(
+		const { results } = await env.DB_META_C000.prepare(
 			`SELECT DISTINCT a.username
 			 FROM statuses s
 			 JOIN accounts a ON a.id = s.account_id
@@ -536,7 +536,7 @@ export function setupInboxListeners<TData>(
 				if (flag.actorId) {
 					const domain = extractDomain(flag.actorId.href);
 					if (domain) {
-						const suspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+						const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [domain]);
 						if (suspendedDomains.has(domain)) {
 							console.log(
 								`[inbox] Dropping Flag from suspended domain: ${domain}`,
@@ -544,7 +544,7 @@ export function setupInboxListeners<TData>(
 							return;
 						}
 						const blockResult = await isDomainBlocked(
-							env.DB,
+							env.DB_META_C000,
 							env.CACHE,
 							domain,
 						);

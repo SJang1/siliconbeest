@@ -13,7 +13,7 @@ app.get('/', async (c) => {
 
   let results: unknown[] = [];
   try {
-    ({ results = [] } = await env.DB.prepare(
+    ({ results = [] } = await env.DB_META_C000.prepare(
       `SELECT * FROM custom_emojis
        WHERE visible_in_picker = 1 AND (domain IS NULL OR domain = ?1)
        ORDER BY category ASC, shortcode ASC`,

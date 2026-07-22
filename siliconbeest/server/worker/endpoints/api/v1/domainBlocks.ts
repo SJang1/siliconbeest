@@ -24,7 +24,7 @@ app.get('/', authRequired, requireScope('read:blocks'), async (c) => {
     binds.push(maxId);
   }
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT id, domain FROM user_domain_blocks
      WHERE ${conditions.join(' AND ')}
      ORDER BY id DESC
@@ -47,7 +47,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
 
   const domain = body.domain.toLowerCase().trim();
 
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     'SELECT id FROM user_domain_blocks WHERE account_id = ?1 AND domain = ?2',
   )
     .bind(currentAccount.id, domain)
@@ -57,7 +57,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
   if (!existing) {
     const id = generateUlid();
     const now = new Date().toISOString();
-    const inserted = await env.DB.prepare(
+    const inserted = await env.DB_META_C000.prepare(
       'INSERT INTO user_domain_blocks (id, account_id, domain, created_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(id, currentAccount.id, domain, now)
@@ -67,8 +67,8 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
 
   // A domain block is a relationship boundary, not only a display filter.
   // Tear down both follow directions and derived state in one ordered D1 batch.
-  const cleanupResults = await env.DB.batch([
-    env.DB.prepare(
+  const cleanupResults = await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare(
       `UPDATE accounts
        SET following_count = MAX(0, following_count - (
          SELECT COUNT(*)
@@ -80,7 +80,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
        ))
        WHERE id = ?1`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `UPDATE accounts
        SET followers_count = MAX(0, followers_count - 1)
        WHERE id IN (
@@ -92,7 +92,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
            AND lower(remote_account.domain) = lower(?2)
        )`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `UPDATE accounts
        SET followers_count = MAX(0, followers_count - (
          SELECT COUNT(*)
@@ -104,7 +104,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
        ))
        WHERE id = ?1`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `UPDATE accounts
        SET following_count = MAX(0, following_count - 1)
        WHERE id IN (
@@ -116,7 +116,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
            AND lower(remote_account.domain) = lower(?2)
        )`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `DELETE FROM follows
        WHERE (account_id = ?1 AND target_account_id IN (
          SELECT id FROM accounts
@@ -126,7 +126,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
          WHERE domain IS NOT NULL AND lower(domain) = lower(?2)
        ))`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `DELETE FROM follow_requests
        WHERE (account_id = ?1 AND target_account_id IN (
          SELECT id FROM accounts
@@ -136,7 +136,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
          WHERE domain IS NOT NULL AND lower(domain) = lower(?2)
        ))`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `DELETE FROM list_accounts
        WHERE list_id IN (SELECT id FROM lists WHERE account_id = ?1)
          AND account_id IN (
@@ -144,7 +144,7 @@ app.post('/', authRequired, requireScope('write:blocks'), async (c) => {
            WHERE domain IS NOT NULL AND lower(domain) = lower(?2)
          )`,
     ).bind(currentAccount.id, domain),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `DELETE FROM account_pins
        WHERE (account_id = ?1 AND target_account_id IN (
          SELECT id FROM accounts
@@ -170,7 +170,7 @@ app.delete('/', authRequired, requireScope('write:blocks'), async (c) => {
 
   const domain = body.domain.toLowerCase().trim();
 
-  const result = await env.DB.prepare(
+  const result = await env.DB_META_C000.prepare(
     'DELETE FROM user_domain_blocks WHERE account_id = ?1 AND domain = ?2',
   )
     .bind(currentAccount.id, domain)

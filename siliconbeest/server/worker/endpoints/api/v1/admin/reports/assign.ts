@@ -14,10 +14,10 @@ app.post('/:id/assign_to_self', async (c) => {
 	const id = c.req.param('id');
 	const currentUser = c.get('currentUser')!;
 
-	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('UPDATE reports SET assigned_account_id = ?1 WHERE id = ?2')
+	await env.DB_META_C000.prepare('UPDATE reports SET assigned_account_id = ?1 WHERE id = ?2')
 		.bind(currentUser.account_id, id)
 		.run();
 
@@ -47,10 +47,10 @@ app.post('/:id/assign_to_self', async (c) => {
 app.post('/:id/unassign', async (c) => {
 	const id = c.req.param('id');
 
-	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM reports WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('UPDATE reports SET assigned_account_id = NULL WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('UPDATE reports SET assigned_account_id = NULL WHERE id = ?1').bind(id).run();
 
 	return c.json({
 		id: row.id as string,

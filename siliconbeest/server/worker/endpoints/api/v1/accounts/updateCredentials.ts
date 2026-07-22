@@ -39,7 +39,7 @@ function collectShortcodes(...values: Array<string | null | undefined>): string[
 }
 
 async function updateLocalAccountEmojiTags(accountId: string, domain: string) {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT display_name, note, fields FROM accounts WHERE id = ?1',
   ).bind(accountId).first<{ display_name: string | null; note: string | null; fields: string | null }>();
   if (!row) return;
@@ -47,12 +47,12 @@ async function updateLocalAccountEmojiTags(accountId: string, domain: string) {
   const fieldText = parseFields(row.fields).flatMap((field) => [field.name, field.value]).join(' ');
   const shortcodes = collectShortcodes(row.display_name, row.note, fieldText);
   if (shortcodes.length === 0) {
-    await env.DB.prepare('UPDATE accounts SET emoji_tags = NULL WHERE id = ?1').bind(accountId).run();
+    await env.DB_META_C000.prepare('UPDATE accounts SET emoji_tags = NULL WHERE id = ?1').bind(accountId).run();
     return;
   }
 
   const placeholders = shortcodes.map(() => '?').join(',');
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT shortcode, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?)`,
   ).bind(...shortcodes, domain).all<{ shortcode: string; image_key: string }>();
 
@@ -60,7 +60,7 @@ async function updateLocalAccountEmojiTags(accountId: string, domain: string) {
     const url = emoji.image_key.startsWith('http') ? emoji.image_key : `https://${domain}/media/${emoji.image_key}`;
     return { shortcode: emoji.shortcode, url, static_url: url };
   });
-  await env.DB.prepare('UPDATE accounts SET emoji_tags = ?1 WHERE id = ?2')
+  await env.DB_META_C000.prepare('UPDATE accounts SET emoji_tags = ?1 WHERE id = ?2')
     .bind(emojiTags.length > 0 ? JSON.stringify(emojiTags) : null, accountId)
     .run();
 }
@@ -70,7 +70,7 @@ const app = new Hono<HonoEnv>();
 app.patch('/update_credentials', authRequired, requireScope('write:accounts'), async (c) => {
   const currentUser = c.get('currentUser')!;
   const domain = env.INSTANCE_DOMAIN;
-  const before = await env.DB.prepare(
+  const before = await env.DB_META_C000.prepare(
     `SELECT a.avatar_url, a.header_url, a.display_name, a.note, a.locked, a.bot,
             a.discoverable, a.hide_collections, a.fields, a.emoji_tags,
             u.locale, u.default_privacy, u.default_quote_policy
@@ -215,7 +215,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
 
   if (updates.length > 1) {
     const sql = `UPDATE accounts SET ${updates.join(', ')} WHERE id = ?${paramIdx}`;
-    await env.DB.prepare(sql).bind(...params).run();
+    await env.DB_META_C000.prepare(sql).bind(...params).run();
   }
 
   // Handle default language update (source[language] or source.language)
@@ -224,7 +224,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     sourceLanguage = (body.source as Record<string, unknown>).language;
   }
   if (typeof sourceLanguage === 'string' && isValidLocale(sourceLanguage)) {
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE users SET locale = ?1, updated_at = ?2 WHERE account_id = ?3',
     ).bind(sourceLanguage, now, currentUser.account_id).run();
   }
@@ -236,7 +236,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     sourcePrivacy = (body.source as Record<string, unknown>).privacy;
   }
   if (typeof sourcePrivacy === 'string' && validPrivacy.includes(sourcePrivacy)) {
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE users SET default_privacy = ?1, updated_at = ?2 WHERE account_id = ?3',
     ).bind(sourcePrivacy, now, currentUser.account_id).run();
   }
@@ -246,7 +246,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
     sourceQuotePolicy = (body.source as Record<string, unknown>).quote_policy;
   }
   if (typeof sourceQuotePolicy === 'string') {
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE users SET default_quote_policy = ?1, updated_at = ?2 WHERE account_id = ?3',
     ).bind(normalizeQuotePolicy(sourceQuotePolicy), now, currentUser.account_id).run();
   }
@@ -254,7 +254,7 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   await updateLocalAccountEmojiTags(currentUser.account_id, domain);
 
   // Fetch updated account
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT a.*, u.locale, u.role, u.default_privacy, u.default_quote_policy
      FROM accounts a
      JOIN users u ON u.account_id = a.id

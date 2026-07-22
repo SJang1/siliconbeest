@@ -11,6 +11,7 @@ import { useAudibleTimelineScope } from '@/composables/useAudibleTimelineScope'
 import DeckPageShell from '@/deck/layout/DeckPageShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 import DismissibleBanner from '@/components/common/DismissibleBanner.vue'
+import { useTimelineStreamViewport } from '@/composables/useTimelineStreamViewport'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -39,10 +40,12 @@ const statuses = computed(() => {
     .filter((s): s is Status => !!s)
 })
 
-const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+const newStatusCount = computed(() => timelinesStore.getNewStatusCount(timelineType.value))
+const hasNewPosts = computed(() => newStatusCount.value > 0)
 
 // Auto-insert new posts when user is at top of page
 const isAtTop = ref(true)
+useTimelineStreamViewport('deck-explore', timelineType, isAtTop)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleScroll() {
@@ -59,7 +62,7 @@ onUnmounted(() => {
   if (scrollTimer) clearTimeout(scrollTimer)
 })
 
-watch(() => timeline.value.newStatusIds.length, (len) => {
+watch(newStatusCount, (len) => {
   if (len > 0 && isAtTop.value) {
     timelinesStore.showNewStatuses(timelineType.value)
   }
@@ -148,7 +151,7 @@ watch(
         :loading="timeline.loading || timeline.loadingMore"
         :done="!timeline.hasMore"
         :has-new-posts="hasNewPosts"
-        :new-posts-count="timeline.newStatusIds.length"
+        :new-posts-count="newStatusCount"
         :auto-insert="isAtTop"
         @load-more="loadMore"
         @load-new="showNew"

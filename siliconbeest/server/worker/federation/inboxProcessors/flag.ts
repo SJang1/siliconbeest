@@ -71,7 +71,7 @@ class FlagProcessor extends BaseProcessor {
 		const now = new Date().toISOString();
 		const reportId = generateUlid();
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO reports
 			 (id, account_id, target_account_id, status_ids, comment, category, forwarded, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, ?4, ?5, 'other', 1, ?6, ?7)`,

@@ -39,7 +39,7 @@ app.get('/', authOptional, async (c) => {
   `;
   binds.push(limit, offset);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) =>
     serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN }),

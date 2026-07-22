@@ -35,7 +35,7 @@ app.post('/:id/votes', authRequired, requireScope('write:statuses'), async (c) =
   const pollId = c.req.param('id');
   const domain = env.INSTANCE_DOMAIN;
 
-  const pollRow = await env.DB.prepare(
+  const pollRow = await env.DB_META_C000.prepare(
     `SELECT p.status_id, p.options, s.uri AS status_uri, s.account_id,
             s.visibility, s.local, s.in_reply_to_account_id,
             a.uri AS author_uri, a.domain AS author_domain
@@ -94,7 +94,7 @@ app.post('/:id/votes', authRequired, requireScope('write:statuses'), async (c) =
     } else {
       // Local poll — broadcast Update(Question) with updated counts to followers
       const fed = c.get('federation');
-      const updatedPoll = await env.DB.prepare(
+      const updatedPoll = await env.DB_META_C000.prepare(
         'SELECT * FROM polls WHERE id = ?1 LIMIT 1',
       ).bind(pollId).first<{ options: string; expires_at: string | null; multiple: number; voters_count: number }>();
 

@@ -56,7 +56,7 @@ function jsonLdString(value: unknown): string | undefined {
 async function getExistingRemoteAccountState(
   actorUri: string,
 ): Promise<ExistingRemoteAccountState | null> {
-  return env.DB.prepare(
+  return env.DB_META_C000.prepare(
     `SELECT id, fetched_at, suspended_at
      FROM accounts
      WHERE uri = ? AND domain IS NOT NULL`,
@@ -89,7 +89,7 @@ export async function handleFetchRemoteAccount(
     return;
   }
 
-  const suspendedDomains = await getSuspendedDomains(env.DB, [actorDomain]);
+  const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [actorDomain]);
   if (suspendedDomains.has(actorDomain)) {
     console.log(`[remote-account] Skipping lookup for suspended domain ${actorDomain}`);
     return;
@@ -136,7 +136,7 @@ export async function handleFetchRemoteAccount(
   let followingUrl: string | null = null;
   let hideCollections = true;
   try {
-    const signerUsername = await pickSignerUsername(env.DB, signerAccountId ?? null);
+    const signerUsername = await pickSignerUsername(env.DB_META_C000, signerAccountId ?? null);
     if (!signerUsername) {
       console.warn(`No local signer available to fetch ${actorUri}, dropping`);
       return;
@@ -177,7 +177,7 @@ export async function handleFetchRemoteAccount(
       const canonicalDomain = new URL(candidateActorUri).hostname.toLowerCase();
       if (canonicalDomain !== actorDomain) {
         const suspendedCanonicalDomains = await getSuspendedDomains(
-          env.DB,
+          env.DB_META_C000,
           [canonicalDomain],
         );
         if (suspendedCanonicalDomains.has(canonicalDomain)) {
@@ -336,7 +336,7 @@ export async function handleFetchRemoteAccount(
   const emojiTagsJson = emojiTags.length > 0 ? JSON.stringify(emojiTags) : null;
 
   // Step 2: Upsert into accounts table
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts (
        id, username, domain, display_name, note, uri, url,
        avatar_url, header_url, inbox_url, outbox_url,
@@ -410,7 +410,7 @@ export async function handleFetchRemoteAccount(
   }
 
   // Ensure the instance record exists
-  await ensureInstanceRecord(env.DB, actorDomain);
+  await ensureInstanceRecord(env.DB_META_C000, actorDomain);
 
   // NodeInfo discovery — fetch software info for this instance (best-effort, never blocks)
   try {
@@ -423,7 +423,7 @@ export async function handleFetchRemoteAccount(
       );
       if (software) {
         const { softwareName, softwareVersion } = software;
-        await env.DB.prepare(
+        await env.DB_META_C000.prepare(
           `UPDATE instances SET software_name = ?, software_version = ?, updated_at = datetime('now') WHERE domain = ?`,
         )
           .bind(softwareName, softwareVersion, actorDomain)

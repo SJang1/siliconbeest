@@ -71,7 +71,7 @@ class EmojiReactProcessor extends BaseProcessor {
 
 				if (emojiDomain) {
 					if (emoji === `:${customEmoji.shortcode}:`) customEmojiDomain = emojiDomain;
-					await env.DB.prepare(
+					await env.DB_META_C000.prepare(
 						`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
 						 VALUES (?1, ?2, ?3, ?4, 0, datetime('now'), datetime('now'))
 						 ON CONFLICT(shortcode, domain) DO UPDATE SET
@@ -88,7 +88,7 @@ class EmojiReactProcessor extends BaseProcessor {
 			const shortcode = emoji.slice(1, -1);
 			const emojiDomain = customEmojiDomain ?? new URL(activity.actor).hostname;
 			if (emojiDomain) {
-				const emojiRow = await env.DB.prepare(
+				const emojiRow = await env.DB_META_C000.prepare(
 					'SELECT id FROM custom_emojis WHERE shortcode = ? AND domain = ? LIMIT 1',
 				).bind(shortcode, emojiDomain).first<{ id: string }>();
 				if (emojiRow) customEmojiId = emojiRow.id;
@@ -100,7 +100,7 @@ class EmojiReactProcessor extends BaseProcessor {
 		const now = new Date().toISOString();
 
 		try {
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 			)

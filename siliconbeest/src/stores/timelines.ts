@@ -22,6 +22,7 @@ import {
 
 export type TimelineType = 'home' | 'recommended' | 'social' | 'public' | 'local' | 'tag';
 export type AudibleTimelineScopeOwner = string | symbol;
+export type TimelineViewportOwner = string | symbol;
 
 type TimelineFetchOptions = { tag?: string; token?: string };
 
@@ -54,6 +55,9 @@ interface TimelinePagePrefetch {
 // look-ahead page below that window also bounds memory for abandoned tag feeds.
 const TIMELINE_PREFETCH_TTL_MS = 4 * 60 * 1000;
 const MAX_TIMELINE_PREFETCHES = 24;
+/** Hard browser-memory bounds; evicted pages remain recoverable through cursor APIs. */
+export const MAX_TIMELINE_ITEMS = 300;
+export const MAX_PENDING_STREAM_ITEMS = 50;
 
 interface TimelineState {
   statusIds: string[];
@@ -64,6 +68,8 @@ interface TimelineState {
   nextPage?: string;
   error: string | null;
   newStatusIds: string[];
+  /** Body-free WebSocket hints accumulated while content delivery is paused. */
+  unloadedNewCount: number;
 }
 
 function createEmptyTimeline(): TimelineState {
@@ -76,6 +82,7 @@ function createEmptyTimeline(): TimelineState {
     nextPage: undefined,
     error: null,
     newStatusIds: [],
+    unloadedNewCount: 0,
   };
 }
 
@@ -110,6 +117,9 @@ export const useTimelinesStore = defineStore('timelines', () => {
   const streamingClients = ref<Map<string, StreamingClient>>(new Map());
   // Streams the user toggled off (LIVE toggle) — connectStream respects this
   const pausedStreams = ref<Set<string>>(new Set());
+  const viewportPausedStreams = new Set<string>();
+  const timelineViewports = new Map<TimelineViewportOwner, { type: TimelineType; atTop: boolean }>();
+  const lastFetchOptions = new Map<string, TimelineFetchOptions>();
   // Timeline views register which feeds are currently visible. Scopes are
   // owner-based so overlapping page transitions cannot clear another view's
   // sound policy. With no registered timelines, live updates stay silent.
@@ -149,6 +159,18 @@ export const useTimelinesStore = defineStore('timelines', () => {
       timelines.value.set(key, createEmptyTimeline());
     }
     return timelines.value.get(key)!;
+  }
+
+  function getNewStatusCount(type: TimelineType, tag?: string): number {
+    const timeline = getTimeline(type, tag);
+    return timeline.newStatusIds.length + timeline.unloadedNewCount;
+  }
+
+  function trimVisibleTimeline(timeline: TimelineState, keep: 'newest' | 'oldest') {
+    if (timeline.statusIds.length <= MAX_TIMELINE_ITEMS) return;
+    timeline.statusIds = keep === 'newest'
+      ? timeline.statusIds.slice(0, MAX_TIMELINE_ITEMS)
+      : timeline.statusIds.slice(-MAX_TIMELINE_ITEMS);
   }
 
   function isCurrentRequest(
@@ -469,6 +491,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
   ) {
     const key = getTimelineKey(type, opts?.tag);
     const timeline = getTimeline(type, opts?.tag);
+    lastFetchOptions.set(key, { tag: opts?.tag, token: opts?.token });
     if (timeline.loading) return;
     const requestGeneration = (requestGenerations.get(key) ?? 0) + 1;
     requestGenerations.set(key, requestGeneration);
@@ -510,6 +533,9 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
       cacheStatusesFromResponse(response.data);
       timeline.statusIds = response.data.map((s) => s.id);
+      trimVisibleTimeline(timeline, 'newest');
+      timeline.newStatusIds = [];
+      timeline.unloadedNewCount = 0;
 
       const links = parseLinkHeader(response.headers.get('Link'));
       timeline.hasMore = !!links.next;
@@ -591,6 +617,9 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
       cacheStatusesFromResponse(response.data);
       timeline.statusIds.push(...response.data.map((s) => s.id));
+      // Once the user has paged beyond the memory window, discard the distant
+      // newest edge. Returning to the top performs a fresh API read.
+      trimVisibleTimeline(timeline, 'oldest');
 
       const links = parseLinkHeader(response.headers.get('Link'));
       timeline.hasMore = !!links.next;
@@ -623,13 +652,36 @@ export const useTimelinesStore = defineStore('timelines', () => {
     // Deduplicate: skip if already in newStatusIds or statusIds
     if (timeline.newStatusIds.includes(statusId) || timeline.statusIds.includes(statusId)) return;
     timeline.newStatusIds.unshift(statusId);
+    if (timeline.newStatusIds.length > MAX_PENDING_STREAM_ITEMS) {
+      timeline.newStatusIds.length = MAX_PENDING_STREAM_ITEMS;
+      timeline.unloadedNewCount += 1;
+    }
   }
 
   function showNewStatuses(type: TimelineType, tag?: string) {
     const timeline = getTimeline(type, tag);
+    if (timeline.unloadedNewCount > 0) {
+      const key = getTimelineKey(type, tag);
+      const options = lastFetchOptions.get(key) ?? { tag };
+      // Count-only messages intentionally contain no bodies. Reconstruct the
+      // gap through the realtime feed index/API, then resume full delivery.
+      void fetchTimeline(type, options).then(() => {
+        streamsForTimeline(type).forEach(unpauseStream);
+      });
+      return;
+    }
     const unique = timeline.newStatusIds.filter((id) => !timeline.statusIds.includes(id));
     timeline.statusIds.unshift(...unique);
+    trimVisibleTimeline(timeline, 'newest');
     timeline.newStatusIds = [];
+  }
+
+  function streamsForTimeline(type: TimelineType): string[] {
+    if (type === 'social') return ['user', 'public:local'];
+    if (type === 'home') return ['user'];
+    if (type === 'local') return ['public:local'];
+    if (type === 'public') return ['public'];
+    return [];
   }
 
   function removeStatus(statusId: string) {
@@ -696,18 +748,53 @@ export const useTimelinesStore = defineStore('timelines', () => {
   }
 
   function isStreamPaused(stream: string): boolean {
-    return pausedStreams.value.has(stream);
+    return pausedStreams.value.has(stream) || viewportPausedStreams.has(stream);
   }
 
-  /** LIVE toggle off: remember the choice and close this feed's connection. */
+  function syncStreamMode(stream: string) {
+    const client = streamingClients.value.get(stream);
+    if (!client) return;
+    if (isStreamPaused(stream)) client.pauseContent();
+    else client.resumeContent();
+  }
+
+  function refreshViewportStreamModes() {
+    const knownStreams = ['user', 'public:local', 'public'];
+    for (const stream of knownStreams) {
+      const relevant = [...timelineViewports.values()].filter((viewport) => (
+        streamsForTimeline(viewport.type).includes(stream)
+      ));
+      const shouldPause = relevant.length > 0 && relevant.every((viewport) => !viewport.atTop);
+      if (shouldPause) viewportPausedStreams.add(stream);
+      else viewportPausedStreams.delete(stream);
+      syncStreamMode(stream);
+    }
+  }
+
+  function setTimelineViewport(
+    owner: TimelineViewportOwner,
+    type: TimelineType,
+    atTop: boolean,
+  ) {
+    timelineViewports.set(owner, { type, atTop });
+    refreshViewportStreamModes();
+  }
+
+  function clearTimelineViewport(owner: TimelineViewportOwner) {
+    timelineViewports.delete(owner);
+    refreshViewportStreamModes();
+  }
+
+  /** Keep the socket alive but stop expensive status bodies for this feed. */
   function pauseStream(stream: string) {
     pausedStreams.value = new Set([...pausedStreams.value, stream]);
-    disconnectStream(stream);
+    syncStreamMode(stream);
   }
 
   /** Clear a stream's paused flag without fetching (multi-stream resumes). */
   function unpauseStream(stream: string) {
     pausedStreams.value = new Set([...pausedStreams.value].filter((s) => s !== stream));
+    syncStreamMode(stream);
   }
 
   /**
@@ -726,7 +813,6 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
   function connectStream(token: string, stream: string = 'user', timelineType: TimelineType = 'home') {
     if (typeof window === 'undefined') return;
-    if (pausedStreams.value.has(stream)) return;
 
     const existingClient = streamingClients.value.get(stream);
     if (existingClient?.isActive()) return;
@@ -757,6 +843,9 @@ export const useTimelinesStore = defineStore('timelines', () => {
         // in as well (prependStatus dedupes across streams)
         if ((timelineType === 'home' || timelineType === 'local') && timelines.value.has('social')) {
           prependStatus('social', status.id);
+        }
+        if (getTimeline(timelineType).unloadedNewCount > 0) {
+          pauseStream(stream);
         }
         // Check visibility before the sound helper's status-id dedupe. A
         // hidden stream must not consume the id and silence a subsequent
@@ -806,6 +895,30 @@ export const useTimelinesStore = defineStore('timelines', () => {
         }
         console.log(`[streaming] ${emojis.length} new emojis cached:`, emojis.map(e => `:${e.shortcode}:`).join(', '));
       },
+      onNewItems(count) {
+        if (
+          lifecycleGeneration !== streamLifecycleGeneration
+          || streamingClients.value.get(stream) !== client
+        ) return;
+        const timeline = getTimeline(timelineType);
+        timeline.unloadedNewCount = Math.min(
+          Number.MAX_SAFE_INTEGER,
+          timeline.unloadedNewCount + count,
+        );
+        if ((timelineType === 'home' || timelineType === 'local') && timelines.value.has('social')) {
+          const social = getTimeline('social');
+          social.unloadedNewCount = Math.min(
+            Number.MAX_SAFE_INTEGER,
+            social.unloadedNewCount + count,
+          );
+        }
+        if (isTimelineAudible(timelineType)) {
+          playNewPostSound(`count:${stream}:${Math.floor(Date.now() / 1_000)}`);
+        }
+      },
+      onConnect() {
+        syncStreamMode(stream);
+      },
     });
 
     streamingClients.value.set(stream, markRaw(client));
@@ -843,7 +956,10 @@ export const useTimelinesStore = defineStore('timelines', () => {
     }
     timelines.value = new Map();
     requestGenerations.clear();
+    lastFetchOptions.clear();
     pausedStreams.value = new Set();
+    viewportPausedStreams.clear();
+    timelineViewports.clear();
     emojiCache.value = null;
   }
 
@@ -853,6 +969,7 @@ export const useTimelinesStore = defineStore('timelines', () => {
     pausedStreams,
     reset,
     getTimeline,
+    getNewStatusCount,
     fetchTimeline,
     refreshRecommendedTimeline,
     fetchMore,
@@ -866,6 +983,8 @@ export const useTimelinesStore = defineStore('timelines', () => {
     pauseStream,
     unpauseStream,
     resumeStream,
+    setTimelineViewport,
+    clearTimelineViewport,
     setAudibleTimelineScope,
     clearAudibleTimelineScope,
   };

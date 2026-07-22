@@ -116,7 +116,7 @@ describe('Admin federation instance actions', () => {
       public_comment: 'keep public',
       obfuscate: 1,
     });
-    const tracked = await env.DB.prepare(
+    const tracked = await env.DB_META_C000.prepare(
       'SELECT domain_block_id, previous_severity FROM federation_suspensions WHERE domain = ?1',
     ).bind(domain).first<Record<string, unknown>>();
     expect(tracked).toEqual({ domain_block_id: blockId, previous_severity: 'silence' });
@@ -133,7 +133,7 @@ describe('Admin federation instance actions', () => {
       public_comment: 'keep public',
       obfuscate: 1,
     });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT domain FROM federation_suspensions WHERE domain = ?1',
     ).bind(domain).first()).toBeNull();
   });
@@ -180,7 +180,7 @@ describe('Admin federation instance actions', () => {
       },
     );
     expect(editResponse.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT domain FROM federation_suspensions WHERE domain = ?1',
     ).bind(domain).first()).toBeNull();
 
@@ -203,7 +203,7 @@ describe('Admin federation instance actions', () => {
     ]);
     expect(suspendResponses.map((response) => response.status)).toEqual([200, 200]);
     expect((await readDomainBlock(domain))?.severity).toBe('suspend');
-    expect((await env.DB.prepare(
+    expect((await env.DB_META_C000.prepare(
       'SELECT COUNT(*) AS count FROM federation_suspensions WHERE domain = ?1',
     ).bind(domain).first<{ count: number }>())?.count).toBe(1);
 
@@ -238,11 +238,11 @@ describe('Admin federation instance actions', () => {
     const response = await actionRequest(admin, domain, '', 'DELETE');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ domain, deleted: true });
-    expect(await env.DB.prepare('SELECT id FROM instances WHERE domain = ?1')
+    expect(await env.DB_META_C000.prepare('SELECT id FROM instances WHERE domain = ?1')
       .bind(domain).first()).toBeNull();
-    expect(await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1')
+    expect(await env.DB_META_C000.prepare('SELECT id FROM accounts WHERE id = ?1')
       .bind(accountId).first()).toEqual({ id: accountId });
-    expect(await env.DB.prepare('SELECT id FROM domain_blocks WHERE id = ?1')
+    expect(await env.DB_META_C000.prepare('SELECT id FROM domain_blocks WHERE id = ?1')
       .bind(blockId).first()).toEqual({ id: blockId });
   });
 
@@ -350,7 +350,7 @@ async function suspensionRequest(
 async function insertInstance(domain: string): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO instances (id, domain, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?3)`,
   ).bind(id, domain, now).run();
@@ -365,7 +365,7 @@ async function insertRemoteAccount(
   const username = `remote_${id.replaceAll('-', '')}`;
   const now = new Date().toISOString();
   const uri = `https://${domain}/users/${username}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts (
        id, username, domain, display_name, note, uri, url,
        inbox_url, public_key_pem, public_key_id, fetched_at, created_at, updated_at
@@ -396,7 +396,7 @@ async function insertDomainBlock(
 ): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO domain_blocks (
        id, domain, severity, reject_media, reject_reports,
        private_comment, public_comment, obfuscate, created_at, updated_at
@@ -416,7 +416,7 @@ async function insertDomainBlock(
 }
 
 async function readDomainBlock(domain: string): Promise<Record<string, unknown> | null> {
-  return env.DB.prepare(
+  return env.DB_META_C000.prepare(
     `SELECT id, severity, reject_media, reject_reports,
             private_comment, public_comment, obfuscate
      FROM domain_blocks WHERE domain = ?1`,

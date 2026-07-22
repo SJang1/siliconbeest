@@ -66,7 +66,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       if (identifier === '__instance__') {
         accountId = '__instance__';
       } else {
-        const account = await env.DB.prepare(
+        const account = await env.DB_META_C000.prepare(
           `SELECT id FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1`,
         )
           .bind(identifier)
@@ -75,7 +75,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
         accountId = account.id;
       }
 
-      const actorKey = await env.DB.prepare(
+      const actorKey = await env.DB_META_C000.prepare(
         `SELECT * FROM actor_keys WHERE account_id = ?1 ORDER BY created_at DESC LIMIT 1`,
       )
         .bind(accountId)

@@ -29,7 +29,7 @@ describe('Username case-sensitivity', () => {
 		beforeAll(async () => {
 			const u = await createTestUser('MixedCaseUser', { email: 'mixedcase@test.local' });
 			const hashed = await hashPassword('CorrectHorse123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
 				.bind(hashed, u.userId)
 				.run();
 		});
@@ -101,7 +101,7 @@ describe('Username case-sensitivity', () => {
 
 			const now = new Date().toISOString();
 			await expect(
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					"INSERT INTO accounts (id, username, domain, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?)",
 				)
 					.bind(

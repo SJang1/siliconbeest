@@ -59,6 +59,12 @@ import {
   getFedifyInboxUrls,
   getFedifyTargetDomains,
 } from './federationPolicy';
+import { failD1Write, handleD1Write, WriteLeaseBusyError } from './handlers/d1Write';
+import type { D1WriteMessage } from '../../packages/shared/types/write';
+import { handleRegistration } from './handlers/registration';
+import type { RegistrationQueueMessage } from '../../packages/shared/types/registration';
+
+export { ShardWriterDO } from './durableObjects/shardWriter';
 
 // ---------------------------------------------------------------------------
 // Queue name classification
@@ -66,7 +72,12 @@ import {
 // The prefix is configurable (PROJECT_PREFIX in scripts/config.sh); the
 // suffixes are fixed by scripts/install.sh and scripts/sync-config.sh.
 const DLQ_QUEUE_SUFFIX = '-federation-dlq';
+const INBOX_DLQ_PATTERN = /-inbox-[0-7]-dlq$/;
 const INTERNAL_QUEUE_SUFFIX = '-internal';
+const DB_INSERT_QUEUE_SUFFIX = '-db-insert';
+const DB_UPDATE_QUEUE_SUFFIX = '-db-update';
+const DB_WRITE_DLQ_SUFFIXES = ['-db-insert-dlq', '-db-update-dlq'] as const;
+const REGISTRATION_DLQ_SUFFIX = '-registration-dlq';
 
 /** Internal queue has no DLQ: drop poison messages after max_retries=3 (+1 first attempt). */
 const INTERNAL_MAX_ATTEMPTS = 4;
@@ -115,6 +126,8 @@ const LEGACY_MESSAGE_TYPES = new Set([
   'import_item',
   'refresh_remote_instance',
   'reset_remote_instance_cache',
+  'd1_write',
+  'registration',
 ]);
 
 /**
@@ -167,15 +180,15 @@ async function processMessageBody(body: Record<string, unknown>): Promise<Proces
 
   // ---- Fedify queued tasks (from WorkersMessageQueue / sendActivity) ----
   if (isFedifyMessage(body)) {
-    const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
+    const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION, { orderingKv: env.FEDIFY_KV });
     const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
     if (!result.shouldProcess) return 'deferred';
     try {
       const targetDomains = getFedifyTargetDomains(result.message);
       const inboxUrls = getFedifyInboxUrls(result.message);
       const [suspendedDomains, suspendedInboxes] = await Promise.all([
-        getSuspendedDomains(env.DB, targetDomains),
-        getSuspendedDeliveryInboxes(env.DB, inboxUrls),
+        getSuspendedDomains(env.DB_META_C000, targetDomains),
+        getSuspendedDeliveryInboxes(env.DB_META_C000, inboxUrls),
       ]);
       const filtered = filterSuspendedFedifyTargets(
         result.message,
@@ -266,6 +279,12 @@ async function processMessageBody(body: Record<string, unknown>): Promise<Proces
         case 'reset_remote_instance_cache':
           await handleResetRemoteInstanceCache(legacyMsg);
           break;
+        case 'd1_write':
+          await handleD1Write(legacyMsg);
+          break;
+        case 'registration':
+          await handleRegistration(legacyMsg as unknown as RegistrationQueueMessage);
+          break;
         default:
           console.warn('Unknown message type:', (legacyMsg as { type: string }).type);
       }
@@ -311,7 +330,7 @@ function extractParkMeta(body: unknown): ParkMeta {
 async function parkMessage(queueName: string, msg: Message, error: string): Promise<void> {
   const meta = extractParkMeta(msg.body);
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO federation_dlq_parked (
        id, queue, message_id, body, message_type, activity_type, activity_id, actor,
        error, attempts, status, parked_at, updated_at
@@ -387,20 +406,133 @@ async function consumeDlqBatch(batch: MessageBatch): Promise<void> {
   }
 }
 
+async function consumeDbWriteDlq(batch: MessageBatch): Promise<void> {
+  for (const msg of batch.messages) {
+    const body = msg.body as D1WriteMessage;
+    try {
+      await handleD1Write(body);
+      msg.ack();
+    } catch (error) {
+      if (error instanceof WriteLeaseBusyError) {
+        msg.retry({ delaySeconds: 60 });
+        continue;
+      }
+      try {
+        await failD1Write(body, error);
+        msg.ack();
+      } catch (progressError) {
+        console.error('[db-write-dlq] Failed to persist terminal operation state', progressError);
+        msg.retry({ delaySeconds: 60 });
+      }
+    }
+  }
+}
+
+async function consumeRegistrationDlq(batch: MessageBatch): Promise<void> {
+  for (const message of batch.messages) {
+    const body = message.body as RegistrationQueueMessage;
+    try {
+      await handleRegistration(body);
+      message.ack();
+    } catch (error) {
+      const serialized = JSON.stringify(body);
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(serialized)));
+      const bodyHash = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+      try {
+        await env.DB_META_C000.prepare(
+          `INSERT OR REPLACE INTO ops_parked_writes (
+             operation_id, workload, body_hash, target_ordinal, target_binding,
+             error_class, error, status, parked_at, updated_at
+           ) VALUES (?1, 'registration', ?2, ?3, ?4, ?5, ?6, 'parked', ?7, ?7)`,
+        ).bind(
+          body.command.operationId,
+          bodyHash,
+          body.command.shard.ordinal,
+          body.command.shard.binding,
+          error instanceof Error ? error.name : 'Error',
+          error instanceof Error ? error.message.slice(0, 4_000) : String(error).slice(0, 4_000),
+          new Date().toISOString(),
+        ).run();
+        message.ack();
+      } catch (parkError) {
+        console.error('[registration-dlq] Failed to park registration', parkError);
+        message.retry({ delaySeconds: 60 });
+      }
+    }
+  }
+}
+
+async function consumeDbWriteBatch(batch: MessageBatch): Promise<void> {
+  const pairs = batch.messages.map((message) => ({
+    message,
+    body: message.body as D1WriteMessage,
+  }));
+  const groups = new Map<number, typeof pairs>();
+  for (const pair of pairs) {
+    const ordinal = pair.body.command.shard.ordinal;
+    const group = groups.get(ordinal) ?? [];
+    group.push(pair);
+    groups.set(ordinal, group);
+  }
+  for (const [ordinal, group] of groups) {
+    try {
+      const writer = env.SHARD_WRITER_DO.getByName(`ordinal:${ordinal}`);
+      await writer.stage(group.map((pair) => pair.body));
+      for (const pair of group) pair.message.ack();
+    } catch (error) {
+      console.error(`[shard-writer] Failed to durably stage ordinal ${ordinal}`, error);
+      for (const pair of group) pair.message.retry();
+    }
+  }
+}
+
 const handler = {
   async queue(batch: MessageBatch, _env: Env): Promise<void> {
     await ensureFedifyDebugLogging();
     ensureDebugSentryLogging();
     ensureDebugBindingLogging();
 
-    if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX)) {
+    if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX) || INBOX_DLQ_PATTERN.test(batch.queue)) {
       await consumeDlqBatch(batch);
       return;
     }
 
-    const batchStart = performance.now();
+    if (DB_WRITE_DLQ_SUFFIXES.some((suffix) => batch.queue.endsWith(suffix))) {
+      await consumeDbWriteDlq(batch);
+      return;
+    }
 
-    for (const msg of batch.messages) {
+    if (batch.queue.endsWith(REGISTRATION_DLQ_SUFFIX)) {
+      await consumeRegistrationDlq(batch);
+      return;
+    }
+
+    if (batch.queue.endsWith(DB_INSERT_QUEUE_SUFFIX) || batch.queue.endsWith(DB_UPDATE_QUEUE_SUFFIX)) {
+      await consumeDbWriteBatch(batch);
+      return;
+    }
+
+    const batchStart = performance.now();
+    const wallBudgetMs = Math.min(
+      Math.max(Number(env.QUEUE_CONSUMER_WALL_BUDGET_MS || 55_000), 5_000),
+      60_000,
+    );
+
+    for (let messageIndex = 0; messageIndex < batch.messages.length; messageIndex += 1) {
+      if (performance.now() - batchStart >= wallBudgetMs) {
+        for (const remaining of batch.messages.slice(messageIndex)) {
+          remaining.retry({ delaySeconds: 1 });
+        }
+        console.warn(JSON.stringify({
+          message: 'queue batch yielded before wall-clock budget',
+          queue: batch.queue,
+          processed: messageIndex,
+          remaining: batch.messages.length - messageIndex,
+          wallBudgetMs,
+        }));
+        break;
+      }
+      const msg = batch.messages[messageIndex];
       const messageStart = performance.now();
       const body = msg.body as Record<string, unknown>;
       debugLog('queue', `message received on ${batch.queue}`, {
@@ -444,6 +576,11 @@ const handler = {
           } else {
             msg.retry();
           }
+        } else if (
+          batch.queue.endsWith(DB_INSERT_QUEUE_SUFFIX)
+          || batch.queue.endsWith(DB_UPDATE_QUEUE_SUFFIX)
+        ) {
+          msg.retry();
         } else {
           // The federation queue is DLQ-backed: keep retrying so Cloudflare
           // moves the message to the DLQ once max_retries is exhausted.

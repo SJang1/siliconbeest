@@ -18,19 +18,27 @@
 	"placement": {
 		"mode": "smart"
 	},
+	"limits": {
+		"cpu_ms": 60000
+	},
 	"vars": {
 		"INSTANCE_DOMAIN": "social.example.com",
+		"INSTANCE_TITLE": "My SiliconBeest Instance",
 		"REPOSITORY_URL": "https://github.com/SJang1/siliconbeest",
+		"REGISTRATION_MODE": "open",
 		"SKIP_SIGNATURE_VERIFICATION": false,
 		// Verbose debug logging (full federation request/response payloads).
 		// Ultra-sensitive values (private keys, passwords, tokens) are always
 		// redacted. Off unless exactly true.
-		"DEBUG": false
+		"DEBUG": false,
+		"D1_WRITE_BATCH_MAX_OPERATIONS": "32",
+		"D1_WRITE_BATCH_MAX_WAIT_MS": "50",
+		"QUEUE_CONSUMER_WALL_BUDGET_MS": "55000"
 	},
 	// D1 Database
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "siliconbeest-db",
 			"database_id": "YOUR_D1_DATABASE_ID"
 		}
@@ -59,6 +67,22 @@
 	// Queues (consume federation + internal + federation-dlq, produce for re-enqueue/fanout)
 	"queues": {
 		"consumers": [
+			{ "queue": "siliconbeest-inbox-0", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-0-dlq" },
+			{ "queue": "siliconbeest-inbox-1", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-1-dlq" },
+			{ "queue": "siliconbeest-inbox-2", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-2-dlq" },
+			{ "queue": "siliconbeest-inbox-3", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-3-dlq" },
+			{ "queue": "siliconbeest-inbox-4", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-4-dlq" },
+			{ "queue": "siliconbeest-inbox-5", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-5-dlq" },
+			{ "queue": "siliconbeest-inbox-6", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-6-dlq" },
+			{ "queue": "siliconbeest-inbox-7", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-7-dlq" },
+			{ "queue": "siliconbeest-inbox-0-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-1-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-2-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-3-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-4-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-5-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-6-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox-7-dlq", "max_retries": 2 },
 			{
 				"queue": "siliconbeest-federation",
 				"max_retries": 5,
@@ -73,9 +97,50 @@
 				// park persistent failures into the federation_dlq_parked table.
 				"queue": "siliconbeest-federation-dlq",
 				"max_retries": 2
+			},
+			{
+				"queue": "siliconbeest-db-insert",
+				"max_batch_size": 32,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "siliconbeest-db-insert-dlq"
+			},
+			{
+				"queue": "siliconbeest-db-update",
+				"max_batch_size": 32,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "siliconbeest-db-update-dlq"
+			},
+			{
+				"queue": "siliconbeest-db-insert-dlq",
+				"max_retries": 3
+			},
+			{
+				"queue": "siliconbeest-db-update-dlq",
+				"max_retries": 3
+			},
+			{
+				"queue": "siliconbeest-registration",
+				"max_batch_size": 32,
+				"max_batch_timeout": 2,
+				"max_retries": 5,
+				"dead_letter_queue": "siliconbeest-registration-dlq"
+			},
+			{
+				"queue": "siliconbeest-registration-dlq",
+				"max_retries": 3
 			}
 		],
 		"producers": [
+			{ "binding": "QUEUE_INBOX_0", "queue": "siliconbeest-inbox-0" },
+			{ "binding": "QUEUE_INBOX_1", "queue": "siliconbeest-inbox-1" },
+			{ "binding": "QUEUE_INBOX_2", "queue": "siliconbeest-inbox-2" },
+			{ "binding": "QUEUE_INBOX_3", "queue": "siliconbeest-inbox-3" },
+			{ "binding": "QUEUE_INBOX_4", "queue": "siliconbeest-inbox-4" },
+			{ "binding": "QUEUE_INBOX_5", "queue": "siliconbeest-inbox-5" },
+			{ "binding": "QUEUE_INBOX_6", "queue": "siliconbeest-inbox-6" },
+			{ "binding": "QUEUE_INBOX_7", "queue": "siliconbeest-inbox-7" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "siliconbeest-federation"
@@ -83,6 +148,10 @@
 			{
 				"binding": "QUEUE_INTERNAL",
 				"queue": "siliconbeest-internal"
+			},
+			{
+				"binding": "QUEUE_EMAIL",
+				"queue": "siliconbeest-email"
 			}
 		]
 	},
@@ -93,6 +162,20 @@
 			"binding": "INTERNAL_CONNECTION_MAIN",
 			"service": "siliconbeest",
 			"entrypoint": "Internal"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "SHARD_WRITER_DO",
+				"class_name": "ShardWriterDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1-shard-writer",
+			"new_sqlite_classes": ["ShardWriterDO"]
 		}
 	]
 }

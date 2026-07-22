@@ -53,6 +53,13 @@ on:
       - "siliconbeest-queue-consumer/**"
       - "siliconbeest-email-sender/**"
       - "packages/**"
+      - "config/d1-shards.json"
+      - "config/d1-binding-gateways.json"
+      - "config/d1-shard-limits.default.json"
+      - "config/d1-family-rollout.default.json"
+      - ".github/scripts/render-d1-bindings.mjs"
+      - ".github/scripts/plan-d1-binding-gateways.mjs"
+      - ".github/scripts/activate-d1-shards.mjs"
       - "pnpm-lock.yaml"
 
 jobs:
@@ -134,6 +141,15 @@ jobs:
       - name: Generate wrangler.jsonc files
         run: ./scripts/sync-config.sh --apply
 
+      - name: Render generated D1 binding catalog
+        env:
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          D1_BINDING_SOFT_LIMIT: ${{ vars.D1_BINDING_SOFT_LIMIT || '4000' }}
+          D1_BINDING_METADATA_RESERVE_BYTES: ${{ vars.D1_BINDING_METADATA_RESERVE_BYTES || '250000' }}
+        run: |
+          node .github/scripts/plan-d1-binding-gateways.mjs
+          node .github/scripts/render-d1-bindings.mjs
+
       - name: Generate Worker types and type-check
         run: |
           pnpm --dir siliconbeest cf-typegen
@@ -192,3 +208,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: cd siliconbeest-email-sender && npx wrangler deploy
+
+      - name: Smoke test and CAS-activate requested D1 shards
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+        run: node .github/scripts/activate-d1-shards.mjs

@@ -34,8 +34,8 @@ export async function recordRecommendationActivity(
   statusId: string,
   occurredAt = new Date().toISOString(),
 ): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare(
       `INSERT INTO recommendation_activities (
          account_id,
          activity_kind,
@@ -59,7 +59,7 @@ export async function recordRecommendationActivity(
       activityKind,
       accountId,
     ),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `DELETE FROM recommendation_activities
        WHERE account_id = ?
          AND NOT EXISTS (
@@ -83,7 +83,7 @@ export async function removeRecommendationActivity(
   activityKind: RecommendationActivityKind,
   statusId: string,
 ): Promise<void> {
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `DELETE FROM recommendation_activities
      WHERE account_id = ?
        AND activity_kind = ?
@@ -94,7 +94,7 @@ export async function removeRecommendationActivity(
 export async function removeRecommendationActivitiesForStatus(
   statusId: string,
 ): Promise<void> {
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `DELETE FROM recommendation_activities
      WHERE status_id = ?`,
   ).bind(statusId).run();
@@ -108,7 +108,7 @@ export async function removeRecommendationActivitiesForStatus(
 export async function readRecommendationActivities(
   accountId: string,
 ): Promise<readonly RecommendationActivity[]> {
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT ra.activity_kind,
             ra.status_id,
             ra.occurred_at,

@@ -62,7 +62,7 @@ app.get('/:id/followers', authOptional, requireScope('read:accounts'), async (c)
   `;
   params.push(pag.limitValue);
 
-  const { results } = await env.DB.prepare(sql).bind(...params).all();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...params).all();
 
   const accounts = (results as Record<string, unknown>[]).map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);

@@ -27,6 +27,27 @@ export interface RegistrationRequiredResponse {
   registration_state: RegistrationState;
 }
 
+export interface RegistrationPendingResponse {
+  operation_id: string;
+  registration_state: 'processing' | 'completed';
+  retry_after_ms: number;
+}
+
+export interface RegistrationOperationResponse {
+  operationId: string;
+  state: 'accepted' | 'queued' | 'applying' | 'committed' | 'failed';
+  attempts: number;
+  acceptedAt: string;
+  updatedAt: string;
+  error: string | null;
+}
+
+export function isRegistrationPendingResponse(response: unknown): response is RegistrationPendingResponse {
+  return !!response && typeof response === 'object'
+    && typeof (response as RegistrationPendingResponse).operation_id === 'string'
+    && (response as RegistrationPendingResponse).registration_state === 'processing';
+}
+
 export interface RegistrationSession {
   state: RegistrationState;
   username: string;

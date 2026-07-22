@@ -34,7 +34,7 @@ async function insertRemoteActor(
 ): Promise<RemoteActor> {
   const now = new Date().toISOString();
   const uri = `https://remote.example/users/${username}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url, inbox_url,
         suspended_at, created_at, updated_at)
@@ -58,7 +58,7 @@ async function insertStatus(
 ): Promise<StatusFixture> {
   const now = new Date().toISOString();
   const uri = `${BASE}/users/federation_author/statuses/${id}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses
        (id, uri, url, account_id, text, content, visibility, local,
         deleted_at, created_at, updated_at)
@@ -160,13 +160,13 @@ describe('signed federation status interaction permissions', () => {
       'federation_permission_memorial',
       'permission_memorial',
     );
-    await env.DB.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
       .bind(memorialActor.id).run();
     disabledLocalActor = await createTestUser('federation_disabled_local');
     pendingLocalActor = await createTestUser('federation_pending_local');
-    await env.DB.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
       .bind(disabledLocalActor.userId).run();
-    await env.DB.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
       .bind(pendingLocalActor.userId).run();
 
     publicStatus = await insertStatus(
@@ -257,31 +257,31 @@ describe('signed federation status interaction permissions', () => {
 
     expect(queueSend).not.toHaveBeenCalled();
 
-    const favourites = await env.DB.prepare(
+    const favourites = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM favourites
        WHERE account_id IN (?1, ?2)`,
     ).bind(stranger.id, suspendedActor.id).first<{ count: number }>();
     expect(favourites?.count).toBe(0);
 
-    const reactions = await env.DB.prepare(
+    const reactions = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM emoji_reactions
        WHERE account_id IN (?1, ?2)`,
     ).bind(stranger.id, suspendedActor.id).first<{ count: number }>();
     expect(reactions?.count).toBe(0);
 
-    const wrappers = await env.DB.prepare(
+    const wrappers = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM statuses
        WHERE account_id IN (?1, ?2)
          AND (reblog_of_id IS NOT NULL OR quote_id IS NOT NULL)`,
     ).bind(stranger.id, suspendedActor.id).first<{ count: number }>();
     expect(wrappers?.count).toBe(0);
 
-    const customEmojis = await env.DB.prepare(
+    const customEmojis = await env.DB_META_C000.prepare(
       "SELECT COUNT(*) AS count FROM custom_emojis WHERE shortcode LIKE 'denied_%'",
     ).first<{ count: number }>();
     expect(customEmojis?.count).toBe(0);
 
-    const counts = await env.DB.prepare(
+    const counts = await env.DB_META_C000.prepare(
       `SELECT SUM(favourites_count) AS favourites, SUM(reblogs_count) AS reblogs
        FROM statuses WHERE id IN (?1, ?2, ?3, ?4, ?5)`,
     ).bind(
@@ -294,7 +294,7 @@ describe('signed federation status interaction permissions', () => {
     expect(counts?.favourites).toBe(0);
     expect(counts?.reblogs).toBe(0);
 
-    const notifications = await env.DB.prepare(
+    const notifications = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM notifications
        WHERE from_account_id IN (?1, ?2)`,
     ).bind(stranger.id, suspendedActor.id).first<{ count: number }>();
@@ -334,7 +334,7 @@ describe('signed federation status interaction permissions', () => {
     )).toBe(false);
     expect(await processLike(misskeyReaction, otherLocal.accountId)).toBe(false);
 
-    const denied = await env.DB.prepare(
+    const denied = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM favourites
           WHERE account_id = ?1 AND status_id = ?2) AS favourites,
@@ -347,7 +347,7 @@ describe('signed federation status interaction permissions', () => {
     expect(denied).toEqual({ favourites: 0, reactions: 0 });
 
     expect(await processLike(misskeyReaction, localAuthorId)).toBe(true);
-    const acceptedMisskey = await env.DB.prepare(
+    const acceptedMisskey = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM emoji_reactions
        WHERE account_id = ?1 AND status_id = ?2`,
     ).bind(stranger.id, target.id).first<{ count: number }>();
@@ -380,7 +380,7 @@ describe('signed federation status interaction permissions', () => {
       '',
     )).toBe(false);
 
-    const relations = await env.DB.prepare(
+    const relations = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM favourites
           WHERE account_id = ?1 AND status_id = ?2) AS favourites,
@@ -401,7 +401,7 @@ describe('signed federation status interaction permissions', () => {
       'public',
     );
     const blockId = `interaction_domain_block_${suffix}`;
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
        VALUES (?1, ?2, 'REMOTE.EXAMPLE', ?3)`,
     ).bind(blockId, localAuthorId, new Date().toISOString()).run();
@@ -419,12 +419,12 @@ describe('signed federation status interaction permissions', () => {
       ),
       localAuthorId,
     );
-    await env.DB.prepare('DELETE FROM user_domain_blocks WHERE id = ?1')
+    await env.DB_META_C000.prepare('DELETE FROM user_domain_blocks WHERE id = ?1')
       .bind(blockId).run();
 
     expect(likeAccepted).toBe(false);
     expect(reactionAccepted).toBe(false);
-    const relations = await env.DB.prepare(
+    const relations = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM favourites
           WHERE account_id = ?1 AND status_id = ?2) AS favourites,
@@ -451,7 +451,7 @@ describe('signed federation status interaction permissions', () => {
       ['actor-blocks-author', stranger.id, localAuthorId],
     ] satisfies [string, string, string][]) {
       const blockId = `interaction_${direction}_${suffix}`;
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO blocks (id, account_id, target_account_id, created_at)
          VALUES (?1, ?2, ?3, ?4)`,
       ).bind(blockId, blockerId, blockedId, now).run();
@@ -469,13 +469,13 @@ describe('signed federation status interaction permissions', () => {
         ),
         localAuthorId,
       );
-      await env.DB.prepare('DELETE FROM blocks WHERE id = ?1').bind(blockId).run();
+      await env.DB_META_C000.prepare('DELETE FROM blocks WHERE id = ?1').bind(blockId).run();
 
       expect(likeAccepted).toBe(false);
       expect(reactionAccepted).toBe(false);
     }
 
-    const relations = await env.DB.prepare(
+    const relations = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM favourites
           WHERE account_id = ?1 AND status_id = ?2) AS favourites,
@@ -510,7 +510,7 @@ describe('signed federation status interaction permissions', () => {
       localAuthorId,
     )).toBe(true);
 
-    const relations = await env.DB.prepare(
+    const relations = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM favourites
           WHERE account_id = ?1 AND status_id = ?2) AS favourites,
@@ -530,7 +530,7 @@ describe('signed federation status interaction permissions', () => {
       { id: disabledLocalActor.accountId, uri: `${BASE}/users/federation_disabled_local` },
       { id: pendingLocalActor.accountId, uri: `${BASE}/users/federation_pending_local` },
     ];
-    const beforeParent = await env.DB.prepare(
+    const beforeParent = await env.DB_META_C000.prepare(
       'SELECT replies_count FROM statuses WHERE id = ?1',
     ).bind(publicStatus.id).first<{ replies_count: number }>();
     const queueSend = vi.spyOn(env.QUEUE_INTERNAL, 'send');
@@ -560,16 +560,16 @@ describe('signed federation status interaction permissions', () => {
       expect(accepted).toBe(false);
     }
 
-    const statuses = await env.DB.prepare(
+    const statuses = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM statuses
        WHERE uri LIKE '%/statuses/denied-create-%'`,
     ).first<{ count: number }>();
     expect(statuses?.count).toBe(0);
-    const emojis = await env.DB.prepare(
+    const emojis = await env.DB_META_C000.prepare(
       "SELECT COUNT(*) AS count FROM custom_emojis WHERE shortcode LIKE 'denied_create_%'",
     ).first<{ count: number }>();
     expect(emojis?.count).toBe(0);
-    const afterParent = await env.DB.prepare(
+    const afterParent = await env.DB_META_C000.prepare(
       'SELECT replies_count FROM statuses WHERE id = ?1',
     ).bind(publicStatus.id).first<{ replies_count: number }>();
     expect(afterParent?.replies_count).toBe(beforeParent?.replies_count);
@@ -583,13 +583,13 @@ describe('signed federation status interaction permissions', () => {
     const activeStatusUri = `${stranger.uri}/statuses/${suffix}`;
     const suspendedStatusId = `remote_update_suspended_${suffix}`;
     const suspendedStatusUri = `${suspendedActor.uri}/statuses/${suffix}`;
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
            (id, uri, url, account_id, text, content, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, 'before', '<p>before</p>', 'public', 0, ?4, ?4)`,
       ).bind(activeStatusId, activeStatusUri, stranger.id, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
            (id, uri, url, account_id, text, content, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, 'before', '<p>before</p>', 'public', 0, ?4, ?4)`,
@@ -609,16 +609,16 @@ describe('signed federation status interaction permissions', () => {
     await processUpdate(update(stranger, activeStatusUri, '<p>active update</p>'), localAuthorId);
     await processUpdate(update(suspendedActor, suspendedStatusUri, '<p>forbidden update</p>'), localAuthorId);
 
-    const active = await env.DB.prepare(
+    const active = await env.DB_META_C000.prepare(
       'SELECT content FROM statuses WHERE id = ?1',
     ).bind(activeStatusId).first<{ content: string }>();
-    const suspended = await env.DB.prepare(
+    const suspended = await env.DB_META_C000.prepare(
       'SELECT content FROM statuses WHERE id = ?1',
     ).bind(suspendedStatusId).first<{ content: string }>();
     expect(active?.content).toBe('<p>active update</p>');
     expect(suspended?.content).toBe('<p>before</p>');
 
-    const localBefore = await env.DB.prepare(
+    const localBefore = await env.DB_META_C000.prepare(
       'SELECT content FROM statuses WHERE id = ?1',
     ).bind(publicStatus.id).first<{ content: string }>();
     await processUpdate({
@@ -631,7 +631,7 @@ describe('signed federation status interaction permissions', () => {
         content: '<p>inbound local spoof</p>',
       },
     }, localAuthorId);
-    const localAfterUpdate = await env.DB.prepare(
+    const localAfterUpdate = await env.DB_META_C000.prepare(
       'SELECT content FROM statuses WHERE id = ?1',
     ).bind(publicStatus.id).first<{ content: string }>();
     expect(localAfterUpdate).toEqual(localBefore);
@@ -641,7 +641,7 @@ describe('signed federation status interaction permissions', () => {
       actor: suspendedActor.uri,
       object: suspendedStatusUri,
     }, localAuthorId);
-    const deletedSuspended = await env.DB.prepare(
+    const deletedSuspended = await env.DB_META_C000.prepare(
       'SELECT deleted_at FROM statuses WHERE id = ?1',
     ).bind(suspendedStatusId).first<{ deleted_at: string | null }>();
     expect(deletedSuspended?.deleted_at).not.toBeNull();
@@ -651,7 +651,7 @@ describe('signed federation status interaction permissions', () => {
       actor: `${BASE}/users/federation_author`,
       object: publicStatus.uri,
     }, localAuthorId);
-    const localAfterDelete = await env.DB.prepare(
+    const localAfterDelete = await env.DB_META_C000.prepare(
       'SELECT deleted_at FROM statuses WHERE id = ?1',
     ).bind(publicStatus.id).first<{ deleted_at: string | null }>();
     expect(localAfterDelete?.deleted_at).toBeNull();
@@ -660,10 +660,10 @@ describe('signed federation status interaction permissions', () => {
   it('Undo Follow and Block require the exact stored action, actor, target, and personal inbox', async () => {
     const suffix = crypto.randomUUID();
     const now = new Date().toISOString();
-    const localAuthor = await env.DB.prepare(
+    const localAuthor = await env.DB_META_C000.prepare(
       'SELECT uri FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(localAuthorId).first<{ uri: string }>();
-    const otherLocal = await env.DB.prepare(
+    const otherLocal = await env.DB_META_C000.prepare(
       'SELECT uri FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(pendingLocalActor.accountId).first<{ uri: string }>();
     expect(localAuthor).not.toBeNull();
@@ -671,16 +671,16 @@ describe('signed federation status interaction permissions', () => {
 
     const followId = `account_undo_follow_${suffix}`;
     const followUri = `${stranger.uri}/follows/${suffix}`;
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO follows
            (id, account_id, target_account_id, uri, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
       ).bind(followId, stranger.id, localAuthorId, followUri, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1',
       ).bind(stranger.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1',
       ).bind(localAuthorId),
     ]);
@@ -698,7 +698,7 @@ describe('signed federation status interaction permissions', () => {
         object: embeddedTarget,
       },
     });
-    const followExists = async (): Promise<boolean> => (await env.DB.prepare(
+    const followExists = async (): Promise<boolean> => (await env.DB_META_C000.prepare(
       'SELECT id FROM follows WHERE id = ?1',
     ).bind(followId).first<{ id: string }>()) !== null;
 
@@ -718,7 +718,7 @@ describe('signed federation status interaction permissions', () => {
 
     const blockId = `account_undo_block_${suffix}`;
     const blockUri = `${stranger.uri}/blocks/${suffix}`;
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, uri, created_at)
        VALUES (?1, ?2, ?3, ?4, ?5)`,
     ).bind(blockId, stranger.id, localAuthorId, blockUri, now).run();
@@ -732,7 +732,7 @@ describe('signed federation status interaction permissions', () => {
         object: localAuthor!.uri,
       },
     });
-    const blockExists = async (): Promise<boolean> => (await env.DB.prepare(
+    const blockExists = async (): Promise<boolean> => (await env.DB_META_C000.prepare(
       'SELECT id FROM blocks WHERE id = ?1',
     ).bind(blockId).first<{ id: string }>()) !== null;
 
@@ -755,16 +755,16 @@ describe('signed federation status interaction permissions', () => {
     );
     const now = new Date().toISOString();
     const likeUri = `${stranger.uri}/activities/undo-like-${suffix}`;
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO favourites (id, account_id, status_id, uri, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5)`,
       ).bind(`undo_favourite_${suffix}`, stranger.id, target.id, likeUri, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO emoji_reactions (id, account_id, status_id, emoji, created_at)
          VALUES (?1, ?2, ?3, ':wave:', ?4)`,
       ).bind(`undo_reaction_${suffix}`, stranger.id, target.id, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
          (id, uri, account_id, reblog_of_id, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'public', 0, ?5, ?5)`,
@@ -775,7 +775,7 @@ describe('signed federation status interaction permissions', () => {
         target.id,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `UPDATE statuses SET favourites_count = 1, reblogs_count = 1 WHERE id = ?1`,
       ).bind(target.id),
     ]);
@@ -817,14 +817,14 @@ describe('signed federation status interaction permissions', () => {
     expect(await processUndo(undoReaction, localAuthorId)).toBe(false);
     expect(await processUndo(undoAnnounce, localAuthorId)).toBe(false);
 
-    const counts = await env.DB.prepare(
+    const counts = await env.DB_META_C000.prepare(
       'SELECT favourites_count, reblogs_count FROM statuses WHERE id = ?1',
     ).bind(target.id).first<{ favourites_count: number; reblogs_count: number }>();
     expect(counts).toEqual({ favourites_count: 0, reblogs_count: 0 });
 
     const deniedLikeUri = `${suspendedActor.uri}/activities/undo-denied-${suffix}`;
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO favourites (id, account_id, status_id, uri, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5)`,
       ).bind(
@@ -834,7 +834,7 @@ describe('signed federation status interaction permissions', () => {
         deniedLikeUri,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE statuses SET favourites_count = 1 WHERE id = ?1',
       ).bind(target.id),
     ]);
@@ -849,11 +849,11 @@ describe('signed federation status interaction permissions', () => {
       },
     };
     expect(await processUndo(deniedUndo, localAuthorId)).toBe(false);
-    const deniedRelation = await env.DB.prepare(
+    const deniedRelation = await env.DB_META_C000.prepare(
       'SELECT id FROM favourites WHERE uri = ?1',
     ).bind(deniedLikeUri).first<{ id: string }>();
     expect(deniedRelation).not.toBeNull();
-    const deniedCount = await env.DB.prepare(
+    const deniedCount = await env.DB_META_C000.prepare(
       'SELECT favourites_count FROM statuses WHERE id = ?1',
     ).bind(target.id).first<{ favourites_count: number }>();
     expect(deniedCount?.favourites_count).toBe(1);
@@ -881,27 +881,27 @@ describe('signed federation status interaction permissions', () => {
       { title: 'One', votes_count: 0 },
       { title: 'Two', votes_count: 0 },
     ]);
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO polls
          (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, 0, 0, 0, ?4, ?5)`,
       ).bind(`vote_open_poll_${suffix}`, openStatus.id, '2999-01-01T00:00:00.000Z', options, now),
-      env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
         .bind(`vote_open_poll_${suffix}`, openStatus.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO polls
          (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, 0, 0, 0, ?4, ?5)`,
       ).bind(`vote_private_poll_${suffix}`, privateVoteStatus.id, '2999-01-01T00:00:00.000Z', options, now),
-      env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
         .bind(`vote_private_poll_${suffix}`, privateVoteStatus.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO polls
          (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, 0, 0, 0, ?4, ?5)`,
       ).bind(`vote_expired_poll_${suffix}`, expiredStatus.id, '2000-01-01T00:00:00.000Z', options, now),
-      env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2')
         .bind(`vote_expired_poll_${suffix}`, expiredStatus.id),
     ]);
 
@@ -940,12 +940,12 @@ describe('signed federation status interaction permissions', () => {
       localAuthorId,
     )).toBe(false);
 
-    const storedVotes = await env.DB.prepare(
+    const storedVotes = await env.DB_META_C000.prepare(
       `SELECT choice FROM poll_votes
        WHERE poll_id = ?1 AND account_id = ?2`,
     ).bind(`vote_open_poll_${suffix}`, stranger.id).all<{ choice: number }>();
     expect(storedVotes.results).toEqual([{ choice: 0 }]);
-    const openPoll = await env.DB.prepare(
+    const openPoll = await env.DB_META_C000.prepare(
       'SELECT votes_count, voters_count, options FROM polls WHERE id = ?1',
     ).bind(`vote_open_poll_${suffix}`).first<{
       votes_count: number;
@@ -977,10 +977,10 @@ describe('signed federation status interaction permissions', () => {
       localAuthorId,
       'public',
     );
-    await env.DB.batch([
-      env.DB.prepare("UPDATE statuses SET quote_policy = 'followers' WHERE id = ?1")
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare("UPDATE statuses SET quote_policy = 'followers' WHERE id = ?1")
         .bind(followersTarget.id),
-      env.DB.prepare("UPDATE statuses SET quote_policy = 'nobody' WHERE id = ?1")
+      env.DB_META_C000.prepare("UPDATE statuses SET quote_policy = 'nobody' WHERE id = ?1")
         .bind(nobodyTarget.id),
     ]);
 
@@ -1005,7 +1005,7 @@ describe('signed federation status interaction permissions', () => {
       activity: expect.objectContaining({ type: 'Reject' }),
     }));
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows
        (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,
@@ -1034,7 +1034,7 @@ describe('signed federation status interaction permissions', () => {
     );
     expect(delivery).not.toHaveBeenCalled();
 
-    const authorizations = await env.DB.prepare(
+    const authorizations = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count FROM quote_authorizations
        WHERE interacting_object_uri IN (?1, ?2)`,
     ).bind(
@@ -1058,8 +1058,8 @@ describe('signed federation status interaction permissions', () => {
     const acceptRequestUri = `${BASE}/users/federation_author/follows/${suffix}`;
     const rejectRequestUri = `${BASE}/users/federation_author/follows/reject-${suffix}`;
     const inactiveRequestUri = `${BASE}/users/federation_pending_local/follows/${suffix}`;
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO follow_requests
          (id, account_id, target_account_id, uri, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -1070,7 +1070,7 @@ describe('signed federation status interaction permissions', () => {
         acceptRequestUri,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follow_requests
          (id, account_id, target_account_id, uri, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -1081,7 +1081,7 @@ describe('signed federation status interaction permissions', () => {
         rejectRequestUri,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follow_requests
          (id, account_id, target_account_id, uri, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -1095,13 +1095,13 @@ describe('signed federation status interaction permissions', () => {
     ]);
 
     const requestExists = async (uri: string): Promise<boolean> => {
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         'SELECT id FROM follow_requests WHERE uri = ?1 LIMIT 1',
       ).bind(uri).first<{ id: string }>();
       return row !== null;
     };
     const followExists = async (targetAccountId: string): Promise<boolean> => {
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT id FROM follows
          WHERE account_id = ?1 AND target_account_id = ?2
          LIMIT 1`,
@@ -1129,7 +1129,7 @@ describe('signed federation status interaction permissions', () => {
     }), localAuthorId);
     expect(await requestExists(acceptRequestUri)).toBe(true);
 
-    const beforeCounts = await env.DB.prepare(
+    const beforeCounts = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT following_count FROM accounts WHERE id = ?1) AS following_count,
          (SELECT followers_count FROM accounts WHERE id = ?2) AS followers_count`,
@@ -1140,7 +1140,7 @@ describe('signed federation status interaction permissions', () => {
     await processAccept(response('Accept', stranger, acceptRequestUri), localAuthorId);
     expect(await requestExists(acceptRequestUri)).toBe(false);
     expect(await followExists(stranger.id)).toBe(true);
-    const afterCounts = await env.DB.prepare(
+    const afterCounts = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT following_count FROM accounts WHERE id = ?1) AS following_count,
          (SELECT followers_count FROM accounts WHERE id = ?2) AS followers_count`,
@@ -1151,7 +1151,7 @@ describe('signed federation status interaction permissions', () => {
     expect(afterCounts?.following_count).toBe((beforeCounts?.following_count ?? 0) + 1);
     expect(afterCounts?.followers_count).toBe((beforeCounts?.followers_count ?? 0) + 1);
     await processAccept(response('Accept', stranger, acceptRequestUri), localAuthorId);
-    const replayCounts = await env.DB.prepare(
+    const replayCounts = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT following_count FROM accounts WHERE id = ?1) AS following_count,
          (SELECT followers_count FROM accounts WHERE id = ?2) AS followers_count`,
@@ -1185,7 +1185,7 @@ describe('signed federation status interaction permissions', () => {
       `incoming_follow_${suffix}`,
       `incoming_follow_${suffix}`,
     );
-    const localAuthor = await env.DB.prepare(
+    const localAuthor = await env.DB_META_C000.prepare(
       'SELECT uri FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(localAuthorId).first<{ uri: string }>();
     expect(localAuthor).not.toBeNull();
@@ -1197,7 +1197,7 @@ describe('signed federation status interaction permissions', () => {
       object: localAuthor?.uri,
     };
     const followExists = async (): Promise<boolean> => {
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT id FROM follows
          WHERE account_id = ?1 AND target_account_id = ?2
          LIMIT 1`,
@@ -1208,22 +1208,22 @@ describe('signed federation status interaction permissions', () => {
     await processFollow(activity, pendingLocalActor.accountId);
     expect(await followExists()).toBe(false);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET moved_to_account_id = ?1 WHERE id = ?2',
     ).bind(pendingLocalActor.accountId, localAuthorId).run();
     await processFollow(activity, localAuthorId);
     expect(await followExists()).toBe(false);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET moved_to_account_id = NULL WHERE id = ?1',
     ).bind(localAuthorId).run();
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
        VALUES (?1, ?2, 'REMOTE.EXAMPLE', ?3)`,
     ).bind(`incoming_follow_domain_block_${suffix}`, localAuthorId, new Date().toISOString()).run();
     await processFollow(activity, localAuthorId);
     expect(await followExists()).toBe(false);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'DELETE FROM user_domain_blocks WHERE id = ?1',
     ).bind(`incoming_follow_domain_block_${suffix}`).run();
 
@@ -1237,7 +1237,7 @@ describe('signed federation status interaction permissions', () => {
       `incoming_block_${suffix}`,
       `incoming_block_${suffix}`,
     );
-    const localAuthor = await env.DB.prepare(
+    const localAuthor = await env.DB_META_C000.prepare(
       'SELECT uri FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(localAuthorId).first<{ uri: string }>();
     expect(localAuthor).not.toBeNull();
@@ -1248,7 +1248,7 @@ describe('signed federation status interaction permissions', () => {
       object: localAuthor?.uri,
     };
     const blockExists = async (): Promise<boolean> => {
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT id FROM blocks
          WHERE account_id = ?1 AND target_account_id = ?2
          LIMIT 1`,
@@ -1279,7 +1279,7 @@ describe('signed federation status interaction permissions', () => {
       localAuthorId,
       'public',
     );
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_id = ?1, quote_approval_status = 'pending'
        WHERE id = ?2`,
@@ -1306,7 +1306,7 @@ describe('signed federation status interaction permissions', () => {
     const approval = async (): Promise<{
       quote_id: string | null;
       quote_approval_status: string | null;
-    } | null> => env.DB.prepare(
+    } | null> => env.DB_META_C000.prepare(
       'SELECT quote_id, quote_approval_status FROM statuses WHERE id = ?1',
     ).bind(localWrapper.id).first<{
       quote_id: string | null;
@@ -1329,7 +1329,7 @@ describe('signed federation status interaction permissions', () => {
       quote_approval_status: 'accepted',
     });
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_approval_status = 'pending', quote_authorization_uri = NULL
        WHERE id = ?1`,
@@ -1350,7 +1350,7 @@ describe('signed federation status interaction permissions', () => {
       'public',
     );
     const authorizationUri = `${stranger.uri}/stamps/${suffix}`;
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET quote_id = ?1, quote_authorization_uri = ?2,
            quote_approval_status = 'accepted'
@@ -1363,7 +1363,7 @@ describe('signed federation status interaction permissions', () => {
     });
 
     await processDelete(deleteAuthorization(attacker), localAuthorId);
-    const afterAttackerDelete = await env.DB.prepare(
+    const afterAttackerDelete = await env.DB_META_C000.prepare(
       'SELECT quote_id, quote_approval_status FROM statuses WHERE id = ?1',
     ).bind(revocationWrapper.id).first<{
       quote_id: string | null;
@@ -1375,7 +1375,7 @@ describe('signed federation status interaction permissions', () => {
     });
 
     await processDelete(deleteAuthorization(stranger), localAuthorId);
-    const afterOwnerDelete = await env.DB.prepare(
+    const afterOwnerDelete = await env.DB_META_C000.prepare(
       'SELECT quote_id, quote_approval_status FROM statuses WHERE id = ?1',
     ).bind(revocationWrapper.id).first<{
       quote_id: string | null;
@@ -1416,23 +1416,23 @@ describe('signed federation status interaction permissions', () => {
 
     expect(queueSend).toHaveBeenCalled();
 
-    const favourite = await env.DB.prepare(
+    const favourite = await env.DB_META_C000.prepare(
       'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
     ).bind(stranger.id, publicStatus.id).first<{ id: string }>();
     expect(favourite).not.toBeNull();
 
-    const reaction = await env.DB.prepare(
+    const reaction = await env.DB_META_C000.prepare(
       'SELECT id FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2',
     ).bind(stranger.id, unlistedStatus.id).first<{ id: string }>();
     expect(reaction).not.toBeNull();
 
-    const ordinaryReblog = await env.DB.prepare(
+    const ordinaryReblog = await env.DB_META_C000.prepare(
       'SELECT visibility FROM statuses WHERE uri = ?1',
     ).bind('https://remote.example/activities/allowed-announce')
       .first<{ visibility: string }>();
     expect(ordinaryReblog?.visibility).toBe('public');
 
-    const quote = await env.DB.prepare(
+    const quote = await env.DB_META_C000.prepare(
       'SELECT visibility FROM statuses WHERE uri = ?1',
     ).bind('https://remote.example/activities/allowed-quote')
       .first<{ visibility: string }>();
@@ -1455,7 +1455,7 @@ describe('signed federation status interaction permissions', () => {
     );
     expect(await processAnnounce(quoteAnnounce, localAuthorId)).toBe(true);
 
-    const storedAnnounce = await env.DB.prepare(
+    const storedAnnounce = await env.DB_META_C000.prepare(
       `SELECT visibility, quote_id, quote_approval_status
        FROM statuses
        WHERE uri = ?1`,
@@ -1485,7 +1485,7 @@ describe('signed federation status interaction permissions', () => {
       },
     }, localAuthorId)).toBe(true);
 
-    const storedCreate = await env.DB.prepare(
+    const storedCreate = await env.DB_META_C000.prepare(
       `SELECT visibility, quote_id, quote_approval_status
        FROM statuses
        WHERE uri = ?1`,
@@ -1514,7 +1514,7 @@ describe('signed federation status interaction permissions', () => {
     await processAnnounce(activity, localAuthorId);
     expect(queueSend).not.toHaveBeenCalled();
 
-    const wrapper = await env.DB.prepare(
+    const wrapper = await env.DB_META_C000.prepare(
       'SELECT id FROM statuses WHERE uri = ?1',
     ).bind('https://remote.example/activities/unsupported-addressing')
       .first<{ id: string }>();

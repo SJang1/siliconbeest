@@ -25,7 +25,7 @@ export type CreateFollowInput = {
 export const findById = async (
 	id: string,
 ): Promise<Follow | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM follows WHERE id = ?')
 		.bind(id)
 		.first<Follow>();
@@ -36,7 +36,7 @@ export const findByAccountAndTarget = async (
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Follow | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM follows WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Follow>();
@@ -55,7 +55,7 @@ export const findFollowers = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM follows
 			 WHERE ${where}
@@ -78,7 +78,7 @@ export const findFollowing = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM follows
 			 WHERE ${where}
@@ -106,7 +106,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO follows (
 				id, account_id, target_account_id, uri,
@@ -126,7 +126,7 @@ export const create = async (
 export const deleteById = async (
 	id: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM follows WHERE id = ?')
 		.bind(id)
 		.run();
@@ -135,7 +135,7 @@ export const deleteById = async (
 export const countFollowers = async (
 	accountId: string,
 ): Promise<number> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT COUNT(*) as count FROM follows WHERE target_account_id = ?')
 		.bind(accountId)
 		.first<{ count: number }>();
@@ -145,7 +145,7 @@ export const countFollowers = async (
 export const countFollowing = async (
 	accountId: string,
 ): Promise<number> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT COUNT(*) as count FROM follows WHERE account_id = ?')
 		.bind(accountId)
 		.first<{ count: number }>();
@@ -155,7 +155,7 @@ export const countFollowing = async (
 export const findRemoteFollowerInboxes = async (
 	accountId: string,
 ): Promise<string[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT DISTINCT a.uri FROM follows f
 			 JOIN accounts a ON a.id = f.account_id

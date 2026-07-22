@@ -130,7 +130,7 @@ export async function listNotifications(
     LIMIT ?
   `;
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<NotifWithAccountRow>();
   return results ?? [];
 }
 
@@ -163,7 +163,7 @@ export async function getNotification(
       )
     LIMIT 1
   `;
-  return env.DB.prepare(sql).bind(
+  return env.DB_META_C000.prepare(sql).bind(
     id,
     accountId,
     ...senderPermission.bindings,
@@ -182,7 +182,7 @@ export async function dismissNotification(
   id: string,
   accountId: string,
 ): Promise<boolean> {
-  const result = await env.DB
+  const result = await env.DB_META_C000
     .prepare('DELETE FROM notifications WHERE id = ?1 AND account_id = ?2')
     .bind(id, accountId)
     .run();
@@ -201,7 +201,7 @@ export async function dismissNotification(
 export async function clearAllNotifications(
   accountId: string,
 ): Promise<boolean> {
-  const result = await env.DB
+  const result = await env.DB_META_C000
     .prepare('DELETE FROM notifications WHERE account_id = ?1')
     .bind(accountId)
     .run();
@@ -226,7 +226,7 @@ export async function createNotification(
   }
 
   // Check for duplicate: same type, from same account, for same status
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare(
       `SELECT id FROM notifications
        WHERE account_id = ? AND from_account_id = ? AND type = ?
@@ -237,7 +237,7 @@ export async function createNotification(
     .first();
 
   if (existing) {
-    const row = await env.DB
+    const row = await env.DB_META_C000
       .prepare('SELECT * FROM notifications WHERE id = ? AND account_id = ? LIMIT 1')
       .bind(existing.id as string, accountId)
       .first<NotificationRow>();
@@ -245,7 +245,7 @@ export async function createNotification(
   }
 
   // Check if target has muted the source
-  const muted = await env.DB
+  const muted = await env.DB_META_C000
     .prepare(
       'SELECT hide_notifications FROM mutes WHERE account_id = ? AND target_account_id = ? LIMIT 1',
     )
@@ -257,7 +257,7 @@ export async function createNotification(
   }
 
   // Check if target has blocked the source
-  const blocked = await env.DB
+  const blocked = await env.DB_META_C000
     .prepare(
       'SELECT id FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1',
     )
@@ -271,7 +271,7 @@ export async function createNotification(
   const id = generateUlid();
   const now = new Date().toISOString();
 
-  await env.DB
+  await env.DB_META_C000
     .prepare(
       `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, emoji, read, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
@@ -279,7 +279,7 @@ export async function createNotification(
     .bind(id, accountId, fromAccountId, type, statusId ?? null, emoji ?? null, now)
     .run();
 
-  return (await env.DB
+  return (await env.DB_META_C000
     .prepare('SELECT * FROM notifications WHERE id = ? AND account_id = ? LIMIT 1')
     .bind(id, accountId)
     .first<NotificationRow>())!;

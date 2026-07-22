@@ -22,6 +22,10 @@ import {
   parseStreamingChannel,
   permittedStreamingChannels,
 } from '../../../../../../packages/shared/permissions';
+import {
+  resolveStreamingTopology,
+  stableStreamingLeaf,
+} from '../../../../../../packages/shared/utils/streamingTopology';
 
 // ---------------------------------------------------------------------------
 // Route
@@ -91,7 +95,7 @@ app.get('/', async (c) => {
   if (stream === 'list') {
     const listId = c.req.query('list');
     if (!listId) return c.json({ error: 'list is required' }, 422);
-    const ownedList = await env.DB.prepare(
+    const ownedList = await env.DB_META_C000.prepare(
       'SELECT id FROM lists WHERE id = ?1 AND account_id = ?2 LIMIT 1',
     ).bind(listId, payload.account.id).first<{ id: string }>();
     if (!ownedList) return c.json({ error: 'Record not found' }, 404);
@@ -104,11 +108,15 @@ app.get('/', async (c) => {
 
   // 4. Forward upgrade to the appropriate StreamingDO instance
   //    Public streams use a shared DO, user streams use per-user DOs
-  const doName = (stream === 'public' || stream === 'public:local')
-    ? '__public__'
-    : userId;
-  const doId = env.STREAMING_DO.idFromName(doName);
-  const doStub = env.STREAMING_DO.get(doId);
+  const topology = resolveStreamingTopology(env);
+  const publicStream = stream === 'public' || stream === 'public:local';
+  const preferredPublicLeaf = stableStreamingLeaf(userId, topology.leafCount);
+  const doNames = publicStream
+    ? Array.from(
+        { length: Math.min(3, topology.leafCount) },
+        (_, offset) => `public:leaf:${(preferredPublicLeaf + offset) % topology.leafCount}`,
+      )
+    : [userId];
 
   const doUrl = new URL(c.req.url);
   doUrl.pathname = '/';
@@ -123,19 +131,29 @@ app.get('/', async (c) => {
 
   debugStreaming('forwarding to durable object', {
     stream,
-    target: doName === '__public__' ? 'public' : 'user',
+    target: publicStream ? doNames[0] : 'user',
   });
 
-  let response: Response;
+  let response: Response | null = null;
   try {
     const forwardHeaders = new Headers(c.req.raw.headers);
     const allowedStreams = permittedStreamingChannels(payload.scopes)
       .filter((channel) => channel !== 'list' || stream === 'list');
     forwardHeaders.set('X-Siliconbeest-Allowed-Streams', JSON.stringify(allowedStreams));
-    response = await doStub.fetch(doUrl.toString(), {
-      method: c.req.method,
-      headers: forwardHeaders,
-    });
+    forwardHeaders.set(
+      'X-Siliconbeest-Socket-Limit',
+      String(publicStream ? topology.publicLeafMaxSockets : topology.userMaxSockets),
+    );
+    for (const doName of doNames) {
+      const doStub = env.STREAMING_DO.getByName(doName);
+      response = await doStub.fetch(doUrl.toString(), {
+        method: c.req.method,
+        headers: forwardHeaders,
+      });
+      if (response.status !== 503 || !publicStream) break;
+      debugStreaming('public leaf full; trying spillover leaf', { stream, target: doName });
+    }
+    if (!response) throw new Error('No streaming Durable Object target was available');
     debugStreaming('durable object response', {
       stream,
       status: response.status,

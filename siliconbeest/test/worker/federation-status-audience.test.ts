@@ -21,7 +21,7 @@ async function insertAccount(input: {
 			: `https://test.siliconbeest.local/users/${input.username}`
 	);
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO accounts (
 			id, username, domain, display_name, note, uri, url,
 			inbox_url, shared_inbox_url, created_at, updated_at
@@ -45,7 +45,7 @@ async function insertStatus(input: {
 	local?: number;
 }) {
 	const createdAt = now();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO statuses (
 			id, uri, account_id, visibility, local, in_reply_to_account_id,
 			created_at, updated_at
@@ -63,7 +63,7 @@ async function insertStatus(input: {
 
 async function insertFollow(id: string, followerId: string, targetId: string) {
 	const createdAt = now();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, ?4)`,
 	).bind(id, followerId, targetId, createdAt).run();
@@ -130,10 +130,10 @@ describe('status federation audience resolver', () => {
 		await insertFollow(`aud_follow_a_${suffix}`, followerAId, authorId);
 		await insertFollow(`aud_follow_b_${suffix}`, followerBId, authorId);
 		await insertFollow(`aud_follow_actor_${suffix}`, actorFollowerId, actorId);
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'INSERT INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
 		).bind(`aud_mention_row_${suffix}`, statusId, mentionId, now()).run();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO relays (id, inbox_url, actor_uri, state, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, 'accepted', ?4, ?4)`,
 		).bind(`aud_relay_${suffix}`, relayInbox, relayActor, now()).run();
@@ -185,7 +185,7 @@ describe('status federation audience resolver', () => {
 		});
 		await insertStatus({ id: statusId, accountId: authorId, visibility: 'direct' });
 		await insertFollow(`aud_dm_follow_actor_${suffix}`, actorFollowerId, actorId);
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'INSERT INTO mentions (id, status_id, account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
 		).bind(`aud_dm_mention_row_${suffix}`, statusId, mentionId, now()).run();
 
@@ -277,19 +277,19 @@ describe('status federation audience resolver', () => {
 			inboxUrl: `${sharedInbox}/blocked`,
 			sharedInboxUrl: sharedInbox,
 		});
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO domain_blocks (id, domain, severity, created_at, updated_at)
 			 VALUES (?1, ?2, 'suspend', ?3, ?3)`,
 		).bind(`aud_block_${suffix}`, blockedDomain, now()).run();
 
 		await expect(getSuspendedDeliveryInboxes(
-			env.DB,
+			env.DB_META_C000,
 			[sharedInbox],
 		)).resolves.toEqual(new Set([sharedInbox]));
 	});
 
 	it('uses both inbox indexes for batched delivery identity lookups', async () => {
-		const { results } = await env.DB.prepare(
+		const { results } = await env.DB_META_C000.prepare(
 			`EXPLAIN QUERY PLAN
 			 WITH requested(inbox_url) AS (VALUES (?1), (?2))
 			 SELECT DISTINCT requested.inbox_url, accounts.domain

@@ -30,6 +30,8 @@ vi.mock('@/api/streaming', () => ({
     this.connect = vi.fn();
     this.disconnect = vi.fn();
     this.isActive = vi.fn(() => true);
+    this.pauseContent = vi.fn();
+    this.resumeContent = vi.fn();
   }),
 }));
 
@@ -681,18 +683,23 @@ describe('Timelines Store', () => {
   });
 
   describe('LIVE toggle (pauseStream/resumeStream)', () => {
-    it('pauseStream disconnects and blocks reconnection', () => {
+    it('pauseStream keeps the socket and switches it to count-only mode', async () => {
+      const { StreamingClient } = await import('@/api/streaming');
       const store = useTimelinesStore();
       store.connectStream('token', 'public:local', 'local');
       expect(store.streamingClients.has('public:local')).toBe(true);
+      const client = vi.mocked(StreamingClient).mock.results.at(-1)!.value as {
+        pauseContent: ReturnType<typeof vi.fn>;
+      };
 
       store.pauseStream('public:local');
       expect(store.isStreamPaused('public:local')).toBe(true);
-      expect(store.streamingClients.has('public:local')).toBe(false);
+      expect(store.streamingClients.has('public:local')).toBe(true);
+      expect(client.pauseContent).toHaveBeenCalled();
 
-      // While paused, connectStream (e.g. from a background fetch) is a no-op
+      // A background fetch reuses the existing count-only socket.
       store.connectStream('token', 'public:local', 'local');
-      expect(store.streamingClients.has('public:local')).toBe(false);
+      expect(store.streamingClients.has('public:local')).toBe(true);
     });
 
     it('resumeStream refetches the timeline to fill the gap, then reconnects', async () => {
@@ -720,7 +727,7 @@ describe('Timelines Store', () => {
 
       store.pauseStream('public');
       expect(store.streamingClients.has('user')).toBe(true);
-      expect(store.streamingClients.has('public')).toBe(false);
+      expect(store.streamingClients.has('public')).toBe(true);
     });
   });
 
@@ -752,6 +759,37 @@ describe('Timelines Store', () => {
 
       expect(store.getTimeline('local').newStatusIds).toContain('live-2');
       expect(store.timelines.has('social')).toBe(false);
+    });
+  });
+
+  describe('stream memory backpressure', () => {
+    it('counts body-free updates without caching status payloads', async () => {
+      const { StreamingClient } = await import('@/api/streaming');
+      const store = useTimelinesStore();
+      store.connectStream('token', 'public', 'public');
+      const callbacks = vi.mocked(StreamingClient).mock.calls.at(-1)![2] as {
+        onNewItems: (count: number, streams: Record<string, number>) => void;
+      };
+
+      callbacks.onNewItems(381, { public: 381 });
+
+      expect(store.getTimeline('public').unloadedNewCount).toBe(381);
+      expect(useStatusesStore().cache.size).toBe(0);
+    });
+
+    it('keeps at most 300 visible timeline ids after prepending', () => {
+      const store = useTimelinesStore();
+      const timeline = store.getTimeline('public');
+      timeline.statusIds = Array.from({ length: 300 }, (_, index) => `old-${index}`);
+      for (let index = 0; index < 50; index += 1) {
+        store.prependStatus('public', `new-${index}`);
+      }
+
+      store.showNewStatuses('public');
+
+      expect(timeline.statusIds).toHaveLength(300);
+      expect(timeline.statusIds[0]).toBe('new-49');
+      expect(timeline.statusIds).not.toContain('old-299');
     });
   });
 

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "nextPhysicalOrdinal": 1,
+  "shards": [
+    {
+      "family": "META",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "POSTS",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "GRAPH",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "INBOX",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "REMOTE_ACTORS",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "REMOTE_POSTS",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "SEARCH_FEED",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    },
+    {
+      "family": "OPS",
+      "cohort": 0,
+      "epoch": 0,
+      "ordinal": 0,
+      "binding": "DB_META_C000",
+      "databaseName": "siliconbeest-db",
+      "databaseIdEnv": "D1_DATABASE_ID",
+      "sharedPhysicalDatabase": true,
+      "state": "legacy"
+    }
+  ]
+}

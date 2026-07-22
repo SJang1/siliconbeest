@@ -39,7 +39,7 @@ const accounts = new Hono<{ Variables: AppVariables }>();
 accounts.get('/:id/lists', authRequired, requireScope('read:lists'), async (c) => {
   const accountId = c.req.param('id');
   const currentAccountId = c.get('currentUser')!.account_id;
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT l.id, l.title, l.replies_policy FROM lists l
      JOIN list_accounts la ON la.list_id = l.id
      WHERE la.account_id = ?1 AND l.account_id = ?2`,
@@ -110,7 +110,7 @@ accounts.get('/familiar_followers', authRequired, requireScope('read:follows'), 
         currentAccount.id,
         new Date().toISOString(),
       );
-      const targetVisible = await env.DB.prepare(
+      const targetVisible = await env.DB_META_C000.prepare(
         `SELECT a.id FROM accounts a
          WHERE a.id = ?
            AND ${accountPermission.sql}
@@ -118,7 +118,7 @@ accounts.get('/familiar_followers', authRequired, requireScope('read:follows'), 
       ).bind(targetId, ...accountPermission.bindings).first<{ id: string }>();
       if (!targetVisible) return { id: targetId, accounts: [] };
 
-      const { results } = await env.DB.prepare(
+      const { results } = await env.DB_META_C000.prepare(
         `SELECT a.* FROM follows viewer_follow
          JOIN follows target_follow
            ON target_follow.account_id = viewer_follow.target_account_id

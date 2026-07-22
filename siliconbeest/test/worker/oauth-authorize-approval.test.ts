@@ -203,7 +203,7 @@ describe('OAuth Authorize — App Approval Flow', () => {
     const email = 'oauth-pending@test.local';
     const password = 'PendingPassword123!';
     const pending = await createTestUser('oauth_pending_user', { email });
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE users SET approved = 0, encrypted_password = ?1 WHERE id = ?2',
     ).bind(await hashPassword(password), pending.userId).run();
 
@@ -221,7 +221,7 @@ describe('OAuth Authorize — App Approval Flow', () => {
     });
     expect(response.status).toBe(403);
 
-    const issued = await env.DB.prepare(
+    const issued = await env.DB_META_C000.prepare(
       'SELECT COUNT(*) AS count FROM oauth_authorization_codes WHERE user_id = ?1',
     ).bind(pending.userId).first<{ count: number }>();
     expect(issued?.count).toBe(0);

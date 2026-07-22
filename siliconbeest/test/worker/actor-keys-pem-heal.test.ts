@@ -18,7 +18,7 @@ describe('actor_keys ed25519 PEM self-heal', () => {
   beforeAll(async () => {
     await applyMigration();
     user = await createTestUser('pemseeded');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE account_id = ?3',
     )
       .bind(PEM_ED25519_PUBLIC, PEM_ED25519_PRIVATE, user.accountId)
@@ -38,7 +38,7 @@ describe('actor_keys ed25519 PEM self-heal', () => {
   });
 
   it('rewrites the stored keys to base64url', async () => {
-    const row = await env.DB.prepare(
+    const row = await env.DB_META_C000.prepare(
       'SELECT ed25519_public_key, ed25519_private_key FROM actor_keys WHERE account_id = ?1',
     )
       .bind(user.accountId)

@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
   queries: [] as string[],
   bindings: [] as (string | number)[][],
   env: {
-    DB: { prepare: vi.fn() },
+    DB_META_C000: { prepare: vi.fn() },
     INSTANCE_DOMAIN: 'local.example',
   },
   base64urlDecode: vi.fn((value: string) => {
@@ -86,7 +86,7 @@ function queryAll(sql: string): Promise<{ results: object[] }> {
 }
 
 function configureDatabase(): void {
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     all: async () => {
       mocks.queries.push(sql);
       return queryAll(sql);
@@ -151,7 +151,7 @@ beforeEach(() => {
   mocks.notificationRow = null;
   mocks.queries.length = 0;
   mocks.bindings.length = 0;
-  mocks.env.DB.prepare.mockReset();
+  mocks.env.DB_META_C000.prepare.mockReset();
   mocks.base64urlDecode.mockClear();
   mocks.sendPushNotification.mockReset();
   mocks.sendPushNotification.mockResolvedValue({

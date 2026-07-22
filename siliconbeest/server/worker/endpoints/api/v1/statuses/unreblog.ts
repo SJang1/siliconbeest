@@ -24,7 +24,7 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = env.INSTANCE_DOMAIN;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1`,
   ).bind(statusId).first();
 
@@ -47,7 +47,7 @@ app.post('/:id/unreblog', authRequired, requireScope('write:statuses'), async (c
   // Federation: deliver Undo(Announce) to followers
   if (reblogId && row) {
     try {
-      const currentAccount = await env.DB.prepare(
+      const currentAccount = await env.DB_META_C000.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {

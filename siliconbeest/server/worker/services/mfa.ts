@@ -58,7 +58,7 @@ export async function verifyAndEnableMfa(
 	userId: string,
 	code: string,
 ): Promise<void> {
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare('SELECT otp_secret, otp_enabled FROM users WHERE id = ? LIMIT 1')
 		.bind(userId)
 		.first<Pick<UserRow, 'otp_secret' | 'otp_enabled'>>();

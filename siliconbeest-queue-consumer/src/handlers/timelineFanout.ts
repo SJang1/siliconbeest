@@ -14,20 +14,23 @@ import {
   canFanOutStatus,
 } from '../../../packages/shared/permissions';
 import { sendStreamEvent } from '../../../siliconbeest/server/worker/services/streaming';
+import { projectRealtimeFeed } from '../../../siliconbeest/server/worker/services/realtimeFeed';
 
 export async function handleTimelineFanout(
   msg: TimelineFanoutMessage,
 ): Promise<void> {
-  const { statusId, accountId } = msg;
+  const { statusId, accountId, cursor } = msg;
   const timer = new PerfTimer('timelineFanout.total', { statusId });
   timer.start();
 
   const statusCheck = await measureAsync(
     'timelineFanout.db.checkPermissions',
-    () => env.DB.prepare(
+    () => env.DB_META_C000.prepare(
       `SELECT s.account_id, s.visibility, s.deleted_at, s.reblog_of_id,
               s.quote_id, a.suspended_at, a.silenced_at,
-              a.domain AS author_domain
+              a.domain AS author_domain,
+              COALESCE(s.sort_at_ms, CAST(unixepoch(s.created_at) AS INTEGER) * 1000) AS sort_at_ms,
+              COALESCE(s.source_version, 1) AS source_version
        FROM statuses s
        JOIN accounts a ON a.id = s.account_id
        WHERE s.id = ?
@@ -43,6 +46,8 @@ export async function handleTimelineFanout(
         suspended_at: string | null;
         silenced_at: string | null;
         author_domain: string | null;
+        sort_at_ms: number;
+        source_version: number;
       }>(),
     { statusId }
   );
@@ -76,14 +81,14 @@ export async function handleTimelineFanout(
   // when the author also has an active local user.
   const rows = await measureAsync(
     'timelineFanout.db.loadFollowers',
-    () => env.DB.prepare(
+    () => env.DB_META_C000.prepare(
       `SELECT candidate.account_id
        FROM (
          SELECT f.account_id
          FROM follows f
          WHERE f.target_account_id = ?1
          UNION
-         SELECT ?1
+         SELECT ?1 WHERE ?2 IS NULL
        ) candidate
        JOIN accounts recipient ON recipient.id = candidate.account_id
        JOIN users recipient_user ON recipient_user.account_id = recipient.id
@@ -91,14 +96,19 @@ export async function handleTimelineFanout(
          AND recipient.suspended_at IS NULL
          AND recipient.memorial = 0
          AND recipient_user.disabled = 0
-         AND recipient_user.approved = 1`,
+         AND recipient_user.approved = 1
+         AND (?2 IS NULL OR candidate.account_id > ?2)
+       ORDER BY candidate.account_id
+       LIMIT 81`,
     )
-      .bind(accountId)
+      .bind(accountId, cursor ?? null)
       .all<{ account_id: string }>(),
     { accountId }
   );
 
-  const allFollowerIds = (rows.results ?? []).map((r) => r.account_id);
+  const candidateIds = (rows.results ?? []).map((r) => r.account_id);
+  const hasContinuation = candidateIds.length > 80;
+  const allFollowerIds = candidateIds.slice(0, 80);
 
   // Filter either block direction and active viewer-to-author mutes. Follow
   // rows can remain stale after a relationship restriction is created.
@@ -106,13 +116,13 @@ export async function handleTimelineFanout(
   const relationshipCheckAt = new Date().toISOString();
   if (allFollowerIds.length > 0) {
     const placeholders = allFollowerIds.map(() => '?').join(',');
-    const blockedBy = await env.DB.prepare(
+    const blockedBy = await env.DB_META_C000.prepare(
       `SELECT account_id FROM blocks WHERE target_account_id = ? AND account_id IN (${placeholders})`,
     ).bind(accountId, ...allFollowerIds).all<{ account_id: string }>();
-    const mutedBy = await env.DB.prepare(
+    const mutedBy = await env.DB_META_C000.prepare(
       `SELECT account_id FROM mutes WHERE target_account_id = ? AND account_id IN (${placeholders}) AND (expires_at IS NULL OR expires_at > ?)`,
     ).bind(accountId, ...allFollowerIds, relationshipCheckAt).all<{ account_id: string }>();
-    const blockedByAuthor = await env.DB.prepare(
+    const blockedByAuthor = await env.DB_META_C000.prepare(
       `SELECT target_account_id AS account_id
        FROM blocks
        WHERE account_id = ?
@@ -120,7 +130,7 @@ export async function handleTimelineFanout(
     ).bind(accountId, ...allFollowerIds).all<{ account_id: string }>();
     const domainBlockedBy = statusCheck.author_domain === null
       ? { results: [] as Array<{ account_id: string }> }
-      : await env.DB.prepare(
+      : await env.DB_META_C000.prepare(
         `SELECT account_id
          FROM user_domain_blocks
          WHERE lower(domain) = lower(?)
@@ -141,7 +151,7 @@ export async function handleTimelineFanout(
     }
   }
 
-  if (followerIds.length === 0 && !canBroadcastPublicly) {
+  if (followerIds.length === 0 && !canBroadcastPublicly && !hasContinuation) {
     timer.stopWithMetadata({ status: 'no_followers', followerCount: 0 });
     return;
   }
@@ -151,7 +161,7 @@ export async function handleTimelineFanout(
     const placeholders = followerIds.map(() => '?').join(',');
     const userRows = await measureAsync(
       'timelineFanout.db.loadUsers',
-      () => env.DB.prepare(
+      () => env.DB_META_C000.prepare(
         `SELECT recipient_user.id, recipient_user.account_id
          FROM users recipient_user
          JOIN accounts recipient ON recipient.id = recipient_user.account_id
@@ -212,7 +222,7 @@ export async function handleTimelineFanout(
       const sharedPayload = hasAudienceSensitiveNestedStatus
         ? null
         : buildStatusStreamingPayload(
-            env.DB,
+            env.DB_META_C000,
             statusId,
             env.INSTANCE_DOMAIN,
             {
@@ -220,12 +230,13 @@ export async function handleTimelineFanout(
               accountId: userRows.results[0].account_id,
             },
           );
+      const projections: Array<{ feedKey: string; payload: string }> = [];
       const streamPromises = userRows.results.map(async (user) => {
         let payloadPromise = sharedPayload
           ?? payloadByAccountId.get(user.account_id);
         if (!payloadPromise) {
           payloadPromise = buildStatusStreamingPayload(
-            env.DB,
+            env.DB_META_C000,
             statusId,
             env.INSTANCE_DOMAIN,
             { kind: 'account', accountId: user.account_id },
@@ -234,6 +245,8 @@ export async function handleTimelineFanout(
         }
         const statusPayload = await payloadPromise;
         if (!statusPayload) return;
+
+        projections.push({ feedKey: `home:${user.account_id}`, payload: statusPayload });
 
         await sendStreamEvent(user.id, {
           event: 'update',
@@ -250,10 +263,52 @@ export async function handleTimelineFanout(
         { userCount: userRows.results.length }
       );
 
+      if (projections.length > 0) {
+        const now = new Date().toISOString();
+        await env.DB_META_C000.batch(projections.map((projection) => env.DB_META_C000.prepare(
+          `INSERT INTO search_feed_entries (
+             feed_key, entity_id, source_ordinal, sort_at_ms,
+             author_summary_json, entity_summary_json, visibility, audience_json,
+             source_version, tombstoned_at, graph_version, created_at, updated_at
+           ) VALUES (?1, ?2, 0, ?3, '{}', ?4, ?5, '{}', ?6, NULL, NULL, ?7, ?7)
+           ON CONFLICT(feed_key, entity_id) DO UPDATE SET
+             entity_summary_json = excluded.entity_summary_json,
+             source_version = excluded.source_version,
+             tombstoned_at = NULL,
+             updated_at = excluded.updated_at
+           WHERE excluded.source_version >= search_feed_entries.source_version`,
+        ).bind(
+          projection.feedKey,
+          statusId,
+          statusCheck.sort_at_ms,
+          projection.payload,
+          statusCheck.visibility,
+          statusCheck.source_version,
+          now,
+        )));
+        await Promise.allSettled(projections.map((projection) => projectRealtimeFeed({
+          feedKey: projection.feedKey,
+          entityId: statusId,
+          sourceOrdinal: 0,
+          sortAtMs: statusCheck.sort_at_ms,
+          sourceVersion: statusCheck.source_version,
+          snapshotJson: projection.payload,
+        })));
+      }
+
       console.log(
         `Sent streaming events for status ${statusId} to ${userRows.results.length} users`,
       );
     }
+  }
+
+  if (hasContinuation && allFollowerIds.length > 0) {
+    await env.QUEUE_INTERNAL.send({
+      type: 'timeline_fanout',
+      statusId,
+      accountId,
+      cursor: allFollowerIds[allFollowerIds.length - 1],
+    });
   }
 
   timer.stopWithMetadata({
@@ -267,7 +322,7 @@ export async function handleTimelineFanout(
     ? await measureAsync(
         'timelineFanout.buildPublicStreamingPayload',
         () => buildStatusStreamingPayload(
-          env.DB,
+          env.DB_META_C000,
           statusId,
           env.INSTANCE_DOMAIN,
           { kind: 'public' },
@@ -289,5 +344,31 @@ export async function handleTimelineFanout(
     }).catch((err) => {
       console.error(`Failed to broadcast to public streams:`, err);
     });
+    const publicFeedKeys = [
+      'public:all:all',
+      ...(statusCheck.author_domain === null ? ['public:local:all'] : ['public:remote:all']),
+    ];
+    const now = new Date().toISOString();
+    await env.DB_META_C000.batch(publicFeedKeys.map((feedKey) => env.DB_META_C000.prepare(
+      `INSERT INTO search_feed_entries (
+         feed_key, entity_id, source_ordinal, sort_at_ms,
+         author_summary_json, entity_summary_json, visibility, audience_json,
+         source_version, tombstoned_at, graph_version, created_at, updated_at
+       ) VALUES (?1, ?2, 0, ?3, '{}', ?4, ?5, '{}', ?6, NULL, NULL, ?7, ?7)
+       ON CONFLICT(feed_key, entity_id) DO UPDATE SET
+         entity_summary_json = excluded.entity_summary_json,
+         source_version = excluded.source_version,
+         tombstoned_at = NULL,
+         updated_at = excluded.updated_at
+       WHERE excluded.source_version >= search_feed_entries.source_version`,
+    ).bind(feedKey, statusId, statusCheck.sort_at_ms, publicStatusPayload, statusCheck.visibility, statusCheck.source_version, now)));
+    await Promise.allSettled(publicFeedKeys.map((feedKey) => projectRealtimeFeed({
+      feedKey,
+      entityId: statusId,
+      sourceOrdinal: 0,
+      sortAtMs: statusCheck.sort_at_ms,
+      sourceVersion: statusCheck.source_version,
+      snapshotJson: publicStatusPayload,
+    })));
   }
 }

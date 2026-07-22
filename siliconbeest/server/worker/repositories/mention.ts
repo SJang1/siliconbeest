@@ -18,7 +18,7 @@ export type CreateMentionInput = {
 export const findByStatusId = async (
 	statusId: string,
 ): Promise<Mention[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare('SELECT * FROM mentions WHERE status_id = ? ORDER BY created_at ASC')
 		.bind(statusId)
 		.all<Mention>();
@@ -37,7 +37,7 @@ export const findByAccountId = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM mentions
 			 WHERE ${where}
@@ -61,7 +61,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			'INSERT OR IGNORE INTO mentions (id, status_id, account_id, silent, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -79,12 +79,12 @@ export const createBatch = async (
 
 	const stmts = mentions.map((input) => {
 		const id = generateUlid();
-		return env.DB
+		return env.DB_META_C000
 			.prepare(
 				'INSERT OR IGNORE INTO mentions (id, status_id, account_id, silent, created_at) VALUES (?, ?, ?, ?, ?)'
 			)
 			.bind(id, input.status_id, input.account_id, input.silent ?? 0, now);
 	});
 
-	await env.DB.batch(stmts);
+	await env.DB_META_C000.batch(stmts);
 };

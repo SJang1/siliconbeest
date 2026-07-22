@@ -32,6 +32,8 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | `KV_SESSIONS_TITLE` | `{prefix}-SESSIONS` | KV namespace for sessions |
 | `KV_FEDIFY_TITLE` | `{prefix}-FEDIFY_KV` | KV namespace for Fedify federation state |
 | `QUEUE_FEDERATION` | `{prefix}-federation` | Federation queue |
+| `QUEUE_INBOX_0..7` | `{prefix}-inbox-0..7` | ActivityPub inbound lanes (outbound와 격리) |
+| `QUEUE_INBOX_0..7_DLQ` | `{prefix}-inbox-0..7-dlq` | Inbox lane dead letters |
 | `QUEUE_INTERNAL` | `{prefix}-internal` | Internal queue |
 | `QUEUE_EMAIL` | `{prefix}-email` | Email queue (consumed by email-sender) |
 | `QUEUE_DLQ` | `{prefix}-federation-dlq` | Dead letter queue |

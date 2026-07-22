@@ -147,11 +147,11 @@ export async function handleFetchPreviewCard(
   const cached = await env.CACHE.get(cacheKey);
   if (cached) {
     // Card already fetched; just link it to the status
-    const existingCard = await env.DB.prepare(
+    const existingCard = await env.DB_META_C000.prepare(
       'SELECT id FROM preview_cards WHERE url = ?1',
     ).bind(url).first();
     if (existingCard) {
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         'INSERT OR IGNORE INTO status_preview_cards (status_id, preview_card_id) VALUES (?1, ?2)',
       ).bind(statusId, existingCard.id as string).run();
     }
@@ -159,13 +159,13 @@ export async function handleFetchPreviewCard(
   }
 
   // Check if preview_card already exists in DB
-  const existingCard = await env.DB.prepare(
+  const existingCard = await env.DB_META_C000.prepare(
     'SELECT id FROM preview_cards WHERE url = ?1',
   ).bind(url).first();
 
   if (existingCard) {
     // Link existing card to this status
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'INSERT OR IGNORE INTO status_preview_cards (status_id, preview_card_id) VALUES (?1, ?2)',
     ).bind(statusId, existingCard.id as string).run();
     // Cache the URL
@@ -187,8 +187,8 @@ export async function handleFetchPreviewCard(
   const cardId = generateUlid();
   const now = new Date().toISOString();
 
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare(
       `INSERT OR IGNORE INTO preview_cards (id, url, title, description, type, provider_name, provider_url, image_url, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`,
     ).bind(
@@ -202,7 +202,7 @@ export async function handleFetchPreviewCard(
       og.image,
       now,
     ),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       'INSERT OR IGNORE INTO status_preview_cards (status_id, preview_card_id) VALUES (?1, ?2)',
     ).bind(statusId, cardId),
   ]);

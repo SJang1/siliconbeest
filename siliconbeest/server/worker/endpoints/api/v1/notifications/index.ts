@@ -14,7 +14,7 @@ const app = new Hono<{ Variables: AppVariables }>();
 // GET /unread_count — number of unread notifications
 app.get('/unread_count', authRequired, requireScope('read:notifications'), async (c) => {
   const account = c.get('currentAccount')!;
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT COUNT(*) as cnt FROM notifications WHERE account_id = ?1 AND read = 0',
   ).bind(account.id).first<{ cnt: number }>();
   return c.json({ count: row?.cnt ?? 0 });
@@ -28,19 +28,19 @@ app.post('/read', authRequired, requireScope('write:notifications'), async (c) =
   let changed = false;
   if (body.id) {
     // Mark single notification as read
-    const result = await env.DB.prepare(
+    const result = await env.DB_META_C000.prepare(
       'UPDATE notifications SET read = 1 WHERE id = ?1 AND account_id = ?2 AND read = 0',
     ).bind(body.id, account.id).run();
     changed = (result.meta?.changes ?? 0) > 0;
   } else if (body.max_id) {
     // Mark all up to max_id as read
-    const result = await env.DB.prepare(
+    const result = await env.DB_META_C000.prepare(
       'UPDATE notifications SET read = 1 WHERE account_id = ?1 AND id <= ?2 AND read = 0',
     ).bind(account.id, body.max_id).run();
     changed = (result.meta?.changes ?? 0) > 0;
   } else {
     // Mark all as read
-    const result = await env.DB.prepare(
+    const result = await env.DB_META_C000.prepare(
       'UPDATE notifications SET read = 1 WHERE account_id = ?1 AND read = 0',
     ).bind(account.id).run();
     changed = (result.meta?.changes ?? 0) > 0;
@@ -48,7 +48,7 @@ app.post('/read', authRequired, requireScope('write:notifications'), async (c) =
   c.set('contributionApplied', changed);
 
   // Count remaining unread
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT COUNT(*) as cnt FROM notifications WHERE account_id = ?1 AND read = 0',
   ).bind(account.id).first<{ cnt: number }>();
 

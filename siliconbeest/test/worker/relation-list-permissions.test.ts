@@ -55,10 +55,10 @@ describe('stored status relation list permissions', () => {
       expect(statuses.some((item) => item.id === status.id)).toBe(false);
     }
 
-    const favourite = await env.DB.prepare(
+    const favourite = await env.DB_META_C000.prepare(
       'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
     ).bind(viewer.accountId, status.id).first<{ id: string }>();
-    const bookmark = await env.DB.prepare(
+    const bookmark = await env.DB_META_C000.prepare(
       'SELECT id FROM bookmarks WHERE account_id = ?1 AND status_id = ?2',
     ).bind(viewer.accountId, status.id).first<{ id: string }>();
     expect(favourite).not.toBeNull();

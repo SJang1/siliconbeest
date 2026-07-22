@@ -14,7 +14,7 @@ describe('Password endpoints', () => {
 
 		// Set a real bcrypt hash so verifyPassword works for change_password tests
 		const hashed = await hashPassword('OldPassword123');
-		await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
+		await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
 			.bind(hashed, user.userId)
 			.run();
 	});
@@ -59,7 +59,7 @@ describe('Password endpoints', () => {
 			// Set a reset token directly in DB
 			const token = 'valid-reset-token-abc123';
 			const now = new Date().toISOString();
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				'UPDATE users SET reset_password_token = ?1, reset_password_sent_at = ?2 WHERE id = ?3',
 			)
 				.bind(token, now, user.userId)
@@ -73,7 +73,7 @@ describe('Password endpoints', () => {
 			expect(res.status).toBe(200);
 
 			// Verify the token has been cleared
-			const dbUser = await env.DB.prepare(
+			const dbUser = await env.DB_META_C000.prepare(
 				'SELECT reset_password_token FROM users WHERE id = ?1',
 			)
 				.bind(user.userId)
@@ -85,7 +85,7 @@ describe('Password endpoints', () => {
 			// Set a token with a sent_at 2 hours ago
 			const token = 'expired-reset-token-xyz';
 			const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				'UPDATE users SET reset_password_token = ?1, reset_password_sent_at = ?2 WHERE id = ?3',
 			)
 				.bind(token, twoHoursAgo, user.userId)
@@ -116,7 +116,7 @@ describe('Password endpoints', () => {
 		beforeAll(async () => {
 			// Re-set the password to a known value for change_password tests
 			const hashed = await hashPassword('CurrentPass123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
 				.bind(hashed, user.userId)
 				.run();
 		});
@@ -160,7 +160,7 @@ describe('Password endpoints', () => {
 		it('returns 422 when new password is too short', async () => {
 			// Re-set password first
 			const hashed = await hashPassword('KnownPass123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2')
 				.bind(hashed, user.userId)
 				.run();
 

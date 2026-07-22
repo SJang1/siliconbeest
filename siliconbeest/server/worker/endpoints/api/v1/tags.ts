@@ -26,7 +26,7 @@ app.get('/:id', authOptional, async (c) => {
   const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await env.DB.prepare(
+  const tag = await env.DB_META_C000.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -38,7 +38,7 @@ app.get('/:id', authOptional, async (c) => {
 
   let following = false;
   if (currentAccount) {
-    const tf = await env.DB.prepare(
+    const tf = await env.DB_META_C000.prepare(
       'SELECT id FROM tag_follows WHERE account_id = ?1 AND tag_id = ?2',
     )
       .bind(currentAccount.id, tag.id)
@@ -55,7 +55,7 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
   const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await env.DB.prepare(
+  const tag = await env.DB_META_C000.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -67,7 +67,7 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
 
   const followId = generateUlid();
   const now = new Date().toISOString();
-  const inserted = await env.DB.prepare(
+  const inserted = await env.DB_META_C000.prepare(
     'INSERT OR IGNORE INTO tag_follows (id, account_id, tag_id, created_at) VALUES (?1, ?2, ?3, ?4)',
   )
     .bind(followId, currentAccount.id, tag.id, now)
@@ -83,7 +83,7 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
   const domain = env.INSTANCE_DOMAIN;
   const tagName = c.req.param('id').toLowerCase();
 
-  const tag = await env.DB.prepare(
+  const tag = await env.DB_META_C000.prepare(
     'SELECT * FROM tags WHERE name = ?1',
   )
     .bind(tagName)
@@ -93,7 +93,7 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
     throw new AppError(404, 'Record not found');
   }
 
-  const removed = await env.DB.prepare(
+  const removed = await env.DB_META_C000.prepare(
     'DELETE FROM tag_follows WHERE account_id = ?1 AND tag_id = ?2',
   )
     .bind(currentAccount.id, tag.id)

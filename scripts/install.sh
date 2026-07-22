@@ -170,9 +170,16 @@ D1_DATABASE_NAME="${PROJECT_PREFIX}-db"
 R2_BUCKET_NAME="${PROJECT_PREFIX}-media"
 MAIN_WORKER_NAME="${PROJECT_PREFIX}"
 QUEUE_FEDERATION="${PROJECT_PREFIX}-federation"
+INBOX_QUEUE_LANES=8
 QUEUE_INTERNAL="${PROJECT_PREFIX}-internal"
 QUEUE_EMAIL="${PROJECT_PREFIX}-email"
 QUEUE_DLQ="${PROJECT_PREFIX}-federation-dlq"
+QUEUE_DB_INSERT="${PROJECT_PREFIX}-db-insert"
+QUEUE_DB_UPDATE="${PROJECT_PREFIX}-db-update"
+QUEUE_DB_INSERT_DLQ="${PROJECT_PREFIX}-db-insert-dlq"
+QUEUE_DB_UPDATE_DLQ="${PROJECT_PREFIX}-db-update-dlq"
+QUEUE_REGISTRATION="${PROJECT_PREFIX}-registration"
+QUEUE_REGISTRATION_DLQ="${PROJECT_PREFIX}-registration-dlq"
 
 echo
 info "Domain:         $INSTANCE_DOMAIN"
@@ -255,9 +262,19 @@ create_queue() {
 }
 
 create_queue "$QUEUE_FEDERATION"
+for ((lane = 0; lane < INBOX_QUEUE_LANES; lane++)); do
+  create_queue "${PROJECT_PREFIX}-inbox-${lane}"
+  create_queue "${PROJECT_PREFIX}-inbox-${lane}-dlq"
+done
 create_queue "$QUEUE_INTERNAL"
 create_queue "$QUEUE_EMAIL"
 create_queue "$QUEUE_DLQ"
+create_queue "$QUEUE_DB_INSERT"
+create_queue "$QUEUE_DB_UPDATE"
+create_queue "$QUEUE_DB_INSERT_DLQ"
+create_queue "$QUEUE_DB_UPDATE_DLQ"
+create_queue "$QUEUE_REGISTRATION"
+create_queue "$QUEUE_REGISTRATION_DLQ"
 success "All queues created"
 
 # ---------------------------------------------------------------------------

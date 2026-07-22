@@ -19,7 +19,7 @@ export async function handleRefreshRemoteInstance(
   msg: RefreshRemoteInstanceMessage,
 ): Promise<void> {
   const domain = msg.domain.trim().toLowerCase();
-  const suspended = await getSuspendedDomains(env.DB, [domain]);
+  const suspended = await getSuspendedDomains(env.DB_META_C000, [domain]);
   if (suspended.has(domain)) {
     console.log(`[federation-admin] Skipping refresh for suspended domain ${domain}`);
     return;
@@ -112,7 +112,7 @@ async function listRemoteAccounts(
   domain: string,
   cursor?: string,
 ): Promise<RemoteAccountCacheRow[]> {
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT id, uri, public_key_id, inbox_url, shared_inbox_url
      FROM accounts
      WHERE domain = ?1 AND uri IS NOT NULL AND (?2 IS NULL OR id > ?2)

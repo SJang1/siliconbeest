@@ -34,7 +34,7 @@ export type CreateMediaInput = {
 };
 
 export const findById = async (id: string): Promise<MediaAttachment | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM media_attachments WHERE id = ?')
 		.bind(id)
 		.first<MediaAttachment>();
@@ -42,7 +42,7 @@ export const findById = async (id: string): Promise<MediaAttachment | null> => {
 };
 
 export const findByStatusId = async (statusId: string): Promise<MediaAttachment[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare('SELECT * FROM media_attachments WHERE status_id = ? ORDER BY created_at ASC')
 		.bind(statusId)
 		.all<MediaAttachment>();
@@ -50,7 +50,7 @@ export const findByStatusId = async (statusId: string): Promise<MediaAttachment[
 };
 
 export const findUnattached = async (accountId: string): Promise<MediaAttachment[]> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			'SELECT * FROM media_attachments WHERE account_id = ? AND status_id IS NULL ORDER BY created_at DESC'
 		)
@@ -80,7 +80,7 @@ export const create = async (input: CreateMediaInput): Promise<MediaAttachment> 
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO media_attachments (
 				id, status_id, account_id, file_key, file_content_type, file_size,
@@ -112,7 +112,7 @@ export const update = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE media_attachments SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -125,10 +125,10 @@ export const attachToStatus = async (ids: string[], statusId: string): Promise<v
 	const now = new Date().toISOString();
 
 	const stmts = ids.map((mediaId) =>
-		env.DB
+		env.DB_META_C000
 			.prepare('UPDATE media_attachments SET status_id = ?, updated_at = ? WHERE id = ?')
 			.bind(statusId, now, mediaId)
 	);
 
-	await env.DB.batch(stmts);
+	await env.DB_META_C000.batch(stmts);
 };

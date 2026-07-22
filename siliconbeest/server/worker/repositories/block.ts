@@ -19,7 +19,7 @@ export const findByAccountAndTarget = async (
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Block | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM blocks WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Block>();
@@ -38,7 +38,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM blocks
 			 WHERE ${where}
@@ -62,7 +62,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			'INSERT INTO blocks (id, account_id, target_account_id, uri, created_at) VALUES (?, ?, ?, ?, ?)'
 		)
@@ -75,7 +75,7 @@ export const create = async (
 export const deleteById = async (
 	id: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM blocks WHERE id = ?')
 		.bind(id)
 		.run();
@@ -85,7 +85,7 @@ export const isBlocked = async (
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT 1 FROM blocks WHERE account_id = ? AND target_account_id = ? LIMIT 1')
 		.bind(accountId, targetId)
 		.first();

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { generateUlid, isValidUlid, ulidToDate } from '../../server/worker/utils/ulid';
+import {
+  decodeShardUlid,
+  generateUlid,
+  isValidUlid,
+  MAX_PHYSICAL_SHARD_ORDINAL,
+  ulidToDate,
+} from '../../server/worker/utils/ulid';
 
 describe('ULID utilities', () => {
   // -------------------------------------------------------------------
@@ -96,6 +102,37 @@ describe('ULID utilities', () => {
       expect(date).toBeInstanceOf(Date);
       // Should be a date in 2016 (1469918176385 ms since epoch)
       expect(date.getFullYear()).toBe(2016);
+    });
+  });
+
+  describe('shard-aware format', () => {
+    it('preserves the 26-character ULID wire format and decodes the physical shard', () => {
+      const timestampMs = 1_700_000_000_000;
+      const id = generateUlid({ timestampMs, shardOrdinal: 0xabcde });
+
+      expect(id).toHaveLength(26);
+      expect(decodeShardUlid(id, timestampMs)).toEqual({
+        timestampMs,
+        formatVersion: 1,
+        shardOrdinal: 0xabcde,
+        legacy: false,
+      });
+    });
+
+    it('classifies every pre-cutover ID as format 0 without reading random header bits', () => {
+      const timestampMs = 1_600_000_000_000;
+      const id = generateUlid({ timestampMs, shardOrdinal: MAX_PHYSICAL_SHARD_ORDINAL });
+
+      expect(decodeShardUlid(id, timestampMs + 1)).toEqual({
+        timestampMs,
+        formatVersion: 0,
+        shardOrdinal: 0,
+        legacy: true,
+      });
+    });
+
+    it('rejects ordinals that do not fit the 20-bit header', () => {
+      expect(() => generateUlid({ shardOrdinal: MAX_PHYSICAL_SHARD_ORDINAL + 1 })).toThrow(RangeError);
     });
   });
 });

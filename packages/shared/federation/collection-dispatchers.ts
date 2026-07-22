@@ -58,7 +58,7 @@ const FOLLOWERS_PAGE_SIZE = 40;
 export async function getLocalAccountCollectionFirstCursor(
   identifier: string,
 ): Promise<string | null> {
-  const account = await env.DB.prepare(
+  const account = await env.DB_META_C000.prepare(
     `SELECT id FROM accounts
      WHERE username = ?1 AND domain IS NULL
      LIMIT 1`,
@@ -75,7 +75,7 @@ export async function authorizeAccountCollectionRequest<TData>(
   ctx: CollectionRequestContextLike<TData>,
   identifier: string,
 ): Promise<boolean> {
-  const account = await env.DB.prepare(
+  const account = await env.DB_META_C000.prepare(
     `SELECT a.uri, a.hide_collections, a.domain, a.suspended_at, a.memorial,
             u.disabled AS user_disabled, u.approved AS user_approved
      FROM accounts a
@@ -137,7 +137,7 @@ export function setupFollowersDispatcher<TData>(
     .setFollowersDispatcher(
       '/users/{identifier}/followers',
       async (_ctx, identifier, cursor) => {
-        const account = await env.DB
+        const account = await env.DB_META_C000
           .prepare(
             `SELECT id, followers_count FROM accounts
              WHERE username = ?1 AND domain IS NULL
@@ -166,7 +166,7 @@ export function setupFollowersDispatcher<TData>(
         `;
         binds.push(FOLLOWERS_PAGE_SIZE + 1);
 
-        const { results } = await env.DB
+        const { results } = await env.DB_META_C000
           .prepare(sql)
           .bind(...binds)
           .all<{ follow_id: string; uri: string; inbox_url: string; shared_inbox_url: string | null }>();
@@ -192,7 +192,7 @@ export function setupFollowersDispatcher<TData>(
       },
     )
     .setCounter(async (_ctx, identifier) => {
-      const account = await env.DB
+      const account = await env.DB_META_C000
         .prepare(
           `SELECT followers_count FROM accounts
            WHERE username = ?1 AND domain IS NULL LIMIT 1`,

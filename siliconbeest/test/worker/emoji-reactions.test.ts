@@ -11,7 +11,7 @@ async function insertStatus(accountId: string, text: string): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const uri = `https://test.siliconbeest.local/users/test/statuses/${id}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses (id, uri, url, account_id, text, content, visibility, local, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'public', 1, ?7, ?7)`,
   )

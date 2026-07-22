@@ -20,11 +20,11 @@ describe('ActivityPub Endpoints', () => {
     const pending = await createTestUser('appending');
     const memorial = await createTestUser('apmemorial');
     const suspended = await createTestUser('apsuspended');
-    await env.DB.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET disabled = 1 WHERE id = ?1')
       .bind(disabled.userId).run();
-    await env.DB.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE users SET approved = 0 WHERE id = ?1')
       .bind(pending.userId).run();
-    await env.DB.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
+    await env.DB_META_C000.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
       .bind(memorial.accountId).run();
 
     const suspendedStatus = await SELF.fetch(`${BASE}/api/v1/statuses`, {
@@ -34,10 +34,10 @@ describe('ActivityPub Endpoints', () => {
     });
     expect(suspendedStatus.status).toBe(200);
     suspendedStatusId = (await suspendedStatus.json<{ id: string }>()).id;
-    await env.DB.batch([
-      env.DB.prepare('UPDATE statuses SET pinned = 1 WHERE id = ?1')
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare('UPDATE statuses SET pinned = 1 WHERE id = ?1')
         .bind(suspendedStatusId),
-      env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
         .bind(new Date().toISOString(), suspended.accountId),
     ]);
 

@@ -43,7 +43,7 @@ async function insertRemoteAccount(
   const username = `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`;
   const uri = `https://${domain}/users/${username}`;
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url, inbox_url,
         suspended_at, created_at, updated_at)
@@ -90,25 +90,25 @@ describe('federated account Move permissions', () => {
     const newAccount = await insertRemoteAccount('move_new', 'new-move.example');
     const now = new Date().toISOString();
 
-    await env.DB.batch([
+    await env.DB_META_C000.batch([
       ...[eligible, blocked, domainBlocked, inactive, alreadyFollowing].map((follower) =>
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
            VALUES (?1, ?2, ?3, ?4, ?4)`,
         ).bind(crypto.randomUUID(), follower.accountId, oldAccount.id, now)),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4)`,
       ).bind(crypto.randomUUID(), alreadyFollowing.accountId, newAccount.id, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO blocks (id, account_id, target_account_id, created_at)
          VALUES (?1, ?2, ?3, ?4)`,
       ).bind(crypto.randomUUID(), blocked.accountId, newAccount.id, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
          VALUES (?1, ?2, ?3, ?4)`,
       ).bind(crypto.randomUUID(), domainBlocked.accountId, 'NEW-MOVE.EXAMPLE', now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
       ).bind(now, inactive.accountId),
     ]);
@@ -120,19 +120,19 @@ describe('federated account Move permissions', () => {
     const internalSend = vi.spyOn(env.QUEUE_INTERNAL, 'send');
 
     await processMove(activity, wrongRecipient.accountId);
-    const beforeAllowed = await env.DB.prepare(
+    const beforeAllowed = await env.DB_META_C000.prepare(
       'SELECT moved_to_account_id FROM accounts WHERE id = ?1',
     ).bind(oldAccount.id).first<{ moved_to_account_id: string | null }>();
     expect(beforeAllowed?.moved_to_account_id).toBeNull();
     expect(federationSend).not.toHaveBeenCalled();
 
     await processMove(activity, eligible.accountId);
-    const afterAllowed = await env.DB.prepare(
+    const afterAllowed = await env.DB_META_C000.prepare(
       'SELECT moved_to_account_id FROM accounts WHERE id = ?1',
     ).bind(oldAccount.id).first<{ moved_to_account_id: string | null }>();
     expect(afterAllowed?.moved_to_account_id).toBe(newAccount.id);
 
-    const { results: requests } = await env.DB.prepare(
+    const { results: requests } = await env.DB_META_C000.prepare(
       `SELECT account_id FROM follow_requests
        WHERE target_account_id = ?1
        ORDER BY account_id`,
@@ -155,7 +155,7 @@ describe('federated account Move permissions', () => {
     const deniedOld = await insertRemoteAccount('move_denied_old', 'old-denied.example');
     const deniedNew = await insertRemoteAccount('move_denied_new', 'new-denied.example', true);
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,
     ).bind(crypto.randomUUID(), follower.accountId, deniedOld.id, now).run();
@@ -163,7 +163,7 @@ describe('federated account Move permissions', () => {
     actorDocument.newUri = deniedNew.uri;
 
     await processMove(moveActivity(deniedOld, deniedNew), follower.accountId);
-    const denied = await env.DB.prepare(
+    const denied = await env.DB_META_C000.prepare(
       'SELECT moved_to_account_id FROM accounts WHERE id = ?1',
     ).bind(deniedOld.id).first<{ moved_to_account_id: string | null }>();
     expect(denied?.moved_to_account_id).toBeNull();
@@ -173,7 +173,7 @@ describe('federated account Move permissions', () => {
     actorDocument.oldUri = sharedOld.uri;
     actorDocument.newUri = sharedNew.uri;
     await processMove(moveActivity(sharedOld, sharedNew), '');
-    const accepted = await env.DB.prepare(
+    const accepted = await env.DB_META_C000.prepare(
       'SELECT moved_to_account_id FROM accounts WHERE id = ?1',
     ).bind(sharedOld.id).first<{ moved_to_account_id: string | null }>();
     expect(accepted?.moved_to_account_id).toBe(sharedNew.id);

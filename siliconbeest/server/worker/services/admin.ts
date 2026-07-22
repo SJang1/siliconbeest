@@ -22,7 +22,7 @@ import { getInstanceTitle } from './instance';
 export async function getAccountForModeration(
 	id: string,
 ): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT id, username, domain, uri FROM accounts WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT id, username, domain, uri FROM accounts WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -32,14 +32,14 @@ export async function getAccountForModeration(
  */
 export async function sensitizeAccount(id: string): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare('UPDATE accounts SET sensitized_at = ?1 WHERE id = ?2').bind(now, id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET sensitized_at = ?1 WHERE id = ?2').bind(now, id).run();
 }
 
 /**
  * Disable a user account (freeze).
  */
 export async function disableAccount(accountId: string): Promise<void> {
-	await env.DB.prepare('UPDATE users SET disabled = 1 WHERE account_id = ?1').bind(accountId).run();
+	await env.DB_META_C000.prepare('UPDATE users SET disabled = 1 WHERE account_id = ?1').bind(accountId).run();
 }
 
 /**
@@ -47,7 +47,7 @@ export async function disableAccount(accountId: string): Promise<void> {
  */
 export async function silenceAccount(id: string): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare('UPDATE accounts SET silenced_at = ?1 WHERE id = ?2').bind(now, id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET silenced_at = ?1 WHERE id = ?2').bind(now, id).run();
 }
 
 /**
@@ -55,7 +55,7 @@ export async function silenceAccount(id: string): Promise<void> {
  */
 export async function suspendAccount(id: string): Promise<string> {
 	const now = new Date().toISOString();
-	await env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2').bind(now, id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2').bind(now, id).run();
 	return now;
 }
 
@@ -63,28 +63,28 @@ export async function suspendAccount(id: string): Promise<string> {
  * Remove suspension from an account.
  */
 export async function unsuspendAccount(id: string): Promise<void> {
-	await env.DB.prepare('UPDATE accounts SET suspended_at = NULL WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = NULL WHERE id = ?1').bind(id).run();
 }
 
 /**
  * Remove silence from an account.
  */
 export async function unsilenceAccount(id: string): Promise<void> {
-	await env.DB.prepare('UPDATE accounts SET silenced_at = NULL WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET silenced_at = NULL WHERE id = ?1').bind(id).run();
 }
 
 /**
  * Re-enable a disabled (frozen) user account.
  */
 export async function enableAccount(accountId: string): Promise<void> {
-	await env.DB.prepare('UPDATE users SET disabled = 0 WHERE account_id = ?1').bind(accountId).run();
+	await env.DB_META_C000.prepare('UPDATE users SET disabled = 0 WHERE account_id = ?1').bind(accountId).run();
 }
 
 /**
  * Remove sensitized flag from an account.
  */
 export async function unsensitizeAccount(id: string): Promise<void> {
-	await env.DB.prepare('UPDATE accounts SET sensitized_at = NULL WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('UPDATE accounts SET sensitized_at = NULL WHERE id = ?1').bind(id).run();
 }
 
 /**
@@ -99,7 +99,7 @@ export async function addAccountWarning(
 ): Promise<string> {
 	const warningId = generateUlid();
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'INSERT INTO account_warnings (id, account_id, target_account_id, action, text, report_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
 	)
 		.bind(warningId, moderatorAccountId, targetAccountId, action, text, reportId || null, now)
@@ -115,7 +115,7 @@ export async function resolveReport(
 	moderatorAccountId: string,
 ): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare('UPDATE reports SET action_taken_at = ?1, action_taken_by_account_id = ?2 WHERE id = ?3')
+	await env.DB_META_C000.prepare('UPDATE reports SET action_taken_at = ?1, action_taken_by_account_id = ?2 WHERE id = ?3')
 		.bind(now, moderatorAccountId, reportId)
 		.run();
 }
@@ -126,7 +126,7 @@ export async function resolveReport(
 export async function getUserEmailByAccountId(
 	accountId: string,
 ): Promise<{ email: string | null; locale: string | null } | null> {
-	return env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1')
+	return env.DB_META_C000.prepare('SELECT email, locale FROM users WHERE account_id = ?1')
 		.bind(accountId)
 		.first<{ email: string | null; locale: string | null }>();
 }
@@ -141,10 +141,10 @@ export async function getUserEmailByAccountId(
 export async function getAccountWithUser(
 	accountId: string,
 ): Promise<{ account: Record<string, unknown>; user: Record<string, unknown> }> {
-	const account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(accountId).first();
+	const account = await env.DB_META_C000.prepare('SELECT * FROM accounts WHERE id = ?1').bind(accountId).first();
 	if (!account) throw new AppError(404, 'Record not found');
 
-	const user = await env.DB.prepare('SELECT * FROM users WHERE account_id = ?1').bind(accountId).first();
+	const user = await env.DB_META_C000.prepare('SELECT * FROM users WHERE account_id = ?1').bind(accountId).first();
 	if (!user) throw new AppError(404, 'Record not found');
 
 	return { account, user };
@@ -154,16 +154,16 @@ export async function getAccountWithUser(
  * Approve a pending account.
  */
 export async function approveAccount(accountId: string): Promise<void> {
-	await env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(accountId).run();
+	await env.DB_META_C000.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(accountId).run();
 }
 
 /**
  * Reject (delete) a pending account. Removes both user and account records.
  */
 export async function rejectAccount(accountId: string): Promise<void> {
-	await env.DB.batch([
-		env.DB.prepare('DELETE FROM users WHERE account_id = ?1').bind(accountId),
-		env.DB.prepare('DELETE FROM accounts WHERE id = ?1').bind(accountId),
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare('DELETE FROM users WHERE account_id = ?1').bind(accountId),
+		env.DB_META_C000.prepare('DELETE FROM accounts WHERE id = ?1').bind(accountId),
 	]);
 }
 
@@ -178,13 +178,13 @@ export async function setAccountRole(
 	accountId: string,
 	role: string,
 ): Promise<void> {
-	const account = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
+	const account = await env.DB_META_C000.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
 	if (!account) throw new AppError(404, 'Record not found');
 
-	const user = await env.DB.prepare('SELECT id, role FROM users WHERE account_id = ?1').bind(accountId).first();
+	const user = await env.DB_META_C000.prepare('SELECT id, role FROM users WHERE account_id = ?1').bind(accountId).first();
 	if (!user) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('UPDATE users SET role = ?1, updated_at = ?2 WHERE account_id = ?3')
+	await env.DB_META_C000.prepare('UPDATE users SET role = ?1, updated_at = ?2 WHERE account_id = ?3')
 		.bind(role, new Date().toISOString(), accountId)
 		.run();
 }
@@ -198,7 +198,7 @@ export interface ActiveTokenCacheIdentity {
 export async function getActiveTokenCacheIdentitiesForUser(
 	userId: string,
 ): Promise<ActiveTokenCacheIdentity[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT token_hash, token
 		 FROM oauth_access_tokens
 		 WHERE user_id = ?1 AND revoked_at IS NULL`,
@@ -220,10 +220,10 @@ export async function getActiveTokenCacheIdentitiesForUser(
 export async function getAccountWarnings(
 	accountId: string,
 ): Promise<Array<{ id: string; action: string; text: string; created_at: string; report_id: string | null }>> {
-	const account = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
+	const account = await env.DB_META_C000.prepare('SELECT id FROM accounts WHERE id = ?1').bind(accountId).first();
 	if (!account) throw new AppError(404, 'Record not found');
 
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		'SELECT id, action, text, created_at, report_id FROM account_warnings WHERE target_account_id = ?1 ORDER BY created_at DESC',
 	).bind(accountId).all();
 
@@ -241,12 +241,12 @@ export async function getAccountWarnings(
 // ----------------------------------------------------------------
 
 export async function listDomainBlocks(limit: number): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM domain_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
 	return (results || []) as Record<string, unknown>[];
 }
 
 export async function getDomainBlock(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -265,14 +265,14 @@ export async function createDomainBlock(
 	// Domains are DNS names (case-insensitive): store lowercase so enforcement
 	// in isDomainBlocked — which compares lowercased input — actually matches.
 	const domain = data.domain.trim().toLowerCase();
-	const existing = await env.DB.prepare('SELECT id FROM domain_blocks WHERE domain = ?1').bind(domain).first();
+	const existing = await env.DB_META_C000.prepare('SELECT id FROM domain_blocks WHERE domain = ?1').bind(domain).first();
 	if (existing) throw new AppError(422, 'Domain block already exists');
 
 	const id = generateUlid();
 	const now = new Date().toISOString();
 	const severity = data.severity || 'silence';
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO domain_blocks (id, domain, severity, reject_media, reject_reports, private_comment, public_comment, obfuscate, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
 	).bind(
@@ -282,7 +282,7 @@ export async function createDomainBlock(
 		data.obfuscate ? 1 : 0, now, now,
 	).run();
 
-	const row = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
@@ -297,7 +297,7 @@ export async function updateDomainBlock(
 		obfuscate?: boolean;
 	},
 ): Promise<{ row: Record<string, unknown>; domain: string }> {
-	const existing = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
@@ -320,26 +320,26 @@ export async function updateDomainBlock(
 	// temporary federation suspension.  Clear its tracker in the same batch so
 	// a concurrent resume can never delete comments or flags that were just
 	// edited by an administrator.
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE domain_blocks SET ${setters.join(', ')} WHERE id = ?${values.length}`,
 		).bind(...values),
-		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1')
+		env.DB_META_C000.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1')
 			.bind(id),
 	]);
 
-	const row = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return { row, domain: existing.domain as string };
 }
 
 export async function deleteDomainBlock(id: string): Promise<string> {
-	const existing = await env.DB.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM domain_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.batch([
-		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1').bind(id),
-		env.DB.prepare('DELETE FROM domain_blocks WHERE id = ?1').bind(id),
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare('DELETE FROM federation_suspensions WHERE domain_block_id = ?1').bind(id),
+		env.DB_META_C000.prepare('DELETE FROM domain_blocks WHERE id = ?1').bind(id),
 	]);
 	return existing.domain as string;
 }
@@ -349,12 +349,12 @@ export async function deleteDomainBlock(id: string): Promise<string> {
 // ----------------------------------------------------------------
 
 export async function listDomainAllows(limit: number): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM domain_allows ORDER BY id DESC LIMIT ?1').bind(limit).all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM domain_allows ORDER BY id DESC LIMIT ?1').bind(limit).all();
 	return (results || []) as Record<string, unknown>[];
 }
 
 export async function getDomainAllow(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -363,24 +363,24 @@ export async function createDomainAllow(domain: string): Promise<Record<string, 
 	// Domains are DNS names (case-insensitive): store lowercase, matching the
 	// comparison convention of isDomainBlocked/isEmailDomainBlocked.
 	domain = domain.trim().toLowerCase();
-	const existing = await env.DB.prepare('SELECT id FROM domain_allows WHERE domain = ?1').bind(domain).first();
+	const existing = await env.DB_META_C000.prepare('SELECT id FROM domain_allows WHERE domain = ?1').bind(domain).first();
 	if (existing) throw new AppError(422, 'Domain allow already exists');
 
 	const id = generateUlid();
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'INSERT INTO domain_allows (id, domain, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)',
 	).bind(id, domain, now, now).run();
 
-	const row = await env.DB.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
 export async function deleteDomainAllow(id: string): Promise<void> {
-	const existing = await env.DB.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM domain_allows WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('DELETE FROM domain_allows WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM domain_allows WHERE id = ?1').bind(id).run();
 }
 
 // ----------------------------------------------------------------
@@ -388,12 +388,12 @@ export async function deleteDomainAllow(id: string): Promise<void> {
 // ----------------------------------------------------------------
 
 export async function listIpBlocks(limit: number): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM ip_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
 	return (results || []) as Record<string, unknown>[];
 }
 
 export async function getIpBlock(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -407,12 +407,12 @@ export async function createIpBlock(
 		? new Date(Date.now() + data.expires_in * 1000).toISOString()
 		: null;
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO ip_blocks (id, ip, severity, comment, expires_at, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
 	).bind(id, data.ip, data.severity, data.comment || null, expiresAt, now, now).run();
 
-	const row = await env.DB.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
@@ -420,7 +420,7 @@ export async function updateIpBlock(
 	id: string,
 	data: { ip?: string; severity?: string; comment?: string; expires_in?: number },
 ): Promise<Record<string, unknown>> {
-	const existing = await env.DB.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
@@ -428,7 +428,7 @@ export async function updateIpBlock(
 		? (data.expires_in ? new Date(Date.now() + data.expires_in * 1000).toISOString() : null)
 		: existing.expires_at;
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE ip_blocks SET ip = ?1, severity = ?2, comment = ?3, expires_at = ?4, updated_at = ?5 WHERE id = ?6`,
 	).bind(
 		data.ip ?? existing.ip, data.severity ?? existing.severity,
@@ -436,15 +436,15 @@ export async function updateIpBlock(
 		expiresAt, now, id,
 	).run();
 
-	const row = await env.DB.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
 export async function deleteIpBlock(id: string): Promise<void> {
-	const existing = await env.DB.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM ip_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('DELETE FROM ip_blocks WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM ip_blocks WHERE id = ?1').bind(id).run();
 }
 
 // ----------------------------------------------------------------
@@ -452,12 +452,12 @@ export async function deleteIpBlock(id: string): Promise<void> {
 // ----------------------------------------------------------------
 
 export async function listEmailDomainBlocks(limit: number): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM email_domain_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM email_domain_blocks ORDER BY id DESC LIMIT ?1').bind(limit).all();
 	return (results || []) as Record<string, unknown>[];
 }
 
 export async function getEmailDomainBlock(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -467,24 +467,24 @@ export async function createEmailDomainBlock(domain: string): Promise<Record<str
 	// signup-side check in isEmailDomainBlocked — which compares lowercased
 	// input — actually matches.
 	domain = domain.trim().toLowerCase();
-	const existing = await env.DB.prepare('SELECT id FROM email_domain_blocks WHERE domain = ?1').bind(domain).first();
+	const existing = await env.DB_META_C000.prepare('SELECT id FROM email_domain_blocks WHERE domain = ?1').bind(domain).first();
 	if (existing) throw new AppError(422, 'Email domain block already exists');
 
 	const id = generateUlid();
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'INSERT INTO email_domain_blocks (id, domain, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)',
 	).bind(id, domain, now, now).run();
 
-	const row = await env.DB.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
 export async function deleteEmailDomainBlock(id: string): Promise<void> {
-	const existing = await env.DB.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM email_domain_blocks WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('DELETE FROM email_domain_blocks WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM email_domain_blocks WHERE id = ?1').bind(id).run();
 }
 
 // ----------------------------------------------------------------
@@ -492,7 +492,7 @@ export async function deleteEmailDomainBlock(id: string): Promise<void> {
 // ----------------------------------------------------------------
 
 export async function listCustomEmojis(domain: string): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT * FROM custom_emojis
 		 WHERE domain IS NULL OR domain = ?1
 		 ORDER BY category ASC, shortcode ASC`,
@@ -501,7 +501,7 @@ export async function listCustomEmojis(domain: string): Promise<Record<string, u
 }
 
 export async function getCustomEmoji(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -510,7 +510,7 @@ export async function checkEmojiShortcodeExists(
 	shortcode: string,
 	instanceDomain: string,
 ): Promise<boolean> {
-	const existing = await env.DB.prepare(
+	const existing = await env.DB_META_C000.prepare(
 		'SELECT id FROM custom_emojis WHERE shortcode = ?1 AND (domain IS NULL OR domain = ?2)',
 	).bind(shortcode, instanceDomain).first();
 	return !!existing;
@@ -520,12 +520,12 @@ export async function createCustomEmoji(
 	data: { id: string; shortcode: string; domain: string; imageKey: string; category: string | null },
 ): Promise<Record<string, unknown>> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, category, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, ?7)`,
 	).bind(data.id, data.shortcode, data.domain, data.imageKey, data.category, now, now).run();
 
-	const row = await env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(data.id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(data.id).first();
 	return row!;
 }
 
@@ -533,11 +533,11 @@ export async function updateCustomEmoji(
 	id: string,
 	data: { category?: string | null; visible_in_picker?: boolean },
 ): Promise<Record<string, unknown>> {
-	const existing = await env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE custom_emojis SET category = ?1, visible_in_picker = ?2, updated_at = ?3 WHERE id = ?4`,
 	).bind(
 		data.category !== undefined ? data.category : existing.category,
@@ -545,15 +545,15 @@ export async function updateCustomEmoji(
 		now, id,
 	).run();
 
-	const row = await env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
 export async function deleteCustomEmoji(id: string): Promise<string | null> {
-	const existing = await env.DB.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM custom_emojis WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.prepare('DELETE FROM custom_emojis WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM custom_emojis WHERE id = ?1').bind(id).run();
 	return (existing.image_key as string) || null;
 }
 
@@ -562,12 +562,12 @@ export async function deleteCustomEmoji(id: string): Promise<string | null> {
 // ----------------------------------------------------------------
 
 export async function listAnnouncements(): Promise<Record<string, unknown>[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM announcements ORDER BY created_at DESC').all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM announcements ORDER BY created_at DESC').all();
 	return (results || []) as Record<string, unknown>[];
 }
 
 export async function getAnnouncement(id: string): Promise<Record<string, unknown>> {
-	const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -579,12 +579,12 @@ export async function createAnnouncement(
 	const now = new Date().toISOString();
 	const publishedAt = data.published !== false ? now : null;
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO announcements (id, text, published_at, starts_at, ends_at, all_day, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
 	).bind(id, data.text, publishedAt, data.starts_at || null, data.ends_at || null, data.all_day ? 1 : 0, now, now).run();
 
-	const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
@@ -592,7 +592,7 @@ export async function updateAnnouncement(
 	id: string,
 	data: { text?: string; published?: boolean; starts_at?: string; ends_at?: string; all_day?: boolean },
 ): Promise<Record<string, unknown>> {
-	const existing = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
@@ -603,7 +603,7 @@ export async function updateAnnouncement(
 		publishedAt = null;
 	}
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE announcements SET text = ?1, published_at = ?2, starts_at = ?3, ends_at = ?4, all_day = ?5, updated_at = ?6 WHERE id = ?7`,
 	).bind(
 		data.text ?? existing.text,
@@ -614,17 +614,17 @@ export async function updateAnnouncement(
 		now, id,
 	).run();
 
-	const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	return row!;
 }
 
 export async function deleteAnnouncement(id: string): Promise<void> {
-	const existing = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM announcements WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
 
-	await env.DB.batch([
-		env.DB.prepare('DELETE FROM announcement_dismissals WHERE announcement_id = ?1').bind(id),
-		env.DB.prepare('DELETE FROM announcements WHERE id = ?1').bind(id),
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare('DELETE FROM announcement_dismissals WHERE announcement_id = ?1').bind(id),
+		env.DB_META_C000.prepare('DELETE FROM announcements WHERE id = ?1').bind(id),
 	]);
 }
 
@@ -643,18 +643,18 @@ export interface RelayRow {
 }
 
 export async function listRelays(): Promise<RelayRow[]> {
-	const { results } = await env.DB.prepare('SELECT * FROM relays ORDER BY created_at DESC').all<RelayRow>();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM relays ORDER BY created_at DESC').all<RelayRow>();
 	return results || [];
 }
 
 export async function getRelay(id: string): Promise<RelayRow> {
-	const row = await env.DB.prepare('SELECT * FROM relays WHERE id = ?1').bind(id).first<RelayRow>();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM relays WHERE id = ?1').bind(id).first<RelayRow>();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
 
 export async function checkRelayExists(inboxUrl: string): Promise<boolean> {
-	const existing = await env.DB.prepare('SELECT id FROM relays WHERE inbox_url = ?1').bind(inboxUrl).first();
+	const existing = await env.DB_META_C000.prepare('SELECT id FROM relays WHERE inbox_url = ?1').bind(inboxUrl).first();
 	return !!existing;
 }
 
@@ -665,16 +665,16 @@ export async function createRelay(
 	const id = generateUlid();
 	const now = new Date().toISOString();
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO relays (id, inbox_url, state, follow_activity_id, created_at, updated_at)
 		 VALUES (?1, ?2, 'pending', ?3, ?4, ?5)`,
 	).bind(id, inboxUrl, followActivityId, now, now).run();
 
-	return (await env.DB.prepare('SELECT * FROM relays WHERE id = ?1').bind(id).first<RelayRow>())!;
+	return (await env.DB_META_C000.prepare('SELECT * FROM relays WHERE id = ?1').bind(id).first<RelayRow>())!;
 }
 
 export async function deleteRelay(id: string): Promise<void> {
-	await env.DB.prepare('DELETE FROM relays WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM relays WHERE id = ?1').bind(id).run();
 }
 
 /**
@@ -685,7 +685,7 @@ export async function getInstanceActorKey(domain: string): Promise<{
 	private_key: string;
 	key_id: string;
 }> {
-	const existing = await env.DB.prepare(
+	const existing = await env.DB_META_C000.prepare(
 		"SELECT public_key, private_key, key_id FROM actor_keys WHERE account_id = '__instance__'",
 	).first<{ public_key: string; private_key: string; key_id: string }>();
 
@@ -725,12 +725,12 @@ export async function getInstanceActorKey(domain: string): Promise<{
 	const now = new Date().toISOString();
 	const title = await getInstanceTitle();
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
 		 VALUES ('__instance__', ?1, NULL, ?2, '', ?3, ?4, ?5, ?5)`,
 	).bind(domain, title, `https://${domain}/actor`, `https://${domain}/about`, now).run();
 
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
 		 VALUES (?1, '__instance__', ?2, ?3, ?4, ?5)`,
 	).bind(id, publicKeyPem, privateKeyPem, keyId, now).run();
@@ -747,7 +747,7 @@ export async function listInstances(
 ): Promise<Record<string, unknown>[]> {
 	let results;
 	if (opts.search) {
-		const { results: rows } = await env.DB.prepare(
+		const { results: rows } = await env.DB_META_C000.prepare(
 			`SELECT i.*,
 			        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
 			        EXISTS(
@@ -759,7 +759,7 @@ export async function listInstances(
 		).bind(`%${opts.search}%`, opts.limit, opts.offset).all();
 		results = rows;
 	} else {
-		const { results: rows } = await env.DB.prepare(
+		const { results: rows } = await env.DB_META_C000.prepare(
 			`SELECT i.*,
 			        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
 			        EXISTS(
@@ -779,7 +779,7 @@ export async function listInstances(
 
 export async function getInstance(domain: string): Promise<Record<string, unknown> | null> {
 	domain = domain.trim().toLowerCase();
-	const instance = await env.DB.prepare(
+	const instance = await env.DB_META_C000.prepare(
 		`SELECT i.*,
 		        (SELECT COUNT(*) FROM accounts a WHERE a.domain = i.domain) AS account_count,
 		        EXISTS(
@@ -797,7 +797,7 @@ export async function getRepresentativeRemoteAccount(domain: string): Promise<{
 	public_key_id: string | null;
 	public_key_pem: string | null;
 } | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT uri, inbox_url, public_key_id, public_key_pem
 		 FROM accounts
 		 WHERE domain = ?1 AND uri IS NOT NULL
@@ -818,7 +818,7 @@ export async function setInstanceSuspension(
 	suspended: boolean,
 ): Promise<void> {
 	domain = domain.trim().toLowerCase();
-	const instance = await env.DB.prepare('SELECT id FROM instances WHERE domain = ?1')
+	const instance = await env.DB_META_C000.prepare('SELECT id FROM instances WHERE domain = ?1')
 		.bind(domain)
 		.first<{ id: string }>();
 	if (!instance) throw new AppError(404, 'Instance not found');
@@ -827,16 +827,16 @@ export async function setInstanceSuspension(
 
 	if (suspended) {
 		const temporaryBlockId = generateUlid();
-		await env.DB.batch([
+		await env.DB_META_C000.batch([
 			// The first concurrent request creates the temporary row.  Later
 			// requests observe it inside their serialized batch and remain no-ops.
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`INSERT OR IGNORE INTO domain_blocks (
 				   id, domain, severity, reject_media, reject_reports,
 				   private_comment, public_comment, obfuscate, created_at, updated_at
 				 ) VALUES (?1, ?2, 'suspend', 0, 0, NULL, NULL, 0, ?3, ?3)`,
 			).bind(temporaryBlockId, domain, now),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`INSERT INTO federation_suspensions (
 				   domain, domain_block_id, previous_severity, created_at, updated_at
 				 )
@@ -850,7 +850,7 @@ export async function setInstanceSuspension(
 				   previous_severity = excluded.previous_severity,
 				   updated_at = excluded.updated_at`,
 			).bind(domain, temporaryBlockId, now),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE domain_blocks
 				 SET severity = 'suspend', updated_at = ?1
 				 WHERE domain = ?2
@@ -862,8 +862,8 @@ export async function setInstanceSuspension(
 		return;
 	}
 
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE domain_blocks
 			 SET severity = (
 			       SELECT previous_severity
@@ -877,7 +877,7 @@ export async function setInstanceSuspension(
 			   WHERE domain = ?1 AND previous_severity IS NOT NULL
 			 )`,
 		).bind(domain, now),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM domain_blocks
 			 WHERE id = (
 			   SELECT domain_block_id
@@ -887,7 +887,7 @@ export async function setInstanceSuspension(
 		).bind(domain),
 		// A manual suspension has no temporary-state row.  Lift only its
 		// severity so existing comments and reject flags remain intact.
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE domain_blocks
 			 SET severity = 'noop', updated_at = ?1
 			 WHERE domain = ?2 AND severity = 'suspend'
@@ -895,13 +895,13 @@ export async function setInstanceSuspension(
 			     SELECT 1 FROM federation_suspensions WHERE domain = ?2
 			   )`,
 		).bind(now, domain),
-		env.DB.prepare('DELETE FROM federation_suspensions WHERE domain = ?1').bind(domain),
+		env.DB_META_C000.prepare('DELETE FROM federation_suspensions WHERE domain = ?1').bind(domain),
 	]);
 }
 
 export async function deleteInstanceRecord(domain: string): Promise<void> {
 	domain = domain.trim().toLowerCase();
-	const result = await env.DB.prepare('DELETE FROM instances WHERE domain = ?1')
+	const result = await env.DB_META_C000.prepare('DELETE FROM instances WHERE domain = ?1')
 		.bind(domain)
 		.run();
 	if ((result.meta.changes ?? 0) === 0) throw new AppError(404, 'Instance not found');
@@ -914,18 +914,18 @@ export async function getFederationStats(): Promise<{
 	remote_accounts: number;
 }> {
 	const [totalInstances, activeInstances, unreachableInstances, remoteAccounts] = await Promise.all([
-		env.DB.prepare('SELECT COUNT(*) AS cnt FROM instances').first<{ cnt: number }>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare('SELECT COUNT(*) AS cnt FROM instances').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM instances
 			 WHERE last_successful_at IS NOT NULL
 			 AND (last_failed_at IS NULL OR last_successful_at > last_failed_at)`,
 		).first<{ cnt: number }>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM instances
 			 WHERE failure_count > 0
 			 AND (last_successful_at IS NULL OR last_failed_at > last_successful_at)`,
 		).first<{ cnt: number }>(),
-		env.DB.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NOT NULL').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NOT NULL').first<{ cnt: number }>(),
 	]);
 
 	return {
@@ -963,13 +963,13 @@ export async function listDlqParked(options: {
 }): Promise<{ items: DlqParkedRow[]; counts: Record<string, number> }> {
 	const status = options.status ?? 'parked';
 	const [{ results }, { results: countRows }] = await Promise.all([
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT * FROM federation_dlq_parked
 			 WHERE status = ?1
 			 ORDER BY parked_at DESC
 			 LIMIT ?2 OFFSET ?3`,
 		).bind(status, options.limit, options.offset).all<DlqParkedRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			'SELECT status, COUNT(*) AS cnt FROM federation_dlq_parked GROUP BY status',
 		).all<{ status: string; cnt: number }>(),
 	]);
@@ -980,7 +980,7 @@ export async function listDlqParked(options: {
 }
 
 export async function getDlqParked(id: string): Promise<DlqParkedRow> {
-	const row = await env.DB.prepare('SELECT * FROM federation_dlq_parked WHERE id = ?1')
+	const row = await env.DB_META_C000.prepare('SELECT * FROM federation_dlq_parked WHERE id = ?1')
 		.bind(id)
 		.first<DlqParkedRow>();
 	if (!row) throw new AppError(404, 'Parked message not found');
@@ -994,7 +994,7 @@ export async function listParkedDlqForBulk(options: {
 	if (options.ids) {
 		if (options.ids.length === 0) return [];
 		const placeholders = options.ids.map((_, index) => `?${index + 1}`).join(', ');
-		const { results } = await env.DB.prepare(
+		const { results } = await env.DB_META_C000.prepare(
 			`SELECT * FROM federation_dlq_parked
 			 WHERE status = 'parked' AND id IN (${placeholders})
 			 ORDER BY parked_at ASC`,
@@ -1002,7 +1002,7 @@ export async function listParkedDlqForBulk(options: {
 		return results ?? [];
 	}
 
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT * FROM federation_dlq_parked
 		 WHERE status = 'parked'
 		 ORDER BY parked_at ASC
@@ -1015,7 +1015,7 @@ export async function markDlqParked(
 	id: string,
 	status: 'replayed' | 'discarded',
 ): Promise<void> {
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE federation_dlq_parked SET status = ?2, updated_at = ?3 WHERE id = ?1',
 	)
 		.bind(id, status, new Date().toISOString())
@@ -1029,7 +1029,7 @@ export async function markDlqParkedBulk(
 	if (ids.length === 0) return;
 	const updatedAt = new Date().toISOString();
 	const placeholders = ids.map((_, index) => `?${index + 3}`).join(', ');
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE federation_dlq_parked
 		 SET status = ?1, updated_at = ?2
 		 WHERE status = 'parked' AND id IN (${placeholders})`,

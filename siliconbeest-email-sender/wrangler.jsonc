@@ -22,7 +22,7 @@
 	// D1 for reading SMTP settings from settings table
 	"d1_databases": [
 		{
-			"binding": "DB",
+			"binding": "DB_META_C000",
 			"database_name": "siliconbeest-db",
 			"database_id": "YOUR_D1_DATABASE_ID"
 		}

@@ -8,7 +8,7 @@ import { applyMigration } from './helpers';
 
 async function createDomainRule(domain: string, severity: string): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO domain_blocks (
        id, domain, severity, reject_media, reject_reports, created_at, updated_at
      ) VALUES (?1, ?2, ?3, 0, 0, ?4, ?4)`,
@@ -26,17 +26,17 @@ describe('admin parent-domain permission boundaries', () => {
     await createDomainRule('parent-boundary.example', 'suspend');
 
     expect((await isDomainBlocked(
-      env.DB,
+      env.DB_META_C000,
       null,
       'sub.parent-boundary.example',
     )).blocked).toBe(true);
     expect((await isDomainBlocked(
-      env.DB,
+      env.DB_META_C000,
       null,
       'badparent-boundary.example',
     )).blocked).toBe(false);
 
-    const suspended = await getSuspendedDomains(env.DB, [
+    const suspended = await getSuspendedDomains(env.DB_META_C000, [
       'deep.sub.parent-boundary.example',
       'badparent-boundary.example',
     ]);
@@ -49,17 +49,17 @@ describe('admin parent-domain permission boundaries', () => {
     await createDomainRule('allowed.specific-override.example', 'noop');
 
     expect((await isDomainBlocked(
-      env.DB,
+      env.DB_META_C000,
       null,
       'child.allowed.specific-override.example',
     )).blocked).toBe(false);
     expect((await isDomainBlocked(
-      env.DB,
+      env.DB_META_C000,
       null,
       'blocked.specific-override.example',
     )).blocked).toBe(true);
 
-    const suspended = await getSuspendedDomains(env.DB, [
+    const suspended = await getSuspendedDomains(env.DB_META_C000, [
       'child.allowed.specific-override.example',
       'blocked.specific-override.example',
     ]);

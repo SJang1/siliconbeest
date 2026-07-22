@@ -7,16 +7,24 @@ import {
 } from '@/api/mastodon/accounts';
 
 export const useAccountsStore = defineStore('accounts', () => {
+  const MAX_CACHED_ACCOUNTS = 2_500;
   const cache = ref<Map<string, Account>>(new Map());
   const relationships = ref<Map<string, Relationship>>(new Map());
 
   function cacheAccount(account: Account) {
+    cache.value.delete(account.id);
     cache.value.set(account.id, account);
+    while (cache.value.size > MAX_CACHED_ACCOUNTS) {
+      const oldestId = cache.value.keys().next().value as string | undefined;
+      if (!oldestId) break;
+      cache.value.delete(oldestId);
+      relationships.value.delete(oldestId);
+    }
   }
 
   function cacheAccounts(accounts: Account[]) {
     for (const account of accounts) {
-      cache.value.set(account.id, account);
+      cacheAccount(account);
     }
   }
 

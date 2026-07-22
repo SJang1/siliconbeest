@@ -130,7 +130,7 @@ class UndoProcessor extends BaseProcessor {
 
 		let stored: StoredFollowUndoTarget | null = null;
 		if (followUri) {
-			const row = await env.DB.prepare(
+			const row = await env.DB_META_C000.prepare(
 				`SELECT 'follow' AS kind, id, target_account_id
 				 FROM follows
 				 WHERE uri = ?1 AND account_id = ?2
@@ -152,7 +152,7 @@ class UndoProcessor extends BaseProcessor {
 			// An explicit activity URI never falls back to another relationship.
 			if (!stored) return;
 		} else if (embeddedTarget) {
-			const row = await env.DB.prepare(
+			const row = await env.DB_META_C000.prepare(
 				`SELECT 'follow' AS kind, id, target_account_id
 				 FROM follows
 				 WHERE account_id = ?1 AND target_account_id = ?2
@@ -187,22 +187,22 @@ class UndoProcessor extends BaseProcessor {
 		)) return;
 
 		const deleted = stored.kind === 'follow'
-			? await env.DB.prepare(
+			? await env.DB_META_C000.prepare(
 				'DELETE FROM follows WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3',
 			).bind(stored.id, actorAccountId, stored.targetAccountId).run()
-			: await env.DB.prepare(
+			: await env.DB_META_C000.prepare(
 				'DELETE FROM follow_requests WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3',
 			).bind(stored.id, actorAccountId, stored.targetAccountId).run();
 		if ((deleted.meta?.changes ?? 0) === 0 || stored.kind !== 'follow') return;
 
-		await env.DB.batch([
-			env.DB.prepare(
+		await env.DB_META_C000.batch([
+			env.DB_META_C000.prepare(
 				'UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1',
 			).bind(stored.targetAccountId),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				'UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1',
 			).bind(actorAccountId),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`DELETE FROM list_accounts
 				 WHERE account_id = ?1
 				   AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
@@ -219,7 +219,7 @@ class UndoProcessor extends BaseProcessor {
 		let favouriteId: string | null = null;
 
 		if (likeUri) {
-			const fav = await env.DB.prepare(
+			const fav = await env.DB_META_C000.prepare(
 				`SELECT id, status_id FROM favourites WHERE uri = ?1 AND account_id = ?2 LIMIT 1`,
 			)
 				.bind(likeUri, actorAccountId)
@@ -241,10 +241,10 @@ class UndoProcessor extends BaseProcessor {
 		if (!statusId || !await canAccountInteractWithStatus(statusId, actorAccountId)) return false;
 
 		const deleted = favouriteId
-			? await env.DB.prepare(
+			? await env.DB_META_C000.prepare(
 				'DELETE FROM favourites WHERE id = ?1 AND account_id = ?2 AND status_id = ?3',
 			).bind(favouriteId, actorAccountId, statusId).run()
-			: await env.DB.prepare(
+			: await env.DB_META_C000.prepare(
 				'DELETE FROM favourites WHERE account_id = ?1 AND status_id = ?2',
 			).bind(actorAccountId, statusId).run();
 		if ((deleted.meta?.changes ?? 0) === 0) return false;
@@ -267,7 +267,7 @@ class UndoProcessor extends BaseProcessor {
 		if (!await canAccountInteractWithStatus(originalStatus.id, actorAccountId)) return false;
 
 		// Find and soft-delete the reblog
-		const reblog = await env.DB.prepare(
+		const reblog = await env.DB_META_C000.prepare(
 			`SELECT id FROM statuses
 			 WHERE (reblog_of_id = ?1 OR quote_id = ?1)
 			   AND account_id = ?2
@@ -279,7 +279,7 @@ class UndoProcessor extends BaseProcessor {
 
 		if (!reblog) return false;
 		const now = new Date().toISOString();
-		const deleted = await env.DB.prepare(
+		const deleted = await env.DB_META_C000.prepare(
 			`UPDATE statuses SET deleted_at = ?1, updated_at = ?1
 			 WHERE id = ?2 AND account_id = ?3 AND deleted_at IS NULL`,
 		).bind(now, reblog.id, actorAccountId).run();
@@ -303,7 +303,7 @@ class UndoProcessor extends BaseProcessor {
 		if (!status) return false;
 		if (!await canAccountInteractWithStatus(status.id, actorAccountId)) return false;
 
-		const deleted = await env.DB.prepare(
+		const deleted = await env.DB_META_C000.prepare(
 			`DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3`,
 		)
 			.bind(actorAccountId, status.id, emoji)
@@ -330,7 +330,7 @@ class UndoProcessor extends BaseProcessor {
 		const targetAccount = await this.findAccountByUri(targetUri);
 		if (!targetAccount) return;
 
-		const storedBlock = await env.DB.prepare(
+		const storedBlock = await env.DB_META_C000.prepare(
 			`SELECT id, uri FROM blocks
 			 WHERE account_id = ?1 AND target_account_id = ?2
 			 LIMIT 1`,
@@ -351,7 +351,7 @@ class UndoProcessor extends BaseProcessor {
 			storedTargetMatches,
 		)) return;
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`DELETE FROM blocks
 			 WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3`,
 		).bind(storedBlock.id, actorAccountId, targetAccount.id).run();

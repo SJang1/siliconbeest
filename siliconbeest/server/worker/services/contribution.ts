@@ -159,7 +159,7 @@ async function getContributionSettings(event: ContributionEvent): Promise<Contri
 		eventKey,
 	];
 	const placeholders = keys.map(() => '?').join(', ');
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT key, value FROM settings WHERE key IN (${placeholders})`,
 	).bind(...keys).all<{ key: string; value: string }>();
 	const values = new Map((results ?? []).map((row) => [row.key, row.value]));
@@ -172,7 +172,7 @@ async function getContributionSettings(event: ContributionEvent): Promise<Contri
 
 async function ensureContributionBalance(accountId: string): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT OR IGNORE INTO account_invitation_balances
 		 (account_id, available_credits, contribution_score, contribution_award_level, created_at, updated_at)
 		 SELECT accounts.id, 0, 0, 0, ?2, ?2
@@ -182,7 +182,7 @@ async function ensureContributionBalance(accountId: string): Promise<void> {
 }
 
 async function getContributionBalanceRow(accountId: string): Promise<ContributionBalanceRow> {
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT account_id, available_credits, contribution_score, contribution_award_level
 		 FROM account_invitation_balances WHERE account_id = ?1`,
 	).bind(accountId).first<ContributionBalanceRow>();
@@ -222,7 +222,7 @@ async function applyContributionDelta(
 		);
 
 		const statements = [
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE account_invitation_balances
 				 SET last_credit_delta = ${liveAwardSql},
 				     available_credits = available_credits + ${liveAwardSql},
@@ -246,7 +246,7 @@ async function applyContributionDelta(
 		];
 
 		if (delta !== 0) {
-			statements.push(env.DB.prepare(
+			statements.push(env.DB_META_C000.prepare(
 				`INSERT INTO invitation_audit_logs
 				 (id, actor_account_id, target_account_id, invitation_id, action,
 				  credit_delta, contribution_delta, credits_after, contribution_score_after,
@@ -266,7 +266,7 @@ async function applyContributionDelta(
 			));
 		}
 
-		statements.push(env.DB.prepare(
+		statements.push(env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action,
 			  credit_delta, contribution_delta, credits_after, contribution_score_after,
@@ -284,7 +284,7 @@ async function applyContributionDelta(
 			   AND balance.last_credit_delta > 0`,
 		).bind(generateUlid(), now, accountId, operationId));
 
-		const results = await env.DB.batch(statements);
+		const results = await env.DB_META_C000.batch(statements);
 		if ((results[0]?.meta.changes ?? 0) !== 1) continue;
 		const updated = await getContributionBalanceRow(accountId);
 		const creditsAwarded = updated.available_credits - current.available_credits;

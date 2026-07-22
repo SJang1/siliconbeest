@@ -62,7 +62,7 @@ export async function handleSendWebPush(
   const permissionCheckAt = new Date().toISOString();
 
   // Load the notification details
-  const notification = await env.DB.prepare(
+  const notification = await env.DB_META_C000.prepare(
     `SELECT n.id, n.type AS notification_type, n.status_id,
             n.account_id AS notification_recipient_account_id,
             recipient_user.account_id AS user_account_id,
@@ -279,7 +279,7 @@ export async function handleSendWebPush(
   }
 
   // Load all push subscriptions for the user
-  const subscriptions = await env.DB.prepare(
+  const subscriptions = await env.DB_META_C000.prepare(
     `SELECT id, endpoint, key_p256dh, key_auth
      FROM web_push_subscriptions
      WHERE user_id = ?`,
@@ -308,7 +308,7 @@ export async function handleSendWebPush(
   });
 
   // Load VAPID keys from DB settings
-  const vapidRows = await env.DB
+  const vapidRows = await env.DB_META_C000
     .prepare("SELECT key, value FROM settings WHERE key IN ('vapid_public_key', 'vapid_private_key')")
     .all<{ key: string; value: string }>();
   const vapidMap: Record<string, string> = {};
@@ -359,7 +359,7 @@ export async function handleSendWebPush(
 
       if (result.gone) {
         // Subscription is stale — remove it
-        await env.DB.prepare(
+        await env.DB_META_C000.prepare(
           `DELETE FROM web_push_subscriptions WHERE id = ?`,
         )
           .bind(sub.id)

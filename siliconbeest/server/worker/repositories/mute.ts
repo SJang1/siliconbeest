@@ -22,7 +22,7 @@ export const findByAccountAndTarget = async (
 	accountId: string,
 	targetAccountId: string,
 ): Promise<Mute | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM mutes WHERE account_id = ? AND target_account_id = ?')
 		.bind(accountId, targetAccountId)
 		.first<Mute>();
@@ -41,7 +41,7 @@ export const findByAccount = async (
 	const where = clauses.map(c => c.sql).join(' AND ');
 	const params = [...clauses.map(c => c.param), limit];
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT * FROM mutes
 			 WHERE ${where}
@@ -67,7 +67,7 @@ export const create = async (
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO mutes (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -85,7 +85,7 @@ export const create = async (
 export const deleteById = async (
 	id: string,
 ): Promise<void> => {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM mutes WHERE id = ?')
 		.bind(id)
 		.run();
@@ -95,7 +95,7 @@ export const isMuted = async (
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare(
 			`SELECT 1 FROM mutes
 			 WHERE account_id = ? AND target_account_id = ?

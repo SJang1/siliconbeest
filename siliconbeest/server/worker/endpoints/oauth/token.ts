@@ -82,7 +82,7 @@ app.post('/', async (c) => {
 	// ---------------------------------------------------------------------------
 
 	if (grantType === 'client_credentials') {
-		const oauthApp = await env.DB.prepare(
+		const oauthApp = await env.DB_META_C000.prepare(
 			`SELECT id, client_secret, scopes FROM oauth_applications WHERE client_id = ?1 LIMIT 1`,
 		)
 			.bind(clientId)

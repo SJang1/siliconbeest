@@ -127,7 +127,7 @@ function tagMentionsActor(tag: unknown, actorUri: string): boolean {
 }
 
 async function followsAccount(viewerAccountId: string, targetAccountId: string): Promise<boolean> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
   ).bind(viewerAccountId, targetAccountId).first();
   return !!row;
@@ -168,7 +168,7 @@ async function findStatusByUriOrUrl(uriOrUrl: string): Promise<{
   quote_policy_automatic_approvals: string | null;
   quote_policy_manual_approvals: string | null;
 } | null> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT id, visibility, quote_policy, quote_policy_automatic_approvals, quote_policy_manual_approvals FROM statuses
      WHERE (uri = ?1 OR url = ?1)
        AND deleted_at IS NULL
@@ -198,7 +198,7 @@ async function fetchJoinedStatusById(
     viewerAccountId,
     now,
   );
-  return await env.DB.prepare(
+  return await env.DB_META_C000.prepare(
     `${STATUS_SEARCH_SELECT}
      WHERE s.id = ?
        AND ${visibility.sql}
@@ -235,7 +235,7 @@ async function resolveRemoteStatusFromUrl(
   }
 
   const ctx = getFedifyContext(fed);
-  const signerUsername = await pickSignerUsername(env.DB, viewer?.id ?? null);
+  const signerUsername = await pickSignerUsername(env.DB_META_C000, viewer?.id ?? null);
   if (!signerUsername) {
     console.warn('[search] No local signer available, skipping remote status fetch');
     return existingVisible ? existing?.id ?? null : null;
@@ -294,7 +294,7 @@ async function resolveRemoteStatusFromUrl(
     docLoader,
   );
   if (!actorAccountId) return null;
-  const actorState = await env.DB.prepare(
+  const actorState = await env.DB_META_C000.prepare(
     'SELECT suspended_at FROM accounts WHERE id = ? LIMIT 1',
   ).bind(actorAccountId).first<{ suspended_at: string | null }>();
   if (!actorState || !canStoreFetchedRemoteStatus({
@@ -345,7 +345,7 @@ async function resolveRemoteStatusFromUrl(
       || contentMap !== null
       || contentWarningMap !== null
     ) {
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE statuses
          SET visibility = ?1,
              quote_policy = ?2,
@@ -438,7 +438,7 @@ app.get('/', authOptional, async (c) => {
       currentAccount?.id ?? null,
       new Date().toISOString(),
     );
-    const { results } = await env.DB.prepare(`
+    const { results } = await env.DB_META_C000.prepare(`
       SELECT a.* FROM accounts a
       WHERE (a.username LIKE ? OR a.display_name LIKE ?)
         AND ${accountPermission.sql}
@@ -520,12 +520,12 @@ app.get('/', authOptional, async (c) => {
         )
       ) {
         // Check if we already have this actor in the DB
-        const existingActor = await env.DB.prepare(
+        const existingActor = await env.DB_META_C000.prepare(
           'SELECT * FROM accounts WHERE uri = ?1 LIMIT 1',
         ).bind(actorUri).first<AccountRow>();
 
         if (existingActor) {
-          const surfaceableActor = await env.DB.prepare(
+          const surfaceableActor = await env.DB_META_C000.prepare(
             `SELECT a.id FROM accounts a
              WHERE a.id = ?
                AND ${accountPermission.sql}
@@ -546,7 +546,7 @@ app.get('/', authOptional, async (c) => {
           let actorObject: Awaited<ReturnType<typeof ctx.lookupObject>> = null;
           let docLoader: Awaited<ReturnType<typeof ctx.getDocumentLoader>> | null = null;
           const signerUsername = await pickSignerUsername(
-            env.DB,
+            env.DB_META_C000,
             c.get('currentAccount')?.id ?? null,
           );
           if (signerUsername) {
@@ -599,7 +599,7 @@ app.get('/', authOptional, async (c) => {
             const endpointsObj = actorObject.endpoints;
             const sharedInboxUrl = endpointsObj?.sharedInbox?.href || '';
 
-            await env.DB.prepare(
+            await env.DB_META_C000.prepare(
               `INSERT OR IGNORE INTO accounts
                 (id, username, domain, display_name, note, uri, url,
                  avatar_url, avatar_static_url, header_url, header_static_url,
@@ -633,7 +633,7 @@ app.get('/', authOptional, async (c) => {
             // A concurrently-created or legacy row may have won the INSERT.
             // Close its graph before the authenticated full fetch determines
             // whether both remote collections actually expose a first page.
-            await env.DB.prepare(
+            await env.DB_META_C000.prepare(
               `UPDATE accounts
                SET followers_url = ?, following_url = ?,
                    hide_collections = 1, updated_at = ?
@@ -652,7 +652,7 @@ app.get('/', authOptional, async (c) => {
             });
 
             // Fetch the inserted/existing account
-            const insertedAccount = await env.DB.prepare(
+            const insertedAccount = await env.DB_META_C000.prepare(
               `SELECT a.* FROM accounts a
                WHERE a.uri = ?
                  AND ${accountPermission.sql}
@@ -715,7 +715,7 @@ app.get('/', authOptional, async (c) => {
         currentAccount?.id ?? null,
         permissionNow,
       );
-      const { results } = await env.DB.prepare(`
+      const { results } = await env.DB_META_C000.prepare(`
         ${STATUS_SEARCH_SELECT}
         WHERE (s.content LIKE ? OR s.title LIKE ?)
           AND ${visibility.sql}
@@ -823,7 +823,7 @@ app.get('/', authOptional, async (c) => {
 
   // Search hashtags
   if (((!type && !urlQuery) || type === 'hashtags') && searchTerm !== null) {
-    const { results } = await env.DB.prepare(`
+    const { results } = await env.DB_META_C000.prepare(`
       SELECT * FROM tags
       WHERE name LIKE ?1
       ORDER BY name ASC

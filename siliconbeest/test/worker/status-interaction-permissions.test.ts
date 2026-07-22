@@ -16,7 +16,7 @@ async function insertStatus(
   visibility: string,
 ): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses
        (id, uri, url, account_id, text, content, visibility, local, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?8)`,
@@ -35,7 +35,7 @@ async function insertStatus(
 async function insertPoll(id: string, statusId: string): Promise<void> {
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO polls
        (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
      VALUES (?1, ?2, ?3, 0, 0, 0, ?4, ?5)`,
@@ -57,7 +57,7 @@ async function countRows(
   foreignKey: 'poll_id' | 'status_id',
   resourceId: string,
 ): Promise<number> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT COUNT(*) AS count FROM ${table} WHERE account_id = ?1 AND ${foreignKey} = ?2`,
   ).bind(accountId, resourceId).first<{ count: number }>();
   return row?.count ?? 0;
@@ -99,14 +99,14 @@ describe('status-dependent API permissions', () => {
     await insertStatus(ids.writeOnly, writeOnly.accountId, 'public');
 
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET deleted_at = ?1 WHERE id = ?2',
     ).bind(now, ids.deleted).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,
     ).bind('interaction_follow', follower.accountId, author.accountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO mentions (id, status_id, account_id, created_at)
        VALUES (?1, ?2, ?3, ?4)`,
     ).bind('interaction_mention', ids.direct, mentioned.accountId, now).run();
@@ -115,21 +115,21 @@ describe('status-dependent API permissions', () => {
     await insertPoll(ids.directPoll, ids.direct);
     await insertPoll(ids.invalidPoll, ids.invalid);
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         'INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
       ).bind('interaction_favourite', stranger.accountId, ids.private, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO bookmarks (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
       ).bind('interaction_bookmark', stranger.accountId, ids.private, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO status_mutes (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
       ).bind('interaction_mute', stranger.accountId, ids.private, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO emoji_reactions (id, account_id, status_id, emoji, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5)`,
       ).bind('interaction_reaction', stranger.accountId, ids.private, '👍', now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
            (id, uri, account_id, reblog_of_id, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'public', 1, ?5, ?5)`,
@@ -142,7 +142,7 @@ describe('status-dependent API permissions', () => {
       ),
     ]);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE oauth_access_tokens SET scopes = 'write' WHERE user_id = ?1",
     ).bind(writeOnly.userId).run();
   });
@@ -220,7 +220,7 @@ describe('status-dependent API permissions', () => {
 
   it('keeps a viewer-side block out of canonical fetches but rejects outbound interactions', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('interaction-viewer-block', ?1, ?2, ?3)`,
     ).bind(stranger.accountId, author.accountId, now).run();
@@ -243,7 +243,7 @@ describe('status-dependent API permissions', () => {
 
     expect(await countRows('favourites', stranger.accountId, 'status_id', ids.public)).toBe(0);
     expect(await countRows('emoji_reactions', stranger.accountId, 'status_id', ids.public)).toBe(0);
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'interaction-viewer-block'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'interaction-viewer-block'").run();
   });
 
   it('checks visibility before returning relationship and reaction lists', async () => {
@@ -314,7 +314,7 @@ describe('status-dependent API permissions', () => {
       { method: 'POST', headers: authHeaders(stranger.token) },
     );
     expect(unreblogResponse.status).toBe(404);
-    const reblog = await env.DB.prepare(
+    const reblog = await env.DB_META_C000.prepare(
       'SELECT deleted_at FROM statuses WHERE id = ?1',
     ).bind(ids.strangerReblog).first<{ deleted_at: string | null }>();
     expect(reblog?.deleted_at).not.toBeNull();

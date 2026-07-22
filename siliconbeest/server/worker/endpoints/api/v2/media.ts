@@ -178,7 +178,7 @@ async function generateAndPersistImageDescription(input: {
     }
 
     try {
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE media_attachments
          SET description = ?1, updated_at = ?2
          WHERE id = ?3
@@ -318,7 +318,7 @@ app.post('/', authRequired, requireScope('write:media'), async (c) => {
   }
 
   // Insert media_attachments row
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO media_attachments
        (id, status_id, account_id, file_key, file_content_type, file_size,
         thumbnail_key, remote_url, description, blurhash, width, height, type,
@@ -389,7 +389,7 @@ app.get('/:id', authRequired, requireScope('write:media'), async (c) => {
   const domain = env.INSTANCE_DOMAIN;
   const mediaId = c.req.param('id');
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT * FROM media_attachments WHERE id = ?1 AND account_id = ?2',
   )
     .bind(mediaId, currentUser.account_id)
@@ -454,7 +454,7 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
     focus: bodyRecord.focus as string | undefined,
   };
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT * FROM media_attachments WHERE id = ?1 AND account_id = ?2',
   )
     .bind(mediaId, currentUser.account_id)
@@ -471,7 +471,7 @@ app.put('/:id', authRequired, requireScope('write:media'), async (c) => {
   if (body.description !== undefined) {
     // Explicit saves always replace the NULL pending sentinel with a string,
     // including an intentional blank, so background AI cannot overwrite it.
-    const update = await env.DB.prepare(
+    const update = await env.DB_META_C000.prepare(
       `UPDATE media_attachments
        SET description = ?1, updated_at = ?2
        WHERE id = ?3`,

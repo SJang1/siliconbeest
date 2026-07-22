@@ -125,7 +125,7 @@ export async function handleProcessMedia(
   // Load the media attachment metadata from D1
   const attachment = await measureAsync(
     'processMedia.db.loadAttachment',
-    () => env.DB.prepare(
+    () => env.DB_META_C000.prepare(
       `SELECT id, file_key, file_content_type, file_size
        FROM media_attachments
        WHERE id = ? AND account_id = ?`,
@@ -183,7 +183,7 @@ export async function handleProcessMedia(
   // Update the media attachment row with extracted metadata
   await measureAsync(
     'processMedia.db.updateAttachment',
-    () => env.DB.prepare(
+    () => env.DB_META_C000.prepare(
       `UPDATE media_attachments
        SET width = ?, height = ?, updated_at = datetime('now')
        WHERE id = ?`,

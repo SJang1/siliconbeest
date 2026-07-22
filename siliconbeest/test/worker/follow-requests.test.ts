@@ -17,7 +17,7 @@ describe('Follow Requests API', () => {
     requester2 = await createTestUser('frequester2');
 
     // Make lockedUser a locked account
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET locked = 1, manually_approves_followers = 1 WHERE id = ?1',
     )
       .bind(lockedUser.accountId)
@@ -86,7 +86,7 @@ describe('Follow Requests API', () => {
       expect(body.followed_by).toBe(true);
 
       // Verify follow was created in the database
-      const follow = await env.DB.prepare(
+      const follow = await env.DB_META_C000.prepare(
         'SELECT * FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
       )
         .bind(requester.accountId, lockedUser.accountId)
@@ -94,7 +94,7 @@ describe('Follow Requests API', () => {
       expect(follow).toBeDefined();
 
       // Verify follow request was removed
-      const fr = await env.DB.prepare(
+      const fr = await env.DB_META_C000.prepare(
         'SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
       )
         .bind(requester.accountId, lockedUser.accountId)
@@ -129,7 +129,7 @@ describe('Follow Requests API', () => {
       expect(body.requested).toBe(false);
 
       // Verify follow request was removed
-      const fr = await env.DB.prepare(
+      const fr = await env.DB_META_C000.prepare(
         'SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
       )
         .bind(requester2.accountId, lockedUser.accountId)
@@ -137,7 +137,7 @@ describe('Follow Requests API', () => {
       expect(fr).toBeNull();
 
       // Verify no follow was created
-      const follow = await env.DB.prepare(
+      const follow = await env.DB_META_C000.prepare(
         'SELECT * FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
       )
         .bind(requester2.accountId, lockedUser.accountId)

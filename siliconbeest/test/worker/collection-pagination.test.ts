@@ -48,7 +48,7 @@ describe('ActivityPub Collection Pagination', () => {
 			// Create a remote follower account
 			const now = new Date().toISOString();
 			const followerAccountId = crypto.randomUUID();
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
 				 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
 			)
@@ -65,7 +65,7 @@ describe('ActivityPub Collection Pagination', () => {
 				.run();
 
 			// Create a follow relationship
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO follows (id, account_id, target_account_id, uri, created_at, updated_at)
 				 VALUES (?, ?, ?, ?, ?, ?)`,
 			)
@@ -80,7 +80,7 @@ describe('ActivityPub Collection Pagination', () => {
 				.run();
 
 			// Update followers count
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?`,
 			)
 				.bind(user.accountId)
@@ -141,7 +141,7 @@ describe('ActivityPub Collection Pagination', () => {
 		it('shows following accounts after creating follows', async () => {
 			const now = new Date().toISOString();
 			const followedAccountId = crypto.randomUUID();
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
 				 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
 			)
@@ -157,7 +157,7 @@ describe('ActivityPub Collection Pagination', () => {
 				)
 				.run();
 
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO follows (id, account_id, target_account_id, uri, created_at, updated_at)
 				 VALUES (?, ?, ?, ?, ?, ?)`,
 			)
@@ -171,7 +171,7 @@ describe('ActivityPub Collection Pagination', () => {
 				)
 				.run();
 
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`UPDATE accounts SET following_count = following_count + 1 WHERE id = ?`,
 			)
 				.bind(user.accountId)

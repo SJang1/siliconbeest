@@ -21,7 +21,7 @@ import type { AccountRow, RuleRow } from '../types/db';
 export async function getSettings(keys: string[]): Promise<Record<string, string>> {
 	if (keys.length === 0) return {};
 	const placeholders = keys.map(() => '?').join(', ');
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
 		.bind(...keys)
 		.all();
@@ -37,7 +37,7 @@ export async function getSettings(keys: string[]): Promise<Record<string, string
  * Fetch ALL settings, ordered by key.
  */
 export async function getAllSettings(): Promise<Record<string, string>> {
-	const { results } = await env.DB.prepare('SELECT * FROM settings ORDER BY key ASC').all();
+	const { results } = await env.DB_META_C000.prepare('SELECT * FROM settings ORDER BY key ASC').all();
 	const settings: Record<string, string> = {};
 	for (const row of results || []) {
 		settings[row.key as string] = row.value as string;
@@ -51,14 +51,14 @@ export async function getAllSettings(): Promise<Record<string, string>> {
 export async function setSettings(entries: Record<string, string>): Promise<void> {
 	const now = new Date().toISOString();
 	const statements = Object.entries(entries).map(([key, value]) =>
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO settings (key, value, updated_at)
 			 VALUES (?1, ?2, ?3)
 			 ON CONFLICT (key) DO UPDATE SET value = ?2, updated_at = ?3`,
 		).bind(key, value, now),
 	);
 	if (statements.length > 0) {
-		await env.DB.batch(statements);
+		await env.DB_META_C000.batch(statements);
 	}
 }
 
@@ -66,7 +66,7 @@ export async function setSettings(entries: Record<string, string>): Promise<void
  * Get a single setting value by key. Returns null if not found.
  */
 export async function getSetting(key: string): Promise<string | null> {
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1')
 		.bind(key)
 		.first<{ value: string }>();
@@ -78,7 +78,7 @@ export async function getSetting(key: string): Promise<string | null> {
  */
 export async function setSetting(key: string, value: string): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
 			 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
@@ -165,7 +165,7 @@ export function getInstanceThumbnailUrl(
  * Fetch all instance rules, ordered by priority.
  */
 export async function getRules(): Promise<RuleRow[]> {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare('SELECT * FROM rules ORDER BY priority ASC, created_at ASC')
 		.all<RuleRow>();
 	return results ?? [];
@@ -175,7 +175,7 @@ export async function getRules(): Promise<RuleRow[]> {
  * Get a single rule by ID.
  */
 export async function getRule(id: string): Promise<RuleRow> {
-	const row = await env.DB.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	if (!row) throw new AppError(404, 'Record not found');
 	return row;
 }
@@ -190,10 +190,10 @@ export async function createRule(
 	const id = generateUlid();
 	const now = new Date().toISOString();
 	const prio = priority ?? 0;
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'INSERT INTO rules (id, text, priority, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)',
 	).bind(id, text, prio, now, now).run();
-	const row = await env.DB.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	return row!;
 }
 
@@ -204,10 +204,10 @@ export async function updateRule(
 	id: string,
 	data: { text?: string; priority?: number },
 ): Promise<RuleRow> {
-	const existing = await env.DB.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	if (!existing) throw new AppError(404, 'Record not found');
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE rules SET text = ?1, priority = ?2, updated_at = ?3 WHERE id = ?4',
 	).bind(
 		data.text ?? existing.text,
@@ -215,7 +215,7 @@ export async function updateRule(
 		now,
 		id,
 	).run();
-	const row = await env.DB.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
+	const row = await env.DB_META_C000.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first<RuleRow>();
 	return row!;
 }
 
@@ -223,9 +223,9 @@ export async function updateRule(
  * Delete a rule by ID.
  */
 export async function deleteRule(id: string): Promise<void> {
-	const existing = await env.DB.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
+	const existing = await env.DB_META_C000.prepare('SELECT * FROM rules WHERE id = ?1').bind(id).first();
 	if (!existing) throw new AppError(404, 'Record not found');
-	await env.DB.prepare('DELETE FROM rules WHERE id = ?1').bind(id).run();
+	await env.DB_META_C000.prepare('DELETE FROM rules WHERE id = ?1').bind(id).run();
 }
 
 // ----------------------------------------------------------------
@@ -257,22 +257,22 @@ export async function getStats(): Promise<InstanceStats> {
 
 
 	const [activeUserResult, activeMonthUserResult, activeHalfyearUserResult, statusesResult, domainsResult] = await Promise.all([
-		env.DB.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first<{ cnt: number }>(),
-		env.DB.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first<{ cnt: number }>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare('SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL AND suspended_at IS NULL').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(DISTINCT a.id) AS cnt
 	   FROM accounts a
 	   JOIN users u ON u.account_id = a.id
 	   WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
 		).bind(activeMonthSince).first<{ cnt: number }>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(DISTINCT a.id) AS cnt
 	   FROM accounts a
 	   JOIN users u ON u.account_id = a.id
 	   WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
 		).bind(activeHalfyearSince).first<{ cnt: number }>(),
-		env.DB.prepare('SELECT COUNT(*) AS cnt FROM statuses WHERE local = 1 AND deleted_at IS NULL').first<{ cnt: number }>(),
-		env.DB.prepare('SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare('SELECT COUNT(*) AS cnt FROM statuses WHERE local = 1 AND deleted_at IS NULL').first<{ cnt: number }>(),
+		env.DB_META_C000.prepare('SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL').first<{ cnt: number }>(),
 	]);
 
 	const stats: InstanceStats = {
@@ -298,7 +298,7 @@ export async function getStats(): Promise<InstanceStats> {
  * List all known peer domains, ordered alphabetically.
  */
 export async function getPeers(): Promise<string[]> {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare('SELECT domain FROM instances ORDER BY domain ASC')
 		.all();
 	return (results ?? []).map((r) => r.domain as string);
@@ -309,7 +309,7 @@ export async function getPeers(): Promise<string[]> {
 // ----------------------------------------------------------------
 
 export async function isEmailDomainBlocked(domain: string): Promise<boolean> {
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		'SELECT 1 FROM email_domain_blocks WHERE domain = ?1 LIMIT 1',
 	).bind(domain.toLowerCase()).first();
 	return !!row;
@@ -320,7 +320,7 @@ export async function isEmailDomainBlocked(domain: string): Promise<boolean> {
 // ----------------------------------------------------------------
 
 export async function getContactAccount(username: string): Promise<AccountRow | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		'SELECT a.* FROM accounts a JOIN users u ON u.account_id = a.id WHERE a.username = ?1 AND a.domain IS NULL AND u.role = ?2 LIMIT 1',
 	).bind(username, 'admin').first<AccountRow>();
 }
@@ -330,7 +330,7 @@ export async function getContactAccount(username: string): Promise<AccountRow | 
  * when the site_contact_username setting is empty.
  */
 export async function getFirstAdminAccount(): Promise<AccountRow | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		'SELECT a.* FROM accounts a JOIN users u ON u.account_id = a.id WHERE a.domain IS NULL AND u.role = ?1 ORDER BY u.created_at ASC, u.id ASC LIMIT 1',
 	).bind('admin').first<AccountRow>();
 }
@@ -343,7 +343,7 @@ export async function getApplicationByAccessToken(
 	tokenHash: string,
 	tokenPlaintext: string,
 ): Promise<{ name: string; website: string | null; scopes: string } | null> {
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT a.name, a.website, a.scopes
 		 FROM oauth_access_tokens t
 		 JOIN oauth_applications a ON a.id = t.application_id
@@ -354,7 +354,7 @@ export async function getApplicationByAccessToken(
 	if (row) return row;
 
 	// Fallback for legacy plaintext tokens
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT a.name, a.website, a.scopes
 		 FROM oauth_access_tokens t
 		 JOIN oauth_applications a ON a.id = t.application_id

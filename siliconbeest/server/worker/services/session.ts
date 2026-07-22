@@ -26,7 +26,7 @@ export async function listSessions(
 	userId: string,
 	currentTokenId: string | null,
 ): Promise<SessionInfo[]> {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT t.id, t.ip, t.user_agent, t.scopes, t.created_at, t.last_used_at,
 			        a.name AS application_name
@@ -61,14 +61,14 @@ export async function revokeSession(
 ): Promise<boolean> {
 	const now = new Date().toISOString();
 
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare('SELECT token_hash FROM oauth_access_tokens WHERE id = ? AND user_id = ? AND revoked_at IS NULL')
 		.bind(tokenId, userId)
 		.first<{ token_hash: string | null }>();
 
 	if (!row) return false;
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE oauth_access_tokens SET revoked_at = ? WHERE id = ?')
 		.bind(now, tokenId)
 		.run();
@@ -89,7 +89,7 @@ export async function revokeAllOtherSessions(
 ): Promise<number> {
 	const now = new Date().toISOString();
 
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(
 			`SELECT id, token_hash FROM oauth_access_tokens
 			 WHERE user_id = ? AND id != ? AND revoked_at IS NULL`,
@@ -99,7 +99,7 @@ export async function revokeAllOtherSessions(
 
 	if (!results || results.length === 0) return 0;
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`UPDATE oauth_access_tokens SET revoked_at = ?
 			 WHERE user_id = ? AND id != ? AND revoked_at IS NULL`,
@@ -124,7 +124,7 @@ export async function setTokenMetadata(
 	ip: string,
 	userAgent: string,
 ): Promise<void> {
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE oauth_access_tokens SET ip = ?, user_agent = ? WHERE id = ?')
 		.bind(ip, userAgent, tokenId)
 		.run();
@@ -137,7 +137,7 @@ export async function touchToken(
 	tokenId: string,
 ): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE oauth_access_tokens SET last_used_at = ? WHERE id = ?')
 		.bind(now, tokenId)
 		.run();

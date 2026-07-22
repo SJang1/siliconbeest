@@ -85,13 +85,13 @@ describe('followers and following collection privacy', () => {
       scopes: 'write:accounts',
     });
     const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO follows
           (id, account_id, target_account_id, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4)`,
       ).bind(crypto.randomUUID(), viewer.accountId, owner.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follows
           (id, account_id, target_account_id, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4)`,

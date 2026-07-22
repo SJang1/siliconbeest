@@ -50,7 +50,7 @@ describe('timeline permission revalidation', () => {
 
     const invalidId = crypto.randomUUID();
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses
          (id, uri, account_id, text, content, visibility, local, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4, ?5, 1, ?6, ?6)`,
@@ -66,7 +66,7 @@ describe('timeline permission revalidation', () => {
     expect(hiddenIds).not.toContain(direct.id);
     expect(hiddenIds).not.toContain(invalidId);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO mentions (id, status_id, account_id, created_at)
        VALUES (?1, ?2, ?3, ?4)`,
     ).bind(crypto.randomUUID(), direct.id, viewer.accountId, now).run();
@@ -82,12 +82,12 @@ describe('timeline permission revalidation', () => {
     const listId = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO lists (id, account_id, title, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4)`,
       ).bind(listId, viewer.accountId, 'Permission test list', now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO list_accounts (list_id, account_id) VALUES (?1, ?2)',
       ).bind(listId, author.accountId),
     ]);
@@ -115,7 +115,7 @@ describe('timeline permission revalidation', () => {
   it('does not serialize a hidden original through a public reblog wrapper', async () => {
     const privateOriginal = await createStatus(author, 'hidden reblog original', 'private');
     const publicWrapper = await createStatus(viewer, 'public wrapper row', 'public');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET reblog_of_id = ?1 WHERE id = ?2',
     ).bind(privateOriginal.id, publicWrapper.id).run();
 
@@ -147,7 +147,7 @@ describe('timeline permission revalidation', () => {
       'public relationship-filtered wrapper',
       'public',
     );
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET reblog_of_id = ?1 WHERE id = ?2',
     ).bind(publicStatus.id, publicWrapper.id).run();
 
@@ -243,7 +243,7 @@ describe('timeline permission revalidation', () => {
       'public',
     );
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
     ).bind(now, stateAuthor.accountId).run();
 
@@ -258,7 +258,7 @@ describe('timeline permission revalidation', () => {
     });
     expect(suspendedFetch.status).toBe(404);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = NULL, silenced_at = ?1 WHERE id = ?2',
     ).bind(now, stateAuthor.accountId).run();
     const silencedStatus = await createStatus(
@@ -266,7 +266,7 @@ describe('timeline permission revalidation', () => {
       'silenced author permission marker',
       'public',
     );
-    const storedSilencedStatus = await env.DB.prepare(
+    const storedSilencedStatus = await env.DB_META_C000.prepare(
       'SELECT visibility FROM statuses WHERE id = ?1',
     ).bind(silencedStatus.id).first<{ visibility: string }>();
     expect(storedSilencedStatus?.visibility).toBe('unlisted');

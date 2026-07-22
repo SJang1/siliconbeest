@@ -1,6 +1,6 @@
 import { apiFetch } from '../client';
 import type { OAuthApp, Token } from '@/types/mastodon';
-import type { RegistrationRequiredResponse } from '@/types/registration';
+import type { RegistrationPendingResponse, RegistrationRequiredResponse, RegistrationOperationResponse } from '@/types/registration';
 import type { RegistrationDesign } from '@/types/registration';
 
 export function createApp(params: {
@@ -81,7 +81,11 @@ export function findUsername(email: string) {
 }
 
 export type LoginResponse = Token | RegistrationRequiredResponse;
-export type AccountRegistrationResponse = Token | RegistrationRequiredResponse;
+export type AccountRegistrationResponse = Token | RegistrationRequiredResponse | RegistrationPendingResponse;
+
+export function getRegistrationOperation(operationId: string) {
+  return apiFetch<RegistrationOperationResponse>(`/v1/operations/${encodeURIComponent(operationId)}`);
+}
 
 export function register(params: {
   username: string;

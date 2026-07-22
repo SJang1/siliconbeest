@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   env: {
-    DB: {},
+    DB_META_C000: {},
     INTERNAL_CONNECTION_MAIN: { sendStreamEvent: vi.fn() },
   },
 }));

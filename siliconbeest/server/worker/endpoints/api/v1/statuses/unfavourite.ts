@@ -23,13 +23,13 @@ app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), asy
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = env.INSTANCE_DOMAIN;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
   ).bind(statusId).first();
   if (!row) throw new AppError(404, 'Record not found');
 
   // Check if favourite exists before unfavouriting (for federation decision)
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     'SELECT id FROM favourites WHERE account_id = ?1 AND status_id = ?2',
   ).bind(currentAccountId, statusId).first();
 
@@ -52,7 +52,7 @@ app.post('/:id/unfavourite', authRequired, requireScope('write:favourites'), asy
   // Federation: deliver Undo(Like)
   if (existing) {
     try {
-      const currentAccount = await env.DB.prepare(
+      const currentAccount = await env.DB_META_C000.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {

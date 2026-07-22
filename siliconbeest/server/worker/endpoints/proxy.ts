@@ -249,7 +249,7 @@ app.get('/', async (c) => {
   // Recording must never delay or break serving.
   try {
     c.executionCtx.waitUntil(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO media_proxy_cache (id, remote_url, r2_key, content_type, size, created_at)
          VALUES (?1, ?2, '', ?3, ?4, ?5)
          ON CONFLICT (remote_url) DO UPDATE SET content_type = ?3, size = ?4`,

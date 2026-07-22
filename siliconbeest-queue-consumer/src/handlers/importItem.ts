@@ -82,7 +82,7 @@ export async function handleImportItem(
   } | null = null;
 
   if (domain) {
-    targetAccount = await env.DB.prepare(
+    targetAccount = await env.DB_META_C000.prepare(
       `SELECT target.id, target.username, target.domain, target.uri,
               target.inbox_url, target.shared_inbox_url, target.locked,
               COALESCE(target.manually_approves_followers, 0) AS manually_approves_followers,
@@ -95,7 +95,7 @@ export async function handleImportItem(
       .bind(username, domain)
       .first();
   } else {
-    targetAccount = await env.DB.prepare(
+    targetAccount = await env.DB_META_C000.prepare(
       `SELECT target.id, target.username, target.domain, target.uri,
               target.inbox_url, target.shared_inbox_url, target.locked,
               COALESCE(target.manually_approves_followers, 0) AS manually_approves_followers,
@@ -111,7 +111,7 @@ export async function handleImportItem(
 
   // If not found and it's a remote account, try WebFinger and enqueue fetch
   if (!targetAccount && domain) {
-    const importingActor = await env.DB.prepare(
+    const importingActor = await env.DB_META_C000.prepare(
       `SELECT importing_actor.suspended_at, importing_actor.memorial,
               importing_user.disabled AS user_disabled,
               importing_user.approved AS user_approved
@@ -149,7 +149,7 @@ export async function handleImportItem(
       return;
     }
 
-    const suspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+    const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [domain]);
     if (suspendedDomains.has(domain)) {
       console.log(`[import] Skipping remote lookup for suspended domain ${domain}`);
       return;
@@ -189,14 +189,14 @@ export async function handleImportItem(
 
   if (action === 'following' && targetAccount.domain) {
     const targetDomain = targetAccount.domain.toLowerCase();
-    const suspendedDomains = await getSuspendedDomains(env.DB, [targetDomain]);
+    const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [targetDomain]);
     if (suspendedDomains.has(targetDomain)) {
       console.log(`[import] Skipping follow import for suspended domain ${targetDomain}`);
       return;
     }
   }
 
-  const actorPermission = await env.DB.prepare(
+  const actorPermission = await env.DB_META_C000.prepare(
     `SELECT actor.suspended_at, actor.memorial,
             actor_user.disabled AS user_disabled,
             actor_user.approved AS user_approved,
@@ -275,14 +275,14 @@ export async function handleImportItem(
       }
 
       // Check if already following or requested
-      const existing = await env.DB.prepare(
+      const existing = await env.DB_META_C000.prepare(
         `SELECT id FROM follows WHERE account_id = ? AND target_account_id = ?`,
       )
         .bind(accountId, targetAccount.id)
         .first();
       if (existing) return;
 
-      const existingRequest = await env.DB.prepare(
+      const existingRequest = await env.DB_META_C000.prepare(
         `SELECT id FROM follow_requests WHERE account_id = ? AND target_account_id = ?`,
       )
         .bind(accountId, targetAccount.id)
@@ -290,7 +290,7 @@ export async function handleImportItem(
       if (existingRequest) return;
 
       // Get current account info for AP activity
-      const currentAccount = await env.DB.prepare(
+      const currentAccount = await env.DB_META_C000.prepare(
         `SELECT id, username, uri FROM accounts WHERE id = ?`,
       )
         .bind(accountId)
@@ -313,7 +313,7 @@ export async function handleImportItem(
 
       if (isRemote || needsApproval) {
         // Create follow request
-        const insertResult = await env.DB.prepare(
+        const insertResult = await env.DB_META_C000.prepare(
           `INSERT OR IGNORE INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
@@ -337,7 +337,7 @@ export async function handleImportItem(
         }
       } else {
         // Local non-locked: auto-accept
-        const insertResult = await env.DB.prepare(
+        const insertResult = await env.DB_META_C000.prepare(
           `INSERT OR IGNORE INTO follows (
              id, account_id, target_account_id, uri,
              show_reblogs, notify, created_at, updated_at
@@ -345,11 +345,11 @@ export async function handleImportItem(
         ).bind(id, accountId, targetAccount.id, followActivity.id, now, now).run();
         if (insertResult.meta.changes !== 1) return;
 
-        await env.DB.batch([
-          env.DB.prepare(
+        await env.DB_META_C000.batch([
+          env.DB_META_C000.prepare(
             'UPDATE accounts SET following_count = following_count + 1 WHERE id = ?',
           ).bind(accountId),
-          env.DB.prepare(
+          env.DB_META_C000.prepare(
             'UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?',
           ).bind(targetAccount.id),
         ]);
@@ -370,63 +370,63 @@ export async function handleImportItem(
 
       // Blocking tears down both relationship directions. Count updates are
       // conditional on the rows that still exist, so retries cannot drift.
-      await env.DB.batch([
-        env.DB.prepare(
+      await env.DB_META_C000.batch([
+        env.DB_META_C000.prepare(
           `INSERT OR IGNORE INTO blocks (
              id, account_id, target_account_id, created_at
            ) VALUES (?, ?, ?, ?)`,
         ).bind(id, accountId, targetAccount.id, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `UPDATE accounts SET following_count = MAX(0, following_count - 1)
            WHERE id = ?1 AND EXISTS (
              SELECT 1 FROM follows
              WHERE account_id = ?1 AND target_account_id = ?2
            )`,
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `UPDATE accounts SET followers_count = MAX(0, followers_count - 1)
            WHERE id = ?2 AND EXISTS (
              SELECT 1 FROM follows
              WHERE account_id = ?1 AND target_account_id = ?2
            )`,
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `UPDATE accounts SET following_count = MAX(0, following_count - 1)
            WHERE id = ?2 AND EXISTS (
              SELECT 1 FROM follows
              WHERE account_id = ?2 AND target_account_id = ?1
            )`,
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `UPDATE accounts SET followers_count = MAX(0, followers_count - 1)
            WHERE id = ?1 AND EXISTS (
              SELECT 1 FROM follows
              WHERE account_id = ?2 AND target_account_id = ?1
            )`,
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
         ).bind(targetAccount.id, accountId),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2',
         ).bind(targetAccount.id, accountId),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `DELETE FROM list_accounts
            WHERE account_id = ?1
              AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
         ).bind(targetAccount.id, accountId),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `DELETE FROM list_accounts
            WHERE account_id = ?1
              AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
         ).bind(accountId, targetAccount.id),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `DELETE FROM account_pins
            WHERE (account_id = ?1 AND target_account_id = ?2)
               OR (account_id = ?2 AND target_account_id = ?1)`,
@@ -446,14 +446,14 @@ export async function handleImportItem(
         return;
       }
 
-      const existing = await env.DB.prepare(
+      const existing = await env.DB_META_C000.prepare(
         `SELECT id FROM mutes WHERE account_id = ? AND target_account_id = ?`,
       )
         .bind(accountId, targetAccount.id)
         .first();
       if (existing) return;
 
-      const insertResult = await env.DB.prepare(
+      const insertResult = await env.DB_META_C000.prepare(
         `INSERT OR IGNORE INTO mutes (
            id, account_id, target_account_id, hide_notifications,
            created_at, updated_at

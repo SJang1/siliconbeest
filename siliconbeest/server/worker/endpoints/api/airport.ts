@@ -102,29 +102,29 @@ async function computeStats(): Promise<AirportStats> {
 		routeRows,
 		dlqRow,
 	] = await Promise.all([
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM statuses
 			 WHERE local = 1 AND deleted_at IS NULL AND created_at >= ?1`,
 		)
 			.bind(cutoffIso)
 			.first<CountRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM statuses
 			 WHERE local = 0 AND deleted_at IS NULL AND created_at >= ?1`,
 		)
 			.bind(cutoffIso)
 			.first<CountRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM statuses
 			 WHERE local = 1 AND reblog_of_id IS NOT NULL
 			 AND deleted_at IS NULL AND created_at >= ?1`,
 		)
 			.bind(cutoffIso)
 			.first<CountRow>(),
-		env.DB.prepare(`SELECT COUNT(*) AS cnt FROM users WHERE created_at >= ?1`)
+		env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM users WHERE created_at >= ?1`)
 			.bind(cutoffIso)
 			.first<CountRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS bytes
 			 FROM media_attachments
 			 WHERE id >= ?1 AND remote_url IS NULL`,
@@ -135,7 +135,7 @@ async function computeStats(): Promise<AirportStats> {
 		// real sizes come from the media-proxy ledger, which records the
 		// actual bytes fetched from origin. Attachments nobody has fetched
 		// yet contribute 0 — the number only says what we truly measured.
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt, COALESCE(SUM(mpc.size), 0) AS bytes
 			 FROM media_attachments ma
 			 LEFT JOIN media_proxy_cache mpc ON mpc.remote_url = ma.remote_url
@@ -143,7 +143,7 @@ async function computeStats(): Promise<AirportStats> {
 		)
 			.bind(mediaLowerBound)
 			.first<CargoRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT a.domain AS domain, COUNT(*) AS cnt
 			 FROM statuses s
 			 JOIN accounts a ON a.id = s.account_id
@@ -159,7 +159,7 @@ async function computeStats(): Promise<AirportStats> {
 		)
 			.bind(cutoffIso, MAX_DESTINATIONS)
 			.all<OriginRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT i.domain AS domain, i.last_successful_at, i.last_failed_at, i.failure_count
 			 FROM instances i
 			 WHERE (i.last_successful_at IS NOT NULL OR i.failure_count > 0)
@@ -172,7 +172,7 @@ async function computeStats(): Promise<AirportStats> {
 		)
 			.bind(MAX_ROUTES)
 			.all<RouteRow>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS cnt FROM federation_dlq_parked WHERE status = 'parked'`,
 		).first<CountRow>(),
 	]);

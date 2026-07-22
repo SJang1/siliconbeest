@@ -86,8 +86,8 @@ export async function handleDeliverActivity(
   const timer = new PerfTimer('deliverActivity.total', { inboxUrl, targetDomain });
   timer.start();
 
-  const deliveryDomains = await getDeliveryTargetDomains(env.DB, inboxUrl);
-  const suspendedDomains = await getSuspendedDomains(env.DB, deliveryDomains);
+  const deliveryDomains = await getDeliveryTargetDomains(env.DB_META_C000, inboxUrl);
+  const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, deliveryDomains);
   if (suspendedDomains.size > 0) {
     console.log(`[deliver] Dropping delivery to suspended domain ${[...suspendedDomains].join(', ')}`);
     timer.stopWithMetadata({ status: 'domain_suspended' });
@@ -97,7 +97,7 @@ export async function handleDeliverActivity(
   // Load the actor's private key, Ed25519 key, and URI from D1
   const keyRow = await measureAsync(
     'deliverActivity.db.loadActorKey',
-    () => env.DB.prepare(
+    () => env.DB_META_C000.prepare(
       `SELECT ak.private_key, ak.ed25519_private_key, a.uri, a.domain,
               a.suspended_at, a.memorial,
               principal_user.disabled AS user_disabled,
@@ -187,7 +187,7 @@ export async function handleDeliverActivity(
   });
 
   // Ensure instance record exists before updating it
-  await ensureInstanceRecord(env.DB, targetDomain);
+  await ensureInstanceRecord(env.DB_META_C000, targetDomain);
 
   // Check cached signature preference for this domain
   const preference = await getSignaturePreference(targetDomain, env.CACHE);
@@ -303,14 +303,14 @@ export async function handleDeliverActivity(
 
   if (response.ok || response.status === 202) {
     // Success — reset failure count and update last_successful_at
-    await recordDeliverySuccess(env.DB, targetDomain);
+    await recordDeliverySuccess(env.DB_META_C000, targetDomain);
     console.log(`Delivered activity to ${inboxUrl} (${response.status})`);
     timer.stopWithMetadata({ status: 'success', httpStatus: response.status });
     return;
   }
 
   if (response.status >= 500) {
-    await recordDeliveryFailure(env.DB, targetDomain);
+    await recordDeliveryFailure(env.DB_META_C000, targetDomain);
     timer.stopWithMetadata({ status: 'server_error', httpStatus: response.status });
     // All 5xx (including SSL errors 525-527) — throw to trigger queue retry
     const text = await response.text().catch(() => '');
@@ -320,7 +320,7 @@ export async function handleDeliverActivity(
   }
 
   // 4xx — client error, record failure but don't retry (the message is consumed)
-  await recordDeliveryFailure(env.DB, targetDomain);
+  await recordDeliveryFailure(env.DB_META_C000, targetDomain);
   timer.stopWithMetadata({ status: 'client_error', httpStatus: response.status });
   const text = await response.text().catch(() => '');
   console.warn(

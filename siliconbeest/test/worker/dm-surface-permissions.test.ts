@@ -73,7 +73,7 @@ describe('direct-message surface permissions', () => {
     const remoteActorUri = 'https://remote-dm.example/users/sender';
     const remoteStatusUri = 'https://remote-dm.example/objects/permission-dm';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO accounts
          (id, username, domain, display_name, note, uri, url, created_at, updated_at)
        VALUES (?1, 'sender', 'remote-dm.example', 'Remote DM Sender', '', ?2, ?2, ?3, ?3)`,
@@ -104,7 +104,7 @@ describe('direct-message surface permissions', () => {
       },
     }, mutedRecipient.accountId, { notify: false });
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id FROM statuses WHERE uri = ?1 LIMIT 1',
     ).bind(remoteStatusUri).first<{ id: string }>();
     expect(stored).not.toBeNull();

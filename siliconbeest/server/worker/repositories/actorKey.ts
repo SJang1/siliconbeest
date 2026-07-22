@@ -20,7 +20,7 @@ export type CreateActorKeyInput = {
 export const findByAccountId = async (
 	accountId: string,
 ): Promise<ActorKey | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM actor_keys WHERE account_id = ?')
 		.bind(accountId)
 		.first<ActorKey>();
@@ -41,7 +41,7 @@ export const create = async (
 		created_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?)`

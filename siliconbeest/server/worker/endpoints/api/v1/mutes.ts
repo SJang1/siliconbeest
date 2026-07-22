@@ -43,7 +43,7 @@ app.get('/', authRequired, requireScope('read:mutes'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<MuteJoinRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<MuteJoinRow>();
 
   // Build link header using mute row IDs
   const paginationItems = (results ?? []).map((row) => ({ id: row.m_id }));

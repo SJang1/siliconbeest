@@ -93,25 +93,49 @@ import m0049 from '../../migrations/0049_status_language_maps.sql?raw';
 import m0050 from '../../migrations/0050_recommendation_boost_lookup.sql?raw';
 import m0051 from '../../migrations/0051_recommendation_candidate_cursors.sql?raw';
 import m0052 from '../../migrations/0052_user_domain_blocks_nocase_lookup.sql?raw';
+import m0054 from '../../migrations/0054_d1_shard_routing.sql?raw';
+import m0055 from '../../migrations/0055_burst_registration_and_feed.sql?raw';
 
 const MIGRATIONS: string[] = [
   m0001, m0002, m0003, m0004, m0005, m0006, m0007, m0008,
   m0009a, m0009b, m0010, m0011, m0012, m0013, m0014, m0015,
-  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024, m0025, m0026, m0027, m0028, m0029, m0030, m0031, m0032, m0033, m0034, m0035, m0036, m0037, m0038, m0039, m0040, m0041, m0042, m0043, m0044, m0045, m0046, m0047, m0049, m0050, m0051, m0052,
+  m0016, m0017, m0018, m0020, m0021, m0022, m0023, m0024, m0025, m0026, m0027, m0028, m0029, m0030, m0031, m0032, m0033, m0034, m0035, m0036, m0037, m0038, m0039, m0040, m0041, m0042, m0043, m0044, m0045, m0046, m0047, m0049, m0050, m0051, m0052, m0054, m0055,
 ];
+
+function splitMigrationStatements(sql: string): string[] {
+  const withoutComments = sql.replace(/--.*$/gm, '');
+  const statements: string[] = [];
+  let buffer = '';
+  let inTrigger = false;
+  for (const line of withoutComments.split('\n')) {
+    const trimmed = line.trim();
+    if (!inTrigger && /^CREATE\s+TRIGGER\b/i.test(trimmed)) inTrigger = true;
+    buffer += `${line}\n`;
+    if (inTrigger) {
+      if (/^END;\s*$/i.test(trimmed)) {
+        statements.push(buffer.trim().replace(/;\s*$/, ''));
+        buffer = '';
+        inTrigger = false;
+      }
+      continue;
+    }
+    const parts = buffer.split(';');
+    buffer = parts.pop() ?? '';
+    statements.push(...parts.map((part) => part.trim()).filter(Boolean));
+  }
+  if (buffer.trim()) statements.push(buffer.trim());
+  return statements;
+}
 
 async function applyMigrationSql(migrations: readonly string[]) {
   for (const sql of migrations) {
     // Split SQL into individual statements and execute one by one.
     // D1 exec() in the test runtime can be finicky with multi-statement SQL.
-    const statements = sql
-      .split(';')
-      .map((s) => s.replace(/--.*$/gm, '').trim())
-      .filter((s) => s.length > 0);
+    const statements = splitMigrationStatements(sql);
 
     for (const stmt of statements) {
       try {
-        await env.DB.prepare(stmt).run();
+        await env.DB_META_C000.prepare(stmt).run();
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : '';
         if (msg.includes('already exists') || msg.includes('duplicate column')) {
@@ -168,12 +192,12 @@ export async function createTestUser(
   // Use real RSA PEM keys so Fedify's actor dispatcher can parse them
   const keys = await getTestKeyPair();
 
-  await env.DB.batch([
-    env.DB.prepare("INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?)").bind(id, username, username, uri, 'https://test.siliconbeest.local/@' + username, now, now),
-    env.DB.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(id, id, email, 'dummy_hash', role, now, now, now),
-    env.DB.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, keys.publicPem, keys.privatePem, uri + '#main-key', now),
-    env.DB.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Test App', 'urn:ietf:wg:oauth:2.0:oob', clientId, clientSecret, scopes, now, now),
-    env.DB.prepare("INSERT INTO oauth_access_tokens (id, token, token_hash, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, tokenHash, appId, id, scopes, now),
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare("INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?)").bind(id, username, username, uri, 'https://test.siliconbeest.local/@' + username, now, now),
+    env.DB_META_C000.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(id, id, email, 'dummy_hash', role, now, now, now),
+    env.DB_META_C000.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, keys.publicPem, keys.privatePem, uri + '#main-key', now),
+    env.DB_META_C000.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Test App', 'urn:ietf:wg:oauth:2.0:oob', clientId, clientSecret, scopes, now, now),
+    env.DB_META_C000.prepare("INSERT INTO oauth_access_tokens (id, token, token_hash, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, tokenHash, appId, id, scopes, now),
   ]);
 
   return { accountId: id, userId: id, token };

@@ -1,0 +1,63 @@
+name: D1 Shard Capacity
+
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: d1-shard-capacity
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+
+      - name: Validate limits and precreate shards
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          D1_SHARD_LIMITS_GIB_JSON: ${{ vars.D1_SHARD_LIMITS_GIB_JSON }}
+          D1_FAMILY_ROLLOUT_JSON: ${{ vars.D1_FAMILY_ROLLOUT_JSON }}
+          PROJECT_PREFIX: ${{ vars.PROJECT_PREFIX }}
+        run: node .github/scripts/reconcile-d1-shards.mjs --provision
+
+      - name: Validate binding budget and plan shard gateways
+        env:
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          D1_BINDING_SOFT_LIMIT: ${{ vars.D1_BINDING_SOFT_LIMIT || '4000' }}
+          D1_BINDING_METADATA_RESERVE_BYTES: ${{ vars.D1_BINDING_METADATA_RESERVE_BYTES || '250000' }}
+        run: |
+          node .github/scripts/plan-d1-binding-gateways.mjs
+          node .github/scripts/render-d1-bindings.mjs
+
+      - name: Open inactive-shard manifest PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- config/d1-shards.json; then
+            echo "No shard manifest change"
+            exit 0
+          fi
+          branch="automation/d1-shard-$(date -u +%Y%m%d%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add config/d1-shards.json config/d1-binding-gateways.json
+          git commit -m "chore: precreate D1 shard"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "chore: precreate D1 shard" --body "Adds an inactive precreated D1 shard. Routing remains unchanged until bindings, migrations, and deployment are verified."

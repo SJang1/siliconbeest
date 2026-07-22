@@ -176,7 +176,7 @@ app.get('/:id/statuses', authOptional, requireScope('read:statuses'), async (c) 
   `;
   params.push(pag.limitValue);
 
-  const stmt = env.DB.prepare(sql);
+  const stmt = env.DB_META_C000.prepare(sql);
   const { results } = await stmt.bind(...params).all();
 
   const statusIds = (results as Record<string, unknown>[]).map((r) => r.id as string);
@@ -196,7 +196,7 @@ app.get('/:id/statuses', authOptional, requireScope('read:statuses'), async (c) 
       currentAccountId,
       new Date().toISOString(),
     );
-    const { results: reblogResults } = await env.DB.prepare(
+    const { results: reblogResults } = await env.DB_META_C000.prepare(
       `SELECT s.*,
         a.username AS account_username, a.domain AS account_domain,
         a.display_name AS account_display_name, a.note AS account_note,

@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS shard_metadata (family TEXT NOT NULL CHECK (family = 'SEARCH_FEED'), schema_version INTEGER NOT NULL, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (family, schema_version));
+INSERT OR IGNORE INTO shard_metadata (family, schema_version) VALUES ('SEARCH_FEED', 1);
+CREATE TABLE IF NOT EXISTS feed_entries (feed_key TEXT NOT NULL, entity_id TEXT NOT NULL, source_ordinal INTEGER NOT NULL, sort_at_ms INTEGER NOT NULL, author_summary_json TEXT NOT NULL, entity_summary_json TEXT NOT NULL, visibility TEXT NOT NULL, audience_json TEXT NOT NULL, source_version INTEGER NOT NULL, tombstoned_at TEXT, graph_version INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (feed_key, entity_id));
+CREATE INDEX IF NOT EXISTS idx_feed_entries_sort ON feed_entries (feed_key, sort_at_ms DESC, entity_id DESC);
+CREATE TABLE IF NOT EXISTS applied_operations (operation_id TEXT PRIMARY KEY, aggregate_version INTEGER, command_type TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS shard_outbox (event_id TEXT PRIMARY KEY, operation_id TEXT NOT NULL, destination TEXT NOT NULL, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at INTEGER, dispatched_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX IF NOT EXISTS idx_shard_outbox_pending ON shard_outbox (dispatched_at, next_attempt_at, created_at);

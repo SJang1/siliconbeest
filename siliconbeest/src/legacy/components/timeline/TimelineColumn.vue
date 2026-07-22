@@ -9,6 +9,7 @@ import type { TimelineType } from '@/stores/timelines'
 import TimelineFeed from './TimelineFeed.vue'
 import ThreadView from './ThreadView.vue'
 import DismissibleBanner from '@/legacy/components/common/DismissibleBanner.vue'
+import { useTimelineStreamViewport } from '@/composables/useTimelineStreamViewport'
 
 const { t } = useI18n()
 
@@ -45,16 +46,18 @@ const statuses = computed(() => {
     .filter((s): s is Status => !!s)
 })
 
-const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
+const newStatusCount = computed(() => timelinesStore.getNewStatusCount(props.timelineType))
+const hasNewPosts = computed(() => newStatusCount.value > 0)
 
 // Scroll detection uses the closest scrollable parent
 const isAtTop = ref(true)
+useTimelineStreamViewport('legacy-timeline-column', () => props.timelineType, isAtTop)
 
 function handleScroll(event: Event) {
   isAtTop.value = (event.currentTarget as HTMLElement).scrollTop < 100
 }
 
-watch(() => timeline.value.newStatusIds.length, (len) => {
+watch(newStatusCount, (len) => {
   if (len > 0 && isAtTop.value) {
     timelinesStore.showNewStatuses(props.timelineType)
   }
@@ -104,7 +107,7 @@ watch(
         :loading="timeline.loading || timeline.loadingMore"
         :done="!timeline.hasMore"
         :has-new-posts="hasNewPosts"
-        :new-posts-count="timeline.newStatusIds.length"
+        :new-posts-count="newStatusCount"
         @load-more="loadMore"
         @load-new="showNew"
         @navigate="openThread"

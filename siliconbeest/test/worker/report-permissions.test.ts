@@ -22,7 +22,7 @@ async function createStatus(
 }
 
 async function reportCount(accountId: string): Promise<number> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT COUNT(*) AS count FROM reports WHERE account_id = ?1',
   ).bind(accountId).first<{ count: number }>();
   return row?.count ?? 0;

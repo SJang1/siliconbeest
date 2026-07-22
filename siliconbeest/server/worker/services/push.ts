@@ -39,11 +39,11 @@ export async function createPushSubscription(
 		policy: string;
 	},
 ): Promise<boolean> {
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
 		).bind(opts.tokenId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO web_push_subscriptions
 			   (id, user_id, access_token_id, endpoint, key_p256dh, key_auth,
 			    alert_mention, alert_follow, alert_favourite, alert_reblog,
@@ -68,7 +68,7 @@ export async function createPushSubscription(
 export async function getPushSubscription(
 	tokenId: string,
 ): Promise<Record<string, unknown> | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT id, endpoint, policy, created_at, updated_at,
 		        alert_mention, alert_follow, alert_favourite, alert_reblog,
 		        alert_poll, alert_status, alert_update, alert_follow_request,
@@ -97,7 +97,7 @@ export async function updatePushSubscription(
 			return `${column} IS NOT ?${index + 1}`;
 		}).join(' OR ');
 
-		const result = await env.DB.prepare(
+		const result = await env.DB_META_C000.prepare(
 			`UPDATE web_push_subscriptions
 			 SET ${sets.join(', ')}
 			 WHERE id = ?${paramIdx} AND (${changedPredicate})`,
@@ -105,7 +105,7 @@ export async function updatePushSubscription(
 		changed = (result.meta?.changes ?? 0) > 0;
 	}
 
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT id, endpoint, policy,
 		        alert_mention, alert_follow, alert_favourite, alert_reblog,
 		        alert_poll, alert_status, alert_update, alert_follow_request,
@@ -123,7 +123,7 @@ export async function updatePushSubscription(
 export async function deletePushSubscription(
 	tokenId: string,
 ): Promise<boolean> {
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		'DELETE FROM web_push_subscriptions WHERE access_token_id = ?1',
 	).bind(tokenId).run();
 

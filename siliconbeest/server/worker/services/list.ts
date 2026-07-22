@@ -13,7 +13,7 @@ import {
 // ----------------------------------------------------------------
 
 export async function listLists(accountId: string) {
-  const { results } = await env.DB
+  const { results } = await env.DB_META_C000
     .prepare('SELECT * FROM lists WHERE account_id = ?1 ORDER BY created_at ASC')
     .bind(accountId)
     .all();
@@ -26,7 +26,7 @@ export async function listLists(accountId: string) {
 // ----------------------------------------------------------------
 
 export async function getList(listId: string, accountId: string) {
-  const row = await env.DB
+  const row = await env.DB_META_C000
     .prepare('SELECT * FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first<ListRow>();
@@ -53,7 +53,7 @@ export async function createList(
   const policy = repliesPolicy || 'list';
   const excl = exclusive ? 1 : 0;
 
-  await env.DB
+  await env.DB_META_C000
     .prepare(
       `INSERT INTO lists (id, account_id, title, replies_policy, exclusive, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
@@ -80,7 +80,7 @@ export interface UpdateListData {
 }
 
 export async function updateList(listId: string, accountId: string, data: UpdateListData) {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT * FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first<ListRow>();
@@ -94,7 +94,7 @@ export async function updateList(listId: string, accountId: string, data: Update
   const repliesPolicy = data.replies_policy ?? existing.replies_policy;
   const exclusive = data.exclusive !== undefined ? (data.exclusive ? 1 : 0) : existing.exclusive;
 
-  const update = await env.DB
+  const update = await env.DB_META_C000
     .prepare(
       `UPDATE lists
        SET title = ?1, replies_policy = ?2, exclusive = ?3, updated_at = ?4
@@ -120,7 +120,7 @@ export async function updateList(listId: string, accountId: string, data: Update
 // ----------------------------------------------------------------
 
 export async function deleteList(listId: string, accountId: string): Promise<void> {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -129,9 +129,9 @@ export async function deleteList(listId: string, accountId: string): Promise<voi
     throw new AppError(404, 'Record not found');
   }
 
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM list_accounts WHERE list_id = ?1').bind(listId),
-    env.DB.prepare('DELETE FROM lists WHERE id = ?1').bind(listId),
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare('DELETE FROM list_accounts WHERE list_id = ?1').bind(listId),
+    env.DB_META_C000.prepare('DELETE FROM lists WHERE id = ?1').bind(listId),
   ]);
 }
 
@@ -144,7 +144,7 @@ export async function getListMembers(listId: string, accountId: string, instance
   if (memberIds.length === 0) return [];
   const placeholders = memberIds.map(() => '?').join(', ');
 
-  const { results } = await env.DB
+  const { results } = await env.DB_META_C000
     .prepare(
       `SELECT a.* FROM accounts a WHERE a.id IN (${placeholders})`,
     )
@@ -172,13 +172,13 @@ export async function addListMembers(
   const stmts: D1PreparedStatement[] = [];
   for (const member of permittedMembers) {
     stmts.push(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT OR IGNORE INTO list_accounts (list_id, account_id, follow_id) VALUES (?1, ?2, ?3)',
       ).bind(listId, member.memberId, member.followId),
     );
   }
 
-  const results = await env.DB.batch(stmts);
+  const results = await env.DB_META_C000.batch(stmts);
   return results.some((result) => (result.meta?.changes ?? 0) > 0);
 }
 
@@ -191,7 +191,7 @@ export async function removeListMembers(
   accountId: string,
   memberAccountIds: string[],
 ): Promise<boolean> {
-  const list = await env.DB
+  const list = await env.DB_META_C000
     .prepare('SELECT id FROM lists WHERE id = ?1 AND account_id = ?2')
     .bind(listId, accountId)
     .first();
@@ -203,12 +203,12 @@ export async function removeListMembers(
   const stmts: D1PreparedStatement[] = [];
   for (const memberId of memberAccountIds) {
     stmts.push(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'DELETE FROM list_accounts WHERE list_id = ?1 AND account_id = ?2',
       ).bind(listId, memberId),
     );
   }
 
-  const results = await env.DB.batch(stmts);
+  const results = await env.DB_META_C000.batch(stmts);
   return results.some((result) => (result.meta?.changes ?? 0) > 0);
 }

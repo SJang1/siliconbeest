@@ -44,7 +44,7 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   // Federation: deliver Delete(Note) to followers if status is local
   if (row.local === 1) {
     try {
-      const account = await env.DB.prepare(
+      const account = await env.DB_META_C000.prepare(
         'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (account) {
@@ -73,7 +73,7 @@ app.delete('/:id', authRequired, requireScope('write:statuses'), async (c) => {
 
   // Broadcast delete event via streaming to all connected clients
   try {
-    const author = await env.DB.prepare(
+    const author = await env.DB_META_C000.prepare(
       'SELECT suspended_at, silenced_at FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(currentAccountId).first<{
       suspended_at: string | null;

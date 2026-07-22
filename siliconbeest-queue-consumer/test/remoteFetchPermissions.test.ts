@@ -16,7 +16,7 @@ interface RemoteAccountRow {
 
 const mocks = vi.hoisted(() => ({
   env: {
-    DB: {
+    DB_META_C000: {
       prepare: vi.fn(),
       batch: vi.fn(),
     },
@@ -92,9 +92,9 @@ beforeEach(() => {
   mocks.remoteDocument = {};
   mocks.accountRow = null;
   mocks.insertChanges = 1;
-  mocks.env.DB.prepare.mockReset();
-  mocks.env.DB.batch.mockReset();
-  mocks.env.DB.batch.mockResolvedValue([]);
+  mocks.env.DB_META_C000.prepare.mockReset();
+  mocks.env.DB_META_C000.batch.mockReset();
+  mocks.env.DB_META_C000.batch.mockResolvedValue([]);
   mocks.env.CACHE.get.mockReset();
   mocks.env.CACHE.get.mockResolvedValue(null);
   mocks.env.CACHE.put.mockReset();
@@ -133,7 +133,7 @@ beforeEach(() => {
   mocks.isActor.mockReset();
   mocks.isActor.mockReturnValue(true);
 
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: (...bindings: SqlBinding[]) => {
       mocks.prepared.push({ sql, bindings });
       return {
@@ -223,7 +223,7 @@ describe('remote actor fetch permissions', () => {
     expect(upsert?.sql).toContain('domain = excluded.domain');
     expect(upsert?.bindings).toContain('alice');
     expect(mocks.ensureInstanceRecord).toHaveBeenCalledWith(
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'remote.example',
     );
   });
@@ -389,6 +389,6 @@ describe('remote status fetch permissions', () => {
       statusUri: 'https://remote.example/notes/1',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
   });
 });

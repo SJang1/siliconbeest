@@ -22,7 +22,7 @@ app.delete('/:id', async (c) => {
 	const id = c.req.param('id');
 
 	// Fetch the status
-	const status = await env.DB.prepare('SELECT id, uri, account_id, reblog_of_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
+	const status = await env.DB_META_C000.prepare('SELECT id, uri, account_id, reblog_of_id FROM statuses WHERE id = ?1 AND deleted_at IS NULL')
 		.bind(id)
 		.first();
 	if (!status) throw new AppError(404, 'Record not found');
@@ -30,7 +30,7 @@ app.delete('/:id', async (c) => {
 	const now = new Date().toISOString();
 
 	// Soft delete
-	await env.DB.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, id).run();
+	await env.DB_META_C000.prepare('UPDATE statuses SET deleted_at = ?1 WHERE id = ?2').bind(now, id).run();
 	const accountId = status.account_id as string;
 	const reblogOfId = typeof status.reblog_of_id === 'string' ? status.reblog_of_id : null;
 	await scheduleBackgroundTask(
@@ -47,7 +47,7 @@ app.delete('/:id', async (c) => {
 	);
 
 	// Check if the author is a local account (domain IS NULL)
-	const account = await env.DB.prepare('SELECT id, username, domain, uri FROM accounts WHERE id = ?1')
+	const account = await env.DB_META_C000.prepare('SELECT id, username, domain, uri FROM accounts WHERE id = ?1')
 		.bind(status.account_id)
 		.first();
 

@@ -41,8 +41,8 @@ describe('status interaction participant surfaces', () => {
     wrongScopeViewer = await createTestUser('interaction_list_wrong_scope', { scopes: 'read:accounts' });
 
     const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO accounts
           (id, username, domain, display_name, note, uri, url, created_at, updated_at)
          VALUES (?1, 'remote_actor', 'blocked.example', 'Remote actor', '', ?2, ?2, ?3, ?3)`,
@@ -51,7 +51,7 @@ describe('status interaction participant surfaces', () => {
         'https://blocked.example/users/remote_actor',
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO accounts
           (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
            fields, created_at, updated_at)
@@ -67,7 +67,7 @@ describe('status interaction participant surfaces', () => {
       ),
     ]);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses
         (id, uri, account_id, content, visibility, local, created_at, updated_at)
        VALUES (?1, ?2, ?3, '<p>target</p>', 'public', 1, ?4, ?4)`,
@@ -85,11 +85,11 @@ describe('status interaction participant surfaces', () => {
     const participantStatements: D1PreparedStatement[] = [];
     for (const [index, accountId] of participantIds.entries()) {
       participantStatements.push(
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO favourites (id, account_id, status_id, created_at)
            VALUES (?1, ?2, ?3, ?4)`,
         ).bind(`interaction-list-favourite-${index}`, accountId, statusId, now),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           `INSERT INTO statuses
             (id, uri, account_id, reblog_of_id, visibility, local, created_at, updated_at)
            VALUES (?1, ?2, ?3, ?4, 'public', 1, ?5, ?5)`,
@@ -103,7 +103,7 @@ describe('status interaction participant surfaces', () => {
       );
     }
     participantStatements.push(
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, reblog_of_id, visibility, local, created_at, updated_at)
          VALUES ('interaction-list-invalid-direct', ?1, ?2, ?3, 'direct', 1, ?4, ?4)`,
@@ -114,27 +114,27 @@ describe('status interaction participant surfaces', () => {
         now,
       ),
     );
-    await env.DB.batch(participantStatements);
+    await env.DB_META_C000.batch(participantStatements);
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO mutes
           (id, account_id, target_account_id, hide_notifications, created_at, updated_at)
          VALUES ('interaction-list-mute', ?1, ?2, 1, ?3, ?3)`,
       ).bind(viewer.accountId, mutedActor.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO blocks (id, account_id, target_account_id, created_at)
          VALUES ('interaction-list-viewer-block', ?1, ?2, ?3)`,
       ).bind(viewer.accountId, viewerBlockedActor.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO blocks (id, account_id, target_account_id, created_at)
          VALUES ('interaction-list-reverse-block', ?1, ?2, ?3)`,
       ).bind(actorBlockedViewer.accountId, viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
          VALUES ('interaction-list-domain-block', ?1, 'BLOCKED.EXAMPLE', ?2)`,
       ).bind(viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
       ).bind(now, suspendedActor.accountId),
     ]);

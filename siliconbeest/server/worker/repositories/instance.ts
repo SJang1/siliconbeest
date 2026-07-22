@@ -29,7 +29,7 @@ export type UpsertInstanceInput = {
 export const findByDomain = async (
 	domain: string,
 ): Promise<Instance | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM instances WHERE domain = ?')
 		.bind(domain)
 		.first<Instance>();
@@ -48,7 +48,7 @@ export const upsert = async (
 		const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 		const values = [...entries.map(([, value]) => value), now, existing.id];
 
-		await env.DB
+		await env.DB_META_C000
 			.prepare(`UPDATE instances SET ${fields.join(', ')} WHERE id = ?`)
 			.bind(...values)
 			.run();
@@ -74,7 +74,7 @@ export const upsert = async (
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO instances (
 				id, domain, software_name, software_version, title, description,
@@ -98,7 +98,7 @@ export const updateFailure = async (
 	domain: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`UPDATE instances SET
 				last_failed_at = ?,
@@ -114,7 +114,7 @@ export const updateSuccess = async (
 	domain: string,
 ): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`UPDATE instances SET
 				last_successful_at = ?,

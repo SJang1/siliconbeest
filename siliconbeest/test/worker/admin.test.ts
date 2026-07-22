@@ -187,7 +187,7 @@ describe('Admin API', () => {
         'ko-KR',
         'en',
       ]);
-      await expect(env.DB.prepare(
+      await expect(env.DB_META_C000.prepare(
         "SELECT value FROM settings WHERE key = 'instance_languages'",
       ).first()).resolves.toBeNull();
 

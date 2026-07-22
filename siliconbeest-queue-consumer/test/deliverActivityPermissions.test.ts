@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   keyRow: null as ActorKeyPermissionRow | null,
   actorKeyBindings: [] as string[][],
   env: {
-    DB: { prepare: vi.fn() },
+    DB_META_C000: { prepare: vi.fn() },
     CACHE: {},
   },
   fetch: vi.fn(),
@@ -72,8 +72,8 @@ function validKeyRow(): ActorKeyPermissionRow {
 beforeEach(() => {
   mocks.keyRow = null;
   mocks.actorKeyBindings.length = 0;
-  mocks.env.DB.prepare.mockReset();
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockReset();
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: (...params: string[]) => ({
       first: async () => {
         mocks.actorKeyBindings.push(params);
@@ -193,7 +193,7 @@ describe('activity signing principal binding', () => {
     expect(mocks.signRequestRFC9421).toHaveBeenCalledTimes(1);
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
     expect(mocks.recordDeliverySuccess).toHaveBeenCalledWith(
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'target.example',
     );
   });

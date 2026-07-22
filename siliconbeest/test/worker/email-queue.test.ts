@@ -21,7 +21,7 @@ describe('Email Queue Integration', () => {
   describe('Password Reset', () => {
     it('POST /api/v1/auth/passwords returns 200 and enqueues email', async () => {
       // Set email for the regular user
-      await env.DB.prepare('UPDATE users SET email = ?1 WHERE id = ?2')
+      await env.DB_META_C000.prepare('UPDATE users SET email = ?1 WHERE id = ?2')
         .bind('test@example.com', regularUser.userId)
         .run();
 
@@ -65,7 +65,7 @@ describe('Email Queue Integration', () => {
 
     it('POST /api/v1/admin/email/test sends test to admin', async () => {
       // Set admin email
-      await env.DB.prepare('UPDATE users SET email = ?1 WHERE id = ?2')
+      await env.DB_META_C000.prepare('UPDATE users SET email = ?1 WHERE id = ?2')
         .bind('admin@example.com', admin.userId)
         .run();
 
@@ -108,7 +108,7 @@ describe('Email Queue Integration', () => {
     it('POST /api/v1/admin/accounts/:id/approve triggers welcome email', async () => {
       // Create a pending user
       const pending = await createTestUser('pendinguser');
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         "UPDATE users SET approved = 0, registration_state = 'pending_approval', email = ?1 WHERE id = ?2",
       )
         .bind('pending@example.com', pending.userId)
@@ -126,7 +126,7 @@ describe('Email Queue Integration', () => {
 
       // Admin approval lets the applicant continue, but the account stays private
       // until the applicant confirms the registration.
-      const user = await env.DB.prepare(
+      const user = await env.DB_META_C000.prepare(
         'SELECT approved, registration_state FROM users WHERE id = ?1',
       )
         .bind(pending.userId)
@@ -139,7 +139,7 @@ describe('Email Queue Integration', () => {
     it('POST /api/v1/admin/accounts/:id/reject works for pending accounts', async () => {
       // Create another pending user
       const pending2 = await createTestUser('pendinguser2');
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         "UPDATE users SET approved = 0, registration_state = 'pending_approval', email = ?1 WHERE id = ?2",
       )
         .bind('pending2@example.com', pending2.userId)
@@ -155,7 +155,7 @@ describe('Email Queue Integration', () => {
 
       expect(res.status).toBe(200);
       // Verify user/account are deleted
-      const user = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1')
+      const user = await env.DB_META_C000.prepare('SELECT id FROM users WHERE account_id = ?1')
         .bind(pending2.accountId)
         .first();
       expect(user).toBeNull();

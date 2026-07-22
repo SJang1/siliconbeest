@@ -82,20 +82,20 @@ describe('account API permissions', () => {
     );
     expect(reverseBlockResponse.status).toBe(200);
 
-    await env.DB.batch([
-      env.DB.prepare('UPDATE accounts SET silenced_at = ?1 WHERE id = ?2')
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare('UPDATE accounts SET silenced_at = ?1 WHERE id = ?2')
         .bind(new Date().toISOString(), silenced.accountId),
-      env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
         .bind(new Date().toISOString(), suspended.accountId),
-      env.DB.prepare('UPDATE users SET disabled = 1 WHERE account_id = ?1')
+      env.DB_META_C000.prepare('UPDATE users SET disabled = 1 WHERE account_id = ?1')
         .bind(frozen.accountId),
-      env.DB.prepare("UPDATE users SET approved = 0, registration_state = 'pending_approval' WHERE account_id = ?1")
+      env.DB_META_C000.prepare("UPDATE users SET approved = 0, registration_state = 'pending_approval' WHERE account_id = ?1")
         .bind(pendingApproval.accountId),
-      env.DB.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
+      env.DB_META_C000.prepare('UPDATE accounts SET memorial = 1 WHERE id = ?1')
         .bind(memorial.accountId),
-      env.DB.prepare('UPDATE accounts SET moved_to_account_id = ?1 WHERE id = ?2')
+      env.DB_META_C000.prepare('UPDATE accounts SET moved_to_account_id = ?1 WHERE id = ?2')
         .bind(active.accountId, moved.accountId),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO accounts
          (id, username, domain, display_name, note, uri, url, created_at, updated_at)
          VALUES (?1, 'acctpermsystem', NULL, 'System', '', ?2, ?3, ?4, ?4)`,
@@ -157,7 +157,7 @@ describe('account API permissions', () => {
     const sqlShapedUsername = "acctperm' OR 1=1 --";
     const sqlShapedAccountId = "account-id' OR 1=1 --";
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url, created_at, updated_at)
        VALUES (?1, ?2, ?3, '', '', ?4, ?5, ?6, ?6)`,
@@ -185,7 +185,7 @@ describe('account API permissions', () => {
 
   it('keeps blocked-domain profiles canonical while suppressing discovery and new follows', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url, created_at, updated_at)
        VALUES (
@@ -195,44 +195,44 @@ describe('account API permissions', () => {
        )`,
     ).bind(now).run();
 
-    const viewerCountsBefore = await env.DB.prepare(
+    const viewerCountsBefore = await env.DB_META_C000.prepare(
       `SELECT followers_count, following_count FROM accounts WHERE id = ?1`,
     ).bind(viewer.accountId).first<{
       followers_count: number;
       following_count: number;
     }>();
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO follows
          (id, account_id, target_account_id, created_at, updated_at)
          VALUES ('acctperm-domain-follow-out', ?1, 'acctperm-domain-remote', ?2, ?2)`,
       ).bind(viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follows
          (id, account_id, target_account_id, created_at, updated_at)
          VALUES ('acctperm-domain-follow-in', 'acctperm-domain-remote', ?1, ?2, ?2)`,
       ).bind(viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `UPDATE accounts
          SET followers_count = followers_count + 1,
              following_count = following_count + 1
          WHERE id IN (?1, 'acctperm-domain-remote')`,
       ).bind(viewer.accountId),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO follow_requests
          (id, account_id, target_account_id, created_at, updated_at)
          VALUES ('acctperm-domain-request', ?1, 'acctperm-domain-remote', ?2, ?2)`,
       ).bind(viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO lists
          (id, account_id, title, created_at, updated_at)
          VALUES ('acctperm-domain-list', ?1, 'Domain list', ?2, ?2)`,
       ).bind(viewer.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO list_accounts (list_id, account_id)
          VALUES ('acctperm-domain-list', 'acctperm-domain-remote')`,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO account_pins
          (id, account_id, target_account_id, created_at)
          VALUES ('acctperm-domain-pin', ?1, 'acctperm-domain-remote', ?2)`,
@@ -246,7 +246,7 @@ describe('account API permissions', () => {
     });
     expect(block.status).toBe(200);
 
-    const remainingRelationships = await env.DB.prepare(
+    const remainingRelationships = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM follows
           WHERE (account_id = ?1 AND target_account_id = 'acctperm-domain-remote')
@@ -273,7 +273,7 @@ describe('account API permissions', () => {
       lists_count: 0,
       pins_count: 0,
     });
-    const viewerCountsAfter = await env.DB.prepare(
+    const viewerCountsAfter = await env.DB_META_C000.prepare(
       `SELECT followers_count, following_count FROM accounts WHERE id = ?1`,
     ).bind(viewer.accountId).first<{
       followers_count: number;
@@ -385,7 +385,7 @@ describe('account API permissions', () => {
       expect(response.status).toBe(testCase.expectedStatus);
     }
 
-    const blockedFollow = await env.DB.prepare(
+    const blockedFollow = await env.DB_META_C000.prepare(
       `SELECT 1 FROM follows
        WHERE account_id = ?1 AND target_account_id = ?2
        LIMIT 1`,
@@ -397,7 +397,7 @@ describe('account API permissions', () => {
     const blocker = await createTestUser('acctpermsuspendedblocker');
     const muter = await createTestUser('acctpermsuspendedmuter');
     const target = await createTestUser('acctpermsuspendeddefensive');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
     ).bind(new Date().toISOString(), target.accountId).run();
 
@@ -412,7 +412,7 @@ describe('account API permissions', () => {
     expect(block.status).toBe(200);
     expect(mute.status).toBe(200);
 
-    const relationships = await env.DB.prepare(
+    const relationships = await env.DB_META_C000.prepare(
       `SELECT
          (SELECT COUNT(*) FROM blocks
           WHERE account_id = ?1 AND target_account_id = ?3) AS blocks_count,
@@ -448,7 +448,7 @@ describe('account API permissions', () => {
     });
     expect(followResponse.status).toBe(200);
 
-    const before = await env.DB.prepare(
+    const before = await env.DB_META_C000.prepare(
       'SELECT followers_count FROM accounts WHERE id = ?1',
     ).bind(viewer.accountId).first<{ followers_count: number }>();
 
@@ -461,7 +461,7 @@ describe('account API permissions', () => {
       expect((await response.json<RelationshipEntity>()).followed_by).toBe(false);
     }
 
-    const after = await env.DB.prepare(
+    const after = await env.DB_META_C000.prepare(
       'SELECT followers_count FROM accounts WHERE id = ?1',
     ).bind(viewer.accountId).first<{ followers_count: number }>();
     expect(after?.followers_count).toBe((before?.followers_count ?? 0) - 1);
@@ -500,7 +500,7 @@ describe('account API permissions', () => {
   it('requires the documented OAuth scopes for account-owned mutations', async () => {
     const scoped = await createTestUser('acctpermscopeowner');
     const scopedTarget = await createTestUser('acctpermscopetarget');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE oauth_access_tokens SET scopes = 'read:accounts' WHERE user_id = ?1",
     ).bind(scoped.userId).run();
 
@@ -520,7 +520,7 @@ describe('account API permissions', () => {
       expect(response.status).toBe(403);
     }
 
-    const note = await env.DB.prepare(
+    const note = await env.DB_META_C000.prepare(
       `SELECT 1 FROM account_notes
        WHERE account_id = ?1 AND target_account_id = ?2`,
     ).bind(scoped.accountId, scopedTarget.accountId).first();

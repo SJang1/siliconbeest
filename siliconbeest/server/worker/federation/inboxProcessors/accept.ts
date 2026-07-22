@@ -35,14 +35,14 @@ class AcceptProcessor extends BaseProcessor {
 		// Relay Accept handling
 		const followId = typeof object === 'string' ? object : (object as APObject).id;
 		if (followId) {
-			const relay = await env.DB.prepare(
+			const relay = await env.DB_META_C000.prepare(
 				'SELECT id FROM relays WHERE follow_activity_id = ?1',
 			)
 				.bind(followId)
 				.first<{ id: string }>();
 
 			if (relay) {
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					"UPDATE relays SET state = 'accepted', actor_uri = ?1, updated_at = ?2 WHERE id = ?3",
 				)
 					.bind(String(activity.actor), new Date().toISOString(), relay.id)
@@ -72,7 +72,7 @@ class AcceptProcessor extends BaseProcessor {
 		const objectId = typeof object === 'string' ? object : followObject?.id ?? null;
 
 		if (objectId) {
-			followRequest = await env.DB.prepare(
+			followRequest = await env.DB_META_C000.prepare(
 				`SELECT fr.id, fr.account_id, fr.target_account_id, fr.uri,
 				        local_initiator.uri AS local_initiator_uri,
 				        response_owner.uri AS response_owner_uri
@@ -91,7 +91,7 @@ class AcceptProcessor extends BaseProcessor {
 		// Some servers embed an id-less Follow. In that case only, correlate by
 		// both embedded actors; a mismatched or unknown object id never falls back.
 		if (!followRequest && followObject && !followObject.id) {
-			followRequest = await env.DB.prepare(
+			followRequest = await env.DB_META_C000.prepare(
 				`SELECT fr.id, fr.account_id, fr.target_account_id, fr.uri,
 				        local_initiator.uri AS local_initiator_uri,
 				        response_owner.uri AS response_owner_uri
@@ -132,8 +132,8 @@ class AcceptProcessor extends BaseProcessor {
 
 		// Move from follow_requests to follows
 		try {
-			const [inserted, deleted] = await env.DB.batch([
-				env.DB.prepare(
+			const [inserted, deleted] = await env.DB_META_C000.batch([
+				env.DB_META_C000.prepare(
 					`INSERT INTO follows
 					   (id, account_id, target_account_id, uri, created_at, updated_at)
 					 SELECT ?1, fr.account_id, fr.target_account_id, fr.uri, ?2, ?2
@@ -148,7 +148,7 @@ class AcceptProcessor extends BaseProcessor {
 					followRequest.account_id,
 					followRequest.target_account_id,
 				),
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					`DELETE FROM follow_requests
 					 WHERE id = ?1 AND account_id = ?2 AND target_account_id = ?3`,
 				).bind(
@@ -183,7 +183,7 @@ class AcceptProcessor extends BaseProcessor {
 			return;
 		}
 
-		const status = await env.DB.prepare(
+		const status = await env.DB_META_C000.prepare(
 			`SELECT s.id, s.account_id AS local_quote_author_account_id,
 			        s.quote_id, s.quote_approval_status, qs.uri AS quoted_uri,
 			        qs.account_id AS quote_target_author_account_id
@@ -212,7 +212,7 @@ class AcceptProcessor extends BaseProcessor {
 			return;
 		}
 
-		const updated = await env.DB.prepare(
+		const updated = await env.DB_META_C000.prepare(
 			`UPDATE statuses
 			 SET quote_authorization_uri = ?1, quote_approval_status = 'accepted', updated_at = ?2
 			 WHERE id = ?3 AND quote_approval_status = 'pending'`,
@@ -223,7 +223,7 @@ class AcceptProcessor extends BaseProcessor {
 	}
 
 	private async enqueueQuoteUpdate(statusId: string, authorizationUri: string): Promise<void> {
-		const row = await env.DB.prepare(
+		const row = await env.DB_META_C000.prepare(
 			`SELECT s.id, s.uri, s.url, s.content, s.content_warning, s.visibility, s.sensitive,
 			        s.language, s.created_at, s.quote_id, qs.uri AS quoted_uri,
 			        a.id AS account_id, a.uri AS actor_uri, a.username

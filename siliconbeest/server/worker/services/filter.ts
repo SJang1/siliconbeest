@@ -9,19 +9,19 @@ import type { FilterRow } from '../types/db';
 // ----------------------------------------------------------------
 
 export async function fetchFilterWithKeywords(filterId: string) {
-  const filter = await env.DB
+  const filter = await env.DB_META_C000
     .prepare('SELECT * FROM filters WHERE id = ?1')
     .bind(filterId)
     .first<FilterRow>();
 
   if (!filter) return null;
 
-  const { results: keywords } = await env.DB
+  const { results: keywords } = await env.DB_META_C000
     .prepare('SELECT id, keyword, whole_word FROM filter_keywords WHERE filter_id = ?1')
     .bind(filterId)
     .all();
 
-  const { results: statuses } = await env.DB
+  const { results: statuses } = await env.DB_META_C000
     .prepare('SELECT id, status_id FROM filter_statuses WHERE filter_id = ?1')
     .bind(filterId)
     .all();
@@ -37,7 +37,7 @@ export async function fetchFilterWithKeywords(filterId: string) {
 // ----------------------------------------------------------------
 
 export async function listFilters(userId: string) {
-  const { results: filters } = await env.DB
+  const { results: filters } = await env.DB_META_C000
     .prepare('SELECT * FROM filters WHERE user_id = ?1 ORDER BY created_at DESC')
     .bind(userId)
     .all();
@@ -56,7 +56,7 @@ export async function listFilters(userId: string) {
 // ----------------------------------------------------------------
 
 export async function getFilter(filterId: string, userId: string) {
-  const filter = await env.DB
+  const filter = await env.DB_META_C000
     .prepare('SELECT * FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first<FilterRow>();
@@ -91,7 +91,7 @@ export async function createFilter(userId: string, data: CreateFilterData) {
   }
 
   const stmts: D1PreparedStatement[] = [
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `INSERT INTO filters (id, user_id, title, context, action, expires_at, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`,
     ).bind(filterId, userId, data.title, JSON.stringify(data.context), filterAction, expiresAt, now),
@@ -101,14 +101,14 @@ export async function createFilter(userId: string, data: CreateFilterData) {
     for (const kw of data.keywords_attributes) {
       const kwId = generateUlid();
       stmts.push(
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
         ).bind(kwId, filterId, kw.keyword, kw.whole_word ? 1 : 0, now),
       );
     }
   }
 
-  await env.DB.batch(stmts);
+  await env.DB_META_C000.batch(stmts);
 
   return fetchFilterWithKeywords(filterId);
 }
@@ -126,7 +126,7 @@ export interface UpdateFilterData {
 }
 
 export async function updateFilter(filterId: string, userId: string, data: UpdateFilterData) {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT * FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first<FilterRow>();
@@ -149,7 +149,7 @@ export async function updateFilter(filterId: string, userId: string, data: Updat
   }
 
   const stmts: D1PreparedStatement[] = [
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `UPDATE filters
        SET title = ?1, context = ?2, action = ?3, expires_at = ?4, updated_at = ?5
        WHERE id = ?6
@@ -161,12 +161,12 @@ export async function updateFilter(filterId: string, userId: string, data: Updat
     for (const kw of data.keywords_attributes) {
       if (kw._destroy && kw.id) {
         stmts.push(
-          env.DB.prepare('DELETE FROM filter_keywords WHERE id = ?1 AND filter_id = ?2').bind(kw.id, filterId),
+          env.DB_META_C000.prepare('DELETE FROM filter_keywords WHERE id = ?1 AND filter_id = ?2').bind(kw.id, filterId),
         );
       } else if (kw.id) {
         if (kw.keyword !== undefined) {
           stmts.push(
-            env.DB.prepare(
+            env.DB_META_C000.prepare(
               `UPDATE filter_keywords
                SET keyword = ?1, whole_word = ?2, updated_at = ?3
                WHERE id = ?4 AND filter_id = ?5
@@ -177,7 +177,7 @@ export async function updateFilter(filterId: string, userId: string, data: Updat
       } else if (kw.keyword) {
         const kwId = generateUlid();
         stmts.push(
-          env.DB.prepare(
+          env.DB_META_C000.prepare(
             'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
           ).bind(kwId, filterId, kw.keyword, kw.whole_word ? 1 : 0, now),
         );
@@ -185,7 +185,7 @@ export async function updateFilter(filterId: string, userId: string, data: Updat
     }
   }
 
-  const results = await env.DB.batch(stmts);
+  const results = await env.DB_META_C000.batch(stmts);
 
   return {
     filter: await fetchFilterWithKeywords(filterId),
@@ -198,7 +198,7 @@ export async function updateFilter(filterId: string, userId: string, data: Updat
 // ----------------------------------------------------------------
 
 export async function deleteFilter(filterId: string, userId: string): Promise<boolean> {
-  const existing = await env.DB
+  const existing = await env.DB_META_C000
     .prepare('SELECT id FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first();
@@ -207,10 +207,10 @@ export async function deleteFilter(filterId: string, userId: string): Promise<bo
     throw new AppError(404, 'Record not found');
   }
 
-  const results = await env.DB.batch([
-    env.DB.prepare('DELETE FROM filter_keywords WHERE filter_id = ?1').bind(filterId),
-    env.DB.prepare('DELETE FROM filter_statuses WHERE filter_id = ?1').bind(filterId),
-    env.DB.prepare('DELETE FROM filters WHERE id = ?1').bind(filterId),
+  const results = await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare('DELETE FROM filter_keywords WHERE filter_id = ?1').bind(filterId),
+    env.DB_META_C000.prepare('DELETE FROM filter_statuses WHERE filter_id = ?1').bind(filterId),
+    env.DB_META_C000.prepare('DELETE FROM filters WHERE id = ?1').bind(filterId),
   ]);
 
   return results.some((result) => (result.meta?.changes ?? 0) > 0);
@@ -221,7 +221,7 @@ export async function deleteFilter(filterId: string, userId: string): Promise<bo
 // ----------------------------------------------------------------
 
 export async function verifyFilterOwnership(filterId: string, userId: string): Promise<void> {
-  const filter = await env.DB
+  const filter = await env.DB_META_C000
     .prepare('SELECT id FROM filters WHERE id = ?1 AND user_id = ?2')
     .bind(filterId, userId)
     .first();
@@ -246,7 +246,7 @@ export async function addFilterKeyword(
   const kwId = generateUlid();
   const now = new Date().toISOString();
 
-  await env.DB
+  await env.DB_META_C000
     .prepare(
       'INSERT INTO filter_keywords (id, filter_id, keyword, whole_word, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)',
     )
@@ -267,7 +267,7 @@ export async function addFilterKeyword(
 export async function listFilterKeywords(filterId: string, userId: string) {
   await verifyFilterOwnership(filterId, userId);
 
-  const { results } = await env.DB
+  const { results } = await env.DB_META_C000
     .prepare('SELECT * FROM filter_keywords WHERE filter_id = ?1 ORDER BY created_at ASC')
     .bind(filterId)
     .all();
@@ -290,7 +290,7 @@ export async function deleteFilterKeyword(
 ): Promise<boolean> {
   await verifyFilterOwnership(filterId, userId);
 
-  const kw = await env.DB
+  const kw = await env.DB_META_C000
     .prepare('SELECT id FROM filter_keywords WHERE id = ?1 AND filter_id = ?2')
     .bind(keywordId, filterId)
     .first();
@@ -299,7 +299,7 @@ export async function deleteFilterKeyword(
     throw new AppError(404, 'Record not found');
   }
 
-  const result = await env.DB.prepare(
+  const result = await env.DB_META_C000.prepare(
     'DELETE FROM filter_keywords WHERE id = ?1 AND filter_id = ?2',
   ).bind(keywordId, filterId).run();
   return (result.meta?.changes ?? 0) > 0;

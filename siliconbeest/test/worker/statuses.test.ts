@@ -71,7 +71,7 @@ describe('Statuses API', () => {
     });
 
     it('rejects an invalid visibility before creating a status', async () => {
-      const before = await env.DB.prepare(
+      const before = await env.DB_META_C000.prepare(
         'SELECT COUNT(*) AS count FROM statuses WHERE account_id = ?1',
       ).bind(user.accountId).first<{ count: number }>();
 
@@ -86,7 +86,7 @@ describe('Statuses API', () => {
 
       expect(res.status).toBe(422);
 
-      const after = await env.DB.prepare(
+      const after = await env.DB_META_C000.prepare(
         'SELECT COUNT(*) AS count FROM statuses WHERE account_id = ?1',
       ).bind(user.accountId).first<{ count: number }>();
       expect(after?.count).toBe(before?.count);
@@ -137,7 +137,7 @@ describe('Statuses API', () => {
     it('fails closed for a stored status with an invalid visibility', async () => {
       const invalidStatusId = 'stored-invalid-visibility';
       const now = new Date().toISOString();
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO statuses (id, uri, account_id, text, content, visibility, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, ?6)`,
       ).bind(

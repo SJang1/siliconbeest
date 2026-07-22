@@ -177,6 +177,34 @@ function addCheckedInRuntimeTypes(generatedTypes: string): string {
     MAIN_PROJECT_DIR,
     'server/worker/durableObjects/streaming',
   );
+  const writeJournalClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/writeJournal',
+  );
+  const streamFanoutClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/streamFanout',
+  );
+  const realtimeFeedClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/realtimeFeedIndex',
+  );
+  const identityReservationClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/identityReservation',
+  );
+  const invitationLedgerClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/invitationLedger',
+  );
+  const registrationJournalClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/registrationJournal',
+  );
+  const remoteObjectJournalClass = join(
+    MAIN_PROJECT_DIR,
+    'server/worker/durableObjects/remoteObjectJournal',
+  );
   const generatedEnvironment = readFileSync(generatedTypes, 'utf8')
     // Wrangler emits imports relative to the temporary config. Rebase those
     // type-only links before compiling the real Worker source tree.
@@ -187,6 +215,34 @@ function addCheckedInRuntimeTypes(generatedTypes: string): string {
     .replace(
       /^(\s*)STREAMING_DO:.*$/m,
       `$1STREAMING_DO: DurableObjectNamespace<import(${JSON.stringify(streamingClass)}).StreamingDO>;`,
+    )
+    .replace(
+      /^(\s*)WRITE_JOURNAL_DO:.*$/m,
+      `$1WRITE_JOURNAL_DO: DurableObjectNamespace<import(${JSON.stringify(writeJournalClass)}).WriteJournalDO>;`,
+    )
+    .replace(
+      /^(\s*)STREAM_FANOUT_DO:.*$/m,
+      `$1STREAM_FANOUT_DO: DurableObjectNamespace<import(${JSON.stringify(streamFanoutClass)}).StreamFanoutDO>;`,
+    )
+    .replace(
+      /^(\s*)REALTIME_FEED_DO:.*$/m,
+      `$1REALTIME_FEED_DO: DurableObjectNamespace<import(${JSON.stringify(realtimeFeedClass)}).RealtimeFeedIndexDO>;`,
+    )
+    .replace(
+      /^(\s*)IDENTITY_RESERVATION_DO:.*$/m,
+      `$1IDENTITY_RESERVATION_DO: DurableObjectNamespace<import(${JSON.stringify(identityReservationClass)}).IdentityReservationDO>;`,
+    )
+    .replace(
+      /^(\s*)INVITATION_LEDGER_DO:.*$/m,
+      `$1INVITATION_LEDGER_DO: DurableObjectNamespace<import(${JSON.stringify(invitationLedgerClass)}).InvitationLedgerDO>;`,
+    )
+    .replace(
+      /^(\s*)REGISTRATION_JOURNAL_DO:.*$/m,
+      `$1REGISTRATION_JOURNAL_DO: DurableObjectNamespace<import(${JSON.stringify(registrationJournalClass)}).RegistrationJournalDO>;`,
+    )
+    .replace(
+      /^(\s*)REMOTE_OBJECT_JOURNAL_DO:.*$/m,
+      `$1REMOTE_OBJECT_JOURNAL_DO: DurableObjectNamespace<import(${JSON.stringify(remoteObjectJournalClass)}).RemoteObjectJournalDO>;`,
     );
   const combinedTypes = join(dirname(generatedTypes), 'worker-types-with-runtime.d.ts');
   writeFileSync(

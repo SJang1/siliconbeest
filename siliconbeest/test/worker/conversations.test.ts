@@ -19,14 +19,14 @@ describe('Conversations API', () => {
     convId = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         'INSERT INTO conversations (id, created_at, updated_at) VALUES (?1, ?2, ?2)',
       ).bind(convId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO conversation_accounts (conversation_id, account_id, last_status_id, unread) VALUES (?1, ?2, NULL, 1)',
       ).bind(convId, alice.accountId),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO conversation_accounts (conversation_id, account_id, last_status_id, unread) VALUES (?1, ?2, NULL, 0)',
       ).bind(convId, bob.accountId),
     ]);

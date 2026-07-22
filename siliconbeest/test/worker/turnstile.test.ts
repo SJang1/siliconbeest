@@ -28,7 +28,7 @@ const TABLE_DELETE_ORDER = [
 async function resetDB() {
 	for (const table of TABLE_DELETE_ORDER) {
 		try {
-			await env.DB.prepare(`DELETE FROM "${table}"`).run();
+			await env.DB_META_C000.prepare(`DELETE FROM "${table}"`).run();
 		} catch { /* table may not exist yet */ }
 	}
 }
@@ -64,14 +64,14 @@ function loginClientHeaders(context: LoginClientContext): Record<string, string>
 }
 
 async function enableTurnstile(secretKey: string = PASS_SECRET) {
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '1', datetime('now'))",
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_site_key', ?1, datetime('now'))",
 		).bind(SITE_KEY),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_secret_key', ?1, datetime('now'))",
 		).bind(secretKey),
 	]);
@@ -80,12 +80,12 @@ async function enableTurnstile(secretKey: string = PASS_SECRET) {
 }
 
 async function disableTurnstile() {
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '0', datetime('now'))",
 		),
-		env.DB.prepare("DELETE FROM settings WHERE key = 'turnstile_site_key'"),
-		env.DB.prepare("DELETE FROM settings WHERE key = 'turnstile_secret_key'"),
+		env.DB_META_C000.prepare("DELETE FROM settings WHERE key = 'turnstile_site_key'"),
+		env.DB_META_C000.prepare("DELETE FROM settings WHERE key = 'turnstile_secret_key'"),
 	]);
 	await env.CACHE.delete('settings:turnstile');
 }
@@ -164,7 +164,7 @@ describe('Turnstile CAPTCHA verification', () => {
 			migrated = true;
 		} else {
 			await resetDB();
-			await env.DB.prepare(DEFAULT_SETTINGS_SQL).run();
+			await env.DB_META_C000.prepare(DEFAULT_SETTINGS_SQL).run();
 		}
 		await env.CACHE.delete('settings:turnstile');
 	});
@@ -281,7 +281,7 @@ describe('Turnstile CAPTCHA verification', () => {
 
 			const { userId } = await createTestUser('turnstile_login');
 			const hashed = await hashPassword('testpassword123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
 				hashed,
 				userId,
 			).run();
@@ -341,7 +341,7 @@ describe('Turnstile CAPTCHA verification', () => {
 			await disableTurnstile();
 			const { userId } = await createTestUser('no_turnstile_login');
 			const hashed = await hashPassword('testpassword123');
-			await env.DB.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
+			await env.DB_META_C000.prepare('UPDATE users SET encrypted_password = ?1 WHERE id = ?2').bind(
 				hashed,
 				userId,
 			).run();
@@ -363,11 +363,11 @@ describe('Turnstile CAPTCHA verification', () => {
 	describe('Edge cases', () => {
 		it('11. turnstile_enabled=1 but no secret_key skips verification', async () => {
 			// Enable turnstile but without secret key
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '1', datetime('now'))",
 			).run();
-			await env.DB.prepare("DELETE FROM settings WHERE key = 'turnstile_secret_key'").run();
-			await env.DB.prepare("DELETE FROM settings WHERE key = 'turnstile_site_key'").run();
+			await env.DB_META_C000.prepare("DELETE FROM settings WHERE key = 'turnstile_secret_key'").run();
+			await env.DB_META_C000.prepare("DELETE FROM settings WHERE key = 'turnstile_site_key'").run();
 			await env.CACHE.delete('settings:turnstile');
 
 			// Registration should succeed without token since secretKey is empty
@@ -376,14 +376,14 @@ describe('Turnstile CAPTCHA verification', () => {
 		});
 
 		it('12. turnstile_enabled=0 with valid keys skips verification', async () => {
-			await env.DB.batch([
-				env.DB.prepare(
+			await env.DB_META_C000.batch([
+				env.DB_META_C000.prepare(
 					"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_enabled', '0', datetime('now'))",
 				),
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_site_key', ?1, datetime('now'))",
 				).bind(SITE_KEY),
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('turnstile_secret_key', ?1, datetime('now'))",
 				).bind(PASS_SECRET),
 			]);

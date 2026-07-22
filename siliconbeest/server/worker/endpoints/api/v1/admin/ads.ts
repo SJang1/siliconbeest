@@ -93,7 +93,7 @@ function formatAdvertisement(row: AdvertisementWithImageRow) {
 }
 
 async function getAdvertisement(id: string): Promise<AdvertisementWithImageRow> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT ad.*, media.file_key AS image_file_key
      FROM advertisements ad
      LEFT JOIN media_attachments media ON media.id = ad.image_media_attachment_id
@@ -146,7 +146,7 @@ async function validateInput(
     if (!imageMediaAttachmentId) {
       throw new AppError(422, 'image_media_attachment_id is required for this format');
     }
-    const media = await env.DB.prepare(
+    const media = await env.DB_META_C000.prepare(
       `SELECT id, account_id, type
        FROM media_attachments
        WHERE id = ?1`,
@@ -165,7 +165,7 @@ async function validateInput(
   }
   if (format === 'status') {
     if (!statusId) throw new AppError(422, 'status_ref is required for this format');
-    const status = await env.DB.prepare(
+    const status = await env.DB_META_C000.prepare(
       `SELECT id FROM statuses
        WHERE id = ?1
          AND visibility = 'public'
@@ -191,7 +191,7 @@ async function validateInput(
 }
 
 app.get('/', async (c) => {
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT ad.*, media.file_key AS image_file_key
      FROM advertisements ad
      LEFT JOIN media_attachments media ON media.id = ad.image_media_attachment_id
@@ -207,7 +207,7 @@ app.post('/', async (c) => {
   const values = await validateInput(input, currentUser.account_id);
   const id = generateUlid();
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO advertisements (
        id, format, text, image_media_attachment_id, image_alt_text,
        status_id, link_url, enabled, starts_at, ends_at,
@@ -236,7 +236,7 @@ app.put('/:id', async (c) => {
   const input = await c.req.json<AdvertisementInput>();
   const values = await validateInput(input, currentUser.account_id, existing);
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `UPDATE advertisements
      SET format = ?1,
          text = ?2,
@@ -267,7 +267,7 @@ app.put('/:id', async (c) => {
 
 app.delete('/:id', async (c) => {
   await getAdvertisement(c.req.param('id'));
-  await env.DB.prepare('DELETE FROM advertisements WHERE id = ?1')
+  await env.DB_META_C000.prepare('DELETE FROM advertisements WHERE id = ?1')
     .bind(c.req.param('id'))
     .run();
   return c.json({});

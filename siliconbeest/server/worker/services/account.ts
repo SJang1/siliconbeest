@@ -22,7 +22,7 @@ export const getAccountById = withDebugLog(
 	'account',
 	'getAccountById',
 	async (id: string): Promise<AccountRow | null> => {
-		return (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first()) as AccountRow | null;
+		return (await env.DB_META_C000.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first()) as AccountRow | null;
 	},
 );
 
@@ -38,7 +38,7 @@ export const getAccountByUsername = withDebugLog(
 		domain?: string | null,
 	): Promise<AccountRow | null> => {
 		if (domain) {
-			return (await env.DB
+			return (await env.DB_META_C000
 				.prepare('SELECT * FROM accounts WHERE username = ? AND domain = ? LIMIT 1')
 				.bind(username, domain.toLowerCase())
 				.first()) as AccountRow | null;
@@ -46,7 +46,7 @@ export const getAccountByUsername = withDebugLog(
 		// Local account lookups are case-sensitive (exact match), consistent with
 		// ActivityPub identity. Case-insensitive matching is reserved for auth flows
 		// (login / password reset); see services/auth.ts.
-		return (await env.DB
+		return (await env.DB_META_C000
 			.prepare('SELECT * FROM accounts WHERE username = ? AND domain IS NULL LIMIT 1')
 			.bind(username)
 			.first()) as AccountRow | null;
@@ -101,7 +101,7 @@ export async function updateProfile(
 	values.push(new Date().toISOString());
 	values.push(accountId);
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -189,7 +189,7 @@ async function fetchRelationshipBaseRows(
 	const placeholders = targetIds
 		.map((_, index) => `?${index + 3}`)
 		.join(', ');
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT target.id AS target_id,
 		        target.suspended_at AS target_suspended_at,
 		        outgoing_follow.id AS outgoing_follow_id,
@@ -239,7 +239,7 @@ async function fetchRelationshipOptionalRows(
 		.map((_, index) => `?${index + 2}`)
 		.join(', ');
 	try {
-		const { results } = await env.DB.prepare(
+		const { results } = await env.DB_META_C000.prepare(
 			`SELECT target.id AS target_id,
 			        endorsement.id AS endorsement_id,
 			        account_note.comment AS note_comment,
@@ -346,7 +346,7 @@ export async function searchAccounts(
 	);
 
 	if (options?.followedBy) {
-		const results = await env.DB
+		const results = await env.DB_META_C000
 			.prepare(
 				`SELECT a.* FROM accounts a
 				JOIN follows f ON f.target_account_id = a.id
@@ -369,7 +369,7 @@ export async function searchAccounts(
 		return results.results || [];
 	}
 
-	const results = await env.DB
+	const results = await env.DB_META_C000
 		.prepare(
 			`SELECT a.* FROM accounts a
 			WHERE (a.username LIKE ? OR a.display_name LIKE ?)
@@ -405,7 +405,7 @@ export async function createFollow(
 	}
 
 	// Check existing follow
-	const existingFollow = await env.DB
+	const existingFollow = await env.DB_META_C000
 		.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, target.id)
 		.first();
@@ -414,7 +414,7 @@ export async function createFollow(
 	}
 
 	// Check existing follow request
-	const existingRequest = await env.DB
+	const existingRequest = await env.DB_META_C000
 		.prepare('SELECT id FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, target.id)
 		.first();
@@ -430,7 +430,7 @@ export async function createFollow(
 	if (isRemote || needsApproval) {
 		const followActivityId = `https://${domain}/activities/${generateUlid()}`;
 
-		await env.DB
+		await env.DB_META_C000
 			.prepare(
 				`INSERT INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
@@ -444,15 +444,15 @@ export async function createFollow(
 	// Local non-locked account: auto-accept immediately
 	const followUri = `https://${domain}/activities/${generateUlid()}`;
 
-	await env.DB.batch([
-		env.DB
+	await env.DB_META_C000.batch([
+		env.DB_META_C000
 			.prepare(
 				`INSERT INTO follows (id, account_id, target_account_id, uri, show_reblogs, notify, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, 1, 0, ?5, ?5)`,
 			)
 			.bind(id, accountId, target.id, followUri, now),
-		env.DB.prepare('UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1').bind(accountId),
-		env.DB.prepare('UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1').bind(target.id),
+		env.DB_META_C000.prepare('UPDATE accounts SET following_count = following_count + 1 WHERE id = ?1').bind(accountId),
+		env.DB_META_C000.prepare('UPDATE accounts SET followers_count = followers_count + 1 WHERE id = ?1').bind(target.id),
 	]);
 
 	return { type: 'follow', id, uri: followUri };
@@ -473,7 +473,7 @@ export async function removeFollow(
 	accountId: string,
 	targetId: string,
 ): Promise<RemoveFollowResult> {
-	const follow = await env.DB
+	const follow = await env.DB_META_C000
 		.prepare('SELECT id, uri FROM follows WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.first();
@@ -481,11 +481,11 @@ export async function removeFollow(
 	let deletedFollow: RemoveFollowResult['deletedFollow'] = null;
 
 	if (follow) {
-		await env.DB.batch([
-			env.DB.prepare('DELETE FROM follows WHERE id = ?1').bind(follow.id as string),
-			env.DB.prepare('UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1').bind(accountId),
-			env.DB.prepare('UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1').bind(targetId),
-			env.DB.prepare(
+		await env.DB_META_C000.batch([
+			env.DB_META_C000.prepare('DELETE FROM follows WHERE id = ?1').bind(follow.id as string),
+			env.DB_META_C000.prepare('UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1').bind(accountId),
+			env.DB_META_C000.prepare('UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1').bind(targetId),
+			env.DB_META_C000.prepare(
 				`DELETE FROM list_accounts
 				 WHERE account_id = ?1
 				   AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
@@ -495,7 +495,7 @@ export async function removeFollow(
 	}
 
 	// Also remove any pending follow request
-	const fr = await env.DB
+	const fr = await env.DB_META_C000
 		.prepare('SELECT id, uri FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.first();
@@ -503,7 +503,7 @@ export async function removeFollow(
 	let deletedFollowRequest: RemoveFollowResult['deletedFollowRequest'] = null;
 
 	if (fr) {
-		await env.DB.prepare('DELETE FROM follow_requests WHERE id = ?1').bind(fr.id as string).run();
+		await env.DB_META_C000.prepare('DELETE FROM follow_requests WHERE id = ?1').bind(fr.id as string).run();
 		deletedFollowRequest = { id: fr.id as string, uri: (fr.uri as string | null) };
 	}
 
@@ -520,7 +520,7 @@ export async function createBlock(
 ): Promise<boolean> {
 	await assertAccountRelationshipMutable(accountId, targetId);
 
-	const existing = await env.DB
+	const existing = await env.DB_META_C000
 		.prepare('SELECT id FROM blocks WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.first();
@@ -531,49 +531,49 @@ export async function createBlock(
 	// Blocking tears down both relationship directions and their derived counts.
 	// Conditional count updates run before deletion so idempotent re-blocks do
 	// not drift counters.
-	const results = await env.DB.batch([
-		env.DB
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000
 			.prepare('INSERT OR IGNORE INTO blocks (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
 			.bind(id, accountId, targetId, now),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET following_count = MAX(0, following_count - 1)
 			 WHERE id = ?1 AND EXISTS (
 			   SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2
 			 )`,
 		).bind(accountId, targetId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET followers_count = MAX(0, followers_count - 1)
 			 WHERE id = ?2 AND EXISTS (
 			   SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2
 			 )`,
 		).bind(accountId, targetId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET following_count = MAX(0, following_count - 1)
 			 WHERE id = ?2 AND EXISTS (
 			   SELECT 1 FROM follows WHERE account_id = ?2 AND target_account_id = ?1
 			 )`,
 		).bind(accountId, targetId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET followers_count = MAX(0, followers_count - 1)
 			 WHERE id = ?1 AND EXISTS (
 			   SELECT 1 FROM follows WHERE account_id = ?2 AND target_account_id = ?1
 			 )`,
 		).bind(accountId, targetId),
-		env.DB.prepare('DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(accountId, targetId),
-		env.DB.prepare('DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, accountId),
-		env.DB.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(accountId, targetId),
-		env.DB.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, accountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare('DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(accountId, targetId),
+		env.DB_META_C000.prepare('DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, accountId),
+		env.DB_META_C000.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(accountId, targetId),
+		env.DB_META_C000.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, accountId),
+		env.DB_META_C000.prepare(
 			`DELETE FROM list_accounts
 			 WHERE account_id = ?1
 			   AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
 		).bind(targetId, accountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM list_accounts
 			 WHERE account_id = ?1
 			   AND list_id IN (SELECT id FROM lists WHERE account_id = ?2)`,
 		).bind(accountId, targetId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM account_pins
 			 WHERE (account_id = ?1 AND target_account_id = ?2)
 			    OR (account_id = ?2 AND target_account_id = ?1)`,
@@ -588,7 +588,7 @@ export async function createBlock(
 // ----------------------------------------------------------------
 
 export async function removeBlock(accountId: string, targetId: string): Promise<boolean> {
-	const removed = await env.DB
+	const removed = await env.DB_META_C000
 		.prepare('DELETE FROM blocks WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
@@ -610,7 +610,7 @@ export async function createMute(
 	const hideNotifications = notifications ? 1 : 0;
 	const now = new Date().toISOString();
 
-	const existing = await env.DB
+	const existing = await env.DB_META_C000
 		.prepare(
 			`SELECT id, hide_notifications, expires_at FROM mutes
 			 WHERE account_id = ?1 AND target_account_id = ?2`,
@@ -622,14 +622,14 @@ export async function createMute(
 		if (existing.hide_notifications === hideNotifications && existing.expires_at === expiresAt) {
 			return false;
 		}
-		const updated = await env.DB
+		const updated = await env.DB_META_C000
 			.prepare('UPDATE mutes SET hide_notifications = ?1, expires_at = ?2, updated_at = ?3 WHERE id = ?4')
 			.bind(hideNotifications, expiresAt, now, existing.id)
 			.run();
 		return (updated.meta?.changes ?? 0) > 0;
 	} else {
 		const id = generateUlid();
-		const inserted = await env.DB
+		const inserted = await env.DB_META_C000
 			.prepare(
 				`INSERT INTO mutes (id, account_id, target_account_id, hide_notifications, expires_at, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`,
@@ -645,7 +645,7 @@ export async function createMute(
 // ----------------------------------------------------------------
 
 export async function removeMute(accountId: string, targetId: string): Promise<boolean> {
-	const removed = await env.DB
+	const removed = await env.DB_META_C000
 		.prepare('DELETE FROM mutes WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
@@ -674,7 +674,7 @@ export async function acceptFollowRequest(
 	const followId = generateUlid();
 
 	// Look up the target account's username for the follow URI
-	const targetAccount = await env.DB
+	const targetAccount = await env.DB_META_C000
 		.prepare('SELECT username FROM accounts WHERE id = ?1')
 		.bind(targetAccountId)
 		.first<{ username: string }>();
@@ -682,9 +682,9 @@ export async function acceptFollowRequest(
 	const followUri = `https://${domain}/users/${targetUsername}/followers/${followId}`;
 
 	const actionable = buildActionableFollowRequestSqlPredicate();
-	const results = await env.DB.batch([
+	const results = await env.DB_META_C000.batch([
 		// Create the follow
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO follows (id, account_id, target_account_id, uri, show_reblogs, notify, languages, created_at, updated_at)
 			 SELECT ?1, fr.account_id, fr.target_account_id, ?4, 1, 0, NULL, ?5, ?5
 			 FROM follow_requests fr
@@ -700,16 +700,16 @@ export async function acceptFollowRequest(
 			   )`,
 		).bind(followId, accountId, targetAccountId, followUri, now, ...actionable.bindings),
 		// Update follower/following counts
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET following_count = following_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(accountId, followId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET followers_count = followers_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(targetAccountId, followId),
 		// Remove the follow request
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM follow_requests
 			 WHERE account_id = ?1 AND target_account_id = ?2
 			   AND EXISTS (SELECT 1 FROM follows WHERE id = ?3)`,
@@ -735,7 +735,7 @@ export async function rejectFollowRequest(
 	accountId: string,
 	targetAccountId: string,
 ): Promise<RejectFollowRequestResult> {
-	const fr = await env.DB
+	const fr = await env.DB_META_C000
 		.prepare('SELECT * FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetAccountId)
 		.first();
@@ -744,7 +744,7 @@ export async function rejectFollowRequest(
 		throw new AppError(404, 'Record not found');
 	}
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetAccountId)
 		.run();
@@ -761,12 +761,12 @@ export async function setAccountNote(
 	targetId: string,
 	comment: string,
 ): Promise<boolean> {
-	const target = await env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
+	const target = await env.DB_META_C000.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
 	if (!target) throw new AppError(404, 'Record not found');
 
 	const now = new Date().toISOString();
 	if (comment) {
-		const saved = await env.DB
+		const saved = await env.DB_META_C000
 			.prepare(
 				`INSERT INTO account_notes (id, account_id, target_account_id, comment, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -778,7 +778,7 @@ export async function setAccountNote(
 			.run();
 		return (saved.meta?.changes ?? 0) > 0;
 	} else {
-		const removed = await env.DB
+		const removed = await env.DB_META_C000
 			.prepare('DELETE FROM account_notes WHERE account_id = ?1 AND target_account_id = ?2')
 			.bind(accountId, targetId)
 			.run();
@@ -796,7 +796,7 @@ export async function pinAccount(
 ): Promise<boolean> {
 	await assertAccountFeatureable(accountId, targetId);
 
-	const existing = await env.DB
+	const existing = await env.DB_META_C000
 		.prepare('SELECT id FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.first();
@@ -804,7 +804,7 @@ export async function pinAccount(
 	if (existing) return false;
 
 	const now = new Date().toISOString();
-	const inserted = await env.DB
+	const inserted = await env.DB_META_C000
 		.prepare('INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)')
 		.bind(generateUlid(), accountId, targetId, now)
 		.run();
@@ -824,24 +824,24 @@ export async function removeFollower(
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> {
-	const target = await env.DB.prepare(
+	const target = await env.DB_META_C000.prepare(
 		'SELECT id FROM accounts WHERE id = ?1 LIMIT 1',
 	).bind(targetId).first<{ id: string }>();
 	if (!target) throw new AppError(404, 'Record not found');
 
-	const follow = await env.DB.prepare(
+	const follow = await env.DB_META_C000.prepare(
 		`SELECT id FROM follows
 		 WHERE account_id = ?1 AND target_account_id = ?2
 		 LIMIT 1`,
 	).bind(targetId, accountId).first<{ id: string }>();
 	if (!follow) return false;
 
-	await env.DB.batch([
-		env.DB.prepare('DELETE FROM follows WHERE id = ?1').bind(follow.id),
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare('DELETE FROM follows WHERE id = ?1').bind(follow.id),
+		env.DB_META_C000.prepare(
 			'UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1',
 		).bind(accountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			'UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1',
 		).bind(targetId),
 	]);
@@ -856,7 +856,7 @@ export async function unpinAccount(
 	accountId: string,
 	targetId: string,
 ): Promise<boolean> {
-	const removed = await env.DB
+	const removed = await env.DB_META_C000
 		.prepare('DELETE FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2')
 		.bind(accountId, targetId)
 		.run();
@@ -871,7 +871,7 @@ export async function unpinAccount(
  * Get the also_known_as aliases for an account.
  */
 export async function getAliases(accountId: string): Promise<string[]> {
-	const account = await env.DB.prepare(
+	const account = await env.DB_META_C000.prepare(
 		'SELECT also_known_as FROM accounts WHERE id = ?1 LIMIT 1',
 	).bind(accountId).first<{ also_known_as: string | null }>();
 
@@ -899,7 +899,7 @@ export async function addAlias(accountId: string, actorUri: string): Promise<Ali
 	aliases.push(actorUri);
 
 	const now = new Date().toISOString();
-	const updated = await env.DB.prepare(
+	const updated = await env.DB_META_C000.prepare(
 		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
 	).bind(JSON.stringify(aliases), now, accountId).run();
 
@@ -916,7 +916,7 @@ export async function removeAlias(accountId: string, alias: string): Promise<Ali
 	if (filtered.length === aliases.length) return { aliases, changed: false };
 
 	const now = new Date().toISOString();
-	const updated = await env.DB.prepare(
+	const updated = await env.DB_META_C000.prepare(
 		'UPDATE accounts SET also_known_as = ?1, updated_at = ?2 WHERE id = ?3',
 	).bind(filtered.length > 0 ? JSON.stringify(filtered) : null, now, accountId).run();
 
@@ -933,7 +933,7 @@ export async function removeAlias(accountId: string, alias: string): Promise<Ali
 export async function getAccountUri(
 	accountId: string,
 ): Promise<{ username: string; uri: string } | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		'SELECT username, uri FROM accounts WHERE id = ?1 LIMIT 1',
 	).bind(accountId).first<{ username: string; uri: string }>();
 }
@@ -946,7 +946,7 @@ export async function setMovedTo(
 	targetAccountId: string,
 ): Promise<boolean> {
 	const now = new Date().toISOString();
-	const updated = await env.DB.prepare(
+	const updated = await env.DB_META_C000.prepare(
 		`UPDATE accounts SET moved_to_account_id = ?1, moved_at = ?2, updated_at = ?3
 		 WHERE id = ?4 AND moved_to_account_id IS NOT ?1`,
 	).bind(targetAccountId, now, now, accountId).run();
@@ -963,7 +963,7 @@ export async function setMovedTo(
 export async function getFollowingForExport(
 	accountId: string,
 ): Promise<Array<{ username: string; domain: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT a.username, a.domain
 		 FROM follows f
 		 JOIN accounts a ON a.id = f.target_account_id
@@ -978,7 +978,7 @@ export async function getFollowingForExport(
 export async function getFollowersForExport(
 	accountId: string,
 ): Promise<Array<{ username: string; domain: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT a.username, a.domain
 		 FROM follows f
 		 JOIN accounts a ON a.id = f.account_id
@@ -993,7 +993,7 @@ export async function getFollowersForExport(
 export async function getBlocksForExport(
 	accountId: string,
 ): Promise<Array<{ username: string; domain: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT a.username, a.domain
 		 FROM blocks bl
 		 JOIN accounts a ON a.id = bl.target_account_id
@@ -1008,7 +1008,7 @@ export async function getBlocksForExport(
 export async function getMutesForExport(
 	accountId: string,
 ): Promise<Array<{ username: string; domain: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT a.username, a.domain
 		 FROM mutes m
 		 JOIN accounts a ON a.id = m.target_account_id
@@ -1023,7 +1023,7 @@ export async function getMutesForExport(
 export async function getBookmarksForExport(
 	accountId: string,
 ): Promise<string[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT s.uri
 		 FROM bookmarks b
 		 JOIN statuses s ON s.id = b.status_id
@@ -1038,7 +1038,7 @@ export async function getBookmarksForExport(
 export async function getListsForExport(
 	accountId: string,
 ): Promise<Array<{ title: string; username: string; domain: string | null }>> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT l.title, a.username, a.domain
 		 FROM lists l
 		 JOIN list_accounts la ON la.list_id = l.id

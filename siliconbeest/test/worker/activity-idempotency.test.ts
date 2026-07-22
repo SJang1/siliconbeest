@@ -20,7 +20,7 @@ describe('Activity Idempotency (DB-based)', () => {
 		remoteAccountId = crypto.randomUUID();
 
 		// Insert a remote account so resolveRemoteAccount finds it by URI
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, inbox_url, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?)`,
 		)
@@ -40,7 +40,7 @@ describe('Activity Idempotency (DB-based)', () => {
 		// Insert a status so processLike has something to find
 		statusId = crypto.randomUUID();
 		const statusUri = `https://${DOMAIN}/users/idempuser/statuses/${statusId}`;
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO statuses (id, account_id, uri, url, text, visibility, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, 'test post', 'public', ?, ?)`,
 		)

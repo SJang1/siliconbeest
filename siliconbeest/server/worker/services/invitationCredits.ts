@@ -233,7 +233,7 @@ async function contributionThreshold(): Promise<number> {
 
 async function ensureBalance(accountId: string): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT OR IGNORE INTO account_invitation_balances
 		 (account_id, available_credits, contribution_score, contribution_award_level,
 		  last_operation_id, last_credit_delta, created_at, updated_at)
@@ -245,7 +245,7 @@ async function ensureBalance(accountId: string): Promise<void> {
 
 async function getBalance(accountId: string): Promise<BalanceRecord> {
 	await ensureBalance(accountId);
-	const balance = await env.DB.prepare(
+	const balance = await env.DB_META_C000.prepare(
 		'SELECT * FROM account_invitation_balances WHERE account_id = ?1 LIMIT 1',
 	).bind(accountId).first<BalanceRecord>();
 	if (!balance) throw new AppError(404, 'Local account not found');
@@ -253,7 +253,7 @@ async function getBalance(accountId: string): Promise<BalanceRecord> {
 }
 
 async function getInvitationOwnership(accountId: string): Promise<InvitationOwnership> {
-	const ownership = await env.DB.prepare(
+	const ownership = await env.DB_META_C000.prepare(
 		`SELECT ${activeReservedCreditsSql('?1')} AS reserved_credits,
 		        ${pendingRefundCreditsSql('?1')} AS pending_refund_credits`,
 	).bind(accountId).first<InvitationOwnership>();
@@ -348,8 +348,8 @@ export async function createInvitationLink(
 		  AND balance.available_credits + ${ownershipObligationsSql('balance.account_id')} <= ${LIVE_MAX_CREDITS_SQL}
 	)`;
 
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level,
 			  last_operation_id, last_credit_delta, created_at, updated_at)
@@ -357,7 +357,7 @@ export async function createInvitationLink(
 			 FROM accounts JOIN users ON users.account_id = accounts.id
 			 WHERE accounts.id = ?2 AND accounts.domain IS NULL`,
 		).bind(nowIso, actorAccountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_link_issue_limits
 			 (account_id, window_started_at, issued_links, last_operation_id)
 			 SELECT ?1, ?2, 1, ?3
@@ -384,7 +384,7 @@ export async function createInvitationLink(
 			adminBypass,
 			input.uses,
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET available_credits = available_credits - ?1,
 			     last_credit_delta = -?1,
@@ -399,7 +399,7 @@ export async function createInvitationLink(
 			     WHERE account_id = ?4 AND last_operation_id = ?2
 			   )`,
 		).bind(input.uses, operationId, nowIso, actorAccountId, adminBypass),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO registration_invites
 			 (id, token_hash, inviter_account_id, remaining_uses, auto_follow, expires_at,
 			  revoked_at, created_at, updated_at, issued_uses, revoked_unused_uses,
@@ -420,7 +420,7 @@ export async function createInvitationLink(
 			operationId,
 			tokenCiphertext,
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -432,12 +432,12 @@ export async function createInvitationLink(
 		).bind(auditId, actorAccountId, id, metadata, nowIso, operationId),
 	]);
 
-	const created = await env.DB.prepare(
+	const created = await env.DB_META_C000.prepare(
 		`SELECT id, inviter_account_id, remaining_uses, issued_uses, revoked_at, created_at
 		 FROM registration_invites WHERE id = ?1 LIMIT 1`,
 	).bind(id).first<InviteRecord>();
 	if (!created) {
-		const issueLimit = await env.DB.prepare(
+		const issueLimit = await env.DB_META_C000.prepare(
 			`SELECT issued_links, window_started_at, last_operation_id
 			 FROM invitation_link_issue_limits WHERE account_id = ?1`,
 		).bind(actorAccountId).first<{
@@ -477,7 +477,7 @@ export async function createInvitationLink(
 }
 
 export async function listInvitationLinks(accountId: string): Promise<InvitationLinkSummary[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT id, token_ciphertext, remaining_uses, issued_uses, expires_at, auto_follow,
 		        revoked_at, created_at
 		 FROM registration_invites
@@ -512,7 +512,7 @@ export async function revokeInvitationLink(
 	actorAccountId: string,
 	invitationId: string,
 ): Promise<void> {
-	const existing = await env.DB.prepare(
+	const existing = await env.DB_META_C000.prepare(
 		`SELECT id, inviter_account_id, remaining_uses, issued_uses, revoked_at,
 		        reset_at, created_at
 		 FROM registration_invites
@@ -523,8 +523,8 @@ export async function revokeInvitationLink(
 	const operationId = generateUlid();
 	const auditId = generateUlid();
 	const now = new Date().toISOString();
-	const results = await env.DB.batch([
-		env.DB.prepare(
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE registration_invites
 			 SET revoked_unused_uses = remaining_uses,
 			     remaining_uses = 0,
@@ -534,13 +534,13 @@ export async function revokeInvitationLink(
 			     updated_at = ?1
 			 WHERE id = ?3 AND inviter_account_id = ?4 AND revoked_at IS NULL`,
 		).bind(now, operationId, invitationId, actorAccountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level,
 			  last_operation_id, last_credit_delta, created_at, updated_at)
 			 VALUES (?1, 0, 0, 0, NULL, 0, ?2, ?2)`,
 		).bind(actorAccountId, now),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET last_credit_delta = (
 			       SELECT revoked_unused_uses FROM registration_invites
@@ -558,7 +558,7 @@ export async function revokeInvitationLink(
 			     WHERE id = ?1 AND credit_operation_id = ?2 AND revoked_at = ?3
 			   )`,
 		).bind(invitationId, operationId, now, actorAccountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -588,8 +588,8 @@ export async function consumeInvitationUse(
 	const now = nowDate.toISOString();
 	const windowCutoff = new Date(nowDate.getTime() - 24 * 60 * 60 * 1000).toISOString();
 	const claimExpiresAt = new Date(nowDate.getTime() + UNASSIGNED_CLAIM_TTL_MILLISECONDS).toISOString();
-	const results = await env.DB.batch([
-		env.DB.prepare(
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_use_daily_limits
 			 (account_id, window_started_at, consumed_uses, last_operation_id)
 			 SELECT ?1, ?2, 1, ?3
@@ -624,7 +624,7 @@ export async function consumeInvitationUse(
 			MAX_CONSUMED_USES_PER_ACCOUNT_PER_DAY,
 			invitationId,
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE registration_invites
 			 SET remaining_uses = remaining_uses - 1,
 			     credit_operation_id = ?1,
@@ -637,14 +637,14 @@ export async function consumeInvitationUse(
 			     WHERE account_id = ?4 AND last_operation_id = ?1
 			   )`,
 		).bind(operationId, now, invitationId, inviterAccountId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_use_claims
 			 (id, invitation_id, inviter_account_id, assigned_user_id, claimed_at, expires_at)
 			 SELECT ?1, invitation.id, invitation.inviter_account_id, NULL, ?2, ?3
 			 FROM registration_invites invitation
 			 WHERE invitation.id = ?4 AND invitation.credit_operation_id = ?5`,
 		).bind(claimId, now, claimExpiresAt, invitationId, operationId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -660,7 +660,7 @@ export async function consumeInvitationUse(
 		).bind(generateUlid(), now, invitationId, operationId, claimId),
 	]);
 	if ((results[2]?.meta.changes ?? 0) === 1) return claimId;
-	const limit = await env.DB.prepare(
+	const limit = await env.DB_META_C000.prepare(
 		`SELECT consumed_uses, window_started_at
 		 FROM invitation_use_daily_limits WHERE account_id = ?1`,
 	).bind(inviterAccountId).first<{ consumed_uses: number; window_started_at: string }>();
@@ -676,7 +676,7 @@ export async function restoreUnassignedInvitationUse(
 	invitationId: string,
 	claimId: string,
 ): Promise<void> {
-	await env.DB.batch(invitationRestoreStatements({
+	await env.DB_META_C000.batch(invitationRestoreStatements({
 		invitationId,
 		claimId,
 		operationId: generateUlid(),
@@ -743,7 +743,7 @@ function invitationRestoreStatements(input: {
 	)`;
 	const cancellationAuditStatements = input.pendingUserId === null
 		? []
-		: [env.DB.prepare(
+		: [env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -766,7 +766,7 @@ function invitationRestoreStatements(input: {
 			input.pendingUserId,
 		)];
 	return [
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE registration_invites
 			 SET remaining_uses = remaining_uses + 1,
 			     credit_operation_id = ?1,
@@ -774,7 +774,7 @@ function invitationRestoreStatements(input: {
 			 WHERE id = ?3 AND revoked_at IS NULL AND remaining_uses < issued_uses
 			   AND ${claimGuard}`,
 		).bind(...mutationBindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -794,12 +794,12 @@ function invitationRestoreStatements(input: {
 			input.operationId,
 			input.claimId,
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE registration_invites
 			 SET credit_operation_id = ?1, updated_at = ?2
 			 WHERE id = ?3 AND revoked_at IS NOT NULL AND ${claimGuard}`,
 		).bind(...mutationBindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level,
 			  last_operation_id, last_credit_delta, created_at, updated_at)
@@ -809,7 +809,7 @@ function invitationRestoreStatements(input: {
 			 WHERE invitation.id = ?2 AND invitation.revoked_at IS NOT NULL
 			   AND invitation.credit_operation_id = ?3`,
 		).bind(input.now, input.invitationId, input.operationId, input.claimId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET last_credit_delta = 1,
 			     available_credits = available_credits + 1,
@@ -824,7 +824,7 @@ function invitationRestoreStatements(input: {
 			     AND invitation.credit_operation_id = ?1
 			 )`,
 		).bind(input.operationId, input.now, input.invitationId, input.claimId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -845,7 +845,7 @@ function invitationRestoreStatements(input: {
 			input.claimId,
 		),
 		...cancellationAuditStatements,
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM invitation_use_claims
 			 WHERE id = ?1 AND invitation_id = ?2
 			   AND EXISTS (
@@ -859,7 +859,7 @@ function invitationRestoreStatements(input: {
 export async function restoreExpiredInvitationClaims(limit = 100): Promise<number> {
 	const safeLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 500) : 100;
 	const now = new Date().toISOString();
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT id, invitation_id
 		 FROM invitation_use_claims
 		 WHERE assigned_user_id IS NULL AND expires_at <= ?1
@@ -875,14 +875,14 @@ export async function restoreExpiredInvitationClaims(limit = 100): Promise<numbe
 			actionSuffix: 'expired',
 			pendingUserId: null,
 		});
-		const restoredResults = await env.DB.batch(statements);
+		const restoredResults = await env.DB_META_C000.batch(statements);
 		if ((restoredResults.at(-1)?.meta.changes ?? 0) === 1) restored += 1;
 	}
 	return restored;
 }
 
 async function assertLocalAccount(accountId: string): Promise<void> {
-	const account = await env.DB.prepare(
+	const account = await env.DB_META_C000.prepare(
 		`SELECT accounts.id
 		 FROM accounts JOIN users ON users.account_id = accounts.id
 		 WHERE accounts.id = ?1 AND accounts.domain IS NULL LIMIT 1`,
@@ -903,8 +903,8 @@ export async function setInvitationCredits(
 	await ensureBalance(targetAccountId);
 	const operationId = generateUlid();
 	const now = new Date().toISOString();
-	const results = await env.DB.batch([
-		env.DB.prepare(
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET last_credit_delta = ?1 - available_credits,
 			     available_credits = ?1,
@@ -941,8 +941,8 @@ export async function addInvitationCredits(
 	await ensureBalance(targetAccountId);
 	const operationId = generateUlid();
 	const now = new Date().toISOString();
-	const results = await env.DB.batch([
-		env.DB.prepare(
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET available_credits = available_credits + ?1,
 			     last_credit_delta = ?1,
@@ -980,7 +980,7 @@ export async function updateInvitationSettings(
 	const reconcileOperationId = generateUlid();
 	const keyPlaceholders = keys.map((_, index) => `?${index + 6}`).join(', ');
 	const statements: D1PreparedStatement[] = [
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1004,7 +1004,7 @@ export async function updateInvitationSettings(
 	];
 
 	for (const key of keys) {
-		statements.push(env.DB.prepare(
+		statements.push(env.DB_META_C000.prepare(
 			`INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
 			 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		).bind(key, changes[key], now));
@@ -1013,7 +1013,7 @@ export async function updateInvitationSettings(
 	if (changes.invite_credit_max_per_account !== undefined) {
 		const capacitySql = availableCapacitySql('account_invitation_balances.account_id');
 		statements.push(
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE account_invitation_balances
 				 SET last_credit_delta = ${capacitySql} - available_credits,
 				     available_credits = ${capacitySql},
@@ -1021,7 +1021,7 @@ export async function updateInvitationSettings(
 				     updated_at = ?2
 				 WHERE available_credits > ${capacitySql}`,
 			).bind(clampOperationId, now),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`INSERT INTO invitation_audit_logs
 				 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 				  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1062,7 +1062,7 @@ export async function updateInvitationSettings(
 	if (reconciliationTriggers.length > 0) {
 		const grantSql = liveContributionGrantSql('account_invitation_balances.account_id');
 		statements.push(
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE account_invitation_balances
 				 SET last_credit_delta = ${grantSql},
 				     available_credits = available_credits + ${grantSql},
@@ -1076,7 +1076,7 @@ export async function updateInvitationSettings(
 				       AND (${reconciliationTriggers.join(' OR ')})
 				   )`,
 			).bind(reconcileOperationId, now, settingsAuditId),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`INSERT INTO invitation_audit_logs
 				 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 				  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1095,7 +1095,7 @@ export async function updateInvitationSettings(
 		);
 	}
 
-	await env.DB.batch(statements);
+	await env.DB_META_C000.batch(statements);
 }
 
 function auditBalanceOperation(
@@ -1107,7 +1107,7 @@ function auditBalanceOperation(
 	metadata: string,
 	createdAt: string,
 ): D1PreparedStatement {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`INSERT INTO invitation_audit_logs
 		 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 		  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1143,8 +1143,8 @@ export async function distributeInvitationCredits(
 		   )`
 		: `account_id IN (${uniqueIds?.map(() => '?').join(', ')})`;
 
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level,
 			  last_operation_id, last_credit_delta, created_at, updated_at)
@@ -1152,7 +1152,7 @@ export async function distributeInvitationCredits(
 			 FROM accounts JOIN users ON users.account_id = accounts.id
 			 WHERE ${selection}`,
 		).bind(now, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET last_credit_delta = MIN(
 			       ?1,
@@ -1170,7 +1170,7 @@ export async function distributeInvitationCredits(
 			   AND available_credits + ${ownershipObligationsSql('account_invitation_balances.account_id')}
 			       < ${LIVE_MAX_CREDITS_SQL}`,
 		).bind(amount, operationId, now, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1182,7 +1182,7 @@ export async function distributeInvitationCredits(
 		).bind(actorAccountId, amount, now, operationId),
 	]);
 
-	const summary = await env.DB.prepare(
+	const summary = await env.DB_META_C000.prepare(
 		`SELECT COUNT(*) AS targeted_accounts,
 		        SUM(CASE WHEN last_credit_delta > 0 THEN 1 ELSE 0 END) AS credited_accounts,
 		        COALESCE(SUM(last_credit_delta), 0) AS credits_added
@@ -1241,8 +1241,8 @@ export async function resetInvitationCredits(
 		   )`
 		: `inviter_account_id IN (${uniqueIds?.map(() => '?').join(', ')})`;
 	const bindings = uniqueIds ?? [];
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level,
 			  last_operation_id, last_credit_delta, created_at, updated_at)
@@ -1250,7 +1250,7 @@ export async function resetInvitationCredits(
 			 FROM accounts JOIN users ON users.account_id = accounts.id
 			 WHERE ${accountSelection}`,
 		).bind(now, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1270,7 +1270,7 @@ export async function resetInvitationCredits(
 			 FROM account_invitation_balances balance
 			 WHERE ${balanceSelection}`,
 		).bind(actorAccountId, now, operationId, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -1283,7 +1283,7 @@ export async function resetInvitationCredits(
 			   ON balance.account_id = invitation.inviter_account_id
 			 WHERE ${invitationSelection} AND invitation.revoked_at IS NULL`,
 		).bind(actorAccountId, now, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE registration_invites
 			 SET revoked_unused_uses = CASE
 			       WHEN revoked_at IS NULL THEN remaining_uses
@@ -1297,7 +1297,7 @@ export async function resetInvitationCredits(
 			     updated_at = ?1
 			 WHERE ${invitationSelection}`,
 		).bind(now, operationId, ...bindings),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE account_invitation_balances
 			 SET last_credit_delta = -available_credits,
 			     available_credits = 0,
@@ -1306,7 +1306,7 @@ export async function resetInvitationCredits(
 			 WHERE ${balanceSelection}`,
 		).bind(operationId, now, ...bindings),
 	]);
-	const summary = await env.DB.prepare(
+	const summary = await env.DB_META_C000.prepare(
 		`SELECT COUNT(*) AS reset_accounts,
 		        COALESCE(-SUM(credit_delta), 0) AS available_credits_removed,
 		        COALESCE(SUM(CAST(json_extract(metadata, '$.discarded_link_uses') AS INTEGER)), 0)
@@ -1353,12 +1353,12 @@ export async function listInvitationBalances(
 	const limitParameter = search === null ? '?1' : '?2';
 	const offsetParameter = search === null ? '?2' : '?3';
 	const [count, rows, maxCredits] = await Promise.all([
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT COUNT(*) AS total
 			 FROM accounts JOIN users ON users.account_id = accounts.id
 			 WHERE ${where}`,
 		).bind(...countBindings).first<{ total: number }>(),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`SELECT accounts.id AS account_id, accounts.username, accounts.display_name, users.role,
 			        COALESCE(balance.available_credits, 0) AS available_credits,
 			        ${activeReservedCreditsSql('accounts.id')} AS reserved_credits,
@@ -1409,12 +1409,12 @@ export async function listInvitationAuditLogs(
 		conditions.push(`(actor_account_id = ?${values.length} OR target_account_id = ?${values.length})`);
 	}
 	const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-	const count = await env.DB.prepare(
+	const count = await env.DB_META_C000.prepare(
 		`SELECT COUNT(*) AS total FROM invitation_audit_logs ${where}`,
 	).bind(...values).first<{ total: number }>();
 	const limitParameter = values.length + 1;
 	const offsetParameter = values.length + 2;
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT log.*, actor.username AS actor_username, target.username AS target_username,
 		        json_extract(log.metadata, '$.reason') AS reason
 		 FROM invitation_audit_logs log

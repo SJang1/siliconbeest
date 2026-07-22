@@ -69,7 +69,7 @@ export interface CreatedRegistrationInvite extends RegistrationInviteSummary {
 export async function assertRegistrationCancellationCooldown(email: string): Promise<void> {
 	const emailHash = await sha256(email.trim().toLowerCase());
 	const now = new Date().toISOString();
-	const cooldown = await env.DB.prepare(
+	const cooldown = await env.DB_META_C000.prepare(
 		`SELECT expires_at
 		 FROM registration_cancellation_cooldowns
 		 WHERE email_hash = ?1 LIMIT 1`,
@@ -82,7 +82,7 @@ export async function assertRegistrationCancellationCooldown(email: string): Pro
 			'You can register again 24 hours after cancelling your previous registration.',
 		);
 	}
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'DELETE FROM registration_cancellation_cooldowns WHERE email_hash = ?1 AND expires_at <= ?2',
 	).bind(emailHash, now).run();
 }
@@ -235,7 +235,7 @@ function inviteRecordToPreview(record: RegistrationInviteRecord): RegistrationIn
 
 async function findInvitationByToken(token: string): Promise<RegistrationInviteRecord | null> {
 	const tokenHash = await sha256(token);
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT invitation.*,
 		        inviter.username AS inviter_username,
 		        inviter.display_name AS inviter_display_name,
@@ -366,7 +366,7 @@ export async function initializeRegistration(
 		Date.now() + REGISTRATION_SESSION_TTL_SECONDS * 1000,
 	).toISOString();
 	const claimStatements = input.invitation
-		? [env.DB.prepare(
+		? [env.DB_META_C000.prepare(
 			`UPDATE invitation_use_claims
 			 SET assigned_user_id = ?1, expires_at = ?6
 			 WHERE id = ?2 AND invitation_id = ?3 AND inviter_account_id = ?4
@@ -382,7 +382,7 @@ export async function initializeRegistration(
 		: [];
 	const userUpdateIndex = claimStatements.length;
 	const assignmentAuditStatements = input.invitation
-		? [env.DB.prepare(
+		? [env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -398,9 +398,9 @@ export async function initializeRegistration(
 			   AND pending_user.invite_id = invitation.id`,
 		).bind(generateUlid(), now, invitationClaimId, userId)]
 		: [];
-	const results = await env.DB.batch([
+	const results = await env.DB_META_C000.batch([
 		...claimStatements,
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE users
 			 SET approved = 0,
 			     confirmed_at = NULL,
@@ -426,7 +426,7 @@ export async function initializeRegistration(
 				invitationClaimId,
 			),
 		...assignmentAuditStatements,
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			'UPDATE accounts SET discoverable = 0, updated_at = ?1 WHERE id = ?2',
 		).bind(now, accountId),
 	]);
@@ -439,7 +439,7 @@ export async function initializeRegistration(
 }
 
 async function getRegistrationStatusRecord(userId: string): Promise<RegistrationStatusRecord | null> {
-	return env.DB.prepare(
+	return env.DB_META_C000.prepare(
 		`SELECT u.id AS user_id,
 		        u.account_id,
 		        u.email,
@@ -470,7 +470,7 @@ export async function getRegistrationStatus(userId: string): Promise<Registratio
 		&& (!record.email_verification_expires_at
 			|| new Date(record.email_verification_expires_at).getTime() <= Date.now())) {
 		const now = new Date().toISOString();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`UPDATE users
 			 SET registration_state = 'awaiting_confirmation',
 			     confirmation_token = NULL,
@@ -515,7 +515,7 @@ function generateEmailVerificationCode(): string {
 }
 
 async function getEmailVerificationRecord(userId: string): Promise<EmailVerificationRecord> {
-	const record = await env.DB.prepare(
+	const record = await env.DB_META_C000.prepare(
 		`SELECT id, email, locale, registration_design, registration_state, confirmation_token,
 		        email_verification_code_hash, email_verification_sent_at,
 		        email_verification_expires_at,
@@ -529,7 +529,7 @@ async function getEmailVerificationRecord(userId: string): Promise<EmailVerifica
 async function claimEmailVerificationDelivery(email: string, now: Date): Promise<EmailDeliveryClaim> {
 	const emailHash = await sha256(email.trim().toLowerCase());
 	const nowIso = now.toISOString();
-	const previous = await env.DB.prepare(
+	const previous = await env.DB_META_C000.prepare(
 		`SELECT window_started_at, send_count, last_sent_at, updated_at
 		 FROM registration_email_delivery_limits WHERE email_hash = ?1`,
 	).bind(emailHash).first<EmailDeliveryLimitRecord>();
@@ -539,7 +539,7 @@ async function claimEmailVerificationDelivery(email: string, now: Date): Promise
 	const cooldownCutoff = new Date(
 		now.getTime() - EMAIL_DELIVERY_COOLDOWN_SECONDS * 1000,
 	).toISOString();
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		`INSERT INTO registration_email_delivery_limits
 		 (email_hash, window_started_at, send_count, last_sent_at, updated_at)
 		 VALUES (?1, ?2, 1, ?2, ?2)
@@ -574,13 +574,13 @@ async function claimEmailVerificationDelivery(email: string, now: Date): Promise
 
 async function restoreEmailVerificationDeliveryClaim(claim: EmailDeliveryClaim): Promise<void> {
 	if (!claim.previous) {
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`DELETE FROM registration_email_delivery_limits
 			 WHERE email_hash = ?1 AND last_sent_at = ?2`,
 		).bind(claim.emailHash, claim.claimedAt).run();
 		return;
 	}
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`UPDATE registration_email_delivery_limits
 		 SET window_started_at = ?1, send_count = ?2, last_sent_at = ?3, updated_at = ?4
 		 WHERE email_hash = ?5 AND last_sent_at = ?6`,
@@ -609,7 +609,7 @@ export async function startEmailVerification(userId: string): Promise<Registrati
 	const now = new Date();
 	const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TTL_SECONDS * 1000).toISOString();
 	const deliveryClaim = await claimEmailVerificationDelivery(record.email, now);
-	const update = await env.DB.prepare(
+	const update = await env.DB_META_C000.prepare(
 		`UPDATE users
 		 SET registration_state = 'email_verification',
 		     confirmation_token = ?1,
@@ -662,7 +662,7 @@ export async function startEmailVerification(userId: string): Promise<Registrati
 	);
 	if (!queued) {
 		await Promise.all([
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE users
 				 SET registration_state = ?1,
 				     confirmation_token = ?2,
@@ -699,7 +699,7 @@ export async function startEmailVerification(userId: string): Promise<Registrati
 }
 
 async function getActivationRecord(userId: string): Promise<RegistrationActivationRecord> {
-	const record = await env.DB.prepare(
+	const record = await env.DB_META_C000.prepare(
 		`SELECT u.id AS user_id,
 		        u.account_id,
 		        u.email,
@@ -730,29 +730,29 @@ function mutualFollowStatements(record: RegistrationActivationRecord, now: strin
 	const inviteeToInviterUri = `https://${env.INSTANCE_DOMAIN}/activities/${generateUlid()}`;
 	const inviterToInviteeUri = `https://${env.INSTANCE_DOMAIN}/activities/${generateUlid()}`;
 	return [
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO follows
 			 (id, account_id, target_account_id, uri, show_reblogs, notify, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, ?4, 1, 0, ?5, ?5)`,
 		).bind(inviteeToInviterId, record.account_id, inviterId, inviteeToInviterUri, now),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET following_count = following_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(record.account_id, inviteeToInviterId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET followers_count = followers_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(inviterId, inviteeToInviterId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT OR IGNORE INTO follows
 			 (id, account_id, target_account_id, uri, show_reblogs, notify, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, ?4, 1, 0, ?5, ?5)`,
 		).bind(inviterToInviteeId, inviterId, record.account_id, inviterToInviteeUri, now),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET following_count = following_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(inviterId, inviterToInviteeId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET followers_count = followers_count + 1
 			 WHERE id = ?1 AND EXISTS (SELECT 1 FROM follows WHERE id = ?2)`,
 		).bind(record.account_id, inviterToInviteeId),
@@ -775,7 +775,7 @@ export async function activateRegistration(
 
 	const now = new Date().toISOString();
 	const activation = expectation?.kind === 'confirmation_link'
-		? env.DB.prepare(
+		? env.DB_META_C000.prepare(
 			`UPDATE users
 			 SET approved = 1,
 			     confirmed_at = ?1,
@@ -791,7 +791,7 @@ export async function activateRegistration(
 			   AND confirmation_token = ?3`,
 		).bind(now, userId, expectation.token)
 		: expectation?.kind === 'email_code'
-			? env.DB.prepare(
+			? env.DB_META_C000.prepare(
 				`UPDATE users
 				 SET approved = 1,
 				     confirmed_at = ?1,
@@ -807,7 +807,7 @@ export async function activateRegistration(
 				   AND email_verification_code_hash = ?3`,
 			).bind(now, userId, expectation.codeHash)
 			: expectation?.kind === 'state'
-				? env.DB.prepare(
+				? env.DB_META_C000.prepare(
 					`UPDATE users
 					 SET approved = 1,
 					     confirmed_at = ?1,
@@ -820,7 +820,7 @@ export async function activateRegistration(
 					     updated_at = ?1
 					 WHERE id = ?2 AND registration_state = ?3`,
 				).bind(now, userId, expectation.state)
-				: env.DB.prepare(
+				: env.DB_META_C000.prepare(
 				`UPDATE users
 			 SET approved = 1,
 			     confirmed_at = ?1,
@@ -833,15 +833,15 @@ export async function activateRegistration(
 			     updated_at = ?1
 			 WHERE id = ?2 AND registration_state != 'active'`,
 				).bind(now, userId);
-	const results = await env.DB.batch([
+	const results = await env.DB_META_C000.batch([
 		activation,
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`UPDATE accounts SET discoverable = 1, updated_at = ?1
 			 WHERE id = ?2 AND EXISTS (
 			   SELECT 1 FROM users WHERE id = ?3 AND registration_state = 'active'
 			 )`,
 			).bind(now, record.account_id, userId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO invitation_audit_logs
 			 (id, actor_account_id, target_account_id, invitation_id, action, credit_delta,
 			  contribution_delta, credits_after, contribution_score_after, metadata, created_at)
@@ -855,7 +855,7 @@ export async function activateRegistration(
 			   ON balance.account_id = invitation.inviter_account_id
 			 WHERE claim.assigned_user_id = ?3 AND active_user.registration_state = 'active'`,
 		).bind(generateUlid(), now, userId),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM invitation_use_claims
 			 WHERE assigned_user_id = ?1
 			   AND EXISTS (
@@ -919,7 +919,7 @@ export async function verifyRegistrationCode(userId: string, code: string): Prom
 	// the submitted value. Parallel guesses can therefore consume at most the
 	// configured number of attempts in total, rather than each observing the
 	// same stale counter.
-	const claimed = await env.DB.prepare(
+	const claimed = await env.DB_META_C000.prepare(
 		`UPDATE users
 		 SET email_verification_attempts = email_verification_attempts + 1
 		 WHERE id = ?1
@@ -976,7 +976,7 @@ export async function confirmRegistrationLink(userId: string, token: string): Pr
 
 export async function approvePendingRegistration(accountId: string): Promise<void> {
 	const now = new Date().toISOString();
-	const result = await env.DB.prepare(
+	const result = await env.DB_META_C000.prepare(
 		`UPDATE users
 		 SET registration_state = 'awaiting_confirmation', updated_at = ?1
 		 WHERE account_id = ?2 AND registration_state = 'pending_approval' AND approved = 0`,
@@ -992,7 +992,7 @@ export async function deletePendingRegistration(
 	reason: 'cancelled' | 'expired' | 'rejected' = 'cancelled',
 	options: { startCancellationCooldown?: boolean } = {},
 ): Promise<void> {
-	const record = await env.DB.prepare(
+	const record = await env.DB_META_C000.prepare(
 		`SELECT pending_user.id, pending_user.account_id, pending_user.invite_id,
 		        pending_user.confirmation_token, pending_user.registration_state,
 		        pending_user.approved, pending_user.email,
@@ -1037,7 +1037,7 @@ export async function deletePendingRegistration(
 		const expiresAt = new Date(
 			now.getTime() + REGISTRATION_CANCELLATION_COOLDOWN_MS,
 		).toISOString();
-		statements.push(env.DB.prepare(
+		statements.push(env.DB_META_C000.prepare(
 			`INSERT INTO registration_cancellation_cooldowns
 			 (email_hash, cancelled_at, expires_at, updated_at)
 			 SELECT ?1, ?2, ?3, ?2
@@ -1049,22 +1049,22 @@ export async function deletePendingRegistration(
 		).bind(await sha256(record.email.trim().toLowerCase()), cancelledAt, expiresAt, record.id));
 	}
 	statements.push(
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM oauth_access_tokens
 			 WHERE user_id = ?1
 			   AND EXISTS (SELECT 1 FROM users WHERE id = ?1 AND (${stillPending}))`,
 		).bind(record.id),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM webauthn_credentials
 			 WHERE user_id = ?1
 			   AND EXISTS (SELECT 1 FROM users WHERE id = ?1 AND (${stillPending}))`,
 		).bind(record.id),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM user_preferences
 			 WHERE user_id = ?1
 			   AND EXISTS (SELECT 1 FROM users WHERE id = ?1 AND (${stillPending}))`,
 		).bind(record.id),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM actor_keys
 			 WHERE account_id = ?1
 			   AND EXISTS (SELECT 1 FROM users WHERE id = ?2 AND (${stillPending}))`,
@@ -1072,16 +1072,16 @@ export async function deletePendingRegistration(
 	);
 	const deleteUserIndex = statements.length;
 	statements.push(
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM users WHERE id = ?1 AND (${stillPending})`,
 		).bind(record.id),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`DELETE FROM accounts
 			 WHERE id = ?1
 			   AND NOT EXISTS (SELECT 1 FROM users WHERE account_id = ?1)`,
 		).bind(record.account_id),
 	);
-	const results = await env.DB.batch(statements);
+	const results = await env.DB_META_C000.batch(statements);
 	if ((results[deleteUserIndex]?.meta.changes ?? 0) !== 1) {
 		throw new AppError(409, 'Registration became active before it could be cancelled');
 	}
@@ -1105,7 +1105,7 @@ export async function cleanupExpiredInvitedRegistrations(
 ): Promise<number> {
 	const safeLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 100) : 25;
 	const restoredUnassignedClaims = await restoreExpiredInvitationClaims(safeLimit);
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT pending_user.id
 		 FROM invitation_use_claims claim
 		 JOIN users pending_user ON pending_user.id = claim.assigned_user_id

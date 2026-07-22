@@ -61,7 +61,7 @@ app.get('/:id/favourited_by', authRequired, requireScope('read:statuses'), async
   `;
   params.push(pag.limitValue + 1);
 
-  const { results: fetchedResults } = await env.DB.prepare(sql).bind(...params).all<FavouriteParticipantRow>();
+  const { results: fetchedResults } = await env.DB_META_C000.prepare(sql).bind(...params).all<FavouriteParticipantRow>();
   const hasAdditionalPage = fetchedResults.length > pagination.limit;
   const results = hasAdditionalPage
     ? fetchedResults.slice(0, pagination.limit)

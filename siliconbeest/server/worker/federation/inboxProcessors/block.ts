@@ -55,7 +55,7 @@ class BlockProcessor extends BaseProcessor {
 
 		// Insert block record (ignore if duplicate)
 		try {
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO blocks (id, account_id, target_account_id, uri, created_at)
 				 VALUES (?1, ?2, ?3, ?4, ?5)`,
 			)
@@ -67,7 +67,7 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Remove follow from blocker -> target
-		const forwardFollow = await env.DB.prepare(
+		const forwardFollow = await env.DB_META_C000.prepare(
 			`DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2`,
 		)
 			.bind(actorAccount.id, targetAccount.id)
@@ -79,7 +79,7 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Remove follow from target -> blocker
-		const reverseFollow = await env.DB.prepare(
+		const reverseFollow = await env.DB_META_C000.prepare(
 			`DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2`,
 		)
 			.bind(targetAccount.id, actorAccount.id)
@@ -91,11 +91,11 @@ class BlockProcessor extends BaseProcessor {
 		}
 
 		// Also remove pending follow_requests in both directions
-		await env.DB.batch([
-			env.DB.prepare(
+		await env.DB_META_C000.batch([
+			env.DB_META_C000.prepare(
 				`DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2`,
 			).bind(actorAccount.id, targetAccount.id),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2`,
 			).bind(targetAccount.id, actorAccount.id),
 		]);

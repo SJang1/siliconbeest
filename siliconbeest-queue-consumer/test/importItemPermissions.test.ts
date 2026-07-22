@@ -34,7 +34,7 @@ interface ActorPermissionRow {
 
 const mocks = vi.hoisted(() => ({
   env: {
-    DB: {
+    DB_META_C000: {
       prepare: vi.fn(),
       batch: vi.fn(),
     },
@@ -89,15 +89,15 @@ beforeEach(() => {
   mocks.targetRow = activeTarget();
   mocks.actorRow = activeActor();
   mocks.insertChanges = 1;
-  mocks.env.DB.prepare.mockReset();
-  mocks.env.DB.batch.mockReset();
-  mocks.env.DB.batch.mockResolvedValue([]);
+  mocks.env.DB_META_C000.prepare.mockReset();
+  mocks.env.DB_META_C000.batch.mockReset();
+  mocks.env.DB_META_C000.batch.mockResolvedValue([]);
   mocks.env.QUEUE_INTERNAL.send.mockReset();
   mocks.env.QUEUE_FEDERATION.send.mockReset();
   mocks.getSuspendedDomains.mockReset();
   mocks.getSuspendedDomains.mockResolvedValue(new Set<string>());
 
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: (...bindings: SqlBinding[]) => {
       const statement: BoundStatement = { sql, bindings };
       return {
@@ -153,8 +153,8 @@ describe('import relationship permissions', () => {
         accountId: 'local-account',
       });
 
-      expect(mocks.env.DB.batch).not.toHaveBeenCalled();
-      expect(mocks.env.DB.prepare).toHaveBeenCalledTimes(2);
+      expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
+      expect(mocks.env.DB_META_C000.prepare).toHaveBeenCalledTimes(2);
     },
   );
 
@@ -166,8 +166,8 @@ describe('import relationship permissions', () => {
       accountId: 'local-account',
     });
 
-    expect(mocks.env.DB.batch).toHaveBeenCalledTimes(1);
-    const statements = mocks.env.DB.batch.mock.calls[0][0] as BoundStatement[];
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
+    const statements = mocks.env.DB_META_C000.batch.mock.calls[0][0] as BoundStatement[];
     const sql = statements.map((statement) => statement.sql);
 
     expect(sql).toHaveLength(12);
@@ -197,7 +197,7 @@ describe('import relationship permissions', () => {
       accountId: 'local-account',
     });
 
-    expect(mocks.env.DB.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
   });
 
   it('keeps user domain blocks exact instead of inheriting them to subdomains', async () => {
@@ -215,7 +215,7 @@ describe('import relationship permissions', () => {
       accountId: 'local-account',
     });
 
-    const actorQuery = mocks.env.DB.prepare.mock.calls
+    const actorQuery = mocks.env.DB_META_C000.prepare.mock.calls
       .map(([sql]) => sql as string)
       .find((sql) => sql.includes('actor_domain_block'));
     expect(actorQuery).toContain('lower(?3) = lower(actor_domain_block.domain)');
@@ -239,8 +239,8 @@ describe('import relationship permissions', () => {
       accountId: sqlActorId,
     });
 
-    expect(mocks.env.DB.batch).toHaveBeenCalledTimes(1);
-    const preparedSql = mocks.env.DB.prepare.mock.calls
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
+    const preparedSql = mocks.env.DB_META_C000.prepare.mock.calls
       .map(([sql]) => sql as string);
     expect(preparedSql.every((sql) => !sql.includes(sqlUsername))).toBe(true);
     expect(preparedSql.every((sql) => !sql.includes(sqlActorId))).toBe(true);
@@ -257,7 +257,7 @@ describe('import relationship permissions', () => {
       accountId: 'local-account',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
     expect(mocks.env.QUEUE_FEDERATION.send).not.toHaveBeenCalled();
   });
 });

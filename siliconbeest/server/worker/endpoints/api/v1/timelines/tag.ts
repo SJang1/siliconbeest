@@ -5,6 +5,7 @@ import { authOptional } from '../../../../middleware/auth';
 import { parsePaginationParams, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeOriginalTimelineRows } from '../../../../utils/timelineSerialization';
 import { getTagTimeline } from '../../../../services/timeline';
+import { buildFeedLinkHeader } from '../../../../utils/feedCursor';
 
 const app = new Hono<{ Variables: AppVariables }>();
 
@@ -42,7 +43,10 @@ app.get('/:tag', authOptional, async (c) => {
   if (pag.minId) statuses.reverse();
 
   const baseUrl = `https://${env.INSTANCE_DOMAIN}/api/v1/timelines/tag/${encodeURIComponent(tagName)}`;
-  const link = buildLinkHeader(baseUrl, statuses, pag.limit);
+  const linkRows = pag.minId ? [...allRows].reverse() : allRows;
+  const link = String(env.SEARCH_FEED_READS) === 'true'
+    ? await buildFeedLinkHeader(baseUrl, linkRows, pag.limit, `tag:${tagName}`)
+    : buildLinkHeader(baseUrl, statuses, pag.limit);
   const headers: Record<string, string> = {};
   if (link) headers['Link'] = link;
 

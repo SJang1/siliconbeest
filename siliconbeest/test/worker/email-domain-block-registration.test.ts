@@ -8,7 +8,7 @@ describe('Email domain block registration check', () => {
   beforeAll(async () => {
     await applyMigration();
     // Ensure registration is open
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now'))",
     ).run();
   });
@@ -16,7 +16,7 @@ describe('Email domain block registration check', () => {
   it('rejects registration when email domain is blocked', async () => {
     // Insert a blocked domain
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "INSERT INTO email_domain_blocks (id, domain, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
     ).bind('block1', 'blocked.example', now, now).run();
 

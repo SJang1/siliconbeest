@@ -49,7 +49,7 @@ let sequence = 0;
 
 async function settings(values: Record<string, string>) {
 	const now = new Date().toISOString();
-	await env.DB.batch(Object.entries(values).map(([key, value]) => env.DB.prepare(
+	await env.DB_META_C000.batch(Object.entries(values).map(([key, value]) => env.DB_META_C000.prepare(
 		`INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
 		 ON CONFLICT (key) DO UPDATE SET value = ?2, updated_at = ?3`,
 	).bind(key, value, now)));
@@ -190,7 +190,7 @@ describe('invitation credit ledger', () => {
 		const admin = await createTestUser(`limit_admin_${sequence++}`, { role: 'admin' });
 		const user = await createTestUser(`limit_user_${sequence++}`);
 		expect((await adminSetCredits(admin.token, user.accountId, 1)).status).toBe(200);
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO invitation_link_issue_limits
 			 (account_id, window_started_at, issued_links, last_operation_id)
 			 VALUES (?1, ?2, 100, NULL)`,
@@ -253,7 +253,7 @@ describe('invitation credit ledger', () => {
 		});
 		expect(cancellation.status).toBe(200);
 
-		const link = await env.DB.prepare(
+		const link = await env.DB_META_C000.prepare(
 			'SELECT remaining_uses, revoked_at FROM registration_invites WHERE id = ?1',
 		).bind(invite.id).first<{ remaining_uses: number; revoked_at: string | null }>();
 		expect(link?.remaining_uses).toBe(0);
@@ -277,7 +277,7 @@ describe('invitation credit ledger', () => {
 		});
 		expect(cancellation.status).toBe(200);
 
-		const link = await env.DB.prepare(
+		const link = await env.DB_META_C000.prepare(
 			'SELECT remaining_uses, revoked_at FROM registration_invites WHERE id = ?1',
 		).bind(invite.id).first<{ remaining_uses: number; revoked_at: string | null }>();
 		expect(link).toEqual({ remaining_uses: 1, revoked_at: null });
@@ -380,7 +380,7 @@ describe('invitation credit ledger', () => {
 			available_credits: 2,
 			max_credits: 2,
 		});
-		const auditRows = await env.DB.prepare(
+		const auditRows = await env.DB_META_C000.prepare(
 			`SELECT action, credit_delta FROM invitation_audit_logs
 			 WHERE target_account_id = ?1 OR actor_account_id = ?2`,
 		).bind(user.accountId, admin.accountId).all<{ action: string; credit_delta: number }>();
@@ -475,7 +475,7 @@ describe('invitation credit ledger', () => {
 			body: JSON.stringify({ account_ids: [inviter.accountId], confirmation: 'RESET' }),
 		});
 		expect(reset.status).toBe(200);
-		const resetLink = await env.DB.prepare(
+		const resetLink = await env.DB_META_C000.prepare(
 			`SELECT remaining_uses, revoked_at, reset_at FROM registration_invites WHERE id = ?1`,
 		).bind(invite.id).first<{
 			remaining_uses: number;
@@ -499,7 +499,7 @@ describe('invitation credit ledger', () => {
 			pending_refund_credits: 0,
 			owned_credits: 1,
 		});
-		expect((await env.DB.prepare(
+		expect((await env.DB_META_C000.prepare(
 			`SELECT action FROM invitation_audit_logs WHERE invitation_id = ?1`,
 		).bind(invite.id).all<{ action: string }>()).results.map((row) => row.action))
 			.toEqual(expect.arrayContaining([
@@ -516,14 +516,14 @@ describe('invitation credit ledger', () => {
 		const invite = await (await createInvite(inviter.token, 1)).json<CreatedInvite>();
 		const consumed = await consumeRegistrationInvitation(invite.token);
 		expect(consumed.claim_id).toBeTruthy();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`UPDATE invitation_use_claims SET expires_at = ?1 WHERE id = ?2`,
 		).bind('2000-01-01T00:00:00.000Z', consumed.claim_id).run();
 
 		const preview = await SELF.fetch(`${BASE}/api/v1/registration/invitations/${invite.token}`);
 		expect(preview.status).toBe(200);
 		expect(await preview.json<{ uses_remaining: number }>()).toMatchObject({ uses_remaining: 1 });
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT id FROM invitation_use_claims WHERE id = ?1',
 		).bind(consumed.claim_id).first<{ id: string }>()).toBeNull();
 	});
@@ -533,7 +533,7 @@ describe('invitation credit ledger', () => {
 		const inviter = await createTestUser(`consume_limit_inviter_${sequence++}`);
 		expect((await adminSetCredits(admin.token, inviter.accountId, 1)).status).toBe(200);
 		const invite = await (await createInvite(inviter.token, 1)).json<CreatedInvite>();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO invitation_use_daily_limits
 			 (account_id, window_started_at, consumed_uses, last_operation_id)
 			 VALUES (?1, ?2, 2000, NULL)`,
@@ -541,10 +541,10 @@ describe('invitation credit ledger', () => {
 
 		const registration = await registerWithInvite(`consume_limited_${sequence++}`, invite.token);
 		expect(registration.status).toBe(429);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
 		).bind(invite.id).first<{ remaining_uses: number }>()).toEqual({ remaining_uses: 1 });
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT COUNT(*) AS count FROM invitation_use_claims WHERE invitation_id = ?1',
 		).bind(invite.id).first<{ count: number }>()).toEqual({ count: 0 });
 	});

@@ -85,7 +85,7 @@ describe('GET /api/v1/instance', () => {
 
   it('uses the server-configured logo URL as thumbnail', async () => {
     const thumbnailUrl = 'https://cdn.example.com/instance-logo.png';
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO settings (key, value, updated_at) VALUES ('site_logo_url', ?1, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     ).bind(thumbnailUrl).run();
@@ -186,7 +186,7 @@ describe('GET /api/v1/instance', () => {
 
     it('prefers an explicitly configured contact username', async () => {
       await createTestUser('admin2', { role: 'admin' });
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         "UPDATE settings SET value = 'admin2' WHERE key = 'site_contact_username'",
       ).run();
       try {
@@ -194,7 +194,7 @@ describe('GET /api/v1/instance', () => {
         const body = await res.json<any>();
         expect(body.contact.account.username).toBe('admin2');
       } finally {
-        await env.DB.prepare(
+        await env.DB_META_C000.prepare(
           "UPDATE settings SET value = '' WHERE key = 'site_contact_username'",
         ).run();
       }

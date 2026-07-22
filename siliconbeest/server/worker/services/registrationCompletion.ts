@@ -20,12 +20,12 @@ export async function createRegistrationCompletionTicket(
 	const expiresAt = new Date(
 		createdAt.getTime() + COMPLETION_TICKET_TTL_SECONDS * 1000,
 	).toISOString();
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`DELETE FROM registration_completion_tickets
 			 WHERE expires_at <= ?1`,
 		).bind(createdAt.toISOString()),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			`INSERT INTO registration_completion_tickets
 			 (token_hash, user_id, redirect_uri, design, expires_at, consumed_at, created_at)
 			 VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6)`,
@@ -51,7 +51,7 @@ export async function consumeRegistrationCompletionTicket(
 
 	const tokenHash = await sha256(ticket);
 	const consumedAt = new Date().toISOString();
-	const claimed = await env.DB.prepare(
+	const claimed = await env.DB_META_C000.prepare(
 		`UPDATE registration_completion_tickets
 		 SET consumed_at = ?1
 		 WHERE token_hash = ?2
@@ -63,7 +63,7 @@ export async function consumeRegistrationCompletionTicket(
 		throw new AppError(410, 'Registration completion ticket is invalid or expired');
 	}
 
-	const payload = await env.DB.prepare(
+	const payload = await env.DB_META_C000.prepare(
 		`SELECT user_id, redirect_uri, design
 		 FROM registration_completion_tickets
 		 WHERE token_hash = ?1 AND user_id = ?2 AND consumed_at = ?3`,

@@ -20,7 +20,7 @@ app.get('/', authRequired, requireScope('read:accounts'), async (c) => {
     80,
   );
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT a.*
      FROM accounts a
      WHERE a.domain IS NULL

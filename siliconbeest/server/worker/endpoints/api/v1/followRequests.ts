@@ -50,7 +50,7 @@ app.get('/', authRequired, requireScope('read:follows'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<AccountRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<AccountRow>();
 
   const accounts = (results ?? []).map((row) => {
     return serializeAccount(row, { instanceDomain: env.INSTANCE_DOMAIN });
@@ -86,7 +86,7 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   });
 
   // AP: Send Accept(Follow) to the remote server
-  const remoteAccount = await env.DB.prepare(
+  const remoteAccount = await env.DB_META_C000.prepare(
     'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
@@ -137,7 +137,7 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
   c.set('contributionApplied', true);
 
   // AP: Send Reject(Follow) to the remote server
-  const remoteAccount2 = await env.DB.prepare(
+  const remoteAccount2 = await env.DB_META_C000.prepare(
     'SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1',
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 

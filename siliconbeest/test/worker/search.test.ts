@@ -16,7 +16,7 @@ describe('Search API', () => {
     user = await createTestUser('searchuser');
     other = await createTestUser('searchother');
     restricted = await createTestUser('searchrestricted');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE oauth_access_tokens SET scopes = 'write' WHERE user_id = ?1",
     ).bind(restricted.userId).run();
 
@@ -80,7 +80,7 @@ describe('Search API', () => {
     it('stores compact as:Public remote statuses as public', async () => {
       const now = new Date().toISOString();
       const remoteActorUri = 'https://compact-public.example/users/alice';
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT OR IGNORE INTO accounts
           (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
            header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -102,7 +102,7 @@ describe('Search API', () => {
         },
       }, user.accountId, { fanout: false, notify: false });
 
-      const stored = await env.DB.prepare(
+      const stored = await env.DB_META_C000.prepare(
         'SELECT visibility FROM statuses WHERE uri = ?1 LIMIT 1',
       ).bind('https://compact-public.example/users/alice/statuses/1').first<{ visibility: string }>();
       expect(stored?.visibility).toBe('public');
@@ -112,7 +112,7 @@ describe('Search API', () => {
       const now = new Date().toISOString();
       const remoteActorUri = 'https://article-author.example/ap/actors/alice';
       const articleUri = 'https://article-author.example/ap/articles/2026/07/long-form-post';
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT OR IGNORE INTO accounts
           (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url,
            header_url, header_static_url, locked, bot, discoverable, manually_approves_followers,
@@ -144,7 +144,7 @@ describe('Search API', () => {
         },
       }, user.accountId, { fanout: false, notify: false });
 
-      const stored = await env.DB.prepare(
+      const stored = await env.DB_META_C000.prepare(
         `SELECT id, object_type, title, title_map, text, content, content_map,
                 content_warning, content_warning_map, language, url, visibility
          FROM statuses WHERE uri = ?1 LIMIT 1`,
@@ -176,7 +176,7 @@ describe('Search API', () => {
       expect(JSON.parse(stored!.content_map!)).toMatchObject({ 'ko-hang-kr': '<h1>장문</h1><p>본문</p>' });
       expect(JSON.parse(stored!.content_warning_map!)).toMatchObject({ 'ko-hang-kr': '짧은 요약' });
 
-      await env.DB.prepare('UPDATE users SET locale = ?1 WHERE id = ?2')
+      await env.DB_META_C000.prepare('UPDATE users SET locale = ?1 WHERE id = ?2')
         .bind('ko', user.userId)
         .run();
       const articleResponse = await SELF.fetch(`${BASE}/api/v1/statuses/${stored!.id}`, {

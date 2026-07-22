@@ -11,7 +11,7 @@ function now() {
 
 async function insertLocalAccount(id: string, username: string) {
 	const createdAt = now();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
 		 VALUES (?1, ?2, NULL, '', '', ?3, ?4, ?5, ?5)`,
 	).bind(
@@ -25,7 +25,7 @@ async function insertLocalAccount(id: string, username: string) {
 
 async function insertLocalStatus(id: string, accountId: string, uri: string, visibility = 'public') {
 	const createdAt = now();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO statuses (id, uri, account_id, visibility, local, created_at, updated_at)
 		 VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5)`,
 	).bind(id, uri, accountId, visibility, createdAt).run();

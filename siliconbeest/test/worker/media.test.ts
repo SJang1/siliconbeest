@@ -134,7 +134,7 @@ describe('Media API', () => {
       // The real process_media consumer updates this timestamp while reading
       // dimensions. Metadata processing must not invalidate the NULL pending
       // sentinel or discard a valid generated description.
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE media_attachments
          SET width = 1, height = 1, updated_at = datetime('now')
          WHERE id = ?1`,

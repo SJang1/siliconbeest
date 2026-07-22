@@ -91,13 +91,13 @@ let registrationRequestIp = 1;
 
 async function resetRegistrationData() {
   for (const table of DELETE_ORDER) {
-    await env.DB.prepare(`DELETE FROM "${table}"`).run();
+    await env.DB_META_C000.prepare(`DELETE FROM "${table}"`).run();
   }
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now'))",
     ),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('require_email_verification', '1', datetime('now'))",
     ),
   ]);
@@ -107,11 +107,11 @@ async function setRegistrationSettings(
   mode: 'open' | 'approval' | 'referral' | 'closed',
   requireEmailVerification = true,
 ) {
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.DB_META_C000.batch([
+    env.DB_META_C000.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', ?1, datetime('now'))",
     ).bind(mode),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('require_email_verification', ?1, datetime('now'))",
     ).bind(requireEmailVerification ? '1' : '0'),
   ]);
@@ -193,7 +193,7 @@ async function createInvite(
   options: { uses?: number; expires_in_days?: number | null; auto_follow?: boolean } = {},
 ) {
 	const now = new Date().toISOString();
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		`INSERT INTO account_invitation_balances
 		 (account_id, available_credits, contribution_score, contribution_award_level, created_at, updated_at)
 		 VALUES (?1, 10, 0, 0, ?2, ?2)
@@ -231,7 +231,7 @@ describe('enhanced registration flow', () => {
       registration_state: 'awaiting_confirmation',
     });
 
-    const user = await env.DB.prepare(
+    const user = await env.DB_META_C000.prepare(
       'SELECT approved, confirmed_at, registration_state FROM users WHERE email = ?1',
     ).bind('open_pending@test.local').first<{
       approved: number;
@@ -251,14 +251,14 @@ describe('enhanced registration flow', () => {
   it('claims legacy confirmation tokens with lifecycle-aware activation', async () => {
     const legacyOpen = await createTestUser('legacy_open_confirmation');
     const openToken = 'legacy-open-confirmation-token';
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `UPDATE users
          SET approved = 0, confirmed_at = NULL, confirmation_token = ?1,
              registration_state = 'awaiting_confirmation'
          WHERE id = ?2`,
       ).bind(openToken, legacyOpen.userId),
-      env.DB.prepare('UPDATE accounts SET discoverable = 0 WHERE id = ?1')
+      env.DB_META_C000.prepare('UPDATE accounts SET discoverable = 0 WHERE id = ?1')
         .bind(legacyOpen.accountId),
     ]);
     await env.CACHE.put(`email_confirm:${openToken}`, JSON.stringify({
@@ -268,7 +268,7 @@ describe('enhanced registration flow', () => {
 
     const activated = await SELF.fetch(`${BASE}/auth/confirm?token=${openToken}`);
     expect(activated.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       `SELECT users.approved, users.registration_state, users.confirmed_at,
               accounts.discoverable
        FROM users JOIN accounts ON accounts.id = users.account_id
@@ -288,14 +288,14 @@ describe('enhanced registration flow', () => {
 
     const legacyApplicant = await createTestUser('legacy_pending_confirmation');
     const pendingToken = 'legacy-pending-confirmation-token';
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `UPDATE users
          SET approved = 0, confirmed_at = NULL, confirmation_token = ?1,
              registration_state = 'pending_approval'
          WHERE id = ?2`,
       ).bind(pendingToken, legacyApplicant.userId),
-      env.DB.prepare('UPDATE accounts SET discoverable = 0 WHERE id = ?1')
+      env.DB_META_C000.prepare('UPDATE accounts SET discoverable = 0 WHERE id = ?1')
         .bind(legacyApplicant.accountId),
     ]);
     await env.CACHE.put(`email_confirm:${pendingToken}`, JSON.stringify({
@@ -304,7 +304,7 @@ describe('enhanced registration flow', () => {
     }));
 
     expect((await SELF.fetch(`${BASE}/auth/confirm?token=${pendingToken}`)).status).toBe(200);
-    const pending = await env.DB.prepare(
+    const pending = await env.DB_META_C000.prepare(
       `SELECT users.approved, users.registration_state, users.confirmed_at,
               accounts.discoverable
        FROM users JOIN accounts ON accounts.id = users.account_id
@@ -373,10 +373,10 @@ describe('enhanced registration flow', () => {
     const duplicateAfterValidGate = await submit(invite.token, 'preflight_duplicate');
     expect(duplicateAfterValidGate.status).toBe(422);
 
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
     ).bind(invite.id).first<{ remaining_uses: number }>()).toMatchObject({ remaining_uses: 2 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       "SELECT COUNT(*) AS count FROM invitation_audit_logs WHERE invitation_id = ?1 AND action = 'invite.used'",
     ).bind(invite.id).first<{ count: number }>()).toMatchObject({ count: 0 });
   });
@@ -403,7 +403,7 @@ describe('enhanced registration flow', () => {
     });
     const cookie = registrationCookie(response);
 
-    const linkedUser = await env.DB.prepare(
+    const linkedUser = await env.DB_META_C000.prepare(
       'SELECT account_id, invite_id, invited_by_account_id FROM users WHERE email = ?1',
     ).bind('invited_member@test.local').first<{
       account_id: string;
@@ -419,16 +419,16 @@ describe('enhanced registration flow', () => {
     const headerKey = `headers/${linkedUser?.account_id ?? ''}_default.svg`;
     expect(await env.MEDIA_BUCKET.head(avatarKey)).toBeTruthy();
     expect(await env.MEDIA_BUCKET.head(headerKey)).toBeTruthy();
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
     ).bind(invite.id).first<{ remaining_uses: number }>()).toMatchObject({ remaining_uses: 1 });
 
     const cancel = await registrationRequest('/cancel', cookie);
     expect(cancel.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
     ).bind(invite.id).first<{ remaining_uses: number }>()).toMatchObject({ remaining_uses: 2 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT id FROM users WHERE email = ?1',
     ).bind('invited_member@test.local').first()).toBeNull();
     expect(await env.MEDIA_BUCKET.head(avatarKey)).toBeNull();
@@ -450,7 +450,7 @@ describe('enhanced registration flow', () => {
     expect(cancelled.status).toBe(200);
 
     const emailHash = await sha256(email);
-    const cooldown = await env.DB.prepare(
+    const cooldown = await env.DB_META_C000.prepare(
       `SELECT email_hash, cancelled_at, expires_at
        FROM registration_cancellation_cooldowns WHERE email_hash = ?1`,
     ).bind(emailHash).first<{
@@ -471,14 +471,14 @@ describe('enhanced registration flow', () => {
     expect(await blocked.json<{ error: string }>()).toMatchObject({
       error: 'Registration cancellation cooldown is active',
     });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
     ).bind(invite.id).first<{ remaining_uses: number }>()).toEqual({ remaining_uses: 2 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT COUNT(*) AS count FROM invitation_use_claims WHERE invitation_id = ?1',
     ).bind(invite.id).first<{ count: number }>()).toEqual({ count: 0 });
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE registration_cancellation_cooldowns SET expires_at = datetime('now', '-1 second') WHERE email_hash = ?1",
     ).bind(emailHash).run();
     const allowed = await register('cooldown_retry', {
@@ -486,10 +486,10 @@ describe('enhanced registration flow', () => {
       invite_token: invite.token,
     });
     expect(allowed.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT remaining_uses FROM registration_invites WHERE id = ?1',
     ).bind(invite.id).first<{ remaining_uses: number }>()).toEqual({ remaining_uses: 1 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT email_hash FROM registration_cancellation_cooldowns WHERE email_hash = ?1',
     ).bind(emailHash).first()).toBeNull();
   });
@@ -503,7 +503,7 @@ describe('enhanced registration flow', () => {
     });
     expect(application.status).toBe(200);
 
-    const pending = await env.DB.prepare(
+    const pending = await env.DB_META_C000.prepare(
       "SELECT id FROM accounts WHERE username = 'rejected_first' AND domain IS NULL",
     ).first<{ id: string }>();
     const admin = await createTestUser('cooldown_rejection_admin', { role: 'admin' });
@@ -512,7 +512,7 @@ describe('enhanced registration flow', () => {
       { method: 'POST', headers: authHeaders(admin.token) },
     );
     expect(rejected.status).toBe(200);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT email_hash FROM registration_cancellation_cooldowns WHERE email_hash = ?1',
     ).bind(await sha256(email)).first()).toBeNull();
 
@@ -546,7 +546,7 @@ describe('enhanced registration flow', () => {
     await setRegistrationSettings('approval');
     const response = await register('admin_review', { reason: 'Please approve me.' });
     const cookie = registrationCookie(response);
-    const account = await env.DB.prepare(
+    const account = await env.DB_META_C000.prepare(
       "SELECT id FROM accounts WHERE username = 'admin_review' AND domain IS NULL",
     ).first<{ id: string }>();
     const admin = await createTestUser('registration_admin', { role: 'admin' });
@@ -557,7 +557,7 @@ describe('enhanced registration flow', () => {
     });
     expect(approve.status).toBe(200);
 
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT approved, registration_state FROM users WHERE account_id = ?1',
     ).bind(account?.id).first<{ approved: number; registration_state: RegistrationState }>())
       .toEqual({ approved: 0, registration_state: 'awaiting_confirmation' });
@@ -598,13 +598,13 @@ describe('enhanced registration flow', () => {
       passkey_prompt: true,
     });
 
-    const invitee = await env.DB.prepare(
+    const invitee = await env.DB_META_C000.prepare(
       "SELECT id FROM accounts WHERE username = 'follow_invitee' AND domain IS NULL",
     ).first<{ id: string }>();
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT COUNT(*) AS count FROM follows WHERE (account_id = ?1 AND target_account_id = ?2) OR (account_id = ?2 AND target_account_id = ?1)',
     ).bind(inviter.accountId, invitee?.id).first<{ count: number }>()).toMatchObject({ count: 2 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT approved, registration_state, confirmed_at FROM users WHERE account_id = ?1',
     ).bind(invitee?.id).first<{
       approved: number;
@@ -637,7 +637,7 @@ describe('enhanced registration flow', () => {
     expect(remaining).toBeGreaterThan(55 * 60 * 1000);
     expect(remaining).toBeLessThanOrEqual(60 * 60 * 1000);
 
-    const user = await env.DB.prepare(
+    const user = await env.DB_META_C000.prepare(
       'SELECT id, confirmation_token FROM users WHERE email = ?1',
     ).bind('email_challenge@test.local').first<{
       id: string;
@@ -658,7 +658,7 @@ describe('enhanced registration flow', () => {
     expect(await env.CACHE.get(
       `email_confirm:${user?.confirmation_token ?? ''}`,
     )).toBeTruthy();
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT approved, registration_state, confirmed_at, confirmation_token FROM users WHERE id = ?1',
     ).bind(user?.id).first<{
       approved: number;
@@ -697,7 +697,7 @@ describe('enhanced registration flow', () => {
     expect(await env.CACHE.get(
       `email_confirm:${user?.confirmation_token ?? ''}`,
     )).toBeNull();
-    const activated = await env.DB.prepare(
+    const activated = await env.DB_META_C000.prepare(
       'SELECT approved, registration_state, confirmed_at, confirmation_token FROM users WHERE email = ?1',
     ).bind('email_challenge@test.local').first<{
       approved: number;
@@ -752,10 +752,10 @@ describe('enhanced registration flow', () => {
       redirect: 'manual',
     });
     expect(repeatedConfirm.status).toBe(400);
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT COUNT(*) AS count FROM oauth_access_tokens WHERE user_id = ?1',
     ).bind(user?.id).first<{ count: number }>()).toEqual({ count: 1 });
-    expect(await env.DB.prepare(
+    expect(await env.DB_META_C000.prepare(
       'SELECT confirmed_at FROM users WHERE id = ?1',
     ).bind(user?.id).first<{ confirmed_at: string | null }>()).toEqual({
       confirmed_at: activated?.confirmed_at ?? null,
@@ -776,7 +776,7 @@ describe('enhanced registration flow', () => {
     const registrationSession = registrationCookie(response);
     expect((await registrationRequest('/continue', registrationSession)).status).toBe(200);
 
-    const user = await env.DB.prepare(
+    const user = await env.DB_META_C000.prepare(
       'SELECT confirmation_token, registration_design FROM users WHERE email = ?1',
     ).bind(`${username}@test.local`).first<{
       confirmation_token: string;
@@ -812,7 +812,7 @@ describe('enhanced registration flow', () => {
     });
     const cookie = registrationCookie(response);
     await registrationRequest('/continue', cookie);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE users SET email_verification_expires_at = datetime('now', '-1 minute') WHERE email = ?1",
     ).bind('expired_challenge@test.local').run();
 

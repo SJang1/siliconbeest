@@ -121,8 +121,8 @@ app.get('/', async (c) => {
 	// token must activate them. Applicants that still need administrator review
 	// remain pending even after their email address is verified.
 	const now = new Date().toISOString();
-	const results = await env.DB.batch([
-		env.DB.prepare(
+	const results = await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			`UPDATE users
 			 SET confirmed_at = ?1,
 			     confirmation_token = NULL,
@@ -140,7 +140,7 @@ app.get('/', async (c) => {
 			   AND confirmed_at IS NULL
 			   AND registration_state IN ('awaiting_confirmation', 'pending_approval', 'active')`,
 		).bind(now, data.userId, token),
-			env.DB.prepare(
+			env.DB_META_C000.prepare(
 				`UPDATE accounts
 				 SET discoverable = 1, updated_at = ?1
 				 WHERE id = (SELECT account_id FROM users WHERE id = ?2)

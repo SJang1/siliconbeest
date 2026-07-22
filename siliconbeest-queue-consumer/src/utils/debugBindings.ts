@@ -27,7 +27,7 @@ export function ensureDebugBindingLogging(): void {
   // Read via an index signature so environments missing optional bindings
   // still work.
   const bindings = env as unknown as Record<string, unknown>;
-  instrumentD1ForDebug(bindings.DB, 'DB');
+  instrumentD1ForDebug(bindings.DB_META_C000, 'DB_META_C000');
   instrumentKVForDebug(bindings.CACHE, 'CACHE');
   instrumentKVForDebug(bindings.FEDIFY_KV, 'FEDIFY_KV');
   instrumentR2ForDebug(bindings.MEDIA_BUCKET, 'MEDIA_BUCKET');

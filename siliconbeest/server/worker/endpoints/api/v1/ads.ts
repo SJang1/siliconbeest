@@ -17,7 +17,7 @@ const app = new Hono<HonoEnv>();
 app.get('/', authOptional, async (c) => {
   const now = new Date().toISOString();
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT ad.*, media.file_key AS image_file_key
      FROM advertisements ad
      LEFT JOIN media_attachments media
@@ -37,7 +37,7 @@ app.get('/', authOptional, async (c) => {
     let status = null;
     if (row.format === 'status') {
       if (!row.status_id) return null;
-      const statusRow = await env.DB.prepare(
+      const statusRow = await env.DB_META_C000.prepare(
         `${STATUS_JOIN_SQL}
          WHERE s.id = ?1
            AND s.visibility = 'public'

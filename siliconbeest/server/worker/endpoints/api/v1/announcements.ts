@@ -15,7 +15,7 @@ app.get('/', authOptional, async (c) => {
 
   let results: unknown[] = [];
   try {
-    ({ results = [] } = await env.DB.prepare(
+    ({ results = [] } = await env.DB_META_C000.prepare(
       `SELECT * FROM announcements
        WHERE published_at IS NOT NULL
        ORDER BY created_at DESC`,
@@ -29,7 +29,7 @@ app.get('/', authOptional, async (c) => {
   if (currentAccount) {
     let dismissedRows: unknown[] = [];
     try {
-      ({ results: dismissedRows = [] } = await env.DB.prepare(
+      ({ results: dismissedRows = [] } = await env.DB_META_C000.prepare(
         'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
       )
         .bind(currentAccount.id)
@@ -67,7 +67,7 @@ app.post('/:id/dismiss', authRequired, requireScope('write:accounts'), async (c)
   const currentAccount = c.get('currentAccount')!;
   const announcementId = c.req.param('id');
 
-  const announcement = await env.DB.prepare(
+  const announcement = await env.DB_META_C000.prepare(
     'SELECT id FROM announcements WHERE id = ?1 AND published_at IS NOT NULL',
   )
     .bind(announcementId)
@@ -77,7 +77,7 @@ app.post('/:id/dismiss', authRequired, requireScope('write:accounts'), async (c)
     throw new AppError(404, 'Record not found');
   }
 
-  const inserted = await env.DB.prepare(
+  const inserted = await env.DB_META_C000.prepare(
     'INSERT OR IGNORE INTO announcement_dismissals (announcement_id, account_id) VALUES (?1, ?2)',
   )
     .bind(announcementId, currentAccount.id)

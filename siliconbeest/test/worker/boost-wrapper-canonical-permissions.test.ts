@@ -31,8 +31,8 @@ describe('canonical boost wrapper permissions', () => {
     originalAuthor = await createTestUser('canonical_boost_original_author');
     const now = new Date().toISOString();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO accounts
           (id, username, domain, display_name, note, uri, url, created_at, updated_at)
          VALUES (?1, 'remote_original', 'blocked.example', 'Remote original', '', ?2, ?2, ?3, ?3)`,
@@ -41,7 +41,7 @@ describe('canonical boost wrapper permissions', () => {
         'https://blocked.example/users/remote_original',
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, url, account_id, content, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, '<p>local original</p>', 'public', 1, ?4, ?4)`,
@@ -51,7 +51,7 @@ describe('canonical boost wrapper permissions', () => {
         originalAuthor.accountId,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, url, account_id, reblog_of_id, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, ?4, 'public', 1, ?5, ?5)`,
@@ -62,7 +62,7 @@ describe('canonical boost wrapper permissions', () => {
         ids.original,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, url, account_id, content, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, '<p>remote original</p>', 'public', 0, ?4, ?4)`,
@@ -72,7 +72,7 @@ describe('canonical boost wrapper permissions', () => {
         ids.remoteAuthor,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, url, account_id, reblog_of_id, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?2, ?3, ?4, 'public', 1, ?5, ?5)`,
@@ -113,7 +113,7 @@ describe('canonical boost wrapper permissions', () => {
 
   it('keeps viewer-side mute and block out of wrappers but not direct canonical originals', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO mutes
         (id, account_id, target_account_id, hide_notifications, created_at, updated_at)
        VALUES ('canonical-boost-mute', ?1, ?2, 1, ?3, ?3)`,
@@ -122,9 +122,9 @@ describe('canonical boost wrapper permissions', () => {
     expect((await fetchStatus(ids.original)).status).toBe(200);
     expect((await fetchStatus(ids.wrapper)).status).toBe(404);
     expect((await exactSearch(ids.wrapper)).statuses).toEqual([]);
-    await env.DB.prepare("DELETE FROM mutes WHERE id = 'canonical-boost-mute'").run();
+    await env.DB_META_C000.prepare("DELETE FROM mutes WHERE id = 'canonical-boost-mute'").run();
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('canonical-boost-viewer-block', ?1, ?2, ?3)`,
     ).bind(viewer.accountId, originalAuthor.accountId, now).run();
@@ -132,12 +132,12 @@ describe('canonical boost wrapper permissions', () => {
     expect((await fetchStatus(ids.original)).status).toBe(200);
     expect((await fetchStatus(ids.wrapper)).status).toBe(404);
     expect((await exactSearch(ids.wrapper)).statuses).toEqual([]);
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'canonical-boost-viewer-block'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'canonical-boost-viewer-block'").run();
   });
 
   it('applies the author-to-viewer block to both canonical originals and wrappers', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('canonical-boost-author-block', ?1, ?2, ?3)`,
     ).bind(originalAuthor.accountId, viewer.accountId, now).run();
@@ -145,26 +145,26 @@ describe('canonical boost wrapper permissions', () => {
     expect((await fetchStatus(ids.original)).status).toBe(404);
     expect((await fetchStatus(ids.wrapper)).status).toBe(404);
     expect((await exactSearch(ids.wrapper)).statuses).toEqual([]);
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'canonical-boost-author-block'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'canonical-boost-author-block'").run();
   });
 
   it('returns no wrapper when the original is deleted or its author is suspended', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET deleted_at = ?1 WHERE id = ?2',
     ).bind(now, ids.original).run();
     expect((await fetchStatus(ids.wrapper)).status).toBe(404);
     expect((await exactSearch(ids.wrapper)).statuses).toEqual([]);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET deleted_at = NULL WHERE id = ?1',
     ).bind(ids.original).run();
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
     ).bind(now, originalAuthor.accountId).run();
     expect((await fetchStatus(ids.wrapper)).status).toBe(404);
     expect((await exactSearch(ids.wrapper)).statuses).toEqual([]);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = NULL WHERE id = ?1',
     ).bind(originalAuthor.accountId).run();
   });
@@ -176,7 +176,7 @@ describe('canonical boost wrapper permissions', () => {
     expect(anonymousResponse.status).toBe(200);
     expect((await anonymousResponse.json<StatusEntity>()).reblog?.id).toBe(ids.remoteOriginal);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
        VALUES ('canonical-boost-domain-block', ?1, 'BLOCKED.EXAMPLE', ?2)`,
     ).bind(viewer.accountId, new Date().toISOString()).run();

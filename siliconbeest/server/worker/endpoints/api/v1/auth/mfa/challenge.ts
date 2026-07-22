@@ -37,7 +37,7 @@ app.post('/', async (c) => {
 		throw new AppError(401, 'MFA token is invalid or expired');
 	}
 
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		'SELECT id, email, locale, role, otp_enabled, otp_secret, otp_backup_codes FROM users WHERE id = ?1 LIMIT 1',
 	).bind(userId).first<Pick<UserRow, 'id' | 'role' | 'otp_enabled' | 'otp_secret' | 'otp_backup_codes'> & { email: string; locale: string }>();
 
@@ -99,7 +99,7 @@ async function tryBackupCode(
 	if (matchIndex === -1) return false;
 
 	storedHashes.splice(matchIndex, 1);
-	await env.DB.prepare(
+	await env.DB_META_C000.prepare(
 		'UPDATE users SET otp_backup_codes = ?1, updated_at = ?2 WHERE id = ?3',
 	).bind(JSON.stringify(storedHashes), new Date().toISOString(), user.id).run();
 

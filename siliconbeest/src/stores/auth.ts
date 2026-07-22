@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { CredentialAccount, Token } from '@/types/mastodon';
 import { verifyCredentials } from '@/api/mastodon/accounts';
-import { login as apiLogin, register as apiRegister, revokeToken } from '@/api/mastodon/oauth';
+import { getRegistrationOperation, login as apiLogin, register as apiRegister, revokeToken } from '@/api/mastodon/oauth';
 import { ApiError } from '@/api/client';
 import {
   getAuthenticateOptions,
@@ -17,6 +17,7 @@ import { useNotificationsStore } from './notifications';
 import { useUiStore } from './ui';
 import {
   isRegistrationRequiredResponse,
+  isRegistrationPendingResponse,
   type RegistrationDesign,
   type RegistrationState,
 } from '@/types/registration';
@@ -218,6 +219,29 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
     try {
       const { data } = await apiRegister(params);
+      if (isRegistrationPendingResponse(data)) {
+        const deadline = Date.now() + 2 * 60 * 1000;
+        let delayMs = Math.max(250, Math.min(data.retry_after_ms, 5_000));
+        while (Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          const operation = (await getRegistrationOperation(data.operation_id)).data;
+          if (operation.state === 'failed') {
+            throw new Error(operation.error || 'Registration could not be completed');
+          }
+          if (operation.state === 'committed') {
+            // The normal login endpoint creates the browser registration
+            // session cookie without exposing it through the public operation.
+            const loginResult = (await apiLogin(params.email, params.password)).data;
+            if (!isRegistrationRequiredResponse(loginResult)) {
+              throw new Error('Registration completed without a pending registration session');
+            }
+            clearToken();
+            return { type: 'registration_required', state: loginResult.registration_state };
+          }
+          delayMs = Math.min(5_000, Math.round(delayMs * 1.5));
+        }
+        throw new Error('Registration is still processing. Please try signing in shortly.');
+      }
       if (isRegistrationRequiredResponse(data)) {
         clearToken();
         return { type: 'registration_required', state: data.registration_state };

@@ -55,7 +55,7 @@ async function postStatusAction(
 }
 
 async function rawActivities(accountId: string): Promise<ActivityRow[]> {
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT account_id, activity_kind, status_id, occurred_at
      FROM recommendation_activities
      WHERE account_id = ?
@@ -85,7 +85,7 @@ async function insertPublicStatus(
   createdAt: string,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses (
        id, uri, account_id, text, content, visibility, language, local,
        created_at, updated_at
@@ -179,7 +179,7 @@ describe('D1 recommendation activity history', () => {
       targetDirect.id,
     ];
     const placeholders = excludedIds.map(() => '?').join(', ');
-    const excludedCount = await env.DB.prepare(
+    const excludedCount = await env.DB_META_C000.prepare(
       `SELECT COUNT(*) AS count
        FROM recommendation_activities
        WHERE account_id = ?
@@ -217,12 +217,12 @@ describe('D1 recommendation activity history', () => {
     await waitForActivityKeys(actor.accountId, []);
     await waitForActivityKeys(observer.accountId, []);
     await vi.waitFor(async () => {
-      const deletedStatusSignals = await env.DB.prepare(
+      const deletedStatusSignals = await env.DB_META_C000.prepare(
         `SELECT COUNT(*) AS count
          FROM recommendation_activities
          WHERE status_id = ?`,
       ).bind(owned.id).first<{ count: number }>();
-      const targetSignals = await env.DB.prepare(
+      const targetSignals = await env.DB_META_C000.prepare(
         `SELECT account_id, activity_kind, status_id, occurred_at
          FROM recommendation_activities
          WHERE status_id = ?`,
@@ -343,7 +343,7 @@ describe('D1 recommendation activity history', () => {
     expect((await readRecommendationActivities(viewer.accountId)).map((row) => row.statusId))
       .toEqual([statusId]);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `UPDATE statuses
        SET visibility = 'private', updated_at = ?
        WHERE id = ?`,

@@ -284,13 +284,13 @@ describe('Polls API', () => {
       const pollId = crypto.randomUUID();
 
       // Insert remote account
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
          VALUES (?1, ?2, ?3, '', '', ?4, ?5, ?6, ?6)`,
       ).bind(remoteAccountId, 'remoteuser', 'remote.example', 'https://remote.example/users/remoteuser', 'https://remote.example/@remoteuser', now).run();
 
       // Insert status (as if create processor stored it)
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO statuses (id, uri, url, account_id, content, visibility, local, reply, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'Vote please!', 'public', 0, 0, ?5, ?5)`,
       ).bind(statusId, 'https://remote.example/notes/123', 'https://remote.example/notes/123', remoteAccountId, now).run();
@@ -300,12 +300,12 @@ describe('Polls API', () => {
         { title: 'Cat', votes_count: 5 },
         { title: 'Dog', votes_count: 3 },
       ]);
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, 0, 8, 8, ?4, ?5)`,
       ).bind(pollId, statusId, new Date(Date.now() + 86400000).toISOString(), options, now).run();
 
-      await env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId).run();
+      await env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId, statusId).run();
 
       // Fetch the poll via API
       const res = await SELF.fetch(`${BASE}/api/v1/polls/${pollId}`, {
@@ -328,12 +328,12 @@ describe('Polls API', () => {
       const statusId2 = crypto.randomUUID();
       const pollId2 = crypto.randomUUID();
 
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at)
          VALUES (?1, ?2, ?3, '', '', ?4, ?5, ?6, ?6)`,
       ).bind(remoteAccountId2, 'remoteuser2', 'remote2.example', 'https://remote2.example/users/remoteuser2', 'https://remote2.example/@remoteuser2', now).run();
 
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO statuses (id, uri, url, account_id, content, visibility, local, reply, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, 'Expired poll', 'public', 0, 0, ?5, ?5)`,
       ).bind(statusId2, 'https://remote2.example/notes/456', 'https://remote2.example/notes/456', remoteAccountId2, now).run();
@@ -343,12 +343,12 @@ describe('Polls API', () => {
         { title: 'No', votes_count: 7 },
       ]);
       // Set expires_at to the past
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
          VALUES (?1, ?2, ?3, 0, 17, 17, ?4, ?5)`,
       ).bind(pollId2, statusId2, new Date(Date.now() - 3600000).toISOString(), options, now).run();
 
-      await env.DB.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId2, statusId2).run();
+      await env.DB_META_C000.prepare('UPDATE statuses SET poll_id = ?1 WHERE id = ?2').bind(pollId2, statusId2).run();
 
       const res = await SELF.fetch(`${BASE}/api/v1/polls/${pollId2}`, {
         headers: authHeaders(user.token),

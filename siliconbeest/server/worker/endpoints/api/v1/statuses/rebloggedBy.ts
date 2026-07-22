@@ -65,7 +65,7 @@ app.get('/:id/reblogged_by', authRequired, requireScope('read:statuses'), async 
   `;
   params.push(pag.limitValue + 1);
 
-  const { results: fetchedResults } = await env.DB.prepare(sql).bind(...params).all<ReblogParticipantRow>();
+  const { results: fetchedResults } = await env.DB_META_C000.prepare(sql).bind(...params).all<ReblogParticipantRow>();
   const hasAdditionalPage = fetchedResults.length > pagination.limit;
   const results = hasAdditionalPage
     ? fetchedResults.slice(0, pagination.limit)

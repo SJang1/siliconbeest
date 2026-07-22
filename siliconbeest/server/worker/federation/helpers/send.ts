@@ -113,7 +113,7 @@ export async function sendToRecipient(
 ): Promise<void> {
 	const ctx = getFedifyContext(federation);
 	// Look up the recipient's inbox from the database
-	const account = await env.DB.prepare(
+	const account = await env.DB_META_C000.prepare(
 		'SELECT inbox_url, shared_inbox_url FROM accounts WHERE uri = ?1 LIMIT 1',
 	).bind(recipientUri).first<{ inbox_url: string; shared_inbox_url: string }>();
 	if (!account?.inbox_url) {

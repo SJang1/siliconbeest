@@ -130,7 +130,7 @@ export async function enrichStatuses(
   const queries: Promise<void>[] = [];
 
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT s.id, s.account_id, s.visibility, s.quote_policy,
                 s.quote_policy_automatic_approvals, s.quote_policy_manual_approvals,
@@ -145,7 +145,7 @@ export async function enrichStatuses(
         const followerTargets = new Set<string>();
         const followingTargets = new Set<string>();
         const currentAccount = currentAccountId
-          ? await env.DB.prepare('SELECT uri FROM accounts WHERE id = ?1 LIMIT 1')
+          ? await env.DB_META_C000.prepare('SELECT uri FROM accounts WHERE id = ?1 LIMIT 1')
             .bind(currentAccountId)
             .first<{ uri: string }>()
           : null;
@@ -207,7 +207,7 @@ export async function enrichStatuses(
         if (followerTargets.size > 0) {
           const ids = [...followerTargets];
           const ph = ids.map(() => '?').join(',');
-          const follows = await env.DB.prepare(
+          const follows = await env.DB_META_C000.prepare(
             `SELECT target_account_id FROM follows WHERE account_id = ?1 AND target_account_id IN (${ph})`,
           ).bind(currentAccountId, ...ids).all<{ target_account_id: string }>();
           const followed = new Set((follows.results ?? []).map((row) => row.target_account_id));
@@ -223,7 +223,7 @@ export async function enrichStatuses(
         if (followingTargets.size > 0) {
           const ids = [...followingTargets];
           const ph = ids.map(() => '?').join(',');
-          const follows = await env.DB.prepare(
+          const follows = await env.DB_META_C000.prepare(
             `SELECT account_id FROM follows WHERE target_account_id = ?1 AND account_id IN (${ph})`,
           ).bind(currentAccountId, ...ids).all<{ account_id: string }>();
           const followedBy = new Set((follows.results ?? []).map((row) => row.account_id));
@@ -241,7 +241,7 @@ export async function enrichStatuses(
 
   // 1. Media attachments (always)
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT * FROM media_attachments WHERE status_id IN (${placeholders}) ORDER BY created_at ASC`,
       )
@@ -261,7 +261,7 @@ export async function enrichStatuses(
 
   // 2. Emoji reactions (always)
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT status_id, emoji, COUNT(*) as count FROM emoji_reactions WHERE status_id IN (${placeholders}) GROUP BY status_id, emoji`,
       )
@@ -282,7 +282,7 @@ export async function enrichStatuses(
 
   // 3. Mentions (always)
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT m.status_id, m.account_id, a.username, a.domain, a.url AS a_url
          FROM mentions m
@@ -310,7 +310,7 @@ export async function enrichStatuses(
 
   // 4. Preview cards (always)
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT spc.status_id, pc.*
          FROM status_preview_cards spc
@@ -348,7 +348,7 @@ export async function enrichStatuses(
   if (currentAccountId) {
     // Favourited
     queries.push(
-      env.DB
+      env.DB_META_C000
         .prepare(
           `SELECT status_id FROM favourites WHERE account_id = ?1 AND status_id IN (${placeholders})`,
         )
@@ -365,7 +365,7 @@ export async function enrichStatuses(
 
     // Reblogged
     queries.push(
-      env.DB
+      env.DB_META_C000
         .prepare(
           `SELECT reblog_of_id FROM statuses WHERE account_id = ?1 AND reblog_of_id IN (${placeholders}) AND deleted_at IS NULL`,
         )
@@ -382,7 +382,7 @@ export async function enrichStatuses(
 
     // Bookmarked
     queries.push(
-      env.DB
+      env.DB_META_C000
         .prepare(
           `SELECT status_id FROM bookmarks WHERE account_id = ?1 AND status_id IN (${placeholders})`,
         )
@@ -401,7 +401,7 @@ export async function enrichStatuses(
   // 8. Polls — auto-detect from statuses that have poll_id set
   if (!pollIdMap) {
     // Build pollIdMap by querying statuses for poll_ids
-    const pollIdQuery = await env.DB
+    const pollIdQuery = await env.DB_META_C000
       .prepare(`SELECT id, poll_id FROM statuses WHERE id IN (${placeholders}) AND poll_id IS NOT NULL`)
       .bind(...statusIds)
       .all<{ id: string; poll_id: string }>();
@@ -418,13 +418,13 @@ export async function enrichStatuses(
     const pollPlaceholders = pollIds.map(() => '?').join(',');
 
     // Fetch poll rows and user's votes in parallel
-    const pollQueryPromise = env.DB
+    const pollQueryPromise = env.DB_META_C000
       .prepare(`SELECT * FROM polls WHERE id IN (${pollPlaceholders})`)
       .bind(...pollIds)
       .all<PollRow>();
 
     const votesQueryPromise = currentAccountId
-      ? env.DB
+      ? env.DB_META_C000
           .prepare(
             `SELECT poll_id, choice FROM poll_votes WHERE poll_id IN (${pollPlaceholders}) AND account_id = ?${pollIds.length + 1}`,
           )
@@ -461,7 +461,7 @@ export async function enrichStatuses(
   }
 
   queries.push(
-    env.DB
+    env.DB_META_C000
       .prepare(
         `SELECT owner.id AS owner_status_id,
                 owner.quote_id AS owner_quote_id,
@@ -537,7 +537,7 @@ export async function enrichStatuses(
   await Promise.all(queries);
 
   // 9. Custom emojis — extract from emoji_tags JSON, verify accessibility, proxy URLs
-  const emojiTagsQuery = await env.DB
+  const emojiTagsQuery = await env.DB_META_C000
     .prepare(
       `SELECT id, content, content_warning, emoji_tags FROM statuses WHERE id IN (${placeholders})`,
     )

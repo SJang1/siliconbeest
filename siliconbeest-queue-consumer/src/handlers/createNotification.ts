@@ -65,7 +65,7 @@ export async function handleCreateNotification(
   }
 
   const statusBearing = statusId !== undefined;
-  const permissionRow = await env.DB.prepare(
+  const permissionRow = await env.DB_META_C000.prepare(
     `SELECT recipient.domain AS recipient_domain,
             recipient.suspended_at AS recipient_suspended_at,
             recipient.memorial AS recipient_memorial,
@@ -281,7 +281,7 @@ export async function handleCreateNotification(
   }
 
   // Check if the same notification already exists (idempotency)
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     `SELECT id FROM notifications
      WHERE account_id = ?
        AND from_account_id = ?
@@ -301,7 +301,7 @@ export async function handleCreateNotification(
   const notificationId = generateUlid();
 
   // Insert the notification
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, emoji, created_at)
      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
   )
@@ -313,7 +313,7 @@ export async function handleCreateNotification(
   );
 
   // Check if the user has a web push subscription
-  const pushSub = await env.DB.prepare(
+  const pushSub = await env.DB_META_C000.prepare(
     `SELECT id FROM web_push_subscriptions WHERE user_id = ? LIMIT 1`,
   )
     .bind(permissionRow.recipient_user_id)
@@ -331,7 +331,7 @@ export async function handleCreateNotification(
 
   // Send streaming event for the notification
   // Build a minimal notification payload for the streaming event
-  const senderAccount = await env.DB.prepare(
+  const senderAccount = await env.DB_META_C000.prepare(
     `SELECT id, username, domain, display_name, note, url, uri,
             avatar_url, header_url, locked, bot,
             followers_count, following_count, statuses_count,
@@ -353,7 +353,7 @@ export async function handleCreateNotification(
 
     // Include status if applicable
     if (statusId) {
-      const statusRow = await env.DB.prepare(
+      const statusRow = await env.DB_META_C000.prepare(
         `SELECT id, uri, content, visibility, sensitive, content_warning,
                 language, url, created_at, in_reply_to_id,
                 in_reply_to_account_id, reblogs_count, favourites_count,
@@ -367,7 +367,7 @@ export async function handleCreateNotification(
         const statusAccountRow =
           statusRow.account_id === senderAccountId
             ? senderAccount
-            : await env.DB.prepare(
+            : await env.DB_META_C000.prepare(
                 `SELECT id, username, domain, display_name, note, url, uri,
                         avatar_url, header_url, locked, bot,
                         followers_count, following_count, statuses_count,

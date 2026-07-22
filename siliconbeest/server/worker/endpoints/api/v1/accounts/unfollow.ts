@@ -18,10 +18,10 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
   const currentAccountId = c.get('currentUser')!.account_id;
   const domain = env.INSTANCE_DOMAIN;
 
-  const target = await env.DB.prepare('SELECT id, username, domain, uri, inbox_url, shared_inbox_url FROM accounts WHERE id = ?1').bind(targetId).first();
+  const target = await env.DB_META_C000.prepare('SELECT id, username, domain, uri, inbox_url, shared_inbox_url FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
-  const currentAccount = await env.DB.prepare('SELECT id, username, uri FROM accounts WHERE id = ?1').bind(currentAccountId).first();
+  const currentAccount = await env.DB_META_C000.prepare('SELECT id, username, uri FROM accounts WHERE id = ?1').bind(currentAccountId).first();
   const actorUri = currentAccount?.uri as string || `https://${domain}/users/${currentAccount?.username}`;
   const targetUri = target.uri as string;
 

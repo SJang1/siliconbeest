@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "maxBindingsPerGateway": 4000,
+  "generatedFromShardSchemaVersion": 1,
+  "gateways": []
+}

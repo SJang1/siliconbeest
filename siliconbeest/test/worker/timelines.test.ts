@@ -111,7 +111,7 @@ describe('Timelines API', () => {
       expect((await afterFollow.json<Array<{ id: string }>>()).map((status) => status.id))
         .toContain(existingPost.id);
 
-      const compatibilityRows = await env.DB.prepare(
+      const compatibilityRows = await env.DB_META_C000.prepare(
         'SELECT COUNT(*) AS count FROM home_timeline_entries',
       ).first<{ count: number }>();
       expect(compatibilityRows?.count).toBe(0);

@@ -9,6 +9,8 @@ interface StatusPermissionRow {
   suspended_at: string | null;
   silenced_at: string | null;
   author_domain: string | null;
+  sort_at_ms: number;
+  source_version: number;
 }
 
 const mocks = vi.hoisted(() => ({
@@ -22,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   queries: [] as string[],
   bindings: [] as (string | number)[][],
   env: {
-    DB: {
+    DB_META_C000: {
       prepare: vi.fn(),
       batch: vi.fn(),
     },
@@ -40,7 +42,7 @@ vi.mock('../../packages/shared/utils/streamingPayload', () => ({
 import { handleTimelineFanout } from '../src/handlers/timelineFanout';
 
 function configureDatabase(): void {
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: (...params: (string | number)[]) => {
       mocks.queries.push(sql);
       mocks.bindings.push(params);
@@ -87,6 +89,8 @@ function statusPermissionRow(
     suspended_at: null,
     silenced_at: null,
     author_domain: null,
+    sort_at_ms: 1_753_000_000_000,
+    source_version: 1,
     ...overrides,
   };
 }
@@ -107,9 +111,9 @@ beforeEach(() => {
   ];
   mocks.queries.length = 0;
   mocks.bindings.length = 0;
-  mocks.env.DB.prepare.mockReset();
-  mocks.env.DB.batch.mockReset();
-  mocks.env.DB.batch.mockResolvedValue([]);
+  mocks.env.DB_META_C000.prepare.mockReset();
+  mocks.env.DB_META_C000.batch.mockReset();
+  mocks.env.DB_META_C000.batch.mockResolvedValue([]);
   mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent.mockReset();
   mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent.mockResolvedValue(undefined);
   mocks.buildStatusStreamingPayload.mockReset();
@@ -158,13 +162,13 @@ describe('timeline fanout permission binding', () => {
       expect(mocks.queries).toHaveLength(1);
       expect(mocks.queries[0]).toContain('FROM statuses s');
       expect(mocks.bindings[0]).toEqual(['status-1']);
-      expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+      expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
       expect(mocks.buildStatusStreamingPayload).not.toHaveBeenCalled();
       expect(mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent).not.toHaveBeenCalled();
     },
   );
 
-  it('streams a matching active private status to its followers without persistence', async () => {
+  it('streams and materializes a matching active private status for its followers', async () => {
     mocks.statusRow = statusPermissionRow({
       visibility: 'private',
     });
@@ -175,10 +179,10 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
     expect(mocks.buildStatusStreamingPayload).toHaveBeenNthCalledWith(
       1,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'status-1',
       'local.example',
       { kind: 'account', accountId: 'follower-account' },
@@ -200,7 +204,7 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
     expect(mocks.streamUserRows).toEqual([
       { id: 'author-user', account_id: 'author-account' },
     ]);
@@ -232,7 +236,7 @@ describe('timeline fanout permission binding', () => {
       'blocked.example',
       'follower-account',
     ]);
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
     expect(mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent).not.toHaveBeenCalled();
   });
 
@@ -252,7 +256,7 @@ describe('timeline fanout permission binding', () => {
     });
 
     expect(mocks.queries[1]).toContain(clause);
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).not.toHaveBeenCalled();
     expect(mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent).not.toHaveBeenCalled();
   });
 
@@ -299,7 +303,7 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
     expect(mocks.env.INTERNAL_CONNECTION_MAIN.sendStreamEvent).toHaveBeenCalledTimes(2);
     expect(mocks.streamUserRows.map((row) => row.account_id)).toEqual([
       'follower-account',
@@ -318,10 +322,10 @@ describe('timeline fanout permission binding', () => {
       accountId: 'author-account',
     });
 
-    expect(mocks.env.DB.batch).not.toHaveBeenCalled();
+    expect(mocks.env.DB_META_C000.batch).toHaveBeenCalledTimes(1);
     expect(mocks.buildStatusStreamingPayload).toHaveBeenCalledTimes(1);
     expect(mocks.buildStatusStreamingPayload).toHaveBeenCalledWith(
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'status-1',
       'local.example',
       { kind: 'public' },
@@ -382,14 +386,14 @@ describe('timeline fanout permission binding', () => {
     expect(mocks.buildStatusStreamingPayload).toHaveBeenCalledTimes(2);
     expect(mocks.buildStatusStreamingPayload).toHaveBeenNthCalledWith(
       1,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'status-1',
       'local.example',
       { kind: 'account', accountId: 'follower-account' },
     );
     expect(mocks.buildStatusStreamingPayload).toHaveBeenNthCalledWith(
       2,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'status-1',
       'local.example',
       { kind: 'public' },

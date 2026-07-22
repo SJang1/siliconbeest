@@ -29,13 +29,13 @@ describe('status context surface permissions', () => {
     leafAuthor = await createTestUser('context_surface_leaf_author');
     const now = new Date().toISOString();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, content, visibility, local, created_at, updated_at)
          VALUES (?1, ?2, ?3, '<p>root</p>', 'public', 1, ?4, ?4)`,
       ).bind(ids.root, `${BASE}/statuses/${ids.root}`, rootAuthor.accountId, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, in_reply_to_id, in_reply_to_account_id,
            content, visibility, local, created_at, updated_at)
@@ -48,7 +48,7 @@ describe('status context surface permissions', () => {
         rootAuthor.accountId,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO statuses
           (id, uri, account_id, in_reply_to_id, in_reply_to_account_id,
            content, visibility, local, created_at, updated_at)
@@ -61,7 +61,7 @@ describe('status context surface permissions', () => {
         hiddenAuthor.accountId,
         now,
       ),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `INSERT INTO mutes
           (id, account_id, target_account_id, hide_notifications, created_at, updated_at)
          VALUES ('context-surface-mute', ?1, ?2, 1, ?3, ?3)`,

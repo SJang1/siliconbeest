@@ -39,7 +39,7 @@ app.get('/', authRequired, requireScope('read:blocks'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all();
 
   const serialized = (results ?? []).map((row: any) => {
     return serializeAccount(row as AccountRow, { instanceDomain: env.INSTANCE_DOMAIN });

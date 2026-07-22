@@ -21,7 +21,7 @@ app.get('/:username', async (c) => {
   const username = c.req.param('username');
   const domain = env.INSTANCE_DOMAIN;
 
-  const account = await env.DB.prepare(`
+  const account = await env.DB_META_C000.prepare(`
     SELECT id, username, suspended_at FROM accounts
     WHERE username = ?1 AND domain IS NULL
     LIMIT 1

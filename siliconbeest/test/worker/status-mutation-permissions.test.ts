@@ -29,7 +29,7 @@ async function insertStatus(
   options: StatusOptions = {},
 ): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses
        (id, uri, url, account_id, reblog_of_id, text, content, visibility,
         local, created_at, updated_at)
@@ -53,7 +53,7 @@ async function countRows(
   predicate: string,
   binding: string,
 ): Promise<number> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT COUNT(*) AS count FROM ${table} WHERE ${predicate} = ?1`,
   ).bind(binding).first<{ count: number }>();
   return row?.count ?? 0;
@@ -82,7 +82,7 @@ describe('status mutation permission boundaries', () => {
     });
     expect(edit.status).toBe(422);
 
-    const wrapper = await env.DB.prepare(
+    const wrapper = await env.DB_META_C000.prepare(
       'SELECT reblog_of_id, text, content FROM statuses WHERE id = ?1',
     ).bind(wrapperId).first<{
       reblog_of_id: string | null;
@@ -127,7 +127,7 @@ describe('status mutation permission boundaries', () => {
       expect(response.status).toBe(422);
     }
 
-    const pinned = await env.DB.prepare(
+    const pinned = await env.DB_META_C000.prepare(
       `SELECT id, pinned FROM statuses
        WHERE id IN (?1, ?2, ?3, ?4)
        ORDER BY id`,
@@ -164,7 +164,7 @@ describe('status mutation permission boundaries', () => {
     const now = new Date().toISOString();
     await insertStatus(firstId, author.accountId);
     await insertStatus(secondId, author.accountId);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO media_attachments
          (id, status_id, account_id, file_key, file_content_type, file_size,
           type, created_at, updated_at)
@@ -181,7 +181,7 @@ describe('status mutation permission boundaries', () => {
     });
     expect(edit.status).toBe(422);
 
-    const media = await env.DB.prepare(
+    const media = await env.DB_META_C000.prepare(
       'SELECT status_id FROM media_attachments WHERE id = ?1',
     ).bind(mediaId).first<{ status_id: string | null }>();
     expect(media?.status_id).toBe(firstId);
@@ -192,7 +192,7 @@ describe('status mutation permission boundaries', () => {
     const mediaId = 'mutation_create_bound_media';
     const now = new Date().toISOString();
     await insertStatus(firstId, author.accountId);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO media_attachments
          (id, status_id, account_id, file_key, file_content_type, file_size,
           type, created_at, updated_at)
@@ -208,7 +208,7 @@ describe('status mutation permission boundaries', () => {
     expect(create.status).toBe(422);
     expect(await countRows('statuses', 'account_id', author.accountId)).toBe(before);
 
-    const media = await env.DB.prepare(
+    const media = await env.DB_META_C000.prepare(
       'SELECT status_id FROM media_attachments WHERE id = ?1',
     ).bind(mediaId).first<{ status_id: string | null }>();
     expect(media?.status_id).toBe(firstId);
@@ -233,10 +233,10 @@ describe('status mutation permission boundaries', () => {
   it('clamps limited-account public posts and rejects moved-account creation', async () => {
     const limited = await createTestUser('mutation_limited');
     const moved = await createTestUser('mutation_moved');
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET silenced_at = ?1 WHERE id = ?2',
     ).bind(new Date().toISOString(), limited.accountId).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET moved_to_account_id = ?1 WHERE id = ?2',
     ).bind(other.accountId, moved.accountId).run();
 
@@ -248,7 +248,7 @@ describe('status mutation permission boundaries', () => {
     expect(limitedCreate.status).toBe(200);
     const limitedBody = await limitedCreate.json<{ id: string; visibility: string }>();
     expect(limitedBody.visibility).toBe('unlisted');
-    const limitedStatus = await env.DB.prepare(
+    const limitedStatus = await env.DB_META_C000.prepare(
       'SELECT visibility FROM statuses WHERE id = ?1',
     ).bind(limitedBody.id).first<{ visibility: string }>();
     expect(limitedStatus?.visibility).toBe('unlisted');
@@ -296,7 +296,7 @@ describe('status mutation permission boundaries', () => {
     expect(results.filter((result) => result.created)).toHaveLength(1);
     expect(await countRows('statuses', 'reblog_of_id', originalId)).toBe(1);
 
-    const original = await env.DB.prepare(
+    const original = await env.DB_META_C000.prepare(
       'SELECT reblogs_count FROM statuses WHERE id = ?1',
     ).bind(originalId).first<{ reblogs_count: number }>();
     expect(original?.reblogs_count).toBe(1);
@@ -307,7 +307,7 @@ describe('status mutation permission boundaries', () => {
     const pollId = 'mutation_private_poll';
     const now = new Date().toISOString();
     await insertStatus(statusId, author.accountId, { visibility: 'private' });
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO polls
          (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
        VALUES (?1, ?2, ?3, 0, 0, 0, ?4, ?5)`,
@@ -332,14 +332,14 @@ describe('status mutation permission boundaries', () => {
     const wrapperId = 'mutation_delete_wrapper';
     await insertStatus(originalId, other.accountId);
     await insertStatus(wrapperId, author.accountId, { reblogOfId: originalId });
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET reblogs_count = 1 WHERE id = ?1',
     ).bind(originalId).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1',
     ).bind(author.accountId).run();
 
-    const before = await env.DB.prepare(
+    const before = await env.DB_META_C000.prepare(
       'SELECT statuses_count FROM accounts WHERE id = ?1',
     ).bind(author.accountId).first<{ statuses_count: number }>();
 
@@ -348,10 +348,10 @@ describe('status mutation permission boundaries', () => {
     await expect(deleteStatus(wrapperId, author.accountId))
       .rejects.toMatchObject({ statusCode: 404 });
 
-    const original = await env.DB.prepare(
+    const original = await env.DB_META_C000.prepare(
       'SELECT reblogs_count FROM statuses WHERE id = ?1',
     ).bind(originalId).first<{ reblogs_count: number }>();
-    const after = await env.DB.prepare(
+    const after = await env.DB_META_C000.prepare(
       'SELECT statuses_count FROM accounts WHERE id = ?1',
     ).bind(author.accountId).first<{ statuses_count: number }>();
     expect(original?.reblogs_count).toBe(0);
@@ -363,7 +363,7 @@ describe('status mutation permission boundaries', () => {
     const wrapperId = 'mutation_unreblog_wrapper';
     await insertStatus(originalId, other.accountId);
     await insertStatus(wrapperId, author.accountId, { reblogOfId: originalId });
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET reblogs_count = 1 WHERE id = ?1',
     ).bind(originalId).run();
 
@@ -373,7 +373,7 @@ describe('status mutation permission boundaries', () => {
     ]);
     expect(results.filter((result) => result.reblogId !== null)).toHaveLength(1);
 
-    const original = await env.DB.prepare(
+    const original = await env.DB_META_C000.prepare(
       'SELECT reblogs_count FROM statuses WHERE id = ?1',
     ).bind(originalId).first<{ reblogs_count: number }>();
     expect(original?.reblogs_count).toBe(0);

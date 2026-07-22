@@ -11,7 +11,7 @@ const BASE = 'https://test.siliconbeest.local';
  * through the ActivityPub actor endpoint instead.
  */
 async function getAliasesFromDB(accountId: string): Promise<string[]> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT also_known_as FROM accounts WHERE id = ? LIMIT 1',
   ).bind(accountId).first<{ also_known_as: string | null }>();
   if (!row?.also_known_as) return [];
@@ -48,56 +48,56 @@ describe('Account Migration', () => {
     remoteMuted = crypto.randomUUID();
     remoteFollower = crypto.randomUUID();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)",
       ).bind(remoteFollowed, 'remfollowed', 'remote.example', 'https://remote.example/users/remfollowed', 'https://remote.example/@remfollowed', now, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)",
       ).bind(remoteBlocked, 'remblocked', 'remote.example', 'https://remote.example/users/remblocked', 'https://remote.example/@remblocked', now, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)",
       ).bind(remoteMuted, 'remmuted', 'remote.example', 'https://remote.example/users/remmuted', 'https://remote.example/@remmuted', now, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         "INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)",
       ).bind(remoteFollower, 'remfollower', 'remote.example', 'https://remote.example/users/remfollower', 'https://remote.example/@remfollower', now, now),
     ]);
 
     // Set up relationships for alice
-    await env.DB.batch([
+    await env.DB_META_C000.batch([
       // alice follows remoteFollowed
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), alice.accountId, remoteFollowed, now, now),
       // alice follows bob (local)
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), alice.accountId, bob.accountId, now, now),
       // remoteFollower follows alice
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), remoteFollower, alice.accountId, now, now),
       // alice blocks remoteBlocked
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO blocks (id, account_id, target_account_id, created_at) VALUES (?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), alice.accountId, remoteBlocked, now),
       // alice mutes remoteMuted
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO mutes (id, account_id, target_account_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).bind(crypto.randomUUID(), alice.accountId, remoteMuted, now, now),
     ]);
 
     // Set up a list for alice
     const listId = crypto.randomUUID();
-    const followRow = await env.DB.prepare(
+    const followRow = await env.DB_META_C000.prepare(
       'SELECT id FROM follows WHERE account_id = ? AND target_account_id = ?',
     ).bind(alice.accountId, bob.accountId).first<{ id: string }>();
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         'INSERT INTO lists (id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).bind(listId, alice.accountId, 'Friends', now, now),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'INSERT INTO list_accounts (list_id, account_id, follow_id) VALUES (?, ?, ?)',
       ).bind(listId, bob.accountId, followRow?.id ?? null),
     ]);
@@ -290,7 +290,7 @@ describe('Account Migration', () => {
     it('movedTo is set after moved_to_account_id is written to the DB', async () => {
       // Simulate a completed migration by writing directly to DB
       const now = new Date().toISOString();
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         'UPDATE accounts SET moved_to_account_id = ?, moved_at = ?, updated_at = ? WHERE id = ?',
       ).bind(bob.accountId, now, now, carol.accountId).run();
 
@@ -302,7 +302,7 @@ describe('Account Migration', () => {
       expect(actor.movedTo).toBe(`https://test.siliconbeest.local/users/migbob`);
 
       // Clean up
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         'UPDATE accounts SET moved_to_account_id = NULL, moved_at = NULL, updated_at = ? WHERE id = ?',
       ).bind(now, carol.accountId).run();
     });

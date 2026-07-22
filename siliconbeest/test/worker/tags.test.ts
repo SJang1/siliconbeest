@@ -16,7 +16,7 @@ describe('Tags API', () => {
     // Create a tag directly in the database
     tagId = crypto.randomUUID();
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
     )
       .bind(tagId, 'testtag', 'TestTag', now)

@@ -178,7 +178,7 @@ export function sampleRecommendationCandidates<T extends { readonly id: string }
 }
 
 async function fetchFollowedTags(accountId: string): Promise<string[]> {
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT t.name
      FROM tag_follows tf
      JOIN tags t ON t.id = tf.tag_id
@@ -289,7 +289,7 @@ async function fetchCandidateTags(
   for (let offset = 0; offset < statusIds.length; offset += RECOMMENDATION_TAG_QUERY_BATCH_SIZE) {
     const batch = statusIds.slice(offset, offset + RECOMMENDATION_TAG_QUERY_BATCH_SIZE);
     const placeholders = batch.map(() => '?').join(',');
-    const { results } = await env.DB.prepare(
+    const { results } = await env.DB_META_C000.prepare(
       `SELECT st.status_id, t.name
        FROM status_tags st
        JOIN tags t ON t.id = st.tag_id

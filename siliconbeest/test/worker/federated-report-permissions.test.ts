@@ -23,7 +23,7 @@ async function insertRemoteActor(
 ): Promise<ActorFixture> {
   const now = new Date().toISOString();
   const uri = `https://reports.remote.example/users/${username}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url,
         suspended_at, created_at, updated_at)
@@ -39,7 +39,7 @@ async function insertStatus(
 ): Promise<StatusFixture> {
   const now = new Date().toISOString();
   const uri = `${BASE}/objects/${id}`;
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO statuses
        (id, uri, url, account_id, text, content, visibility, local,
         created_at, updated_at)
@@ -63,7 +63,7 @@ function flagActivity(
 }
 
 async function reportCount(comment: string): Promise<number> {
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     'SELECT COUNT(*) AS count FROM reports WHERE comment = ?1',
   ).bind(comment).first<{ count: number }>();
   return row?.count ?? 0;
@@ -95,7 +95,7 @@ describe('federated report permissions', () => {
     publicStatus = await insertStatus('report_public_status', target.accountId, 'public');
     privateStatus = await insertStatus('report_private_status', target.accountId, 'private');
     otherStatus = await insertStatus('report_other_status', otherLocal.accountId, 'public');
-    await env.DB.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
+    await env.DB_META_C000.prepare('UPDATE accounts SET suspended_at = ?1 WHERE id = ?2')
       .bind(new Date().toISOString(), suspendedTarget.accountId).run();
   });
 
@@ -111,7 +111,7 @@ describe('federated report permissions', () => {
       target.accountId,
     )).toBe(true);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       `SELECT target_account_id, status_ids
        FROM reports WHERE comment = ?1 LIMIT 1`,
     ).bind(personalComment).first<{
@@ -145,7 +145,7 @@ describe('federated report permissions', () => {
     expect(await reportCount(deniedComment)).toBe(0);
 
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows
          (id, account_id, target_account_id, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?4)`,

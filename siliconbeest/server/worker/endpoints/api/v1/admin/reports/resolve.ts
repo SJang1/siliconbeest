@@ -47,7 +47,7 @@ app.post('/:id/resolve', async (c) => {
 		}
 	}
 
-	const row = await env.DB.prepare('SELECT * FROM reports WHERE id = ?1')
+	const row = await env.DB_META_C000.prepare('SELECT * FROM reports WHERE id = ?1')
 		.bind(id)
 		.first<ReportResolveRow>();
 	if (!row) throw new AppError(404, 'Record not found');
@@ -78,7 +78,7 @@ app.post('/:id/resolve', async (c) => {
 		}
 	}
 
-	const resolved = await env.DB.prepare(
+	const resolved = await env.DB_META_C000.prepare(
 		`UPDATE reports
 		 SET action_taken = 1, action_taken_at = ?1, action_taken_by_account_id = ?2, updated_at = ?1
 		 WHERE id = ?3 AND action_taken_at IS NULL`,
@@ -108,7 +108,7 @@ app.post('/:id/resolve', async (c) => {
 				contributionAdjustmentApplied = true;
 			} catch (error) {
 				console.error('Unable to apply report contribution adjustment', { reportId: id, error });
-				const rolledBack = await env.DB.prepare(
+				const rolledBack = await env.DB_META_C000.prepare(
 					`UPDATE reports
 					 SET action_taken = 0,
 					     action_taken_at = NULL,

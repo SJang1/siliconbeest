@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { generateUlid } from '../utils/ulid';
 
 export const getByUserId = async (userId: string): Promise<Record<string, string>> => {
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare('SELECT key, value FROM user_preferences WHERE user_id = ?')
 		.bind(userId)
 		.all<{ key: string; value: string }>();
@@ -16,7 +16,7 @@ export const getByUserIdAndKeys = async (
 ): Promise<Record<string, string>> => {
 	if (keys.length === 0) return {};
 	const placeholders = keys.map(() => '?').join(', ');
-	const { results } = await env.DB
+	const { results } = await env.DB_META_C000
 		.prepare(`SELECT key, value FROM user_preferences WHERE user_id = ? AND key IN (${placeholders})`)
 		.bind(userId, ...keys)
 		.all<{ key: string; value: string }>();
@@ -26,7 +26,7 @@ export const getByUserIdAndKeys = async (
 
 export const set = async (userId: string, key: string, value: string): Promise<boolean> => {
 	const id = generateUlid();
-	const saved = await env.DB
+	const saved = await env.DB_META_C000
 		.prepare(
 			`INSERT INTO user_preferences (id, user_id, key, value)
 			 VALUES (?, ?, ?, ?)

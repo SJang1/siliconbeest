@@ -328,17 +328,17 @@ describe('AI recommended timeline', () => {
     );
     expect(followOriginalAuthor.status).toBe(200);
     const changedAt = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(
+    await env.DB_META_C000.batch([
+      env.DB_META_C000.prepare(
         `UPDATE statuses SET visibility = 'private', updated_at = ?1 WHERE id = ?2`,
       ).bind(changedAt, privateOriginal.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `UPDATE statuses SET visibility = 'direct', updated_at = ?1 WHERE id = ?2`,
       ).bind(changedAt, directOriginal.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE statuses SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2',
       ).bind(changedAt, deletedOriginal.id),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         'UPDATE accounts SET silenced_at = ?1 WHERE id = ?2',
       ).bind(changedAt, relationshipAuthor.accountId),
     ]);
@@ -365,7 +365,7 @@ describe('AI recommended timeline', () => {
   });
 
   it('merges bounded public and home sources before bulk permission checks', async () => {
-    const prepare = vi.spyOn(env.DB, 'prepare');
+    const prepare = vi.spyOn(env.DB_META_C000, 'prepare');
     try {
       await getRecommendationCandidateWindow({
         viewerAccountId: viewer.accountId,
@@ -393,7 +393,7 @@ describe('AI recommended timeline', () => {
       prepare.mockRestore();
     }
 
-    const { results: indexes } = await env.DB.prepare(
+    const { results: indexes } = await env.DB_META_C000.prepare(
       'PRAGMA index_list(statuses)',
     ).all<{ name: string }>();
     expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining([
@@ -401,7 +401,7 @@ describe('AI recommended timeline', () => {
       'idx_statuses_recommendation_boost_cursor',
     ]));
 
-    const { results: domainBlockPlan } = await env.DB.prepare(
+    const { results: domainBlockPlan } = await env.DB_META_C000.prepare(
       `EXPLAIN QUERY PLAN
        SELECT 1
        FROM user_domain_blocks
@@ -680,7 +680,7 @@ describe('AI recommended timeline', () => {
     )).toBeNull();
 
     const cachedStatusId = next?.rows[0]?.id as string;
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE statuses SET deleted_at = ?1 WHERE id = ?2',
     ).bind(new Date().toISOString(), cachedStatusId).run();
     const cachedSnapshot = await continueRecommendedTimelinePage(
@@ -769,7 +769,7 @@ describe('AI recommended timeline', () => {
     const statements = Array.from({ length: 210 }, (_, index) => {
       const id = generateUlid();
       const createdAt = new Date(Date.now() - index).toISOString();
-      return env.DB.prepare(
+      return env.DB_META_C000.prepare(
         `INSERT INTO statuses
            (id, uri, account_id, text, content, visibility, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 'public', ?, ?)`,
@@ -784,7 +784,7 @@ describe('AI recommended timeline', () => {
       );
     });
     for (let offset = 0; offset < statements.length; offset += 50) {
-      await env.DB.batch(statements.slice(offset, offset + 50));
+      await env.DB_META_C000.batch(statements.slice(offset, offset + 50));
     }
 
     const runner = indexedRunner(undefined, true);

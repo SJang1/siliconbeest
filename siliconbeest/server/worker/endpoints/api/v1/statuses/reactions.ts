@@ -42,7 +42,7 @@ async function lookupCustomEmojiTag(
 ): Promise<{ row: CustomEmojiRow; tag: APEmoji } | null> {
 	if (!emoji.startsWith(':') || !emoji.endsWith(':')) return null;
 	const shortcode = emoji.slice(1, -1);
-	const row = await env.DB
+	const row = await env.DB_META_C000
 		.prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
 		.bind(shortcode, domain)
 		.first<CustomEmojiRow>();
@@ -68,7 +68,7 @@ app.put('/:id/react/:emoji', authRequired, requireScope('write:favourites'), asy
 	const currentAccountId = c.get('currentUser')!.account_id;
 	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
 	)
 		.bind(statusId)
@@ -107,7 +107,7 @@ app.put('/:id/react/:emoji', authRequired, requireScope('write:favourites'), asy
 	if (authorDomain) {
 		// Remote author: send directly to their inbox
 		const authorAccountId = statusRow.account_id as string;
-		const authorAccount = await env.DB.prepare(
+		const authorAccount = await env.DB_META_C000.prepare(
 			'SELECT uri FROM accounts WHERE id = ?',
 		).bind(authorAccountId).first<{ uri: string }>();
 		if (authorAccount) {
@@ -142,7 +142,7 @@ app.delete('/:id/react/:emoji', authRequired, requireScope('write:favourites'), 
 	const currentAccountId = c.get('currentUser')!.account_id;
 	const domain = env.INSTANCE_DOMAIN;
 
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`${STATUS_JOIN_SQL} WHERE s.id = ?1 AND s.deleted_at IS NULL`,
 	)
 		.bind(statusId)
@@ -180,7 +180,7 @@ app.delete('/:id/react/:emoji', authRequired, requireScope('write:favourites'), 
 		const fed = c.get('federation');
 		if (authorDomain) {
 			const authorAccountId = statusRow.account_id as string;
-			const authorAccount = await env.DB.prepare(
+			const authorAccount = await env.DB_META_C000.prepare(
 				'SELECT uri FROM accounts WHERE id = ?',
 			).bind(authorAccountId).first<{ uri: string }>();
 			if (authorAccount) {
@@ -219,7 +219,7 @@ app.get('/:id/reactions', authOptional, requireScope('read:statuses'), async (c)
 	await assertStatusViewable(statusId, currentAccountId);
 
 	// Fetch all reactions with account info and custom emoji data via LEFT JOIN
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT er.emoji, er.account_id,
 		   a.username, a.domain, a.display_name, a.note, a.uri, a.url,
 		   a.avatar_url, a.avatar_static_url, a.header_url, a.header_static_url,
@@ -268,7 +268,7 @@ app.get('/:id/reactions', authOptional, requireScope('read:statuses'), async (c)
 	if (missingShortcodes.size > 0) {
 		const shortcodes = [...missingShortcodes];
 		const emojiPlaceholders = shortcodes.map(() => '?').join(',');
-		const { results: emojiRows } = await env.DB.prepare(
+		const { results: emojiRows } = await env.DB_META_C000.prepare(
 			`SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
 		).bind(...shortcodes).all();
 		for (const er of emojiRows ?? []) {

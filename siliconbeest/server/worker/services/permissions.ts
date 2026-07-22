@@ -578,7 +578,7 @@ export async function getSurfaceableReblogOriginalId(
     viewerAccountId,
     new Date().toISOString(),
   );
-  const original = await env.DB.prepare(
+  const original = await env.DB_META_C000.prepare(
     `SELECT s.reblog_of_id AS id
      FROM statuses s
      WHERE s.id = ?
@@ -709,7 +709,7 @@ export function canViewAccountRecord(account: AccountPermissionRecord): boolean 
 
 export async function canViewAccountById(accountId: string): Promise<boolean> {
   if (accountId.length === 0) return false;
-  const account = await env.DB.prepare(
+  const account = await env.DB_META_C000.prepare(
     `SELECT a.id, a.domain, a.suspended_at,
             u.id AS user_id,
             u.approved AS user_approved,
@@ -744,7 +744,7 @@ export async function assertAccountRelationshipMutable(
   }
 
   const [actor, target] = await Promise.all([
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT a.suspended_at, a.memorial,
               u.disabled AS user_disabled, u.approved AS user_approved
        FROM accounts a
@@ -757,7 +757,7 @@ export async function assertAccountRelationshipMutable(
       user_disabled: number | null;
       user_approved: number | null;
     }>(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       'SELECT id, domain, suspended_at FROM accounts WHERE id = ? LIMIT 1',
     ).bind(targetAccountId).first<AccountPermissionRecord>(),
   ]);
@@ -797,11 +797,11 @@ export async function canResolveRemoteDomain(
   ) {
     return false;
   }
-  const suspendedDomains = await getSuspendedDomains(env.DB, [normalizedDomain]);
+  const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [normalizedDomain]);
   if (suspendedDomains.has(normalizedDomain)) return false;
   if (!accountId) return true;
 
-  const userBlock = await env.DB.prepare(
+  const userBlock = await env.DB_META_C000.prepare(
     `SELECT 1 FROM user_domain_blocks
      WHERE account_id = ?
        AND lower(domain) = ?
@@ -815,7 +815,7 @@ export async function canViewAccountCollectionById(
   viewerAccountId: string | null,
 ): Promise<boolean> {
   if (ownerAccountId.length === 0) return false;
-  const owner = await env.DB.prepare(
+  const owner = await env.DB_META_C000.prepare(
     `SELECT id, hide_collections
      FROM accounts
      WHERE id = ?1
@@ -841,7 +841,7 @@ export async function canSurfaceAccountToViewer(
     viewerAccountId,
     new Date().toISOString(),
   );
-  const account = await env.DB.prepare(
+  const account = await env.DB_META_C000.prepare(
     `SELECT a.id FROM accounts a
      WHERE a.id = ?
        AND ${permission.sql}
@@ -872,7 +872,7 @@ export async function assertAccountFollowable(
     throw new AppError(422, 'Validation failed', 'You cannot follow yourself');
   }
 
-  const target = await env.DB.prepare(
+  const target = await env.DB_META_C000.prepare(
     `SELECT a.id, a.domain, a.suspended_at, a.memorial,
             a.moved_to_account_id,
             u.approved AS user_approved
@@ -893,19 +893,19 @@ export async function assertAccountFollowable(
   }
 
   const [actorBlock, actorDomainBlock, targetBlock] = await Promise.all([
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT 1 FROM blocks
        WHERE account_id = ?1 AND target_account_id = ?2
        LIMIT 1`,
     ).bind(actorAccountId, targetAccountId).first(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT 1 FROM user_domain_blocks
        WHERE account_id = ?1
          AND ?2 IS NOT NULL
          AND lower(domain) = lower(?2)
        LIMIT 1`,
     ).bind(actorAccountId, target.domain).first(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT 1 FROM blocks
        WHERE account_id = ?1 AND target_account_id = ?2
        LIMIT 1`,
@@ -942,7 +942,7 @@ export async function assertFollowRequestActionable(
   requesterAccountId: string,
   targetAccountId: string,
 ): Promise<FollowRequestRow> {
-  const request = await env.DB.prepare(
+  const request = await env.DB_META_C000.prepare(
     `SELECT fr.*,
             requester.domain,
             requester.suspended_at,
@@ -1032,7 +1032,7 @@ export async function canReceiveIncomingFollow(
     return false;
   }
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT requester.domain AS requester_domain,
             requester.suspended_at AS requester_suspended_at,
             requester.memorial AS requester_memorial,
@@ -1129,7 +1129,7 @@ export async function canProcessIncomingAccountTarget(
 ): Promise<boolean> {
   if (actorAccountId.length === 0 || targetAccountId.length === 0) return false;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT actor.domain AS actor_domain,
             actor.suspended_at AS actor_suspended_at,
             actor.memorial AS actor_memorial,
@@ -1182,7 +1182,7 @@ export async function canUndoIncomingAccountTarget(
 ): Promise<boolean> {
   if (actorAccountId.length === 0 || targetAccountId.length === 0) return false;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT actor.domain AS actor_domain,
             actor.suspended_at AS actor_suspended_at,
             actor.memorial AS actor_memorial,
@@ -1234,7 +1234,7 @@ export async function canProcessIncomingActorUpdate(
 ): Promise<boolean> {
   if (actorAccountId.length === 0 || ownerAccountId.length === 0) return false;
 
-  const actor = await env.DB.prepare(
+  const actor = await env.DB_META_C000.prepare(
     `SELECT a.domain, a.suspended_at, a.memorial,
             u.disabled AS user_disabled, u.approved AS user_approved
      FROM accounts a
@@ -1269,7 +1269,7 @@ export async function canProcessIncomingOwnedDelete(
   ownerAccountId: string,
 ): Promise<boolean> {
   if (actorAccountId.length === 0 || ownerAccountId.length === 0) return false;
-  const actor = await env.DB.prepare(
+  const actor = await env.DB_META_C000.prepare(
     'SELECT domain FROM accounts WHERE id = ?1 LIMIT 1',
   ).bind(actorAccountId).first<{ domain: string | null }>();
   return actor !== null && canApplyFederatedDelete({
@@ -1292,7 +1292,7 @@ export async function canProcessIncomingMove(
     || newAccountId.length === 0
   ) return false;
 
-  const row = await env.DB.prepare(
+  const row = await env.DB_META_C000.prepare(
     `SELECT old_account.domain AS old_domain,
             old_account.suspended_at AS old_suspended_at,
             old_account.memorial AS old_memorial,
@@ -1401,7 +1401,7 @@ export async function getFederatedMoveRefollowCandidates(
 ): Promise<FederatedMoveRefollowCandidate[]> {
   if (oldAccountId.length === 0 || newAccountId.length === 0) return [];
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT follower.id AS account_id,
             follower.uri,
             follower.username,
@@ -1487,7 +1487,7 @@ export async function assertListMemberAddable(
   actorAccountId: string,
   memberAccountId: string,
 ): Promise<string> {
-  const member = await env.DB.prepare(
+  const member = await env.DB_META_C000.prepare(
     `SELECT l.account_id AS list_owner_account_id,
             candidate.id AS member_account_id,
             candidate.domain,
@@ -1537,14 +1537,14 @@ export async function listPermittedListMemberIds(
   listId: string,
   actorAccountId: string,
 ): Promise<string[]> {
-  const list = await env.DB.prepare(
+  const list = await env.DB_META_C000.prepare(
     'SELECT account_id FROM lists WHERE id = ?1 LIMIT 1',
   ).bind(listId).first<{ account_id: string }>();
   if (!list || list.account_id !== actorAccountId) {
     throw new AppError(404, 'Record not found');
   }
 
-  const members = await env.DB.prepare(
+  const members = await env.DB_META_C000.prepare(
     `SELECT l.account_id AS list_owner_account_id,
             candidate.id AS member_account_id,
             candidate.domain,
@@ -1590,12 +1590,12 @@ export async function assertAccountFeatureable(
   actorAccountId: string,
   targetAccountId: string,
 ): Promise<void> {
-  const target = await env.DB.prepare(
+  const target = await env.DB_META_C000.prepare(
     'SELECT id, domain, suspended_at FROM accounts WHERE id = ?1 LIMIT 1',
   ).bind(targetAccountId).first<AccountPermissionRecord>();
   if (!target) throw new AppError(404, 'Record not found');
 
-  const follow = await env.DB.prepare(
+  const follow = await env.DB_META_C000.prepare(
     `SELECT 1 FROM follows
      WHERE account_id = ?1 AND target_account_id = ?2
      LIMIT 1`,
@@ -1615,7 +1615,7 @@ export async function canViewStatusRecord(
   viewerAccountId: string | null,
 ): Promise<boolean> {
   const author = status.account_id
-    ? await env.DB.prepare(
+    ? await env.DB_META_C000.prepare(
       'SELECT suspended_at FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(status.account_id).first<{ suspended_at: string | null }>()
     : null;
@@ -1631,22 +1631,22 @@ export async function canViewStatusRecord(
   if (viewerAccountId && viewerAccountId !== status.account_id) {
     if (visibility === 'private' && status.account_id) {
       const [follow, mention] = await Promise.all([
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'SELECT 1 FROM follows WHERE account_id = ?1 AND target_account_id = ?2 LIMIT 1',
         ).bind(viewerAccountId, status.account_id).first(),
-        env.DB.prepare(
+        env.DB_META_C000.prepare(
           'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
         ).bind(status.id, viewerAccountId).first(),
       ]);
       viewerFollowsAuthor = follow !== null;
       viewerIsMentioned = mention !== null;
     } else if (visibility === 'direct') {
-      const mention = await env.DB.prepare(
+      const mention = await env.DB_META_C000.prepare(
         'SELECT 1 FROM mentions WHERE status_id = ?1 AND account_id = ?2 LIMIT 1',
       ).bind(status.id, viewerAccountId).first();
       viewerIsMentioned = mention !== null;
     } else {
-      const block = await env.DB.prepare(
+      const block = await env.DB_META_C000.prepare(
         `SELECT 1 FROM blocks
          WHERE account_id = ?1 AND target_account_id = ?2
          LIMIT 1`,
@@ -1670,7 +1670,7 @@ export async function canViewStatusById(
   statusId: string,
   viewerAccountId: string | null,
 ): Promise<boolean> {
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     'SELECT id, account_id, visibility, deleted_at FROM statuses WHERE id = ?1 LIMIT 1',
   ).bind(statusId).first<StatusPermissionRecord>();
   return status ? canViewStatusRecord(status, viewerAccountId) : false;
@@ -1707,7 +1707,7 @@ export async function canSurfaceStatusToViewer(
     viewerAccountId,
     new Date().toISOString(),
   );
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT s.id FROM statuses s
      WHERE s.id = ?
        AND ${visibility.sql}
@@ -1729,7 +1729,7 @@ export async function canAccountInteractWithStatus(
 
   const [actorOperational, status] = await Promise.all([
     canAccountOriginateFederationActivity(actorAccountId),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT s.id, s.account_id, s.visibility, s.deleted_at,
               author.domain AS author_domain
        FROM statuses s
@@ -1744,12 +1744,12 @@ export async function canAccountInteractWithStatus(
   const [actorBlock, actorDomainBlock] = status?.account_id
     && status.account_id !== actorAccountId
     ? await Promise.all([
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `SELECT 1 FROM blocks
          WHERE account_id = ?1 AND target_account_id = ?2
          LIMIT 1`,
       ).bind(actorAccountId, status.account_id).first(),
-      env.DB.prepare(
+      env.DB_META_C000.prepare(
         `SELECT 1 FROM user_domain_blocks
          WHERE account_id = ?1
            AND ?2 IS NOT NULL
@@ -1775,7 +1775,7 @@ export async function canAccountOriginateFederationActivity(
 ): Promise<boolean> {
   if (actorAccountId.length === 0) return false;
 
-  const actor = await env.DB.prepare(
+  const actor = await env.DB_META_C000.prepare(
     `SELECT a.suspended_at, a.memorial, a.domain,
             u.disabled AS user_disabled, u.approved AS user_approved
      FROM accounts a
@@ -1817,7 +1817,7 @@ export async function canExposeLocalAccountActivityPubResourcesByUsername(
   username: string,
 ): Promise<boolean> {
   if (username.length === 0) return false;
-  const account = await env.DB.prepare(
+  const account = await env.DB_META_C000.prepare(
     `SELECT id FROM accounts
      WHERE username = ?1 AND domain IS NULL
      LIMIT 1`,
@@ -1855,7 +1855,7 @@ export async function authorizeFederatedReport(
   if (reporterAccountId.length === 0 || targetAccountId.length === 0) return null;
 
   const [reporter, target] = await Promise.all([
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT a.domain, a.suspended_at, a.memorial,
               u.disabled AS user_disabled, u.approved AS user_approved
        FROM accounts a
@@ -1863,7 +1863,7 @@ export async function authorizeFederatedReport(
        WHERE a.id = ?1
        LIMIT 1`,
     ).bind(reporterAccountId).first<AccountOperationalPermissionFields>(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT a.domain, a.suspended_at, a.memorial,
               u.disabled AS user_disabled, u.approved AS user_approved
        FROM accounts a
@@ -1882,7 +1882,7 @@ export async function authorizeFederatedReport(
       allStatusReferencesAuthorized = false;
       break;
     }
-    const status = await env.DB.prepare(
+    const status = await env.DB_META_C000.prepare(
       `SELECT id, account_id, visibility, deleted_at
        FROM statuses
        WHERE uri = ?1
@@ -1923,7 +1923,7 @@ export async function canProcessFederatedStatusInteraction(
 ): Promise<boolean> {
   if (statusId.length === 0 || actorAccountId.length === 0) return false;
 
-  const target = await env.DB.prepare(
+  const target = await env.DB_META_C000.prepare(
     `SELECT s.account_id, a.domain
      FROM statuses s
      JOIN accounts a ON a.id = s.account_id
@@ -1933,19 +1933,19 @@ export async function canProcessFederatedStatusInteraction(
   if (!target || target.domain !== null) return false;
   if (recipientAccountId && target.account_id !== recipientAccountId) return false;
 
-  const actor = await env.DB.prepare(
+  const actor = await env.DB_META_C000.prepare(
     'SELECT domain FROM accounts WHERE id = ?1 LIMIT 1',
   ).bind(actorAccountId).first<{ domain: string | null }>();
   if (!actor) return false;
   const [targetBlocksActor, targetBlocksActorDomain] = await Promise.all([
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT 1 FROM blocks
        WHERE account_id = ?1 AND target_account_id = ?2
        LIMIT 1`,
     ).bind(target.account_id, actorAccountId).first(),
     actor.domain === null
       ? Promise.resolve(null)
-      : env.DB.prepare(
+      : env.DB_META_C000.prepare(
         `SELECT 1 FROM user_domain_blocks
          WHERE account_id = ?1
            AND lower(domain) = lower(?2)
@@ -1965,7 +1965,7 @@ export async function canQuoteStatusRecord(
 
   const statusViewable = await canViewStatusRecord(status, requesterAccountId);
   const requesterIsAuthor = requesterAccountId === status.account_id;
-  const identities = await env.DB.prepare(
+  const identities = await env.DB_META_C000.prepare(
     `SELECT author.uri AS author_uri, requester.uri AS requester_uri,
             EXISTS(
               SELECT 1 FROM follows
@@ -2031,7 +2031,7 @@ export async function canQuoteStatusById(
   statusId: string,
   requesterAccountId: string,
 ): Promise<boolean> {
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at, quote_policy,
             quote_policy_automatic_approvals, quote_policy_manual_approvals
      FROM statuses WHERE id = ?1 LIMIT 1`,
@@ -2044,7 +2044,7 @@ export async function assertAccountModeratable(
   actorAccountId: string,
   targetAccountId: string,
 ): Promise<void> {
-  const target = await env.DB.prepare(
+  const target = await env.DB_META_C000.prepare(
     `SELECT a.id, u.role
      FROM accounts a
      LEFT JOIN users u ON u.account_id = a.id
@@ -2078,7 +2078,7 @@ export async function assertStatusesViewableForAccount(
 
   const uniqueStatusIds = [...new Set(statusIds)];
   for (const statusId of uniqueStatusIds) {
-    const status = await env.DB.prepare(
+    const status = await env.DB_META_C000.prepare(
       'SELECT id, account_id, visibility, deleted_at FROM statuses WHERE id = ?1 LIMIT 1',
     ).bind(statusId).first<StatusPermissionRecord>();
     if (
@@ -2139,7 +2139,7 @@ export async function assertStatusMutationAllowed(
     throw new AppError(404, 'Record not found');
   }
 
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at, local, reblog_of_id
      FROM statuses
      WHERE id = ?1
@@ -2157,7 +2157,7 @@ export async function assertStatusRebloggable(
     throw new AppError(404, 'Record not found');
   }
 
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT id, account_id, visibility, deleted_at
      FROM statuses
      WHERE id = ?1
@@ -2194,7 +2194,7 @@ export async function assertMediaAttachmentsAttachable(
   }
 
   const placeholders = mediaIds.map(() => '?').join(', ');
-  const media = await env.DB.prepare(
+  const media = await env.DB_META_C000.prepare(
     `SELECT id, account_id, status_id
      FROM media_attachments
      WHERE id IN (${placeholders})`,
@@ -2250,7 +2250,7 @@ export async function resolveLocalStatusCreationVisibility(
     throw new AppError(422, 'Validation failed', 'Invalid status visibility');
   }
 
-  const actor = await env.DB.prepare(
+  const actor = await env.DB_META_C000.prepare(
     `SELECT a.domain, a.suspended_at, a.silenced_at, a.memorial,
             a.moved_to_account_id,
             u.disabled AS user_disabled, u.approved AS user_approved

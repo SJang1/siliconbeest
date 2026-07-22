@@ -42,7 +42,7 @@ app.get('/', authRequired, requireScope('read:accounts'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT ft.*, t.name AS tag_name
      FROM featured_tags ft
      JOIN tags t ON t.id = ft.tag_id
@@ -66,14 +66,14 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
   const tagName = body.name.toLowerCase().replace(/^#/, '');
 
   // Find or create the tag
-  let tag = await env.DB.prepare('SELECT * FROM tags WHERE name = ?1')
+  let tag = await env.DB_META_C000.prepare('SELECT * FROM tags WHERE name = ?1')
     .bind(tagName)
     .first<TagRow>();
 
   if (!tag) {
     const tagId = generateUlid();
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'INSERT INTO tags (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)',
     )
       .bind(tagId, tagName, now, now)
@@ -82,7 +82,7 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
   }
 
   // Check if already featured
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     'SELECT id FROM featured_tags WHERE account_id = ?1 AND tag_id = ?2',
   )
     .bind(currentAccount.id, tag.id)
@@ -91,7 +91,7 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
   if (existing) throw new AppError(422, 'Validation failed: tag is already featured');
 
   // Count statuses with this tag
-  const countRow = await env.DB.prepare(
+  const countRow = await env.DB_META_C000.prepare(
     `SELECT COUNT(*) AS cnt FROM statuses s
      JOIN status_tags st ON st.status_id = s.id
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL`,
@@ -99,7 +99,7 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
     .bind(currentAccount.id, tag.id)
     .first<{ cnt: number }>();
 
-  const lastRow = await env.DB.prepare(
+  const lastRow = await env.DB_META_C000.prepare(
     `SELECT s.created_at FROM statuses s
      JOIN status_tags st ON st.status_id = s.id
      WHERE s.account_id = ?1 AND st.tag_id = ?2 AND s.deleted_at IS NULL
@@ -111,7 +111,7 @@ app.post('/', authRequired, requireScope('write:accounts'), async (c) => {
   const id = generateUlid();
   const now = new Date().toISOString();
 
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO featured_tags (id, account_id, tag_id, statuses_count, last_status_at, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
   )
@@ -133,7 +133,7 @@ app.delete('/:id', authRequired, requireScope('write:accounts'), async (c) => {
   const currentAccount = c.get('currentAccount')!;
   const ftId = c.req.param('id');
 
-  const existing = await env.DB.prepare(
+  const existing = await env.DB_META_C000.prepare(
     'SELECT id FROM featured_tags WHERE id = ?1 AND account_id = ?2',
   )
     .bind(ftId, currentAccount.id)
@@ -141,7 +141,7 @@ app.delete('/:id', authRequired, requireScope('write:accounts'), async (c) => {
 
   if (!existing) throw new AppError(404, 'Record not found');
 
-  const removed = await env.DB.prepare('DELETE FROM featured_tags WHERE id = ?1')
+  const removed = await env.DB_META_C000.prepare('DELETE FROM featured_tags WHERE id = ?1')
     .bind(ftId)
     .run();
   c.set('contributionApplied', (removed.meta?.changes ?? 0) > 0);
@@ -154,7 +154,7 @@ app.get('/suggestions', authRequired, requireScope('read:accounts'), async (c) =
   const currentAccount = c.get('currentAccount')!;
   const domain = env.INSTANCE_DOMAIN;
 
-  const { results } = await env.DB.prepare(
+  const { results } = await env.DB_META_C000.prepare(
     `SELECT t.name, COUNT(*) AS cnt
      FROM status_tags st
      JOIN tags t ON t.id = st.tag_id

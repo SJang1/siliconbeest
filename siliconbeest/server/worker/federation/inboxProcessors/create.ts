@@ -25,6 +25,8 @@ import {
 	canSurfaceStatusToViewer,
 } from '../../services/permissions';
 import { serializeNaturalLanguageMap } from '../../../../../packages/shared/utils/naturalLanguage';
+import { normalizeFederatedTime } from '../../../../../packages/shared/utils/federatedTime';
+import { recordRemoteObjectEvent } from '../../services/remoteObjectJournal';
 
 interface CreateProcessorOptions {
 	fanout?: boolean;
@@ -129,6 +131,14 @@ class CreateProcessor extends BaseProcessor {
 			console.warn('[create] Note has no id');
 			return false;
 		}
+		const objectDecision = await recordRemoteObjectEvent({
+			objectUri: note.id,
+			kind: 'Create',
+			activityId: activity.id ?? null,
+			actorUri: activity.actor,
+			sourceTimestamp: note.published,
+		});
+		if (!objectDecision.apply || objectDecision.tombstoned) return false;
 
 		// Check for duplicates using repository
 		const existing = await this.statusRepo.findByUri(note.id);
@@ -148,6 +158,8 @@ class CreateProcessor extends BaseProcessor {
 		}
 
 		const now = new Date().toISOString();
+		const receivedAtMs = Date.now();
+		const federatedTime = normalizeFederatedTime(note.published, receivedAtMs);
 		const statusId = generateUlid();
 		let visibility = resolveVisibility(note);
 
@@ -156,7 +168,7 @@ class CreateProcessor extends BaseProcessor {
 		let inReplyToAccountId: string | null = null;
 		let conversationId: string | null = null;
 		if (note.inReplyTo) {
-			const parentStatus = await env.DB.prepare(
+			const parentStatus = await env.DB_META_C000.prepare(
 				`SELECT id, account_id, conversation_id FROM statuses WHERE uri = ?1 LIMIT 1`,
 			)
 				.bind(note.inReplyTo)
@@ -175,17 +187,17 @@ class CreateProcessor extends BaseProcessor {
 		// Try to resolve conversation from AP conversation field
 		const apNote = note as APNote;
 		if (!conversationId && apNote.conversation) {
-			const existingConv = await env.DB.prepare(
+			const existingConv = await env.DB_META_C000.prepare(
 				'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
 			).bind(apNote.conversation).first<{ id: string }>();
 			if (existingConv) {
 				conversationId = existingConv.id;
 			} else {
 				conversationId = generateUlid();
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					'INSERT OR IGNORE INTO conversations (id, ap_uri, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)',
 				).bind(conversationId, apNote.conversation, now).run();
-				const inserted = await env.DB.prepare(
+				const inserted = await env.DB_META_C000.prepare(
 					'SELECT id FROM conversations WHERE ap_uri = ?1 LIMIT 1',
 				).bind(apNote.conversation).first<{ id: string }>();
 				if (inserted) conversationId = inserted.id;
@@ -194,7 +206,7 @@ class CreateProcessor extends BaseProcessor {
 
 		if (!conversationId) {
 			conversationId = generateUlid();
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				'INSERT OR IGNORE INTO conversations (id, created_at, updated_at) VALUES (?1, ?2, ?2)',
 			).bind(conversationId, now).run();
 		}
@@ -239,7 +251,7 @@ class CreateProcessor extends BaseProcessor {
 		if (quoteUri) {
 			const quotedStatus = await this.statusRepo.findByUri(quoteUri);
 			if (quotedStatus) {
-				const targetAuthor = await env.DB.prepare(
+				const targetAuthor = await env.DB_META_C000.prepare(
 					'SELECT uri FROM accounts WHERE id = ?1 LIMIT 1',
 				).bind(quotedStatus.account_id).first<{ uri: string }>();
 				const selfQuote = targetAuthor?.uri === activity.actor;
@@ -294,15 +306,16 @@ class CreateProcessor extends BaseProcessor {
 				: null;
 
 			// Insert the status
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				`INSERT INTO statuses
 				 (id, uri, url, object_type, title, account_id, in_reply_to_id, in_reply_to_account_id,
 				  text, content, content_warning, visibility, sensitive, language,
 				  conversation_id, local, reply, quote_id, quote_authorization_uri, quote_approval_status,
 				  quote_policy, quote_policy_automatic_approvals, quote_policy_manual_approvals,
 				  title_map, content_map, content_warning_map,
-				  emoji_tags, created_at, updated_at)
-				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 0, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)`,
+				  emoji_tags, created_at, updated_at,
+				  published_at_raw, published_at_ms, received_at_ms, sort_at_ms, source_version)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 0, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33)`,
 			)
 			.bind(
 				statusId, note.id,
@@ -313,7 +326,15 @@ class CreateProcessor extends BaseProcessor {
 				inReplyToId ? 1 : 0, quoteId, quoteAuthorizationUri, quoteApprovalStatus,
 				quotePolicy, automaticApprovalsJson, manualApprovalsJson,
 				titleMap, contentMap, contentWarningMap, emojiTagsJson,
-				note.published ? new Date(note.published).toISOString() : now, now,
+				federatedTime.publishedAtMs === null
+					? now
+					: new Date(federatedTime.publishedAtMs).toISOString(),
+				now,
+				federatedTime.publishedAtRaw,
+				federatedTime.publishedAtMs,
+				federatedTime.receivedAtMs,
+				federatedTime.sortAtMs,
+				objectDecision.sourceVersion,
 			)
 				.run();
 
@@ -375,12 +396,12 @@ class CreateProcessor extends BaseProcessor {
 		const pollId = generateUlid();
 
 		try {
-			await env.DB.batch([
-				env.DB.prepare(
+			await env.DB_META_C000.batch([
+				env.DB_META_C000.prepare(
 					`INSERT INTO polls (id, status_id, expires_at, multiple, votes_count, voters_count, options, created_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
 				).bind(pollId, statusId, expiresAt, multiple, votesCount, votersCount, JSON.stringify(options), now),
-				env.DB.prepare(
+				env.DB_META_C000.prepare(
 					'UPDATE statuses SET poll_id = ?1 WHERE id = ?2',
 				).bind(pollId, statusId),
 			]);
@@ -397,7 +418,7 @@ class CreateProcessor extends BaseProcessor {
 		const questionUri = note.inReplyTo as string;
 
 		// Find the local status this vote is for
-		const parentStatus = await env.DB.prepare(
+		const parentStatus = await env.DB_META_C000.prepare(
 			'SELECT id, poll_id FROM statuses WHERE uri = ?1 LIMIT 1',
 		).bind(questionUri).first<{ id: string; poll_id: string | null }>();
 
@@ -409,7 +430,7 @@ class CreateProcessor extends BaseProcessor {
 		)) return false;
 
 		// Find the poll
-		const poll = await env.DB.prepare(
+		const poll = await env.DB_META_C000.prepare(
 			'SELECT id, options, expires_at, multiple FROM polls WHERE id = ?1 LIMIT 1',
 		).bind(parentStatus.poll_id).first<{
 			id: string;
@@ -434,7 +455,7 @@ class CreateProcessor extends BaseProcessor {
 		const choiceIndex = options.findIndex((o) => o.title === optionName);
 		if (choiceIndex === -1) return false;
 		if (poll.multiple === 0) {
-			const existingVote = await env.DB.prepare(
+			const existingVote = await env.DB_META_C000.prepare(
 				'SELECT 1 FROM poll_votes WHERE poll_id = ?1 AND account_id = ?2 LIMIT 1',
 			).bind(poll.id, voterAccountId).first();
 			if (existingVote) return false;
@@ -444,7 +465,7 @@ class CreateProcessor extends BaseProcessor {
 
 		try {
 			// Insert vote (UNIQUE constraint prevents duplicates)
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				'INSERT INTO poll_votes (id, poll_id, account_id, choice, created_at) VALUES (?1, ?2, ?3, ?4, ?5)',
 			).bind(generateUlid(), poll.id, voterAccountId, choiceIndex, now).run();
 
@@ -453,11 +474,11 @@ class CreateProcessor extends BaseProcessor {
 			const newVotesCount = options.reduce((sum, o) => sum + o.votes_count, 0);
 
 			// Count distinct voters
-			const voterCount = await env.DB.prepare(
+			const voterCount = await env.DB_META_C000.prepare(
 				'SELECT COUNT(DISTINCT account_id) AS cnt FROM poll_votes WHERE poll_id = ?1',
 			).bind(poll.id).first<{ cnt: number }>();
 
-			await env.DB.prepare(
+			await env.DB_META_C000.prepare(
 				'UPDATE polls SET options = ?1, votes_count = ?2, voters_count = ?3 WHERE id = ?4',
 			).bind(JSON.stringify(options), newVotesCount, voterCount?.cnt ?? 0, poll.id).run();
 			return true;
@@ -502,7 +523,7 @@ class CreateProcessor extends BaseProcessor {
 			else type = 'image';
 
 			try {
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					`INSERT OR IGNORE INTO media_attachments
 					 (id, status_id, account_id, type, remote_url, file_key, file_content_type, description, width, height, blurhash, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)`,
@@ -532,7 +553,7 @@ class CreateProcessor extends BaseProcessor {
 			const mentionedAccount = await this.findLocalAccountByUri(mention.href);
 			if (mentionedAccount) {
 				try {
-					await env.DB.prepare(
+					await env.DB_META_C000.prepare(
 						`INSERT INTO mentions (id, status_id, account_id, created_at)
 						 VALUES (?1, ?2, ?3, ?4)`,
 					)
@@ -559,18 +580,18 @@ class CreateProcessor extends BaseProcessor {
 			const tagName = ((ht.name as string) || '').replace(/^#/, '').toLowerCase();
 			if (!tagName) continue;
 			try {
-				const existing = await env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
+				const existing = await env.DB_META_C000.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
 				let tagId: string;
 				if (existing) {
 					tagId = existing.id;
-					await env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
+					await env.DB_META_C000.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
 				} else {
 					tagId = generateUlid();
-					await env.DB.prepare(
+					await env.DB_META_C000.prepare(
 						'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
 					).bind(tagId, tagName, tagName, now).run();
 				}
-				await env.DB.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
+				await env.DB_META_C000.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
 			} catch {
 				// ignore duplicates
 			}
@@ -591,7 +612,7 @@ class CreateProcessor extends BaseProcessor {
 			const emojiDomain = customEmojiTagDomain(et as unknown as Record<string, unknown>, actorUri);
 			if (!emojiDomain) continue;
 			try {
-				const result = await env.DB.prepare(
+				const result = await env.DB_META_C000.prepare(
 					`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
 					 ON CONFLICT(shortcode, domain) DO UPDATE SET image_key = excluded.image_key, updated_at = excluded.updated_at`,
@@ -623,7 +644,7 @@ class CreateProcessor extends BaseProcessor {
 		authorAccountId: string,
 	): Promise<void> {
 		interface LocalMentionRow { account_id: string }
-		const { results: localMentions } = await env.DB.prepare(
+		const { results: localMentions } = await env.DB_META_C000.prepare(
 			`SELECT m.account_id FROM mentions m
 			 JOIN accounts a ON a.id = m.account_id
 			 WHERE m.status_id = ?1 AND a.domain IS NULL`,
@@ -641,7 +662,7 @@ class CreateProcessor extends BaseProcessor {
 
 		// Send streaming event for DM
 		try {
-			const dmStatusRow = await env.DB.prepare(
+			const dmStatusRow = await env.DB_META_C000.prepare(
 				`SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
 				        a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
 				        a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
@@ -685,7 +706,7 @@ class CreateProcessor extends BaseProcessor {
 				});
 
 				for (const m of permittedLocalMentions) {
-					const userRow = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
+					const userRow = await env.DB_META_C000.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first<{ id: string }>();
 					if (userRow) {
 						try {
 							await sendStreamEvent(userRow.id, {

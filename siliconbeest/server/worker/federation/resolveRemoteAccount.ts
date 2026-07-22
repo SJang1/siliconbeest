@@ -47,7 +47,7 @@ export async function resolveRemoteAccount(
 		return null;
 	}
 
-	const existing = await env.DB.prepare(
+	const existing = await env.DB_META_C000.prepare(
 		`SELECT id, uri, domain, suspended_at
 		 FROM accounts
 		 WHERE uri IN (?1, ?2)
@@ -68,7 +68,7 @@ export async function resolveRemoteAccount(
 			localInstanceDomain: env.INSTANCE_DOMAIN,
 			actorSuspended: existing.suspended_at !== null,
 		})) return null;
-		const existingDomainBlocks = await getSuspendedDomains(env.DB, [existing.domain]);
+		const existingDomainBlocks = await getSuspendedDomains(env.DB_META_C000, [existing.domain]);
 		return existingDomainBlocks.has(existing.domain.toLowerCase())
 			? null
 			: existing.id;
@@ -100,7 +100,7 @@ export async function resolveRemoteAccount(
 	}
 
 	// Check domain blocks before fetching
-	const suspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+	const suspendedDomains = await getSuspendedDomains(env.DB_META_C000, [domain]);
 	if (suspendedDomains.has(domain.toLowerCase())) {
 		console.log(`[resolveRemoteAccount] Refusing to resolve account from suspended domain: ${domain}`);
 		return null;
@@ -109,7 +109,7 @@ export async function resolveRemoteAccount(
 	try {
 		const fed = createFed();
 		const ctx = getFedifyContext(fed);
-		const signerUsername = await pickSignerUsername(env.DB, signerAccountId);
+		const signerUsername = await pickSignerUsername(env.DB_META_C000, signerAccountId);
 		if (!signerUsername) {
 			console.warn(`[resolveRemoteAccount] No local signer available for ${actorUri}, skipping`);
 			return null;
@@ -192,7 +192,7 @@ export async function resolveRemoteAccount(
 
 	// Host casing may normalize while retaining exact ActivityPub identity.
 	if (canonicalUri !== lookupUri) {
-		const byCanonical = await env.DB.prepare(
+		const byCanonical = await env.DB_META_C000.prepare(
 			`SELECT id, domain, suspended_at FROM accounts WHERE uri = ?1 LIMIT 1`,
 		)
 			.bind(canonicalUri)
@@ -203,7 +203,7 @@ export async function resolveRemoteAccount(
 			}>();
 		if (byCanonical) {
 			if (byCanonical.domain === null || byCanonical.suspended_at !== null) return null;
-			const canonicalBlocks = await getSuspendedDomains(env.DB, [byCanonical.domain]);
+			const canonicalBlocks = await getSuspendedDomains(env.DB_META_C000, [byCanonical.domain]);
 			return canonicalBlocks.has(byCanonical.domain.toLowerCase())
 				? null
 				: byCanonical.id;
@@ -213,7 +213,7 @@ export async function resolveRemoteAccount(
 			const canonicalHost = new URL(canonicalUri).host;
 			if (canonicalHost !== domain) {
 				domain = canonicalHost;
-				const canonicalSuspendedDomains = await getSuspendedDomains(env.DB, [domain]);
+				const canonicalSuspendedDomains = await getSuspendedDomains(env.DB_META_C000, [domain]);
 				if (canonicalSuspendedDomains.has(domain.toLowerCase())) {
 					console.log(`[resolveRemoteAccount] Refusing to resolve account from suspended domain: ${domain}`);
 					return null;
@@ -226,7 +226,7 @@ export async function resolveRemoteAccount(
 	const id = generateUlid();
 
 	try {
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO accounts (
 				id, username, domain, display_name, note, uri, url,
 				avatar_url, avatar_static_url, header_url, header_static_url,
@@ -258,7 +258,7 @@ export async function resolveRemoteAccount(
 			)
 			.run();
 	} catch {
-		const retry = await env.DB.prepare(
+		const retry = await env.DB_META_C000.prepare(
 			`SELECT id, domain, suspended_at
 			 FROM accounts
 			 WHERE uri IN (?1, ?2)
@@ -271,7 +271,7 @@ export async function resolveRemoteAccount(
 				suspended_at: string | null;
 			}>();
 		if (!retry || retry.domain === null || retry.suspended_at !== null) return null;
-		const retryBlocks = await getSuspendedDomains(env.DB, [retry.domain]);
+		const retryBlocks = await getSuspendedDomains(env.DB_META_C000, [retry.domain]);
 		return retryBlocks.has(retry.domain.toLowerCase()) ? null : retry.id;
 	}
 

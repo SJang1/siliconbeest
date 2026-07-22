@@ -38,7 +38,7 @@ export type CreateUserInput = {
 };
 
 export const findById = async (id: string): Promise<User | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM users WHERE id = ?')
 		.bind(id)
 		.first<User>();
@@ -48,7 +48,7 @@ export const findById = async (id: string): Promise<User | null> => {
 export const findByEmail = async (email: string): Promise<User | null> => {
 	// Emails are stored lowercase (see services/auth.ts registerUser);
 	// normalize here so the comparison is effectively case-insensitive.
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM users WHERE email = ?')
 		.bind(email.toLowerCase())
 		.first<User>();
@@ -56,7 +56,7 @@ export const findByEmail = async (email: string): Promise<User | null> => {
 };
 
 export const findByAccountId = async (accountId: string): Promise<User | null> => {
-	const result = await env.DB
+	const result = await env.DB_META_C000
 		.prepare('SELECT * FROM users WHERE account_id = ?')
 		.bind(accountId)
 		.first<User>();
@@ -94,7 +94,7 @@ export const create = async (input: CreateUserInput): Promise<User> => {
 		updated_at: now,
 	};
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`INSERT INTO users (
 				id, account_id, email, encrypted_password, locale,
@@ -128,7 +128,7 @@ export const update = async (id: string, input: Partial<Omit<User, 'id' | 'creat
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -138,7 +138,7 @@ export const update = async (id: string, input: Partial<Omit<User, 'id' | 'creat
 
 export const updatePassword = async (id: string, encryptedPassword: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare('UPDATE users SET encrypted_password = ?, updated_at = ? WHERE id = ?')
 		.bind(encryptedPassword, now, id)
 		.run();
@@ -156,7 +156,7 @@ export const updateOtp = async (
 	const fields = [...entries.map(([key]) => `${key} = ?`), 'updated_at = ?'];
 	const values = [...entries.map(([, value]) => value), now, id];
 
-	await env.DB
+	await env.DB_META_C000
 		.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
 		.bind(...values)
 		.run();
@@ -164,7 +164,7 @@ export const updateOtp = async (
 
 export const updateSignIn = async (id: string, ip: string): Promise<void> => {
 	const now = new Date().toISOString();
-	await env.DB
+	await env.DB_META_C000
 		.prepare(
 			`UPDATE users SET
 				last_sign_in_at = current_sign_in_at,

@@ -44,8 +44,8 @@ async function fetchAndWaitForBackground(
 
 async function setContributionSettings(entries: Readonly<Record<string, string>>): Promise<void> {
 	const now = new Date().toISOString();
-	await env.DB.batch(Object.entries(entries).map(([key, value]) =>
-		env.DB.prepare(
+	await env.DB_META_C000.batch(Object.entries(entries).map(([key, value]) =>
+		env.DB_META_C000.prepare(
 			`INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
 			 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		).bind(key, value, now),
@@ -53,7 +53,7 @@ async function setContributionSettings(entries: Readonly<Record<string, string>>
 }
 
 async function getBalance(accountId: string): Promise<BalanceRow> {
-	const row = await env.DB.prepare(
+	const row = await env.DB_META_C000.prepare(
 		`SELECT available_credits, contribution_score, contribution_award_level
 		 FROM account_invitation_balances WHERE account_id = ?1`,
 	).bind(accountId).first<BalanceRow>();
@@ -62,7 +62,7 @@ async function getBalance(accountId: string): Promise<BalanceRow> {
 }
 
 async function getAudits(accountId: string): Promise<AuditRow[]> {
-	const { results } = await env.DB.prepare(
+	const { results } = await env.DB_META_C000.prepare(
 		`SELECT actor_account_id, action, credit_delta, contribution_delta, metadata
 		 FROM invitation_audit_logs WHERE target_account_id = ?1 ORDER BY created_at, id`,
 	).bind(accountId).all<AuditRow>();
@@ -84,8 +84,8 @@ describe('contribution scoring', () => {
 	});
 
 	beforeEach(async () => {
-		await env.DB.prepare('DELETE FROM invitation_audit_logs').run();
-		await env.DB.prepare('DELETE FROM account_invitation_balances').run();
+		await env.DB_META_C000.prepare('DELETE FROM invitation_audit_logs').run();
+		await env.DB_META_C000.prepare('DELETE FROM account_invitation_balances').run();
 		await setContributionSettings({
 			invite_contribution_enabled: '0',
 			invite_contribution_threshold: '100',
@@ -106,7 +106,7 @@ describe('contribution scoring', () => {
 		const result = await recordContributionEvent(member.accountId, 'status_create');
 
 		expect(result).toEqual({ processed: false, reason: 'disabled' });
-		const balance = await env.DB.prepare(
+		const balance = await env.DB_META_C000.prepare(
 			'SELECT account_id FROM account_invitation_balances WHERE account_id = ?1',
 		).bind(member.accountId).first<{ account_id: string }>();
 		expect(balance).toBeNull();
@@ -190,7 +190,7 @@ describe('contribution scoring', () => {
 			contribution_award_level: 1,
 		});
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'UPDATE account_invitation_balances SET available_credits = 0 WHERE account_id = ?1',
 		).bind(member.accountId).run();
 		const reconciled = await reconcileContributionAwards(member.accountId);
@@ -372,7 +372,7 @@ describe('contribution scoring', () => {
 			invite_contribution_enabled: '1',
 			invite_contribution_points_generic_mutation: '10',
 		});
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"DELETE FROM user_preferences WHERE user_id = ?1 AND key = 'ui:columns'",
 		).bind(member.userId).run();
 
@@ -423,12 +423,12 @@ describe('contribution scoring', () => {
 			invite_contribution_enabled: '1',
 			invite_contribution_points_generic_mutation: '10',
 		});
-		const token = await env.DB.prepare(
+		const token = await env.DB_META_C000.prepare(
 			'SELECT id FROM oauth_access_tokens WHERE user_id = ?1 LIMIT 1',
 		).bind(member.userId).first<{ id: string }>();
 		if (!token) throw new Error('Expected test access token');
 		const now = new Date().toISOString();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO web_push_subscriptions
 			 (id, user_id, access_token_id, endpoint, key_p256dh, key_auth, policy, created_at, updated_at)
 			 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'all', ?7, ?7)`,
@@ -471,7 +471,7 @@ describe('contribution scoring', () => {
 			},
 		);
 		expect(unrelatedAdjustment.status).toBe(422);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT action_taken_at FROM reports WHERE id = ?1',
 		).bind(report.id).first<{ action_taken_at: string | null }>()).toEqual({ action_taken_at: null });
 
@@ -511,7 +511,7 @@ describe('contribution scoring', () => {
 		expect(created.status).toBe(200);
 		const report = await created.json<{ id: string }>();
 		const now = new Date().toISOString();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`INSERT INTO account_invitation_balances
 			 (account_id, available_credits, contribution_score, contribution_award_level, created_at, updated_at)
 			 VALUES (?1, 0, ?2, 0, ?3, ?3)`,
@@ -523,7 +523,7 @@ describe('contribution scoring', () => {
 			body: JSON.stringify({ contribution_adjustment: { points: 1 } }),
 		});
 		expect(failed.status).toBe(503);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			`SELECT action_taken, action_taken_at, action_taken_by_account_id
 			 FROM reports WHERE id = ?1`,
 		).bind(report.id).first<{
@@ -536,7 +536,7 @@ describe('contribution scoring', () => {
 			action_taken_by_account_id: null,
 		});
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'UPDATE account_invitation_balances SET contribution_score = 0 WHERE account_id = ?1',
 		).bind(reportTarget.accountId).run();
 		const retried = await SELF.fetch(`${BASE}/api/v1/admin/reports/${report.id}/resolve`, {
@@ -563,7 +563,7 @@ describe('contribution scoring', () => {
 			body: JSON.stringify({ contribution_adjustment: { points: 1_000_000_000 } }),
 		});
 		expect(response.status).toBe(403);
-		const persisted = await env.DB.prepare(
+		const persisted = await env.DB_META_C000.prepare(
 			'SELECT action_taken_at FROM reports WHERE id = ?1',
 		).bind(report.id).first<{ action_taken_at: string | null }>();
 		expect(persisted?.action_taken_at).toBeNull();

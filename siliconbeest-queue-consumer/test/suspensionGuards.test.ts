@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   env: {
-    DB: { prepare: vi.fn() },
+    DB_META_C000: { prepare: vi.fn() },
     CACHE: { get: vi.fn(), put: vi.fn() },
     QUEUE_INTERNAL: { send: vi.fn() },
     QUEUE_FEDERATION: { send: vi.fn() },
@@ -35,8 +35,8 @@ import { handleFetchRemoteAccount } from '../src/handlers/fetchRemoteAccount';
 import { handleImportItem } from '../src/handlers/importItem';
 
 beforeEach(() => {
-  mocks.env.DB.prepare.mockReset();
-  mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+  mocks.env.DB_META_C000.prepare.mockReset();
+  mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
     bind: () => ({
       first: async () => {
         if (sql.includes('SELECT id, fetched_at, suspended_at')) return null;
@@ -89,15 +89,15 @@ describe('queue suspension guards', () => {
 
     expect(mocks.getSuspendedDomains).toHaveBeenNthCalledWith(
       1,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       ['alias.example'],
     );
     expect(mocks.getSuspendedDomains).toHaveBeenNthCalledWith(
       2,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       ['blocked.example'],
     );
-    expect(mocks.env.DB.prepare.mock.calls.some(
+    expect(mocks.env.DB_META_C000.prepare.mock.calls.some(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO accounts'),
     )).toBe(false);
   });
@@ -126,7 +126,7 @@ describe('queue suspension guards', () => {
     });
 
     expect(mocks.getSuspendedDomains).toHaveBeenCalledTimes(1);
-    expect(mocks.env.DB.prepare.mock.calls.some(
+    expect(mocks.env.DB_META_C000.prepare.mock.calls.some(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO accounts'),
     )).toBe(false);
   });
@@ -155,7 +155,7 @@ describe('queue suspension guards', () => {
     });
 
     expect(mocks.getSuspendedDomains).toHaveBeenCalledTimes(1);
-    expect(mocks.env.DB.prepare.mock.calls.some(
+    expect(mocks.env.DB_META_C000.prepare.mock.calls.some(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO accounts'),
     )).toBe(false);
     expect(mocks.env.CACHE.put).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe('queue suspension guards', () => {
 
   it('does not overwrite a locally suspended canonical actor through an alias', async () => {
     const canonicalUri = 'https://canonical.example/users/alice';
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: (uri: string) => ({
         first: async () => {
           if (!sql.includes('SELECT id, fetched_at, suspended_at')) {
@@ -207,7 +207,7 @@ describe('queue suspension guards', () => {
     });
 
     expect(lookupObject).toHaveBeenCalledTimes(2);
-    expect(mocks.env.DB.prepare.mock.calls.some(
+    expect(mocks.env.DB_META_C000.prepare.mock.calls.some(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO accounts'),
     )).toBe(false);
     expect(mocks.env.CACHE.put).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('queue suspension guards', () => {
   it('checks suspension using the exact normalized URI that will be stored', async () => {
     const requestedUri = 'https://remote.example:443/users/alice';
     const storedUri = 'https://remote.example/users/alice';
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: (uri: string) => ({
         first: async () => {
           if (!sql.includes('SELECT id, fetched_at, suspended_at')) {
@@ -260,7 +260,7 @@ describe('queue suspension guards', () => {
     });
 
     expect(lookupObject).toHaveBeenCalledTimes(1);
-    expect(mocks.env.DB.prepare.mock.calls.some(
+    expect(mocks.env.DB_META_C000.prepare.mock.calls.some(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO accounts'),
     )).toBe(false);
     expect(mocks.env.CACHE.put).not.toHaveBeenCalled();
@@ -271,7 +271,7 @@ describe('queue suspension guards', () => {
       sql: string;
       bindings: readonly (string | number | null)[];
     }> = [];
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: (...bindings: readonly (string | number | null)[]) => {
         prepared.push({ sql, bindings });
         return {
@@ -324,13 +324,13 @@ describe('queue suspension guards', () => {
     expect(upsert?.sql).toContain('domain = excluded.domain');
     expect(upsert?.bindings[2]).toBe('canonical.example');
     expect(mocks.ensureInstanceRecord).toHaveBeenCalledWith(
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       'canonical.example',
     );
   });
 
   it('does not create a follow request for a cached account on a suspended domain', async () => {
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: () => ({
         first: async () => {
           if (!sql.includes('FROM accounts')) {
@@ -359,10 +359,10 @@ describe('queue suspension guards', () => {
     });
 
     expect(mocks.getSuspendedDomains).toHaveBeenCalledWith(
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       ['blocked.example'],
     );
-    expect(mocks.env.DB.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB_META_C000.prepare).toHaveBeenCalledTimes(1);
     expect(mocks.env.QUEUE_FEDERATION.send).not.toHaveBeenCalled();
   });
 
@@ -378,7 +378,7 @@ describe('queue suspension guards', () => {
     targetOverrides,
     actorOverrides,
   ) => {
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: () => ({
         first: async () => {
           if (sql.includes('FROM accounts target')) {
@@ -425,11 +425,11 @@ describe('queue suspension guards', () => {
 
     expect(mocks.env.QUEUE_FEDERATION.send).not.toHaveBeenCalled();
     expect(mocks.env.QUEUE_INTERNAL.send).not.toHaveBeenCalled();
-    expect(mocks.env.DB.prepare).toHaveBeenCalledTimes(2);
+    expect(mocks.env.DB_META_C000.prepare).toHaveBeenCalledTimes(2);
   });
 
   it('does not store a cross-host status attribution', async () => {
-    mocks.env.DB.prepare.mockImplementation((sql: string) => ({
+    mocks.env.DB_META_C000.prepare.mockImplementation((sql: string) => ({
       bind: () => ({
         first: async () => {
           if (!sql.includes('FROM statuses')) {
@@ -468,11 +468,11 @@ describe('queue suspension guards', () => {
 
     expect(mocks.getSuspendedDomains).toHaveBeenNthCalledWith(
       1,
-      mocks.env.DB,
+      mocks.env.DB_META_C000,
       ['status-host.example'],
     );
     expect(mocks.getSuspendedDomains).toHaveBeenCalledTimes(1);
-    expect(mocks.env.DB.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.env.DB_META_C000.prepare).toHaveBeenCalledTimes(1);
     expect(mocks.env.QUEUE_INTERNAL.send).not.toHaveBeenCalled();
   });
 });

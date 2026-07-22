@@ -16,6 +16,7 @@ import { parseQuotePolicyDetailsFromInteractionPolicy } from '../../../../../pac
 import { areActivityPubUrisEquivalent } from '../../../../../packages/shared/permissions';
 import { canProcessIncomingActorUpdate } from '../../services/permissions';
 import { serializeNaturalLanguageMap } from '../../../../../packages/shared/utils/naturalLanguage';
+import { recordRemoteObjectEvent } from '../../services/remoteObjectJournal';
 
 function firstString(value: unknown): string {
 	if (typeof value === 'string') return value;
@@ -115,6 +116,14 @@ class UpdateProcessor extends BaseProcessor {
 				console.warn(`[update] ${obj.type} has no id`);
 				return;
 			}
+			const objectDecision = await recordRemoteObjectEvent({
+				objectUri: obj.id,
+				kind: 'Update',
+				activityId: activity.id ?? null,
+				actorUri: activity.actor,
+				sourceTimestamp: (obj as Record<string, unknown>).updated,
+			});
+			if (!objectDecision.apply || objectDecision.tombstoned) return;
 
 			const status = await this.statusRepo.findByUri(obj.id);
 			if (!status) {
@@ -155,7 +164,8 @@ class UpdateProcessor extends BaseProcessor {
 				),
 				content_warning_map: serializeNaturalLanguageMap(obj.summaryMap, sanitizeHtml),
 				sensitive: obj.sensitive ? 1 : 0,
-				edited_at: now,
+				 edited_at: now,
+				source_version: objectDecision.sourceVersion,
 			};
 			if (sourceText !== null) statusUpdates.text = sourceText;
 			if (interactionPolicy !== undefined) {
@@ -174,7 +184,7 @@ class UpdateProcessor extends BaseProcessor {
 			// Update poll data if this is a Question
 			if (obj.type === 'Question') {
 				const question = obj as APQuestion;
-				const poll = await env.DB.prepare(
+				const poll = await env.DB_META_C000.prepare(
 					'SELECT id FROM polls WHERE status_id = ?1 LIMIT 1',
 				).bind(status.id).first<{ id: string }>();
 
@@ -209,7 +219,7 @@ class UpdateProcessor extends BaseProcessor {
 						}
 
 						values.push(poll.id);
-						await env.DB.prepare(
+						await env.DB_META_C000.prepare(
 							`UPDATE polls SET ${updates.join(', ')} WHERE id = ?${idx}`,
 						).bind(...values).run();
 					}
@@ -217,7 +227,7 @@ class UpdateProcessor extends BaseProcessor {
 			}
 
 			// Notify local users who interacted with this status
-			const interactedUsers = await env.DB.prepare(
+			const interactedUsers = await env.DB_META_C000.prepare(
 				`SELECT DISTINCT account_id FROM (
 					SELECT account_id FROM favourites WHERE status_id = ?1
 					UNION

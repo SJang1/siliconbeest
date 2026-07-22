@@ -5,7 +5,7 @@
  * Each `instrument*ForDebug` function patches the methods of a live binding
  * object in place so every operation logs the method name, its arguments,
  * its result, and the call duration through `debugLog` — covering the
- * hundreds of `env.DB` / `env.CACHE` / … call sites without touching them.
+ * hundreds of `env.DB_META_C000` / `env.CACHE` / … call sites without touching them.
  * `debugLog` applies ultra-sensitive redaction before anything is
  * serialized, and two gaps field-name redaction cannot see are closed here:
  *

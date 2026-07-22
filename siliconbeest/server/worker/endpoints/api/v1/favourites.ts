@@ -82,7 +82,7 @@ app.get('/', authRequired, requireScope('read:favourites'), async (c) => {
   `;
   binds.push(limitValue);
 
-  const { results } = await env.DB.prepare(sql).bind(...binds).all<FavouriteJoinRow>();
+  const { results } = await env.DB_META_C000.prepare(sql).bind(...binds).all<FavouriteJoinRow>();
 
   const statusIds = (results ?? []).map((r) => r.id);
   const enrichments = await enrichStatuses(env.INSTANCE_DOMAIN, statusIds, account.id, env.CACHE);

@@ -46,7 +46,7 @@ app.get('/:id/history', authOptional, requireScope('read:statuses'), async (c) =
   const domain = env.INSTANCE_DOMAIN;
   const currentAccountId = c.get('currentUser')?.account_id ?? null;
 
-  const status = await env.DB.prepare(
+  const status = await env.DB_META_C000.prepare(
     `SELECT s.*, a.username, a.domain AS account_domain, a.display_name, a.note AS account_note,
        a.uri AS account_uri, a.url AS account_url,
        a.avatar_url, a.avatar_static_url, a.header_url, a.header_static_url,
@@ -80,14 +80,14 @@ app.get('/:id/history', authOptional, requireScope('read:statuses'), async (c) =
   };
 
   // Fetch edit history from status_edits table
-  const { results: edits } = await env.DB.prepare(
+  const { results: edits } = await env.DB_META_C000.prepare(
     `SELECT * FROM status_edits WHERE status_id = ?1 ORDER BY created_at ASC`,
   )
     .bind(statusId)
     .all<StatusEditRow>();
 
   // Fetch media attachments for this status
-  const { results: media } = await env.DB.prepare(
+  const { results: media } = await env.DB_META_C000.prepare(
     `SELECT * FROM media_attachments WHERE status_id = ?1`,
   )
     .bind(statusId)

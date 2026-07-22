@@ -27,7 +27,7 @@ export function ensureDebugBindingLogging(): void {
   // Read via an index signature so environments missing optional bindings
   // (e.g. unit tests with a mocked `cloudflare:workers`) still work.
   const bindings = env as unknown as Record<string, unknown>;
-  instrumentD1ForDebug(bindings.DB, 'DB');
+  instrumentD1ForDebug(bindings.DB_META_C000, 'DB_META_C000');
   instrumentKVForDebug(bindings.CACHE, 'CACHE');
   instrumentKVForDebug(bindings.SESSIONS, 'SESSIONS');
   instrumentKVForDebug(bindings.FEDIFY_KV, 'FEDIFY_KV');

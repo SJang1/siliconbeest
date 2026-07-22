@@ -60,19 +60,19 @@ let registrationIpSuffix = 1;
 async function resetDB(): Promise<void> {
 	for (const table of TABLE_DELETE_ORDER) {
 		try {
-			await env.DB.prepare(`DELETE FROM "${table}"`).run();
+			await env.DB_META_C000.prepare(`DELETE FROM "${table}"`).run();
 		} catch {
 			// A table may not exist when an older migration set is under test.
 		}
 	}
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			"INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now'))",
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT INTO settings (key, value, updated_at) VALUES ('require_email_verification', '1', datetime('now'))",
 		),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT INTO settings (key, value, updated_at) VALUES ('site_title', 'SiliconBeest', datetime('now'))",
 		),
 	]);
@@ -82,11 +82,11 @@ async function setRegistrationSettings(
 	mode: 'open' | 'approval',
 	requireEmailVerification = true,
 ): Promise<void> {
-	await env.DB.batch([
-		env.DB.prepare(
+	await env.DB_META_C000.batch([
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('registration_mode', ?1, datetime('now'))",
 		).bind(mode),
-		env.DB.prepare(
+		env.DB_META_C000.prepare(
 			"INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('require_email_verification', ?1, datetime('now'))",
 		).bind(requireEmailVerification ? '1' : '0'),
 	]);
@@ -136,7 +136,7 @@ async function registrationRequest(
 }
 
 async function pendingUser(email: string): Promise<PendingUserRow> {
-	const user = await env.DB.prepare(
+	const user = await env.DB_META_C000.prepare(
 		`SELECT id, approved, confirmed_at, confirmation_token, registration_state,
 		        email_verification_code_hash, email_verification_expires_at,
 		        email_verification_attempts
@@ -309,7 +309,7 @@ describe('registration email verification', () => {
 
 		const code = '314159';
 		const user = await pendingUser('verify_code@test.local');
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'UPDATE users SET email_verification_code_hash = ?1 WHERE id = ?2',
 		).bind(await sha256(code), user.id).run();
 
@@ -336,7 +336,7 @@ describe('registration email verification', () => {
 		await registrationRequest('/continue', cookie);
 		const code = '271828';
 		const user = await pendingUser('verify_parallel_valid@test.local');
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			'UPDATE users SET email_verification_code_hash = ?1 WHERE id = ?2',
 		).bind(await sha256(code), user.id).run();
 
@@ -353,7 +353,7 @@ describe('registration email verification', () => {
 		));
 		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
 		expect(responses.filter((response) => [401, 409, 410].includes(response.status))).toHaveLength(1);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT COUNT(*) AS count FROM oauth_access_tokens WHERE user_id = ?1',
 		).bind(user.id).first<{ count: number }>()).toEqual({ count: 1 });
 	});
@@ -377,7 +377,7 @@ describe('registration email verification', () => {
 			email_verification_attempts: 1,
 		});
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
 		).bind(await sha256('verify_resend@test.local')).run();
 		const response = await registrationRequest('/resend', cookie);
@@ -395,7 +395,7 @@ describe('registration email verification', () => {
 		const registration = await registerUser('verify_daily_limit');
 		const cookie = registrationCookie(registration);
 		await registrationRequest('/continue', cookie);
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			`UPDATE registration_email_delivery_limits
 			 SET send_count = 9, last_sent_at = datetime('now', '-2 minutes')
 			 WHERE email_hash = ?1`,
@@ -412,12 +412,12 @@ describe('registration email verification', () => {
 		));
 		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
 		expect(responses.filter((response) => response.status === 429)).toHaveLength(1);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT send_count FROM registration_email_delivery_limits WHERE email_hash = ?1',
 		).bind(await sha256('verify_daily_limit@test.local')).first<{ send_count: number }>())
 			.toEqual({ send_count: 10 });
 
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
 		).bind(await sha256('verify_daily_limit@test.local')).run();
 		expect((await registrationRequest('/resend', cookie)).status).toBe(429);
@@ -433,13 +433,13 @@ describe('registration email verification', () => {
 		})).status).toBe(200);
 
 		expect((await registerUser('verify_cancel_limit')).status).toBe(429);
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"UPDATE registration_cancellation_cooldowns SET expires_at = datetime('now', '-1 second') WHERE email_hash = ?1",
 		).bind(await sha256('verify_cancel_limit@test.local')).run();
 		const secondRegistration = await registerUser('verify_cancel_limit');
 		const secondCookie = registrationCookie(secondRegistration);
 		expect((await registrationRequest('/continue', secondCookie)).status).toBe(429);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT send_count FROM registration_email_delivery_limits WHERE email_hash = ?1',
 		).bind(await sha256('verify_cancel_limit@test.local')).first<{ send_count: number }>())
 			.toEqual({ send_count: 1 });
@@ -450,10 +450,10 @@ describe('registration email verification', () => {
 		const cookie = registrationCookie(registration);
 		await registrationRequest('/continue', cookie);
 		const before = await pendingUser('verify_expired_resend@test.local');
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"UPDATE users SET email_verification_expires_at = datetime('now', '-1 minute') WHERE id = ?1",
 		).bind(before.id).run();
-		await env.DB.prepare(
+		await env.DB_META_C000.prepare(
 			"UPDATE registration_email_delivery_limits SET last_sent_at = datetime('now', '-2 minutes') WHERE email_hash = ?1",
 		).bind(await sha256('verify_expired_resend@test.local')).run();
 
@@ -502,7 +502,7 @@ describe('registration email verification', () => {
 		));
 		expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
 		expect(responses.filter((response) => [401, 409, 410].includes(response.status))).toHaveLength(1);
-		expect(await env.DB.prepare(
+		expect(await env.DB_META_C000.prepare(
 			'SELECT COUNT(*) AS count FROM oauth_access_tokens WHERE user_id = ?1',
 		).bind(user.id).first<{ count: number }>()).toEqual({ count: 1 });
 	});
@@ -515,7 +515,7 @@ describe('registration email verification', () => {
 			registration_state: 'pending_approval',
 		});
 
-		const account = await env.DB.prepare(
+		const account = await env.DB_META_C000.prepare(
 			"SELECT id FROM accounts WHERE username = 'verify_approval' AND domain IS NULL",
 		).first<{ id: string }>();
 		expect(account).toBeTruthy();

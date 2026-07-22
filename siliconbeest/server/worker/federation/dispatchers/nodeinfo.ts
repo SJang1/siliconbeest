@@ -39,22 +39,22 @@ async function getStats(): Promise<NodeInfoStats> {
   const activeHalfyearSince = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
   const [usersResult, activeMonthUserCountResult, activeHalfyearUserCountResult, statusesResult, domainsResult, commentsResult] = await Promise.all([
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM accounts WHERE domain IS NULL`).first(),
+    env.DB_META_C000.prepare(
       `SELECT COUNT(DISTINCT a.id) AS cnt
        FROM accounts a
        JOIN users u ON u.account_id = a.id
        WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
     ).bind(activeMonthSince).first(),
-    env.DB.prepare(
+    env.DB_META_C000.prepare(
       `SELECT COUNT(DISTINCT a.id) AS cnt
        FROM accounts a
        JOIN users u ON u.account_id = a.id
        WHERE a.domain IS NULL AND u.current_sign_in_at >= ?1`,
     ).bind(activeHalfyearSince).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
-    env.DB.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL AND local = 1 AND reply = 1`).first(),
+    env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL`).first(),
+    env.DB_META_C000.prepare(`SELECT COUNT(DISTINCT domain) AS cnt FROM accounts WHERE domain IS NOT NULL`).first(),
+    env.DB_META_C000.prepare(`SELECT COUNT(*) AS cnt FROM statuses WHERE deleted_at IS NULL AND local = 1 AND reply = 1`).first(),
   ]);
 
   const stats: NodeInfoStats = {

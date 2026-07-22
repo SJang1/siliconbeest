@@ -260,7 +260,7 @@ describe('Status translation API with Workers AI disabled', () => {
         { method: 'POST', headers: authHeaders(token) },
       );
       await inferenceStarted;
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE statuses
          SET text = ?1, content = ?1, updated_at = ?2
          WHERE id = ?3`,

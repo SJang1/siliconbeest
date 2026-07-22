@@ -36,6 +36,7 @@ import {
 import { canSurfaceStatusToViewer } from '../../../../services/permissions';
 import { recordRecommendationActivity } from '../../../../services/recommendationActivity';
 import { scheduleBackgroundTask } from '../../../../utils/backgroundTask';
+import { tryAcceptSimpleStatusWrite } from '../../../../services/asyncStatusWrite';
 
 type HonoEnv = { Variables: AppVariables };
 
@@ -88,6 +89,25 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     }
     requestedVisibility = parsedVisibility;
   }
+
+  const accepted = await tryAcceptSimpleStatusWrite(
+    domain,
+    currentUser.account_id,
+    currentAccount.username,
+    {
+      text: statusText,
+      objectType,
+      visibility: requestedVisibility,
+      sensitive: body.sensitive,
+      spoilerText: objectType === 'Article' ? (body.summary ?? body.spoiler_text) : body.spoiler_text,
+      language: body.language,
+      mediaIds,
+      inReplyToId: body.in_reply_to_id,
+      pollOptions: body.poll?.options,
+      quoteId: body.quote_id,
+    },
+  );
+  if (accepted) return c.json(accepted, 202);
 
   // ============================================================
   // Call service to handle all DB operations
@@ -150,7 +170,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   let quoteTarget: QuoteTarget | null = null;
 
   if (quoteId) {
-    quoteTarget = await env.DB.prepare(
+    quoteTarget = await env.DB_META_C000.prepare(
       `SELECT s.id, s.uri, s.account_id,
               a.username AS account_username, a.domain AS account_domain,
               a.uri AS account_uri, a.inbox_url AS account_inbox_url,
@@ -177,7 +197,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         quoteApprovalStatus = 'accepted';
       }
 
-      await env.DB.prepare(
+      await env.DB_META_C000.prepare(
         `UPDATE statuses
          SET quote_authorization_uri = ?1, quote_approval_status = ?2, quote_request_uri = ?3, updated_at = ?4
          WHERE id = ?5`,
@@ -249,7 +269,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       const conditions = remoteMentions.map(() => `(username = ? AND domain = ?)`).join(' OR ');
       const values = remoteMentions.flatMap(m => [m.username, m.domain!]);
       const query = `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE ${conditions}`;
-      const existingRemoteAccounts = await env.DB.prepare(query)
+      const existingRemoteAccounts = await env.DB_META_C000.prepare(query)
         .bind(...values)
         .all<Record<string, unknown>>();
 
@@ -281,7 +301,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
               // resolveRemoteAccount will fetch the actor doc and upsert
               const accountId = await resolveRemoteAccount(selfLink.href, currentAccount.id);
               if (accountId) {
-                accountRow = await env.DB.prepare(
+                accountRow = await env.DB_META_C000.prepare(
                   'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE id = ?1',
                 ).bind(accountId).first();
               }
@@ -332,7 +352,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         query += `(?${idx * 4 + 1}, ?${idx * 4 + 2}, ?${idx * 4 + 3}, ?${idx * 4 + 4})`;
         values.push(...mention);
       });
-      await env.DB.prepare(query).bind(...values).run();
+      await env.DB_META_C000.prepare(query).bind(...values).run();
     }
 
     // Batch queue all notifications (fire and forget, don't block)
@@ -374,7 +394,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
   // Update DB content if changed
   if (fixedContent !== content) {
-    await env.DB.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
+    await env.DB_META_C000.prepare('UPDATE statuses SET content = ?1 WHERE id = ?2').bind(fixedContent, statusId).run();
   }
 
   // ============================================================
@@ -394,7 +414,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       }
       // Streaming: fetch full status from DB for accurate payload
       const { sendStreamEvent } = await import('../../../../services/streaming');
-      const dmRow = await env.DB.prepare(
+      const dmRow = await env.DB_META_C000.prepare(
         `SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
                 a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
                 a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
@@ -407,7 +427,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
       ).bind(statusId).first<StatusWithJoinedAccountRow>();
 
       if (dmRow) {
-        const { results: dmMedia } = await env.DB.prepare(
+        const { results: dmMedia } = await env.DB_META_C000.prepare(
           'SELECT id, type, file_key, description, blurhash, width, height FROM media_attachments WHERE status_id = ?1',
         ).bind(statusId).all<Pick<MediaAttachmentRow, 'id' | 'type' | 'file_key' | 'description' | 'blurhash' | 'width' | 'height'>>();
         const mediaArr = (dmMedia ?? []).map((m) => {
@@ -449,7 +469,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
         // Stream to mentioned local users
         for (const rm of resolvedMentions) {
           if (allowedLocalRecipientIds.has(rm.account_id)) {
-            const mUser = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(rm.account_id).first();
+            const mUser = await env.DB_META_C000.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(rm.account_id).first();
             if (mUser) { try { await sendStreamEvent(mUser.id as string, { event: 'update', payload: dmPayload, stream: ['user', 'direct'] }); } catch {} }
           }
         }
@@ -497,7 +517,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     // -- Resolve inReplyTo URI --
     let replyTarget: URL | undefined;
     if (inReplyToId) {
-      const parentUri = await env.DB.prepare(
+      const parentUri = await env.DB_META_C000.prepare(
         'SELECT uri FROM statuses WHERE id = ?1',
       ).bind(inReplyToId).first<{ uri: string }>();
       if (parentUri) {
@@ -522,7 +542,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     );
 
     // -- Build media attachments --
-    const { results: apMediaRows } = await env.DB.prepare(
+    const { results: apMediaRows } = await env.DB_META_C000.prepare(
       'SELECT * FROM media_attachments WHERE status_id = ?1',
     ).bind(statusId).all();
     const mediaAttachmentObjects = (apMediaRows ?? []).map((m: any) => {
@@ -708,7 +728,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
       // If this is a reply to a remote user, also deliver directly
       if (inReplyToAccountId) {
-        const parentAuthor = await env.DB.prepare(
+        const parentAuthor = await env.DB_META_C000.prepare(
           'SELECT id, domain, uri FROM accounts WHERE id = ?1',
         ).bind(inReplyToAccountId).first();
         if (parentAuthor && parentAuthor.domain && parentAuthor.uri) {
@@ -728,7 +748,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   }
 
   // Fetch full account data for response
-  const accountRow = await env.DB.prepare(
+  const accountRow = await env.DB_META_C000.prepare(
     'SELECT * FROM accounts WHERE id = ?1',
   ).bind(currentUser.account_id).first();
   if (!accountRow) throw new AppError(500, 'Account not found');
@@ -760,7 +780,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
   };
 
   // Fetch media attachments for response
-  const { results: mediaResults } = await env.DB.prepare(
+  const { results: mediaResults } = await env.DB_META_C000.prepare(
     'SELECT * FROM media_attachments WHERE status_id = ?1',
   ).bind(statusId).all();
 
@@ -782,7 +802,7 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
     quoteStatusId: quoteId,
     quoteApprovalStatus,
   })) {
-    const quotedRow = await env.DB.prepare(
+    const quotedRow = await env.DB_META_C000.prepare(
       `SELECT s.*, a.username AS account_username, a.domain AS account_domain,
         a.display_name AS account_display_name, a.note AS account_note,
         a.uri AS account_uri, a.url AS account_url,

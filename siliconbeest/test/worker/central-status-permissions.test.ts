@@ -33,22 +33,22 @@ describe('central status permissions', () => {
     silencedAuthor = await createTestUser('central-silenced');
 
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
        VALUES ('central-follow', ?1, ?2, ?3, ?3)`,
     ).bind(follower.accountId, author.accountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO follows (id, account_id, target_account_id, created_at, updated_at)
        VALUES ('central-silenced-follow', ?1, ?2, ?3, ?3)`,
     ).bind(follower.accountId, silencedAuthor.accountId, now).run();
 
-    const insertStatus = env.DB.prepare(
+    const insertStatus = env.DB_META_C000.prepare(
       `INSERT INTO statuses (
          id, uri, url, account_id, text, content, visibility, sensitive,
          language, local, created_at, updated_at, deleted_at
        ) VALUES (?1, ?2, ?2, ?3, ?4, ?4, ?5, 0, 'en', 1, ?6, ?6, ?7)`,
     );
-    await env.DB.batch([
+    await env.DB_META_C000.batch([
       insertStatus.bind('central-public', 'https://local.test/status/public', author.accountId, 'public', 'public', now, null),
       insertStatus.bind('central-unlisted', 'https://local.test/status/unlisted', author.accountId, 'unlisted', 'unlisted', now, null),
       insertStatus.bind('central-private', 'https://local.test/status/private', author.accountId, 'private', 'private', now, null),
@@ -59,12 +59,12 @@ describe('central status permissions', () => {
       insertStatus.bind('central-suspended-status', 'https://local.test/status/suspended', suspendedAuthor.accountId, 'suspended', 'public', now, null),
       insertStatus.bind('central-silenced-status', 'https://local.test/status/silenced', silencedAuthor.accountId, 'silenced', 'public', now, null),
     ]);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO mentions (id, status_id, account_id, created_at)
        VALUES ('central-mention', 'central-direct-one', ?1, ?2),
               ('central-private-mention', 'central-private', ?1, ?2)`,
     ).bind(mentioned.accountId, now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO accounts (
          id, username, domain, uri, url, created_at, updated_at
        ) VALUES (
@@ -73,7 +73,7 @@ describe('central status permissions', () => {
          'https://blocked.example/@remote', ?1, ?1
        )`,
     ).bind(now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses (
          id, uri, url, account_id, text, content, visibility, sensitive,
          language, local, created_at, updated_at, deleted_at
@@ -83,10 +83,10 @@ describe('central status permissions', () => {
          'remote', 'remote', 'public', 0, 'en', 0, ?1, ?1, NULL
        )`,
     ).bind(now).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET suspended_at = ?1 WHERE id = ?2',
     ).bind(now, suspendedAuthor.accountId).run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       'UPDATE accounts SET silenced_at = ?1 WHERE id = ?2',
     ).bind(now, silencedAuthor.accountId).run();
   });
@@ -110,7 +110,7 @@ describe('central status permissions', () => {
 
   it('builds a list predicate with the same rules', async () => {
     const predicate = buildStatusVisibilitySqlPredicate('status', mentioned.accountId);
-    const rows = await env.DB.prepare(
+    const rows = await env.DB_META_C000.prepare(
       `SELECT s.id FROM statuses s
        WHERE s.account_id = ? AND ${predicate.sql}
        ORDER BY s.id`,
@@ -134,7 +134,7 @@ describe('central status permissions', () => {
       viewerLikeSql,
       viewerLikeSql,
     ]);
-    const privateRow = await env.DB.prepare(
+    const privateRow = await env.DB_META_C000.prepare(
       `SELECT s.id FROM statuses s
        WHERE s.id = 'central-private' AND ${boundViewer.sql}`,
     ).bind(...boundViewer.bindings).first<{ id: string }>();
@@ -156,7 +156,7 @@ describe('central status permissions', () => {
 
   it('hides public canonical resources only in the author-to-viewer block direction', async () => {
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('central-author-blocks-viewer', ?1, ?2, ?3)`,
     ).bind(author.accountId, stranger.accountId, now).run();
@@ -167,8 +167,8 @@ describe('central status permissions', () => {
       headers: authHeaders(stranger.token),
     })).status).toBe(404);
 
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'central-author-blocks-viewer'").run();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'central-author-blocks-viewer'").run();
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('central-viewer-blocks-author', ?1, ?2, ?3)`,
     ).bind(stranger.accountId, author.accountId, now).run();
@@ -176,7 +176,7 @@ describe('central status permissions', () => {
     expect(await canViewStatusById('central-public', stranger.accountId)).toBe(true);
     expect(await canAccountInteractWithStatus('central-public', stranger.accountId)).toBe(false);
 
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'central-viewer-blocks-author'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'central-viewer-blocks-author'").run();
   });
 
   it('surfaces silenced authors only to themselves and followers', async () => {
@@ -186,7 +186,7 @@ describe('central status permissions', () => {
         viewerAccountId,
         new Date().toISOString(),
       );
-      const row = await env.DB.prepare(
+      const row = await env.DB_META_C000.prepare(
         `SELECT s.id FROM statuses s
          WHERE s.id = 'central-silenced-status' AND ${predicate.sql}`,
       ).bind(...predicate.bindings).first<{ id: string }>();
@@ -204,19 +204,19 @@ describe('central status permissions', () => {
     expect(await canSurfaceStatusToViewer('central-direct-two', mentioned.accountId)).toBe(false);
     expect(await canSurfaceStatusToViewer('central-direct-one', '')).toBe(false);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('central-reverse-block', ?1, ?2, ?3)`,
     ).bind(author.accountId, mentioned.accountId, new Date().toISOString()).run();
     expect(await canSurfaceStatusToViewer('central-direct-one', mentioned.accountId)).toBe(false);
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'central-reverse-block'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'central-reverse-block'").run();
   });
 
   it('suppresses blocked remote domains on surfaces and interactions but not canonical fetches', async () => {
     expect(await canViewStatusById('central-remote-public', stranger.accountId)).toBe(true);
     expect(await canSurfaceStatusToViewer('central-remote-public', stranger.accountId)).toBe(true);
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO user_domain_blocks (id, account_id, domain, created_at)
        VALUES ('central-domain-block', ?1, 'BLOCKED.EXAMPLE', ?2)`,
     ).bind(stranger.accountId, new Date().toISOString()).run();
@@ -230,14 +230,14 @@ describe('central status permissions', () => {
       stranger.accountId,
       new Date().toISOString(),
     );
-    const remoteSender = await env.DB.prepare(
+    const remoteSender = await env.DB_META_C000.prepare(
       `SELECT a.id FROM accounts a
        WHERE a.id = 'central-remote-author'
          AND ${notificationPermission.sql}`,
     ).bind(...notificationPermission.bindings).first<{ id: string }>();
     expect(remoteSender).toBeNull();
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "DELETE FROM user_domain_blocks WHERE id = 'central-domain-block'",
     ).run();
   });
@@ -249,7 +249,7 @@ describe('central status permissions', () => {
         recipientAccountId,
         new Date().toISOString(),
       );
-      const notificationSender = await env.DB.prepare(
+      const notificationSender = await env.DB_META_C000.prepare(
         `SELECT a.id FROM accounts a
          WHERE a.id = ? AND ${predicate.sql}`,
       ).bind(author.accountId, ...predicate.bindings).first<{ id: string }>();
@@ -258,32 +258,32 @@ describe('central status permissions', () => {
 
     await expect(canReadNotification(mentioned.accountId)).resolves.toBe(true);
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO mutes (
          id, account_id, target_account_id, hide_notifications, expires_at,
          created_at, updated_at
        ) VALUES ('central-notification-mute', ?1, ?2, 0, NULL, ?3, ?3)`,
     ).bind(mentioned.accountId, author.accountId, now).run();
     await expect(canReadNotification(mentioned.accountId)).resolves.toBe(true);
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       "UPDATE mutes SET hide_notifications = 1 WHERE id = 'central-notification-mute'",
     ).run();
     await expect(canReadNotification(mentioned.accountId)).resolves.toBe(false);
-    await env.DB.prepare("DELETE FROM mutes WHERE id = 'central-notification-mute'").run();
+    await env.DB_META_C000.prepare("DELETE FROM mutes WHERE id = 'central-notification-mute'").run();
 
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO blocks (id, account_id, target_account_id, created_at)
        VALUES ('central-notification-block', ?1, ?2, ?3)`,
     ).bind(author.accountId, mentioned.accountId, now).run();
     await expect(canReadNotification(mentioned.accountId)).resolves.toBe(false);
-    await env.DB.prepare("DELETE FROM blocks WHERE id = 'central-notification-block'").run();
+    await env.DB_META_C000.prepare("DELETE FROM blocks WHERE id = 'central-notification-block'").run();
 
     const emptyRecipient = buildNotificationRelationshipSqlPredicate(
       'notification_sender',
       '',
       now,
     );
-    const denied = await env.DB.prepare(
+    const denied = await env.DB_META_C000.prepare(
       `SELECT a.id FROM accounts a
        WHERE a.id = ? AND ${emptyRecipient.sql}`,
     ).bind(author.accountId).first<{ id: string }>();
@@ -325,7 +325,7 @@ describe('central status permissions', () => {
     });
     expect(response.status).toBe(422);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       "SELECT id FROM statuses WHERE account_id = ?1 AND text = 'must not persist'",
     ).bind(author.accountId).first<{ id: string }>();
     expect(stored).toBeNull();

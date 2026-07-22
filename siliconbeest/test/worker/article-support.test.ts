@@ -19,7 +19,7 @@ describe('ActivityStreams Article support', () => {
     const id = '01ARTICLE000000000000000001';
     const uri = `${BASE}/users/articleauthor/statuses/${id}`;
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO statuses
        (id, uri, url, object_type, title, account_id, text, content,
         visibility, local, created_at, updated_at)
@@ -73,7 +73,7 @@ describe('ActivityStreams Article support', () => {
     expect(created.content).toContain('<code>inline code</code>');
     expect(created.content).toContain('<img src="https://example.com/diagram.png" alt="Diagram" />');
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT object_type, title, text, content_warning FROM statuses WHERE id = ?1',
     ).bind(created.id).first<{ object_type: string; title: string; text: string; content_warning: string }>();
     expect(stored).toMatchObject({

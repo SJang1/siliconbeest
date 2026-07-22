@@ -60,7 +60,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
       account.id,
       new Date().toISOString(),
     );
-    const { results: statusRows } = await env.DB.prepare(
+    const { results: statusRows } = await env.DB_META_C000.prepare(
       `SELECT s.id, s.uri, s.url, s.content, s.visibility, s.sensitive,
               s.content_warning, s.language, s.created_at, s.in_reply_to_id,
               s.in_reply_to_account_id, s.reblogs_count, s.favourites_count,
@@ -157,7 +157,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   const emojiUrlMap = new Map<string, string>();
   if (emojiShortcodes.size > 0) {
     const placeholders = [...emojiShortcodes].map(() => '?').join(',');
-    const emojiRows = await env.DB.prepare(
+    const emojiRows = await env.DB_META_C000.prepare(
       `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders})`,
     ).bind(...emojiShortcodes).all<{ shortcode: string; domain: string | null; image_key: string }>();
     const instanceDomain = env.INSTANCE_DOMAIN;
@@ -170,7 +170,7 @@ app.get('/', authRequired, requireScope('read:notifications'), async (c) => {
   await Promise.all(visibleRows.map(async (row) => {
     const emoji = row.emoji;
     if (row.type !== 'emoji_reaction' || !row.status_id || !emoji?.startsWith(':') || !emoji.endsWith(':')) return;
-    const er = await env.DB.prepare(
+    const er = await env.DB_META_C000.prepare(
       `SELECT ce.domain, ce.image_key
        FROM emoji_reactions er
        JOIN custom_emojis ce ON ce.id = er.custom_emoji_id

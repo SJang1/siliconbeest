@@ -49,7 +49,7 @@ class QuoteRequestProcessor extends BaseProcessor {
       return;
     }
 
-    const quoted = await env.DB.prepare(
+    const quoted = await env.DB_META_C000.prepare(
       `SELECT s.id, s.uri, s.account_id, s.visibility, s.deleted_at, s.quote_policy,
               s.quote_policy_automatic_approvals, s.quote_policy_manual_approvals,
               a.username, a.uri AS account_uri
@@ -76,7 +76,7 @@ class QuoteRequestProcessor extends BaseProcessor {
       )) {
       return;
     }
-    const remoteActor = await env.DB.prepare(
+    const remoteActor = await env.DB_META_C000.prepare(
       'SELECT inbox_url, shared_inbox_url FROM accounts WHERE id = ?1 LIMIT 1',
     ).bind(remoteActorAccountId).first<{ inbox_url: string | null; shared_inbox_url: string | null }>();
 

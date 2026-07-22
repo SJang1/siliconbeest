@@ -54,7 +54,7 @@ class FollowProcessor extends BaseProcessor {
 			// Insert follow request
 			const requestId = generateUlid();
 			try {
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					`INSERT INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 				)
@@ -76,7 +76,7 @@ class FollowProcessor extends BaseProcessor {
 			// Auto-accept: insert directly into follows
 			const followId = generateUlid();
 			try {
-				await env.DB.prepare(
+				await env.DB_META_C000.prepare(
 					`INSERT INTO follows (id, account_id, target_account_id, uri, created_at, updated_at)
 					 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 				)

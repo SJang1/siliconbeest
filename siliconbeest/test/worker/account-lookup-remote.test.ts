@@ -76,7 +76,7 @@ async function insertRemoteAccount(opts: {
   const id = crypto.randomUUID();
   const uri = `https://${opts.domain}/users/${crypto.randomUUID()}`;
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  await env.DB_META_C000.prepare(
     `INSERT INTO accounts
        (id, username, domain, display_name, note, uri, url, fetched_at, created_at, updated_at)
      VALUES (?1, ?2, ?3, '', '', ?4, ?4, ?5, ?6, ?6)`,
@@ -116,7 +116,7 @@ describe('account lookup remote resolution', () => {
     expect(body.acct).toBe(`${username}@${domain}`);
     expect(fedifyState.webFingerCalls).toContain(`acct:${username}@${domain}`);
 
-    const stored = await env.DB.prepare(
+    const stored = await env.DB_META_C000.prepare(
       'SELECT id FROM accounts WHERE uri = ?1',
     ).bind(actorUri).first<{ id: string }>();
     expect(stored).not.toBeNull();
@@ -127,7 +127,7 @@ describe('account lookup remote resolution', () => {
     const app = makeApp();
     const domain = 'suspended-lookup.example';
     const now = new Date().toISOString();
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO domain_blocks (id, domain, severity, created_at, updated_at)
        VALUES (?1, ?2, 'suspend', ?3, ?3)`,
     ).bind(crypto.randomUUID(), domain, now).run();
@@ -143,7 +143,7 @@ describe('account lookup remote resolution', () => {
     const app = makeApp();
     const blocker = await createTestUser(uniqueName('lookupblocker'));
     const domain = 'user-blocked-lookup.example';
-    await env.DB.prepare(
+    await env.DB_META_C000.prepare(
       `INSERT INTO user_domain_blocks (id, account_id, domain) VALUES (?1, ?2, ?3)`,
     ).bind(crypto.randomUUID(), blocker.accountId, domain).run();
 
