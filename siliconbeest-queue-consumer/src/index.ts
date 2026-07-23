@@ -72,7 +72,7 @@ export { ShardWriterDO } from './durableObjects/shardWriter';
 // The prefix is configurable (PROJECT_PREFIX in scripts/config.sh); the
 // suffixes are fixed by scripts/install.sh and scripts/sync-config.sh.
 const DLQ_QUEUE_SUFFIX = '-federation-dlq';
-const INBOX_DLQ_PATTERN = /-inbox-[0-7]-dlq$/;
+const INBOX_DLQ_SUFFIX = '-inbox-dlq';
 const INTERNAL_QUEUE_SUFFIX = '-internal';
 const DB_INSERT_QUEUE_SUFFIX = '-db-insert';
 const DB_UPDATE_QUEUE_SUFFIX = '-db-update';
@@ -171,7 +171,7 @@ type ProcessOutcome = 'processed' | 'deferred' | 'skipped';
  * Returns 'deferred' when a Fedify ordering lock is held (caller should
  * retry), 'skipped' for unrecognized bodies. Throws on processing failure.
  */
-async function processMessageBody(body: Record<string, unknown>): Promise<ProcessOutcome> {
+async function processMessageBody(body: Record<string, unknown>, sourceQueue: string): Promise<ProcessOutcome> {
   // Ensure federation dispatchers are registered before any handler runs.
   // Legacy handlers (fetch_remote_account, fetch_remote_status) need
   // ctx.getDocumentLoader({ identifier: '__instance__' }) for signed fetches,
@@ -180,7 +180,10 @@ async function processMessageBody(body: Record<string, unknown>): Promise<Proces
 
   // ---- Fedify queued tasks (from WorkersMessageQueue / sendActivity) ----
   if (isFedifyMessage(body)) {
-    const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION, { orderingKv: env.FEDIFY_KV });
+    const queueBinding = sourceQueue.endsWith('-inbox') || sourceQueue.endsWith(INBOX_DLQ_SUFFIX)
+      ? env.QUEUE_INBOX
+      : env.QUEUE_FEDERATION;
+    const wmq = new WorkersMessageQueue(queueBinding, { orderingKv: env.FEDIFY_KV });
     const result = await measureAsync('queue.fedify.processMessage', () => wmq.processMessage(body)) as ProcessMessageResult;
     if (!result.shouldProcess) return 'deferred';
     try {
@@ -368,7 +371,7 @@ async function consumeDlqBatch(batch: MessageBatch): Promise<void> {
       body,
     });
     try {
-      const outcome = await processMessageBody(body);
+      const outcome = await processMessageBody(body, batch.queue);
       if (outcome === 'deferred' && msg.attempts < DLQ_MAX_ATTEMPTS) {
         msg.retry({ delaySeconds: 60 });
         continue;
@@ -492,7 +495,7 @@ const handler = {
     ensureDebugSentryLogging();
     ensureDebugBindingLogging();
 
-    if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX) || INBOX_DLQ_PATTERN.test(batch.queue)) {
+    if (batch.queue.endsWith(DLQ_QUEUE_SUFFIX) || batch.queue.endsWith(INBOX_DLQ_SUFFIX)) {
       await consumeDlqBatch(batch);
       return;
     }
@@ -541,7 +544,7 @@ const handler = {
         body,
       });
       try {
-        const outcome = await processMessageBody(body);
+        const outcome = await processMessageBody(body, batch.queue);
         if (outcome === 'deferred') {
           console.log('[queue] Fedify message deferred (ordering lock)');
           msg.retry();

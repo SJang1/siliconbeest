@@ -46,7 +46,8 @@ else
   KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
   KV_FEDIFY_TITLE="${KV_FEDIFY_TITLE:-${PROJECT_PREFIX}-FEDIFY_KV}"
   QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
-  INBOX_QUEUE_LANES=8
+  QUEUE_INBOX="${QUEUE_INBOX:-${PROJECT_PREFIX}-inbox}"
+  QUEUE_INBOX_DLQ="${QUEUE_INBOX_DLQ:-${PROJECT_PREFIX}-inbox-dlq}"
   QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
   QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
   QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
@@ -522,6 +523,8 @@ echo "  KV CACHE:       ${KV_CACHE_ID:-NOT FOUND}"
 echo "  KV SESSIONS:    ${KV_SESSIONS_ID:-NOT FOUND}"
 echo "  KV FEDIFY:      ${KV_FEDIFY_ID:-NOT FOUND}"
 echo "  Queue Fed:      ${QUEUE_FEDERATION}"
+echo "  Queue Inbox:    ${QUEUE_INBOX}"
+echo "  Queue Inbox DLQ:${QUEUE_INBOX_DLQ}"
 echo "  Queue Internal: ${QUEUE_INTERNAL}"
 echo "  Queue Email:    ${QUEUE_EMAIL}"
 echo "  Queue DLQ:      ${QUEUE_DLQ}"
@@ -671,14 +674,7 @@ ${WORKERS_AI_BINDING_BLOCK}
 	// Queues (producer bindings — worker enqueues jobs)
 	"queues": {
 		"producers": [
-			{ "binding": "QUEUE_INBOX_0", "queue": "${PROJECT_PREFIX}-inbox-0" },
-			{ "binding": "QUEUE_INBOX_1", "queue": "${PROJECT_PREFIX}-inbox-1" },
-			{ "binding": "QUEUE_INBOX_2", "queue": "${PROJECT_PREFIX}-inbox-2" },
-			{ "binding": "QUEUE_INBOX_3", "queue": "${PROJECT_PREFIX}-inbox-3" },
-			{ "binding": "QUEUE_INBOX_4", "queue": "${PROJECT_PREFIX}-inbox-4" },
-			{ "binding": "QUEUE_INBOX_5", "queue": "${PROJECT_PREFIX}-inbox-5" },
-			{ "binding": "QUEUE_INBOX_6", "queue": "${PROJECT_PREFIX}-inbox-6" },
-			{ "binding": "QUEUE_INBOX_7", "queue": "${PROJECT_PREFIX}-inbox-7" },
+			{ "binding": "QUEUE_INBOX", "queue": "${QUEUE_INBOX}" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "${QUEUE_FEDERATION}"
@@ -869,22 +865,8 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 	// Queues (consume federation + internal + federation-dlq, produce for re-enqueue/fanout)
 	"queues": {
 		"consumers": [
-			{ "queue": "${PROJECT_PREFIX}-inbox-0", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-0-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-1", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-1-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-2", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-2-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-3", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-3-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-4", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-4-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-5", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-5-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-6", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-6-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-7", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${PROJECT_PREFIX}-inbox-7-dlq" },
-			{ "queue": "${PROJECT_PREFIX}-inbox-0-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-1-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-2-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-3-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-4-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-5-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-6-dlq", "max_retries": 2 },
-			{ "queue": "${PROJECT_PREFIX}-inbox-7-dlq", "max_retries": 2 },
+			{ "queue": "${QUEUE_INBOX}", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "${QUEUE_INBOX_DLQ}" },
+			{ "queue": "${QUEUE_INBOX_DLQ}", "max_retries": 2 },
 			{
 				"queue": "${QUEUE_FEDERATION}",
 				"max_retries": 5,
@@ -935,14 +917,7 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 			}
 		],
 		"producers": [
-			{ "binding": "QUEUE_INBOX_0", "queue": "${PROJECT_PREFIX}-inbox-0" },
-			{ "binding": "QUEUE_INBOX_1", "queue": "${PROJECT_PREFIX}-inbox-1" },
-			{ "binding": "QUEUE_INBOX_2", "queue": "${PROJECT_PREFIX}-inbox-2" },
-			{ "binding": "QUEUE_INBOX_3", "queue": "${PROJECT_PREFIX}-inbox-3" },
-			{ "binding": "QUEUE_INBOX_4", "queue": "${PROJECT_PREFIX}-inbox-4" },
-			{ "binding": "QUEUE_INBOX_5", "queue": "${PROJECT_PREFIX}-inbox-5" },
-			{ "binding": "QUEUE_INBOX_6", "queue": "${PROJECT_PREFIX}-inbox-6" },
-			{ "binding": "QUEUE_INBOX_7", "queue": "${PROJECT_PREFIX}-inbox-7" },
+			{ "binding": "QUEUE_INBOX", "queue": "${QUEUE_INBOX}" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "${QUEUE_FEDERATION}"

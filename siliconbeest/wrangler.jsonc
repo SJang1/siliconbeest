@@ -101,14 +101,7 @@
 	// Queues (producer bindings — worker enqueues jobs)
 	"queues": {
 		"producers": [
-			{ "binding": "QUEUE_INBOX_0", "queue": "siliconbeest-inbox-0" },
-			{ "binding": "QUEUE_INBOX_1", "queue": "siliconbeest-inbox-1" },
-			{ "binding": "QUEUE_INBOX_2", "queue": "siliconbeest-inbox-2" },
-			{ "binding": "QUEUE_INBOX_3", "queue": "siliconbeest-inbox-3" },
-			{ "binding": "QUEUE_INBOX_4", "queue": "siliconbeest-inbox-4" },
-			{ "binding": "QUEUE_INBOX_5", "queue": "siliconbeest-inbox-5" },
-			{ "binding": "QUEUE_INBOX_6", "queue": "siliconbeest-inbox-6" },
-			{ "binding": "QUEUE_INBOX_7", "queue": "siliconbeest-inbox-7" },
+			{ "binding": "QUEUE_INBOX", "queue": "siliconbeest-inbox" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "siliconbeest-federation"

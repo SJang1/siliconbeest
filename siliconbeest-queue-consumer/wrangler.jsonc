@@ -67,22 +67,8 @@
 	// Queues (consume federation + internal + federation-dlq, produce for re-enqueue/fanout)
 	"queues": {
 		"consumers": [
-			{ "queue": "siliconbeest-inbox-0", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-0-dlq" },
-			{ "queue": "siliconbeest-inbox-1", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-1-dlq" },
-			{ "queue": "siliconbeest-inbox-2", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-2-dlq" },
-			{ "queue": "siliconbeest-inbox-3", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-3-dlq" },
-			{ "queue": "siliconbeest-inbox-4", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-4-dlq" },
-			{ "queue": "siliconbeest-inbox-5", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-5-dlq" },
-			{ "queue": "siliconbeest-inbox-6", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-6-dlq" },
-			{ "queue": "siliconbeest-inbox-7", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-7-dlq" },
-			{ "queue": "siliconbeest-inbox-0-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-1-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-2-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-3-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-4-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-5-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-6-dlq", "max_retries": 2 },
-			{ "queue": "siliconbeest-inbox-7-dlq", "max_retries": 2 },
+			{ "queue": "siliconbeest-inbox", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5, "dead_letter_queue": "siliconbeest-inbox-dlq" },
+			{ "queue": "siliconbeest-inbox-dlq", "max_retries": 2 },
 			{
 				"queue": "siliconbeest-federation",
 				"max_retries": 5,
@@ -133,14 +119,7 @@
 			}
 		],
 		"producers": [
-			{ "binding": "QUEUE_INBOX_0", "queue": "siliconbeest-inbox-0" },
-			{ "binding": "QUEUE_INBOX_1", "queue": "siliconbeest-inbox-1" },
-			{ "binding": "QUEUE_INBOX_2", "queue": "siliconbeest-inbox-2" },
-			{ "binding": "QUEUE_INBOX_3", "queue": "siliconbeest-inbox-3" },
-			{ "binding": "QUEUE_INBOX_4", "queue": "siliconbeest-inbox-4" },
-			{ "binding": "QUEUE_INBOX_5", "queue": "siliconbeest-inbox-5" },
-			{ "binding": "QUEUE_INBOX_6", "queue": "siliconbeest-inbox-6" },
-			{ "binding": "QUEUE_INBOX_7", "queue": "siliconbeest-inbox-7" },
+			{ "binding": "QUEUE_INBOX", "queue": "siliconbeest-inbox" },
 			{
 				"binding": "QUEUE_FEDERATION",
 				"queue": "siliconbeest-federation"

@@ -11,7 +11,7 @@
 - [Queues limits](https://developers.cloudflare.com/queues/platform/limits/)
 - [D1 read replication](https://developers.cloudflare.com/d1/best-practices/read-replication/)
 
-`/inbox` 전용 계산식, 8-lane Queue, 브라우저 count-only backpressure는 [INBOX_CAPACITY_AND_TIMELINE_BACKPRESSURE_KO.md](./INBOX_CAPACITY_AND_TIMELINE_BACKPRESSURE_KO.md)를 따른다.
+`/inbox` 전용 계산식, 목적별 단일 Queue, 브라우저 count-only backpressure는 [INBOX_CAPACITY_AND_TIMELINE_BACKPRESSURE_KO.md](./INBOX_CAPACITY_AND_TIMELINE_BACKPRESSURE_KO.md)를 따른다.
 
 ## 확정 한도
 

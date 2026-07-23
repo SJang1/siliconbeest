@@ -227,10 +227,8 @@ create_queue() {
 }
 
 create_queue "$QUEUE_FEDERATION"
-for ((lane = 0; lane < INBOX_QUEUE_LANES; lane++)); do
-  create_queue "${PROJECT_PREFIX}-inbox-${lane}"
-  create_queue "${PROJECT_PREFIX}-inbox-${lane}-dlq"
-done
+create_queue "$QUEUE_INBOX"
+create_queue "$QUEUE_INBOX_DLQ"
 create_queue "$QUEUE_INTERNAL"
 create_queue "$QUEUE_EMAIL"
 create_queue "$QUEUE_DLQ"
